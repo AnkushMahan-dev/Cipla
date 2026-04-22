@@ -1,0 +1,1602 @@
+*----------------------------------------------------------------------*
+* graphical maintenance plan overview                                  *
+*----------------------------------------------------------------------*
+*N744242 Clean up for Selection Screens
+REPORT rimhis00 MESSAGE-ID ip.
+ENHANCEMENT-POINT RIMHIS00_G4 SPOTS ES_RIMHIS00 STATIC.
+*$*$-Start: RIMHIS00_G4-------------------------------------------------------------------------$*$*
+ENHANCEMENT 1  MGV_GENERATED_RIMHIS00001.    "active version
+INITIALIZATION.
+DATA: mgv_matnr_prog LIKE rsvar-report,
+      mgv_matnr_selopt_tab like rsldbdfs occurs 0 with header line.
+FIELD-SYMBOLS <mgv_matnr_selopt_conv> TYPE STANDARD TABLE.
+ENDENHANCEMENT.
+*$*$-End:   RIMHIS00_G4-------------------------------------------------------------------------$*$*
+ENHANCEMENT-POINT RIMHIS00_G5 SPOTS ES_RIMHIS00.
+*$*$-Start: RIMHIS00_G5-------------------------------------------------------------------------$*$*
+ENHANCEMENT 2  MGV_GENERATED_RIMHIS00001.    "active version
+mgv_matnr_prog = sy-repid.
+mgv_matnr_selopt_tab-name = 'BAUTL' .
+append mgv_matnr_selopt_tab.
+mgv_matnr_selopt_tab-name = 'SERMAT' .
+append mgv_matnr_selopt_tab.
+call function 'MGV_SELOP_AFTER_INITIALIZATION'
+     EXPORTING
+         PROGRAM        = mgv_matnr_prog
+     TABLES
+         SELOP          = mgv_matnr_selopt_tab
+     EXCEPTIONS
+         NO_PROGRAMNAME = 1
+         OTHERS         = 2
+          .
+ENDENHANCEMENT.
+*$*$-End:   RIMHIS00_G5-------------------------------------------------------------------------$*$*
+ENHANCEMENT-POINT RIMHIS00_G6 SPOTS ES_RIMHIS00 STATIC.
+*$*$-Start: RIMHIS00_G6-------------------------------------------------------------------------$*$*
+ENHANCEMENT 3  MGV_GENERATED_RIMHIS00001.    "active version
+START-OF-SELECTION.
+ENDENHANCEMENT.
+*$*$-End:   RIMHIS00_G6-------------------------------------------------------------------------$*$*
+ENHANCEMENT-POINT RIMHIS00_G7 SPOTS ES_RIMHIS00.
+*$*$-Start: RIMHIS00_G7-------------------------------------------------------------------------$*$*
+ENHANCEMENT 4  MGV_GENERATED_RIMHIS00001.    "active version
+  LOOP AT mgv_matnr_selopt_tab.
+    CONCATENATE mgv_matnr_selopt_tab-name'[]' INTO
+    mgv_matnr_selopt_tab-name.
+    ASSIGN (mgv_matnr_selopt_tab-name) TO <mgv_matnr_selopt_conv>.
+    IF sy-subrc IS INITIAL.
+      CALL FUNCTION 'MGV_SELOP_AFTER_START_OF_SEL'
+           EXPORTING
+                SELOPT_NAME = mgv_matnr_selopt_tab-name
+           TABLES
+                RANGE       = <mgv_matnr_selopt_conv>.
+    ENDIF.
+  ENDLOOP.
+ENDENHANCEMENT.
+*$*$-End:   RIMHIS00_G7-------------------------------------------------------------------------$*$*
+
+*--- data definition
+DATA: zeile LIKE sy-tabix.
+DATA: l_w_message   TYPE bal_s_msg.
+
+* with ERP2005: Enhancement IP19 with ALV --- Start Changes ---
+* --- ouput structur of RIMHIS00 for ALV
+Tables: RIMHIS01.
+* with ERP2005: Enhancement IP19 with ALV --- End Changes ---
+
+INCLUDE miolstop.
+INCLUDE miolalvt.
+INCLUDE mio1xf10.
+*--- EHP605e: Linear Asset Management: global data for selection screen
+*    same include MIOLMPL4 = select options for RIMPOS00 und RIMHIS00
+INCLUDE eaml_sel_global_data.
+
+*--- Selektion bestimmter Objekttypen
+*    (TP, EQUI, Baugruppe, Auftrag, Datum)
+SELECTION-SCREEN BEGIN OF BLOCK rimhis00_1 WITH FRAME TITLE text-f04.
+*--- 1. Zeile
+SELECTION-SCREEN BEGIN OF LINE.
+*SELECTION-SCREEN COMMENT 1(20) text-f15.       "Datum von      "N744242
+SELECTION-SCREEN COMMENT 1(19) text-f15                         "N744242 n2134681
+                               FOR FIELD datuv. "Datum von      "N744242
+SELECTION-SCREEN POSITION 21.
+PARAMETERS datuv LIKE rihea-termab OBLIGATORY.
+SELECTION-SCREEN END OF LINE.
+*--- 2. Zeile
+SELECTION-SCREEN BEGIN OF LINE.
+*SELECTION-SCREEN COMMENT 1(20) text-f16.       "Datum bis      "N744242
+SELECTION-SCREEN COMMENT 1(19) text-f16                         "N744242 n2134681
+                               FOR FIELD datub. "Datum bis      "N744242
+SELECTION-SCREEN POSITION 21.
+PARAMETERS datub LIKE rihea-termbi OBLIGATORY.
+SELECTION-SCREEN END OF LINE.
+*--- 3. Zeile
+SELECTION-SCREEN BEGIN OF LINE.
+PARAMETERS tpsel LIKE rihea-mittp   DEFAULT ' '.          "Mit TP
+SELECTION-SCREEN COMMENT  4(20) text-f11 FOR FIELD tpsel.
+SELECTION-SCREEN POSITION 29.
+PARAMETERS aufsel LIKE rihea-mitauf DEFAULT ' '.          "Mit Aufträgen
+SELECTION-SCREEN COMMENT 32(20) text-f14 FOR FIELD aufsel.
+SELECTION-SCREEN POSITION 55.
+PARAMETERS qmsel LIKE rihea-mitqm DEFAULT ' '.            "Mit Meldungen
+SELECTION-SCREEN COMMENT 58(20) text-f24 FOR FIELD qmsel.
+SELECTION-SCREEN END OF LINE.
+*--- 4. Zeile
+SELECTION-SCREEN BEGIN OF LINE.
+PARAMETERS eqsel LIKE rihea-miteq   DEFAULT 'X'.          "Mit Equipment
+SELECTION-SCREEN COMMENT  4(20) text-f12 FOR FIELD eqsel.
+SELECTION-SCREEN POSITION 29.
+PARAMETERS apsel LIKE rihea-mitap DEFAULT ' '.            "Mit APlänen
+SELECTION-SCREEN COMMENT 32(20) text-f10 FOR FIELD apsel.
+SELECTION-SCREEN POSITION 55.
+PARAMETERS lbsel LIKE rihea-mitlb DEFAULT ' '.            "Mit Leistung.
+SELECTION-SCREEN COMMENT 58(25) text-f25 FOR FIELD lbsel.
+SELECTION-SCREEN END OF LINE.
+*--- 5. Zeile
+SELECTION-SCREEN BEGIN OF LINE.
+PARAMETERS btsel LIKE rihea-mitbg   DEFAULT ' '.          "Mit Baugruppe
+SELECTION-SCREEN COMMENT  4(20) text-f13 FOR FIELD btsel.
+SELECTION-SCREEN POSITION 29.
+PARAMETERS uasel LIKE rihea-mituvo DEFAULT ' '.           "Mit UVOs
+SELECTION-SCREEN COMMENT 32(20) text-f19 FOR FIELD uasel.
+SELECTION-SCREEN END OF LINE.
+*--- 6. Zeile
+SELECTION-SCREEN BEGIN OF LINE.
+PARAMETERS wasel LIKE rihea-mitwa   DEFAULT ' '.          "Mit WPlänen
+SELECTION-SCREEN COMMENT  4(20) text-f17 FOR FIELD wasel.
+SELECTION-SCREEN END OF LINE.
+
+*--- 7. Zeile
+SELECTION-SCREEN BEGIN OF LINE.
+PARAMETERS wosel LIKE rihea-mitwo   DEFAULT ' '.          "Mit WPosition
+SELECTION-SCREEN COMMENT  4(22) text-f18 FOR FIELD wosel.
+SELECTION-SCREEN POSITION 55.
+PARAMETERS with_sim LIKE rihea-mitsim DEFAULT 'X'.        "Mit Zusatzt.
+SELECTION-SCREEN COMMENT 58(20) text-f23 FOR FIELD with_sim.
+SELECTION-SCREEN END OF LINE.
+SELECTION-SCREEN END OF BLOCK rimhis00_1.
+
+* with ERP2005: Enhancement IP19 with ALV --- Start Changes ---
+
+*--- Festlegung Startbild der Wartungsterminübersicht
+SELECTION-SCREEN BEGIN OF BLOCK rimhis00_2 WITH FRAME TITLE text-f06.
+SELECTION-SCREEN BEGIN OF LINE.
+PARAMETERS screen1 RADIOBUTTON GROUP strt DEFAULT 'X'.
+SELECTION-SCREEN COMMENT 04(28) text-f07 FOR FIELD screen1.
+SELECTION-SCREEN POSITION 55.
+PARAMETERS screen2 RADIOBUTTON GROUP strt.
+SELECTION-SCREEN COMMENT 59(25) text-f08 FOR FIELD screen2.
+SELECTION-SCREEN END OF LINE.
+SELECTION-SCREEN END OF BLOCK rimhis00_2.
+
+
+* DATA: graph1 value 'X', graph2 value ' ', graph3 value ' '.
+
+SELECTION-SCREEN BEGIN OF BLOCK rimhis00_3 WITH FRAME TITLE text-f37.
+SELECTION-SCREEN BEGIN OF LINE.
+PARAMETERS graph1 RADIOBUTTON GROUP visi DEFAULT 'X'.
+SELECTION-SCREEN COMMENT 04(12) text-f26 FOR FIELD graph1.
+SELECTION-SCREEN POSITION 29.
+PARAMETERS graph2 RADIOBUTTON GROUP visi.
+SELECTION-SCREEN COMMENT 33(16) text-f27 FOR FIELD graph2.
+SELECTION-SCREEN POSITION 55.
+PARAMETERS graph3 RADIOBUTTON GROUP visi.
+SELECTION-SCREEN COMMENT 59(37) text-f28 FOR FIELD graph3.
+SELECTION-SCREEN END OF LINE.
+SELECTION-SCREEN END OF BLOCK rimhis00_3.
+* with ERP2005: Enhancement IP19 with ALV --- End Changes ---
+
+*SELECTION-SCREEN BEGIN OF LINE.
+*PARAMETERS graph1 RADIOBUTTON GROUP visi DEFAULT 'X' no-display.
+*SELECTION-SCREEN COMMENT 04(15) text-f26 FOR FIELD graph1.
+*SELECTION-SCREEN POSITION 35.
+*PARAMETERS graph2 RADIOBUTTON GROUP visi no-display.
+*SELECTION-SCREEN COMMENT 38(15) text-f27 FOR FIELD graph2.
+*SELECTION-SCREEN POSITION 69.
+*PARAMETERS graph3 RADIOBUTTON GROUP visi no-display.
+*SELECTION-SCREEN COMMENT 72(15) text-f28 FOR FIELD graph3.
+*SELECTION-SCREEN END OF LINE.
+
+*SELECTION-SCREEN BEGIN OF LINE.
+PARAMETERS det_sim LIKE rihea-mitsim DEFAULT ' ' no-display.
+*SELECTION-SCREEN COMMENT 04(75) text-f29 FOR FIELD det_sim.
+*SELECTION-SCREEN END OF LINE.
+*SELECTION-SCREEN END OF BLOCK rimhis00_2.
+
+*--- allg. Selektionskriterien (Selektion über Datenbankfelder)
+INCLUDE miolmpl4.
+
+SELECTION-SCREEN BEGIN OF BLOCK rimhis00_4 WITH FRAME TITLE text-f38."1033838
+PARAMETERS varia LIKE disvariant-variant.                   "1033838
+SELECTION-SCREEN END OF BLOCK rimhis00_4.                   "1033838
+
+INITIALIZATION.
+
+  datuv = sy-datum.
+  datub = sy-datum + 90.
+
+*--- Nachrichtenprotokoll initialisieren
+  CALL FUNCTION 'CM_F_INITIALIZE'.
+
+*--- refresh business application log
+  PERFORM bal_init(sapliwp3)
+          CHANGING g_bal.
+
+*--- get variant
+  PERFORM variant_start_f10.
+
+*--- is alternative labelling is avctive?
+  PERFORM check_altern_label_is_activ.
+
+AT SELECTION-SCREEN OUTPUT.
+  IF varia IS INITIAL.                                      "1033838
+    PERFORM get_default_variant USING varia.                "1033838
+  ENDIF.                                                    "1033838
+
+  PERFORM wplan_zuordnung.
+*--- Konvertierung Technischer Platz
+  PERFORM conversion_exit_tplnr_outp_f20 TABLES tplnr strno.
+  PERFORM check_display_norel.                             "n1817327
+
+*--- EhP605e Linear Asset Management
+*--- same include MIOLMPL4 = select options for RIMPOS00 und RIMHIS00
+*--- => Set Block lam_lfe off unswitched
+  PERFORM eaml_selection_screen_output USING sy-repid.  "EhP605 EAML
+
+AT SELECTION-SCREEN.
+*--- check selection-screen when via object-list
+  IF NOT oblis IS INITIAL.
+    PERFORM check_screen_objlist_l.
+  ENDIF.
+
+*----loyout in case of IP19 with list output
+  g_vari-variant = varia.                                   "1033838
+  g_vari-report = sy-repid.                                 "1033838
+  g_vari-username = sy-uname.                               "1033838
+  IF NOT varia IS INITIAL.                                  "1033838
+    CALL FUNCTION 'REUSE_ALV_VARIANT_EXISTENCE'             "1033838
+      EXPORTING                                             "1033838
+        i_save     = 'U'                                    "1033838
+      CHANGING                                              "1033838
+        cs_variant = g_vari.                                "1033838
+  ENDIF.                                                    "1033838
+
+START-OF-SELECTION.
+
+*--- Prüfen, nach welcher Objektart (TP, Equi, Baugr.) selektiert
+*    wurde
+  DESCRIBE TABLE tplnr LINES anz_obj.
+  IF anz_obj > 0. tpsel = 'X'. ENDIF.
+  DESCRIBE TABLE strno LINES anz_obj.
+  IF anz_obj > 0. tpsel = 'X'. ENDIF.
+  DESCRIBE TABLE equnr LINES anz_obj.
+  IF anz_obj > 0. eqsel = 'X'. ENDIF.
+  DESCRIBE TABLE bautl LINES anz_obj.
+  IF anz_obj > 0. btsel = 'X'. ENDIF.
+
+*--- Einlesen der Wartungspläne, -positionen pro Equi bzw. TP
+  PERFORM selection_vimpos.
+
+* start of note 1553174
+  IF CL_EAM_SWITCH_CHECKS=>EAM_SFWS_MPLAN_STRAT_UPD_ENH( ) = abap_true.
+    LOOP AT obj_tab INTO ls_obj_tab.
+      SELECT SINGLE * FROM mplan_strat_upd
+                      WHERE warpl = ls_obj_tab-warpl.
+      IF sy-subrc = 0.
+        DELETE obj_tab WHERE warpl = ls_obj_tab-warpl.
+*       Info message to be informed that maintenance plan
+*       have to be updated via IP11U
+        CALL FUNCTION 'CM_F_MESSAGE'
+          EXPORTING
+            arbgb = 'IP'
+            msgnr = '898'
+            msgty = 'I'
+            msgv1 = ls_obj_tab-warpl.
+      ENDIF.
+    ENDLOOP.
+  ENDIF.
+* end of note 1553174
+
+  DESCRIBE TABLE obj_tab LINES anz_obj.
+  IF anz_obj = 0.                      "keine WaPos
+    MESSAGE s601.
+    EXIT.
+  ENDIF.
+*--- Pruefung, ob WPlan-Status Selektion in IP19 verhindert
+  IF NOT sperre IS INITIAL.
+    PERFORM status_check_l.
+  ENDIF.
+  DESCRIBE TABLE obj_tab LINES anz_obj.
+  IF anz_obj = 0.                      "keine WaPos
+    MESSAGE s633.
+    EXIT.
+  ENDIF.
+
+  PERFORM wapos_check.
+
+*"n2504552 - work centers already in selection_vimpos
+**--- gültige Gewerke, PP-Arbeitsplätze rauslesen
+*  PERFORM gewerke_prepare.
+
+  DESCRIBE TABLE obj_tab LINES anz_obj.
+  IF anz_obj > 0.                      "Wartungspositionen vorhanden
+
+*--- sortiertes Einlesen der Wartungsplankopfdaten
+    SELECT * FROM mpla INTO TABLE wpk_tab
+                       FOR ALL ENTRIES IN obj_tab
+                               WHERE warpl = obj_tab-warpl.
+
+    PERFORM t399w_read.                "WPlantypen bereitstellen
+    LOOP AT wpk_tab.
+*--- Abrufobjekt ermitteln
+      READ TABLE t399w_tab WITH KEY wpk_tab-mptyp BINARY SEARCH.
+      IF sy-subrc IS INITIAL.
+        wpk_tab-call_type = t399w_tab-call_type.
+      ENDIF.
+
+*--- Entsprechend Abrufobjekttyp Notwendigkeit der Objektselektion
+*    ermitt.
+      CASE wpk_tab-call_type.
+        WHEN ctype_order.
+          apsel_necessary  = 'X'.      "AP-Selektion möglich
+          aufsel_necessary = 'X'.      "Auft.Selektion möglich
+        WHEN ctype_serv.
+          lbsel_necessary  = 'X'.      "MM-Selektion möglich
+        WHEN ctype_notif.
+          qmsel_necessary  = 'X'.      "Meld.Selektion möglich
+      ENDCASE.
+
+*--- auf Abruf-Nr. der MPLA abfragen, wenn = 0, dann
+*    WPlan rausnehmen mit Nachricht ans Protokoll, wegen fehlender
+*    Abrufe nicht reingenommen Status holen und Datumseinstellungen
+*    setzen
+      PERFORM get_wplan_status.
+    ENDLOOP.
+    FREE t399w_tab.                    "T399W wieder löschen
+
+  ELSE.
+
+      CALL FUNCTION 'CM_F_MESSAGE'                           "v n1854224
+        EXPORTING
+          arbgb = 'IP'
+          msgnr = '601'
+          msgty = 'I'.
+
+*    fill message work area
+      l_w_message-msgty = 'I'.
+      l_w_message-msgid = 'IP'.
+      l_w_message-msgno = '601'.
+
+*    fill BAL
+      PERFORM bal_fill(sapliwp3)
+              USING l_w_message
+                    g_bal.                                   "^ n1854224
+
+    IF SY-BINPT IS INITIAL AND                                 "n1853492
+       SY-BATCH IS INITIAL.                                    "n1853492
+
+        CALL FUNCTION 'CM_F_ANALYSIS'
+          EXPORTING
+            headline = text-200.
+
+    ELSE.                                                    "v n1854224
+
+        DATA: l_logprofil TYPE  bal_s_prof.
+
+        CALL FUNCTION 'BAL_DSP_PROFILE_POPUP_GET'
+          IMPORTING
+            e_s_display_profile = l_logprofil.
+
+        CALL FUNCTION 'BAL_DSP_LOG_DISPLAY'
+          EXPORTING
+            i_s_display_profile = l_logprofil
+          EXCEPTIONS
+            no_data_available   = 1.
+                                                             "^ n1854224
+    ENDIF.                                                     "n1853492
+
+    EXIT.
+  ENDIF.
+
+*--- Berechtigungsprüfung pro Wartungsplan
+  LOOP AT wpk_tab.
+    MOVE-CORRESPONDING wpk_tab TO mpla.
+
+    CALL FUNCTION 'WPLAN_AUTHORITY_CHECK'
+      EXPORTING
+        i_wa_mpla                = mpla
+      EXCEPTIONS
+        benutzerstamm_fehlerhaft = 1
+        keine_berechtigung       = 2
+        keine_berechtigung_anz   = 3
+        keine_berechtigung_hinz  = 4
+        keine_berechtigung_ver   = 5
+        kein_profil_im_bstamm    = 6
+        objekt_nicht_in_bstamm   = 7
+        OTHERS                   = 8.
+
+    IF NOT sy-subrc IS INITIAL.
+*--- Sammlung Nachricht: keine Berechtigung
+      CALL FUNCTION 'CM_F_MESSAGE'
+        EXPORTING
+          arbgb = 'IP'
+          msgnr = '620'
+          msgty = 'I'
+          msgv1 = mpla-warpl.
+
+*--- fill message work area
+      l_w_message-msgty = 'I'.
+      l_w_message-msgid = 'IP'.
+      l_w_message-msgno = '620'.
+      l_w_message-msgv1 = mpla-warpl.
+
+*--- fill BAL
+      PERFORM bal_fill(sapliwp3)
+              USING l_w_message
+                    g_bal.
+
+      LOOP AT obj_tab WHERE warpl = wpk_tab-warpl.
+        DELETE obj_tab.
+      ENDLOOP.
+      DELETE wpk_tab.
+    ENDIF.
+
+  ENDLOOP.
+
+* Start DFPS: Aufruf interner BADI
+
+* IP19: Wartungspläne aus der Grafik ausschließen, die in einen System
+* nicht aktiv vorhanden sind (Verteilung!)
+* Diese Verarbeitung kann NICHT im darüberliegenden LOOP durchgeführt
+* werden, da der LOOP u.U. anschließend nicht mehr korrekt weitergeführt
+* wird.
+  BREAK-POINT ID DFPS_PM_CP.
+  CALL FUNCTION 'DFPS_MPLA_IP19_AUTHCHECK_BADI'
+    EXPORTING
+      i_bal            = g_bal
+    tables
+      t_wpk            = wpk_tab
+      t_wppos          = obj_tab.
+
+* Ende DFPS
+
+  DESCRIBE TABLE obj_tab LINES anz_obj.
+  IF anz_obj > 0.                      "gültige WPläne vorhanden
+
+*--- aufgrund APlatz/Gewerk als Selektionsbedingung WAPOS nicht gültig ?
+    DESCRIBE TABLE obj_tab LINES anz_obj.
+    IF anz_obj = 0.
+      MESSAGE s601.
+      EXIT.
+    ENDIF.
+
+*   Maintenance plan simulation only possible via IP19          "N519538
+    IF NOT sy-tcode = ta_ip19.                                  "N519538
+      NO_SIM = 'X'.                                             "N519538
+    ENDIF.                                                      "N519538
+
+*--- Lesen aller Abrufe auch außerhalb des Zeitintervalls
+    SELECT * FROM mhis
+             APPENDING CORRESPONDING FIELDS OF TABLE imhis_tab
+             FOR ALL ENTRIES IN wpk_tab
+             WHERE warpl = wpk_tab-warpl.
+
+*--- Lesen aller Verknüpfungen Wartungsposition/Abrufe
+    SELECT * FROM mhio
+             APPENDING TABLE mhio_tab
+             FOR ALL ENTRIES IN obj_tab
+             WHERE warpl = obj_tab-warpl
+               AND wppos = obj_tab-wapos.
+
+*--- refresh global table of package data
+    REFRESH g_t_package_data_st_tl_temp.
+
+    LOOP AT wpk_tab.
+      CLEAR mhis_tmp.
+      CLEAR calls_in_time.
+      CLEAR calls_out_time.
+
+      LOOP AT imhis_tab WHERE warpl = wpk_tab-warpl.
+
+*--- letzten gültigen Abruf für Zusatztermine ermitteln
+        IF NOT with_sim IS INITIAL
+          AND mhis_tmp-abnum < imhis_tab-abnum
+          AND NOT imhis_tab-terma = terma_man.
+          MOVE-CORRESPONDING imhis_tab TO mhis_tmp.
+        ENDIF.
+
+*--- Prüfen, ob gefundener Abruf (nicht) im Intervall liegt
+        IF    imhis_tab-nplda >= datuv
+          AND imhis_tab-nplda <= datub.
+
+          calls_in_time   = 'X'.
+        ELSE.
+*--- wegen Zusatzterminen merken, ob nach ! Intervall
+*    noch Abrufe existier.
+          IF imhis_tab-nplda > datub AND
+             imhis_tab-tstat <> 'X'.                          "n2097143
+            calls_out_time  = 'X'.
+          ENDIF.
+        ENDIF.
+
+* mögliche Statuskombinationen
+* TSABR   TSVBT   TSENQ   TSENM   TSTAT
+*   X       -       -       -       A     abgerufen mit  Auftrag
+*   X       -       -       -       -     abgerufen ohne Auftrag
+*   -       X       X       -       -     wartet (TSENQ), fällig (TSVBT)
+*   -       X       X       -       F     wartet, ist fällig und fixiert
+*   X       -       -       -       X     übergangen
+*   -       X       X       X       -     gesperrt
+*   -       X       X       X       F     gesperrt
+*   X       -       -       -       -     LRMDT <> 0, erledigt
+* mögliche Statuskombinationen
+        imhis_tab-upd_knz = '*'.
+        IF imhis_tab-tsabr = 'X' AND imhis_tab-lrmdt IS INITIAL.
+          imhis_tab-stat = stat_call.
+        ENDIF.
+        IF imhis_tab-tsenq = 'X'. imhis_tab-stat = stat_wait. ENDIF.
+        IF imhis_tab-tstat = 'F'. imhis_tab-stat = stat_fix . ENDIF.
+        IF imhis_tab-tstat = 'X'. imhis_tab-stat = stat_skip. ENDIF.
+        IF imhis_tab-terma = terma_man.
+          imhis_tab-nplda = imhis_tab-manda.
+* nur bei Gantt Status "manuell" setzen, sonst "manuell" dahinter
+         if screen1 = 'X' or screen2 = 'X'.                "n1876138
+          imhis_tab-stat  = stat_man.
+         endif.
+        ENDIF.
+        IF imhis_tab-tsabr = 'X' AND NOT imhis_tab-lrmdt IS INITIAL.
+          imhis_tab-stat = stat_erl.
+        ENDIF.
+
+*--- Status INAK setzen auf Abrufebene (Gesperrt)
+        IF NOT imhis_tab-tsenm IS INITIAL AND
+           ( imhis_tab-stat = stat_wait OR imhis_tab-stat = stat_fix ).
+          imhis_tab-stat = stat_lock.
+        ENDIF.
+*--- Status LOVM setzen auf Abrufebene (Löschvormerkung)
+        IF NOT wpk_tab-lovm_new IS INITIAL.
+          imhis_tab-stat = stat_delf.
+        ENDIF.
+
+        MODIFY imhis_tab.
+      ENDLOOP.                       "IMHIS_TAB
+
+*--- Zusatztermine über Terminsimulation ermitteln (V. Telcher)
+      IF sy-subrc IS INITIAL.
+        IF NOT with_sim IS INITIAL
+          AND wpk_tab-stich <> tkz_mfch    "keine Mischpläne
+          AND calls_out_time IS INITIAL.   "keine Abrufe
+          "außerhalb Zeitintervall
+          mpla = wpk_tab.
+          mhis = mhis_tmp.
+          PERFORM zusatztermine_ermitteln.
+        ELSEIF gewrk[] IS NOT INITIAL OR aufsel IS NOT INITIAL. "v n2283150
+*         task list data are necessary to determine correct package later
+          IF  NOT wpk_tab-strat IS INITIAL.
+            CALL FUNCTION 'IWP1_PACKAGES_STRATEGY_TL'
+              EXPORTING
+                i_activity      = '1'.
+            PERFORM determine_used_packages
+              TABLES impos_tab
+                     g_t_package_data_st_tl
+              USING  wpk_tab-warpl.
+            APPEND LINES OF g_t_package_data_st_tl TO
+              g_t_package_data_st_tl_temp.
+          ENDIF.
+        ENDIF.                                                 "^ n2283150
+
+        IF calls_in_time IS INITIAL.
+*--- Sammlung Nachricht: keine Abrufe innerhalb des Zeitintervalls
+          CALL FUNCTION 'CM_F_MESSAGE'
+            EXPORTING
+              arbgb = 'IP'
+              msgnr = '624'
+              msgty = 'I'
+              msgv1 = wpk_tab-warpl.
+
+*--- fill message work area
+          l_w_message-msgty = 'I'.
+          l_w_message-msgid = 'IP'.
+          l_w_message-msgno = '624'.
+          l_w_message-msgv1 = wpk_tab-warpl.
+
+*--- fill BAL
+          PERFORM bal_fill(sapliwp3)
+                  USING l_w_message
+                        g_bal.
+
+          IF with_sim IS INITIAL.
+            no_calls = no_calls + 1.
+          ENDIF.
+        ENDIF.
+
+      ELSE.
+*--- Sammlung Nachricht: noch keine Abrufe zum WPLAN
+        CALL FUNCTION 'CM_F_MESSAGE'
+          EXPORTING
+            arbgb = 'IP'
+            msgnr = '602'
+            msgty = 'I'
+            msgv1 = wpk_tab-warpl.
+
+*--- fill message work area
+        l_w_message-msgty = 'I'.
+        l_w_message-msgid = 'IP'.
+        l_w_message-msgno = '602'.
+        l_w_message-msgv1 = wpk_tab-warpl.
+
+*--- fill BAL
+        PERFORM bal_fill(sapliwp3)
+                USING l_w_message
+                      g_bal.
+
+        no_calls = no_calls + 1.
+      ENDIF.
+
+    ENDLOOP.                         "WPK_TAB
+
+    IF NOT g_t_package_data_st_tl_temp[] IS INITIAL.
+*--- get back the package data prepared in the sub-routine
+*    zusatztermine_ermitteln
+      CLEAR g_t_package_data_st_tl.
+      REFRESH g_t_package_data_st_tl.
+      APPEND LINES OF g_t_package_data_st_tl_temp TO
+      g_t_package_data_st_tl.
+      REFRESH g_t_package_data_st_tl_temp.
+    ENDIF.
+
+    SORT imhis_tab BY warpl abnum zaehl.
+
+    SORT mhio_tab BY warpl abnum wppos.
+
+*--- Prüfen, ob Status erledigt gesetzt werden kann
+*    wenn Auftragsstatus "nicht durchgeführt",
+*    "technisch abgeschlossen"
+    LOOP AT imhis_tab WHERE tsabr = 'X'
+                        AND lrmdt IS initial.
+
+      h_tabix = sy-tabix.
+      CLEAR mhio_1.
+      CLEAR mhio_2.
+      CLEAR mhio_addat.
+      LOOP AT mhio_tab WHERE warpl EQ imhis_tab-warpl
+                         AND abnum EQ imhis_tab-abnum.
+*--- Anzahl Positionen pro Wartungsplan
+        ADD 1 TO mhio_1.
+        IF NOT mhio_tab-addat IS INITIAL.
+*--- Anzahl der Positionen mit Erledigt-Datum
+          ADD 1 TO mhio_2.
+
+*--- spätestes Erledigtdatum merken
+          IF mhio_tab-addat > imhis_tab-lrmdt.
+            MOVE mhio_tab-addat TO imhis_tab-lrmdt.
+          ENDIF.
+        ENDIF.
+      ENDLOOP.
+*--- Status erledigt setzen, wenn alle Positionen erledigt sind
+      IF mhio_1 EQ mhio_2.
+        imhis_tab-stat = stat_erl.
+        MODIFY imhis_tab INDEX h_tabix.
+      ENDIF.
+    ENDLOOP.
+
+*--- Es existieren Wartungspläne ohne Abrufe
+    IF NOT no_calls IS INITIAL.
+      DESCRIBE TABLE wpk_tab LINES zeile.
+      IF zeile = no_calls.
+        MESSAGE s628.  "alle WPläne haben keine Abrufe --> keine Grafik
+        EXIT.
+      ENDIF.
+* Sammlung Nachricht: n Wartungspläne ohne Abrufe
+      CALL FUNCTION 'CM_F_MESSAGE'
+        EXPORTING
+          arbgb = 'IP'
+          msgnr = '614'
+          msgty = 'I'
+          msgv1 = no_calls.
+
+*--- fill message work area
+      l_w_message-msgty = 'I'.
+      l_w_message-msgid = 'IP'.
+      l_w_message-msgno = '614'.
+      l_w_message-msgv1 = no_calls.
+
+*--- fill BAL
+      PERFORM bal_fill(sapliwp3)
+              USING l_w_message
+                    g_bal.
+
+    ENDIF.
+
+    SORT wpk_tab.
+
+*--- Einlesen der Bezeichnungen für Technischen Plätze
+    PERFORM tptxt_prepare.
+
+* Vorbereiten der Baugruppenkurztexte (PRE_FETCH)
+    PERFORM bttxt_prepare.
+
+*** Holen aller noch fehlenden Texte
+    LOOP AT obj_tab.
+      h_tabix = sy-tabix.
+
+* Einlesen der Equipmentbezeichnungen
+* Fetch wird von Harald noch entwickelt, Info erfolgt durch ihn
+      IF NOT obj_tab-equnr IS INITIAL.
+        PERFORM eqtxt_write.
+      ENDIF.
+
+* Einlesen der Baugruppenbezeichnungen
+      IF NOT obj_tab-bautl IS INITIAL.
+        PERFORM bttxt_write.
+      ENDIF.
+
+* Einlesen der Bezeichnungen des Technischen Platzes
+      IF NOT obj_tab-tplnr IS INITIAL.
+        PERFORM tptxt_write.
+      ENDIF.
+
+* Einschreiben der WPLAN-Texte in die OBJ_TAB
+      PERFORM wptxt_write.
+
+* falls notwendig, TP-Konvertierungsroutine laufen lassen.
+*      IF obj_tab-tplnr(1) EQ '?'.                               "904224
+      IF G_ALTERN_ACT = G_X.                                     "904224
+*        WRITE obj_tab-tplnr TO obj_tab-tplnr.                  "1322719
+         CALL FUNCTION 'CONVERSION_EXIT_TPLNR_OUTPUT'           "1322719
+           EXPORTING                                            "1322719
+             INPUT         = obj_tab-tplnr                      "1322719
+           IMPORTING                                            "1322719
+             OUTPUT        = obj_tab-tplnr.                     "1322719
+      ENDIF.
+
+      MODIFY obj_tab INDEX h_tabix.    "Sichern der ganzen Texte
+
+    ENDLOOP.                           "OBJ_TAB
+
+* Ermittlung der frühesten Abruftermine pro Wartungsplan
+    LOOP AT imhis_tab.
+      h1_tabix = sy-tabix.
+      wpk_feld-mandt = sy-mandt.
+      wpk_feld-warpl = imhis_tab-warpl.
+      READ TABLE wpk_tab WITH KEY wpk_feld BINARY SEARCH.
+      IF sy-subrc = 0.
+        h_tabix = sy-tabix.
+* Ermittlung des ersten Abrufes des Wartungsplanes (aus übergeb. Tab)
+        IF imhis_tab-nplda < wpk_tab-sdate
+          AND imhis_tab-nplda >= datuv.
+
+          wpk_tab-sdate = imhis_tab-nplda.
+        ENDIF.
+* Ermittlung des ersten wartenden bzw. fixen Abrufes des Wartungsplanes
+        IF imhis_tab-nplda < wpk_tab-wdate
+           AND imhis_tab-nplda >= datuv
+           AND ( imhis_tab-stat = stat_wait
+            OR   imhis_tab-stat = stat_fix ).
+          wpk_tab-wdate = imhis_tab-nplda.
+        ENDIF.
+* Sichern der ermittelten Abruftermine
+        MODIFY wpk_tab INDEX h_tabix.
+* Objekttyp des Wartungsplans an Abruftermine weitergeben
+        imhis_tab-call_type = wpk_tab-call_type.
+        MODIFY imhis_tab INDEX h1_tabix.
+      ENDIF.
+    ENDLOOP.
+
+* Abruftermine, Objekttyp WAPOS-bezogen festhalten
+    LOOP AT obj_tab.
+      wpk_feld-mandt = sy-mandt.
+      wpk_feld-warpl = obj_tab-warpl.
+      READ TABLE wpk_tab WITH KEY wpk_feld BINARY SEARCH.
+      IF sy-subrc = 0.
+        obj_tab-sdate     = wpk_tab-sdate.
+        obj_tab-wdate     = wpk_tab-wdate.
+        obj_tab-call_type = wpk_tab-call_type.
+        MODIFY obj_tab.
+      ENDIF.
+    ENDLOOP.
+
+* Auftragsdaten von Datenbank lesen (falls selektiert)
+    PERFORM auftraege_holen.                                  "n2584816
+* Arbeitspläne von Datenbank lesen (falls selektiert)
+    PERFORM arbeitsplaene_holen.
+* Meldungsdaten von Datenbank lesen (falls selektiert)
+    PERFORM meldungen_holen.
+* Leistungserfassungblattdaten von Datenbank lesen (falls selektiert)
+    PERFORM mmserv_holen.
+
+    PERFORM wplan_prepare.
+
+*   sort obj_tab by equnr tplnr.       "Sortierung nach EQUNR, TPLNR
+    PERFORM sort_obj_tab USING obj_sort_5.
+    text2_sav_wo = text-045.
+    text2_sav_wa = text-043.
+    PERFORM order_header_necessary.
+
+    IF screen2 IS NOT INITIAL.                               "v n2504100
+      AUTHORITY-CHECK OBJECT 'I_TCODE'
+       ID 'TCD' FIELD 'IP10'.
+      IF NOT sy-subrc IS INITIAL.
+        MESSAGE i621. "fehlende Berechtigung für IP10
+        EXIT.
+      ENDIF.
+    ENDIF.                                                   "^ n2504100
+
+    IF graph1 = 'X'.                   "show as Gantt-Chart
+
+
+    IF screen2 IS INITIAL.             "Startbild WPos-Übersicht
+      PERFORM wpos_grafik_fuellen USING text-045.
+    ELSE.                              "Startbild WPlan-Simulation
+
+* wenn WPlanSim von IP02, IP10 aufgerufen wird, umschalten auf WPosÜber.
+      IF no_sim IS INITIAL.
+        PERFORM wplan_grafik_fuellen USING text-043.
+        h_modif = 'ON  '.
+      ELSE.
+        MESSAGE i631.
+        PERFORM wpos_grafik_fuellen USING text-045.
+      ENDIF.
+
+    ENDIF.
+
+    gant_stat = '1'.
+    tema_stat = '2'.
+    busg_stat = '2'.
+    beginn = datuv - date_null.
+    beginn = beginn * 86400.
+    ende   = datub - date_null.
+    ende   = ende * 86400.
+    item_length = item_length + 1.
+    PERFORM legende_fuellen.
+    PERFORM cua_graphics_prepare.
+*   perform gew_tab_fuellen.
+
+    tdiff = datub - datuv.
+    IF       tdiff  = 0.
+      t_unit = 'MS'.
+    ELSEIF tdiff <= 2.
+      t_unit = 'H'.
+    ELSEIF tdiff <= 80.
+      t_unit = 'D'.
+    ELSEIF tdiff <= 145.
+      t_unit = 'W'.
+    ELSEIF tdiff <= 510.
+      t_unit = 'M'.
+    ELSEIF tdiff <= 2500.
+      t_unit = 'Q'.
+    ELSE.
+      t_unit = 'Y'.
+    ENDIF.
+
+*--- Ermitteln, ob Nachrichten entstanden sind + Meldung darüber
+    PERFORM message_exist.
+
+*--- save start and end date for the grafical overview
+    save_start_date = beginn.
+    save_end_date   = ende.
+
+*--- Grafikschleife
+    DO.
+
+*--- use the saved start and end date
+*   these dates are cleared after the processing of
+*   the function modul GRAPH_GANTT
+      beginn = save_start_date.
+      ende = save_end_date.
+
+      IF h_modif = 'ON'.
+*--- bei Simulation keine Aufträge dargestellt,
+*    da WPositionsabhängig
+*--- authorization check like transaction IP10 is necessary
+        AUTHORITY-CHECK OBJECT 'I_TCODE'
+             ID 'TCD' FIELD 'IP10'.
+        IF NOT sy-subrc IS INITIAL.
+          MESSAGE i621. "fehlende Berechtigung für IP10
+          EXIT.
+        ELSE.
+          PERFORM grafik_aufruf TABLES elem_init lgel_init
+                                USING text_leiste text-004.
+        ENDIF.
+      ELSE.
+        IF     aufsel IS INITIAL       "ohne Aufträge
+           AND  qmsel IS INITIAL       "ohne Meldungen
+           AND  lbsel IS INITIAL.      "ohne Leistungsblatt
+          PERFORM grafik_aufruf TABLES elem_init lgel_tab
+                                USING text_leiste text-003.
+        ELSE.                          "mit Aufträge
+          PERFORM grafik_aufruf TABLES elem_tab lgel_tab
+                                USING text_leiste text-003.
+        ENDIF.
+      ENDIF.
+
+      CASE m_typ.
+* Hauptgraphik geschlossen
+        WHEN 'D'.
+          EXIT.
+* Hauptgraphik geschlossen, Nebengraphiken werden jetzt geschlossen
+        WHEN 'Q'.
+          CALL FUNCTION 'GRAPH_DIALOG'
+            EXPORTING
+              close = 'X'.
+* Hauptgraphik offen, eine der Nebengraphiken geschlossen
+        WHEN '0'.
+          IF rwnid = 'TEMA'. tema_stat = '2'. ENDIF.
+          IF rwnid = 'BUSG'. busg_stat = '2'. ENDIF.
+* Hauptgraphik offen, Nebengraphik wird geöffnet, falls noch nicht offen
+        WHEN 'I'.
+          gant_stat = '4'.
+
+          CASE rcode.
+
+* Kapazitätsbelastungsprofil aufrufen ---------------------------------*
+            WHEN grf_fcode_kbta.       "pro Tag
+              PERFORM kapazitaetsprofil USING 'D' text-055 text-051.
+
+            WHEN grf_fcode_kbwo.       "pro Woche
+              PERFORM kapazitaetsprofil USING 'W' text-056 text-052.
+
+            WHEN grf_fcode_kbmo.       "pro Monat
+              PERFORM kapazitaetsprofil USING 'M' text-057 text-053.
+
+* Darstellung Wartungsplan-/Wartungspositionsübersicht-----------------*
+            WHEN grf_fcode_wpos.
+              PERFORM wpos_grafik_neuaufbau.
+              gant_stat = '3'.
+
+            WHEN grf_fcode_wpln.
+              PERFORM wplan_grafik_neuaufbau.
+              gant_stat = '3'.
+
+* Simulation zurücksetzen (Ausgangszustand) ---------------------------*
+            WHEN grf_fcode_sizu.
+              PERFORM tabellen_zuruecksetzen.
+
+* Kostenprotokoll anzeigen --------------------------------------------*
+            WHEN grf_fcode_kopr.
+              PERFORM costing_protocol IN PROGRAM saplcoko
+                                          USING t185f t185 t185v.
+              gant_stat = '3'.
+
+* Nachrichtenprotokoll anzeigen ---------------------------------------*
+            WHEN grf_fcode_mspr.
+              PERFORM message_protocol.
+              gant_stat = '3'.
+
+* Sortierungen der Grafik ---------------------------------------------*
+            WHEN grf_fcode_sodg.       "nach Abrufdatum (gesamt)
+              IF h_modif = 'ON'.
+                SORT wpk_tab BY sdate wptxt.
+                PERFORM wplan_date_grafik_fuellen USING text-041.
+              ELSE.
+***Sortierung der WAPOS nach WPLAN ---> ausgeschaltet
+**              SORT WPK_TAB BY SDATE.
+**              PERFORM WPOS_DATE_GRAFIK_FUELLEN.
+                PERFORM sort_obj_tab USING obj_sort_1.
+*               sort obj_tab by sdate eqktx.
+                PERFORM wpos_grafik_fuellen USING text-041.
+              ENDIF.
+
+            WHEN grf_fcode_sodw.       "nach Abrufdatum (wartend)
+              IF h_modif = 'ON'.
+                SORT wpk_tab BY wdate wptxt.
+                PERFORM wplan_date_grafik_fuellen USING text-042.
+              ELSE.
+***Sortierung der WAPOS nach WPLAN ---> ausgeschaltet
+**              SORT WPK_TAB BY WDATE.
+**              PERFORM WPOS_DATE_GRAFIK_FUELLEN.
+                PERFORM sort_obj_tab USING obj_sort_2.
+*               sort obj_tab by wdate eqktx.
+                PERFORM wpos_grafik_fuellen USING text-042.
+              ENDIF.
+
+* Sortierung nach Nr.
+            WHEN grf_fcode_sowa.       "nach Wartungsplänen, Equi, ...
+              IF h_modif = 'ON'.
+                SORT wpk_tab BY warpl sdate.
+                PERFORM wplan_grafik_fuellen USING text-043.
+              ELSE.
+                PERFORM sort_obj_tab USING obj_sort_3.
+*               sort obj_tab by warpl equnr.
+                PERFORM wpos_grafik_fuellen USING text-043.
+              ENDIF.
+
+            WHEN grf_fcode_sowo.       "nach Wartungspositionen
+              PERFORM sort_obj_tab USING obj_sort_4.
+*             sort obj_tab by wapos equnr.
+              PERFORM wpos_grafik_fuellen USING text-044.
+
+            WHEN grf_fcode_soeq.       "nach Equipments, TP, Baugruppe
+              PERFORM sort_obj_tab USING obj_sort_5.
+*             sort obj_tab by equnr tplnr.
+              PERFORM wpos_grafik_fuellen USING text-045.
+
+            WHEN grf_fcode_sotp.       "nach Techn. Plätzen, Equi, ...
+              PERFORM sort_obj_tab USING obj_sort_6.
+*             sort obj_tab by tplnr equnr.
+              PERFORM wpos_grafik_fuellen USING text-046.
+
+            WHEN grf_fcode_sobg.       "nach Baugruppen, Equi, ...
+              PERFORM sort_obj_tab USING obj_sort_7.
+*             sort obj_tab by bautl equnr.
+              PERFORM wpos_grafik_fuellen USING text-047.
+
+* Sortierung nach Texten
+            WHEN grf_fcode_soat.       "nach Wartungsplänen, Equi, ...
+              IF h_modif = 'ON'.
+                SORT wpk_tab BY wptxt sdate.
+                PERFORM wplan_grafik_fuellen USING text-093.
+              ELSE.
+                PERFORM sort_obj_tab USING obj_sort_8.
+*               sort obj_tab by wptxt eqktx.
+                PERFORM wpos_grafik_fuellen USING text-093.
+              ENDIF.
+
+            WHEN grf_fcode_soot.       "nach Wartungspositionen
+              PERFORM sort_obj_tab USING obj_sort_9.
+*             sort obj_tab by pstxt eqktx.
+              PERFORM wpos_grafik_fuellen USING text-094.
+
+            WHEN grf_fcode_soet.       "nach Equipments, TP, Baugruppe
+              PERFORM sort_obj_tab USING obj_sort_10.
+*             sort obj_tab by eqktx pltxt.
+              PERFORM wpos_grafik_fuellen USING text-095.
+
+            WHEN grf_fcode_sott.       "nach Techn. Plätzen, Equi, ...
+              PERFORM sort_obj_tab USING obj_sort_11.
+*             sort obj_tab by pltxt eqktx.
+              PERFORM wpos_grafik_fuellen USING text-096.
+
+            WHEN grf_fcode_sobt.       "nach Baugruppen, Equi, ...
+              PERFORM sort_obj_tab USING obj_sort_12.
+*             sort obj_tab by maktx eqktx.
+              PERFORM wpos_grafik_fuellen USING text-097.
+
+* Einstellung der angezeigten Objekte in der Grafik
+            WHEN grf_fcode_inst.
+              PERFORM install_graphic_screen.
+              PERFORM arbeitsplaene_holen.
+              PERFORM auftraege_holen.
+              PERFORM meldungen_holen.
+              PERFORM mmserv_holen.
+              IF ok_code = fcode_weit.
+                PERFORM wpos_grafik_fuellen USING text2_sav_wo.
+              ENDIF.
+
+* Aktionen in der Graphik ---------------------------------------------*
+            WHEN OTHERS.
+              IF g_typ = 'S'.          "Änderungen d. Simulation sichern
+                IF h_modif = 'ON'.
+                  PERFORM termin_update.
+                ELSE.
+                  MESSAGE i603.   "Sichern nur in Wartungsplansimulation
+                ENDIF.
+              ELSE.
+                PERFORM grafik_aendern.
+              ENDIF.                   "G_TYP = 'S'
+              gant_stat = '3'.
+          ENDCASE.                     "RCODE       (Rückmeldecode)
+      ENDCASE.                         "M_TYP
+      h_command = ' '.
+    ENDDO.                             "Grafikschleife
+* wenn keine Grafik, sondern Listform
+    ELSE.
+      PERFORM select_list_type.
+    ENDIF.
+
+  ELSE.
+
+*--- Sammlung Nachricht: keine WAPOS selektiert wegen fehlender
+*    Berechtig
+    CALL FUNCTION 'CM_F_MESSAGE'
+      EXPORTING
+        arbgb = 'IP'
+        msgnr = '627'
+        msgty = 'S'.
+
+*--- fill message work area
+    l_w_message-msgty = 'S'.
+    l_w_message-msgid = 'IP'.
+    l_w_message-msgno = '627'.
+
+*--- fill BAL
+    PERFORM bal_fill(sapliwp3)
+            USING l_w_message
+                  g_bal.
+
+    CALL FUNCTION 'CM_F_ANALYSIS'
+      EXPORTING
+        headline = text-200.
+
+  ENDIF.                             "ANZ_OBJ > 0 (Wartungspläne exist.)
+
+* Unterprogramme ------------------------------------------------------*
+  INCLUDE dbqmif03.
+  INCLUDE miolsf10.
+  INCLUDE miolsf15.
+  INCLUDE miolsf20.
+  INCLUDE miolxf65.
+
+  INCLUDE miolalvd.
+  INCLUDE miolalv.
+  INCLUDE miolalvi.
+  INCLUDE mioltret.
+  INCLUDE mioltre.
+  INCLUDE mioltred.
+  INCLUDE mioltrei.
+
+  include miolbinp.
+  INCLUDE eaml_list_edit_reports.
+
+*------ T E R M I N S I M U L A T I O N  -----------------------------*
+
+*---------------------------------------------------------------------*
+*  F O R M :                                                          *
+*---------------------------------------------------------------------*
+FORM zusatztermine_ermitteln.
+
+*--- data definition
+  DATA: l_datuv_char(10) TYPE c.
+  DATA: l_datub_char(10) TYPE c.
+  DATA: l_w_object       TYPE wc_t_wmpos.
+  DATA: ls_t399w         TYPE t399w.                         "v n2636731
+  DATA: ls_vedavb        TYPE vedavb.
+  DATA: lv_enddate       TYPE sy-datum.
+  DATA: ls_mpos          TYPE mpos.                          "^ n2636731
+
+*-- tables
+  TABLES: mmpt.
+
+*--- workarea for counter data (master data)
+  DATA: BEGIN OF point_wa.
+          INCLUDE STRUCTURE impt.
+  DATA: END   OF point_wa.
+
+*--- workarea for counter readings)
+  DATA: BEGIN OF value_wa.
+          INCLUDE STRUCTURE imrg.
+  DATA: END   OF value_wa.
+
+*--- scheduled packages
+  DATA : BEGIN OF faellig_tab OCCURS 10.
+          INCLUDE STRUCTURE t351p.
+  DATA : END   OF faellig_tab.
+
+*--- MMPT-Tab Zählerereignisse
+  DATA:  mmpt_tab       TYPE wc_wmmpt OCCURS 0 WITH HEADER LINE.
+
+*--- data
+  DATA: no_beleg        LIKE sy-subrc.
+  DATA: point_txt(40)   TYPE c.
+  DATA: rc              LIKE       sy-subrc.
+  DATA: l_w_message     TYPE bal_s_msg.
+  DATA: l_message_msgno LIKE cmimsg-msgnr.
+
+*--- check maintenance plans is still schedulel
+  CHECK wpk_tab-abnum NE 0.
+
+  lv_enddate = datub.                                        "v n2636731
+*--- get the end date of contract validity
+*--- for contract based maintenance plans
+
+  IF mpla-mptyp IS NOT INITIAL.
+    CALL FUNCTION 'IWP3_READ_T399W'
+      EXPORTING
+        I_MPTYP       = mpla-mptyp
+        I_WARPL       = mpla-warpl
+      IMPORTING
+        E_T399W       = ls_t399w.
+
+    IF NOT ls_t399w-mpcontract IS INITIAL.
+*--- only 1 item per plan in this case
+      READ TABLE impos_tab INTO ls_mpos
+                           WITH KEY warpl = mpla-warpl.
+
+      CALL FUNCTION 'SD_VEDA_SELECT'
+           EXPORTING
+                I_DOCUMENT_NUMBER = ls_mpos-kdauf
+                I_ITEM_NUMBER     = ls_mpos-kdpos
+                I_TRTYP           = wc_aktyp_a
+           IMPORTING
+                E_VEDAVB          = ls_vedavb.
+
+      IF NOT ls_vedavb-vbeln IS INITIAL
+        AND NOT ls_vedavb-venddat IS INITIAL.
+        lv_enddate = ls_vedavb-venddat.
+      ENDIF.
+    ENDIF.
+
+  ENDIF.
+
+  IF mhis-nplda LT lv_enddate.                               "^ n2636731
+*--- in case of a lower last planned date than the time span
+*    start to simulate
+    IF  NOT wpk_tab-strat IS INITIAL.
+*--- in case of a strategy related plan
+*--- refresh global table g_t_package_data_st_tl for package data
+*    in IWP1 for each new plan
+      CALL FUNCTION 'IWP1_PACKAGES_STRATEGY_TL'
+        EXPORTING
+          i_activity      = '1'.
+*--- determin the packages per plan
+      PERFORM determine_used_packages
+              TABLES impos_tab
+                     g_t_package_data_st_tl
+              USING  wpk_tab-warpl.
+*--- store all used packages temporarely in global table
+*    these package information are used again
+          APPEND LINES OF g_t_package_data_st_tl TO
+            g_t_package_data_st_tl_temp.
+    ENDIF.
+
+*--- in case of a performance based plan
+    IF  wpk_tab-strat IS INITIAL OR wpk_tab-stich EQ tkz_lst.
+      SELECT * FROM mmpt INTO TABLE mmpt_tab
+        WHERE warpl EQ mpla-warpl.
+      CHECK sy-subrc EQ 0.
+      READ TABLE mmpt_tab INDEX 1.
+    ENDIF.
+    IF mpla-stich NE tkz_mfch AND
+       mpla-strat IS INITIAL AND
+       mmpt_tab-zykl1 IS INITIAL AND
+       NOT mmpt_tab-offset IS INITIAL AND
+       mpla-abnum GE 1.
+      EXIT.
+    ENDIF.
+
+    IF wpk_tab-stich EQ tkz_lst.
+*--- in case of performance based scheduling
+*    read the counter data
+      CALL FUNCTION 'MEASUREM_POINT_LAST_VALUE'
+        EXPORTING
+          i_point           = mmpt_tab-point
+        IMPORTING
+          e_wa_point        = point_wa
+          e_point_txt       = point_txt
+          e_wa_value        = value_wa
+          e_no_value        = no_beleg
+        EXCEPTIONS
+          pointer_not_found = 01.
+
+*--- update table mmpt_tab with information from the counter
+      mmpt_tab-idate   = value_wa-idate.
+      mmpt_tab-readg   = value_wa-readg.
+      mmpt_tab-pyear   = point_wa-pyear.
+      MODIFY mmpt_tab INDEX 1.
+    ENDIF.
+  ENDIF.
+
+*--- schedule further calls
+  DO.
+    IF mhis-nplda LT lv_enddate.                               "n2636731
+      mhis-terma = terma_trm.
+      IF mpla-stich NE tkz_lst.
+        mhis-lrmdt = mhis-nplda.
+      ELSE.
+        mhis-rzaeh = mhis-nzaeh.
+      ENDIF.
+
+      mhis-offzo = mhis-offze.
+      mhis-npldo = mhis-nplda.
+
+*--- leave to function scheduling
+      CALL FUNCTION 'TERMINIEREN_WARTUNGSPLAN'
+        EXPORTING
+          tmhis                     = mhis
+          tmpla                     = mpla
+          tmmpt                     = mmpt_tab
+          i_call_object             = wpk_tab-call_type
+          i_scheduling_end_date     = lv_enddate               "n2636731
+        IMPORTING
+          empla                     = mpla
+          emhis                     = mhis
+        TABLES
+          t_valid_scheduling        = faellig_tab
+          t_package_data_st_tl      = g_t_package_data_st_tl
+          t_wmhis                   = imhis_tab
+        EXCEPTIONS
+          candidate_error           = 01
+          strat_not_found           = 02
+          unit_not_found            = 03
+          nplda_lower_lrmdt         = 04
+          new_offset_neg            = 05
+          one_cycle_packages_called = 06
+          error_with_calendar       = 07
+          no_packages               = 08
+          scheduling_end_reached    = 09.
+
+*--- in case of an exception
+      IF NOT sy-subrc IS INITIAL.
+        CASE sy-subrc.
+          WHEN 01.
+          WHEN 02.
+*--- fill message work area
+            l_w_message-msgty = 'I'.
+            l_w_message-msgid = 'IP'.
+            l_w_message-msgno = '701'.
+            l_w_message-msgv1 = mpla-strat.
+          WHEN 03.
+*--- fill message work area
+            l_w_message-msgty = 'I'.
+            l_w_message-msgid = 'IP'.
+            l_w_message-msgno = '703'.
+            l_w_message-msgv1 = mmpt_tab-zeieh.
+          WHEN 04.
+          WHEN 05.
+          WHEN 06.
+*--- fill message work area
+            l_w_message-msgty = 'I'.
+            l_w_message-msgid = 'IP'.
+            l_w_message-msgno = '704'.
+            l_w_message-msgv1 = mpla-warpl.
+          WHEN 07.
+            WRITE datuv TO l_datuv_char.
+            WRITE datub TO l_datub_char.
+*--- fill message work area
+            l_w_message-msgty = 'I'.
+            l_w_message-msgid = 'IP'.
+            l_w_message-msgno = '634'.
+            l_w_message-msgv1 = mpla-warpl.
+            l_w_message-msgv2 = l_datuv_char.
+            l_w_message-msgv3 = l_datub_char.
+            l_w_message-msgv4 = mpla-fabkl.
+          WHEN 08.
+*--- fill message work area
+            l_w_message-msgty = 'I'.
+            l_w_message-msgid = 'IP'.
+            l_w_message-msgno = '702'.
+            l_w_message-msgv1 = mpla-strat.
+          WHEN 09.
+*--- do nothing -> end is reached
+            EXIT.
+          WHEN OTHERS.
+        ENDCASE.
+        IF NOT l_w_message-msgty IS INITIAL
+        AND NOT l_w_message-msgid IS INITIAL
+        AND NOT l_w_message-msgno IS INITIAL.
+
+*--- collect messages
+          l_message_msgno = l_w_message-msgno.
+          CALL FUNCTION 'CM_F_MESSAGE'
+            EXPORTING
+              arbgb = l_w_message-msgid
+              msgnr = l_message_msgno
+              msgty = l_w_message-msgty
+              msgv1 = l_w_message-msgv1
+              msgv2 = l_w_message-msgv2
+              msgv3 = l_w_message-msgv3
+              msgv4 = l_w_message-msgv4.
+
+*--- fill BAL
+          PERFORM bal_fill(sapliwp3)
+                  USING l_w_message
+                        g_bal.
+        ENDIF.
+        EXIT.
+      ENDIF.
+
+      IF mhis-nplda GT lv_enddate.                               "n2636731
+        CONTINUE.                                                "n2636731
+      ENDIF.                                                     "n2636731
+*--- new call number after scheduling
+      mhis-abnum = mhis-abnum + 1.
+
+*----- Daten übernehmen
+      LOOP AT faellig_tab.
+        MOVE-CORRESPONDING mhis TO imhis_tab.
+        imhis_tab-zaehl    = faellig_tab-zaehl.
+        imhis_tab-zykzt    = faellig_tab-zykzt.
+        imhis_tab-upd_knz  = '*'.
+        imhis_tab-stat     = stat_calc_s.
+        APPEND imhis_tab.
+      ENDLOOP.
+    ELSE.
+*--- end date of the scheduling span was reached!
+      EXIT.
+    ENDIF.
+  ENDDO.
+
+ENDFORM.                    "ZUSATZTERMINE_ERMITTELN
+*&---------------------------------------------------------------------*
+*&      Form  STATUS_CHECK_L                                           *
+*&---------------------------------------------------------------------*
+*       Status : Löschvormerkung und Inaktivkennzeichen prüfen         *
+*----------------------------------------------------------------------*
+FORM status_check_l.
+
+*-- Statustabelle
+  TABLES : jest.
+
+*-- Tabelle gesperrte Wartungspläne
+  DATA   : t_warpl LIKE mpla-warpl OCCURS 0 WITH HEADER LINE.
+
+*-- ranges Wartungsplanstatus
+  RANGES : status_i FOR jest-stat.
+  RANGES : warpl_i  FOR mpla-warpl.
+*-- fill ranges with exclusive status
+  CLEAR   status_i.
+  REFRESH status_i.
+
+  status_i-low    = 'I0013'.           "Löschkennzeichen
+  status_i-option = 'EQ'.
+  status_i-sign   = 'I'.
+  APPEND status_i.
+
+  status_i-low    = 'I0076'.           "Löschvormerkung
+  status_i-option = 'EQ'.
+  status_i-sign   = 'I'.
+  APPEND status_i.
+
+  status_i-low    = 'I0320'.           "Inaktivkennzeichen
+  status_i-option = 'EQ'.
+  status_i-sign   = 'I'.
+  APPEND status_i.
+
+*--- Selektionstab. aufbauen
+  LOOP AT obj_tab WHERE warpl <> space.
+    warpl_i-low = obj_tab-warpl. APPEND warpl_i.
+  ENDLOOP.
+  CHECK NOT warpl_i[] IS INITIAL.
+
+*-- selektieren Wartungspläne mit Lösch/Inaktiv
+  SELECT warpl FROM ( mpla INNER JOIN jest
+                            ON  mpla~objnr  EQ jest~objnr )
+               INTO table t_warpl
+                FOR ALL ENTRIES IN warpl_i
+                WHERE  mpla~warpl = warpl_i-low
+                AND    jest~stat  IN status_i
+                AND    jest~inact EQ  space.
+
+*-- eliminieren Zielmenge um gefundene Wartungspläne
+  SORT t_warpl.
+  LOOP AT obj_tab.
+    READ TABLE t_warpl WITH KEY obj_tab-warpl BINARY SEARCH.
+    IF sy-subrc EQ 0.
+      DELETE obj_tab.
+      READ TABLE impos_tab WITH KEY warpl = obj_tab-warpl
+        BINARY SEARCH.                                         "n2584816
+      IF sy-subrc EQ 0.                                        "n1940425
+        DELETE impos_tab where warpl = obj_tab-warpl.          "n1940425
+      ENDIF.                                                   "n1940425
+    ENDIF.
+  ENDLOOP.
+
+ENDFORM.                    "STATUS_CHECK_L
+*&---------------------------------------------------------------------*
+*&      Form  determine_used_packages
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM determine_used_packages
+     TABLES p_t_object             TYPE wc_t_wmpos
+            g_t_package_data_st_tl TYPE wc_t_package_data_st_tl
+     USING  p_plan.
+
+*--- determine the packages of al linked maintenance items
+  LOOP AT p_t_object
+    WHERE warpl EQ p_plan.
+
+*--- read the packages
+    PERFORM packages_read USING p_t_object.
+
+  ENDLOOP.
+
+ENDFORM.                    " determine_used_packages
+*&---------------------------------------------------------------------*
+*&      Form  read_packages
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM packages_read USING p_mpos TYPE wc_wmpos.
+
+*--- data definition
+  DATA: l_t_plwp LIKE plwp OCCURS 0 WITH HEADER LINE.
+
+*--- only in case of a strategy relation
+  CHECK NOT p_mpos-wstra IS INITIAL.
+
+*--- read all used package in task list
+  CALL FUNCTION 'CI03_READ_PLWP_TIME_INTERVAL'
+    EXPORTING
+      i_plnty      = p_mpos-plnty
+      i_plnnr      = p_mpos-plnnr
+      i_plnal      = p_mpos-plnal
+      i_date_begin = '19000101'
+      i_date_end   = '99991231'
+    IMPORTING
+      e_plwp_tab   = l_t_plwp[].
+
+*--- read the packages of the strategy
+  CALL FUNCTION 'IWP1_STRATEGY_READ'
+    EXPORTING
+      i_strat                   = p_mpos-wstra
+      i_multicounterplan        = ' '
+    TABLES
+      t_package_data            = g_t_package_data
+    CHANGING
+      c_t351                    = g_w_t351
+    EXCEPTIONS
+      strategy_is_initial       = 1
+      strategy_not_found        = 2
+      strategy_without_packages = 3
+      no_cycle_set              = 4
+      no_strategy               = 5
+      OTHERS                    = 6.
+  IF sy-subrc > 1.
+    PERFORM messages_strategy_read(sapliwp3)
+    USING sy-subrc
+          ' '
+          ' '.
+  ENDIF.
+
+*--- build internal table with package information
+  CALL FUNCTION 'IWP1_PACKAGES_STRATEGY_TL'
+    EXPORTING
+      i_activity               = ' '
+      i_item                   = p_mpos
+      i_call_object            = wpk_tab-call_type
+    TABLES
+      t_package_data_st_tl     = g_t_package_data_st_tl
+      t_package_data_task_list = l_t_plwp
+      t_package_data_strategy  = g_t_package_data.
+
+ENDFORM.                    " read_packages
+*&---------------------------------------------------------------------*
+*&      Form  packages_refresh
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM packages_refresh
+     TABLES g_t_package_data_st_tl TYPE wc_t_package_data_st_tl..
+
+*--- data defintion
+  DATA: l_item TYPE wc_wmpos.
+
+*--- only in case of filled table
+  CHECK NOT g_t_package_data_st_tl[] IS INITIAL.
+
+*--- leave to function
+  CALL FUNCTION 'IWP1_PACKAGES_STRATEGY_TL'
+    EXPORTING
+      i_activity              = '1'
+      i_item                  = l_item
+      i_call_object           = wpk_tab-call_type
+    TABLES
+      t_package_data_st_tl    = g_t_package_data_st_tl
+      t_package_data_strategy = g_t_package_data.
+
+ENDFORM.                    " packages_refresh
+*&---------------------------------------------------------------------*
+*&      Form  packages_validity
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM packages_validity
+     USING p_date        LIKE sy-datum
+           p_call_object LIKE t399w-call_type.
+
+  CALL FUNCTION 'IWP1_PACKAGES_SET_IND_VALIDITY'
+    EXPORTING
+      i_date               = p_date
+      i_call_object        = p_call_object
+    TABLES
+      t_package_data_st_tl = g_t_package_data_st_tl.
+
+ENDFORM.                    " packages_validity
+*&---------------------------------------------------------------------*
+*&      Form  CHECK_DISPLAY_NOREL
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*    >  p1        text
+*  <    p2        text
+*----------------------------------------------------------------------*
+FORM check_display_norel.                                    "v n1817327
+
+* Check if switch is on/off
+  IF cl_ops_switch_check=>eam_sfws_sc3( ) NE abap_true.
+* Don't show selection for flag 'Do not release immediately'
+* when switch is off.
+    LOOP AT SCREEN.
+      IF screen-group1 = 'NOR'.
+        screen-invisible = '1'.
+      ENDIF.
+      MODIFY SCREEN.
+    ENDLOOP.
+  ENDIF.
+
+ENDFORM.                    " CHECK_DISPLAY_NOREL            "^ n1817327
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR varia.             "1033838
+  PERFORM variant_inputhelp.                                "1033838

@@ -1,0 +1,959 @@
+*----------------------------------------------------------------------*
+*   INCLUDE /IRM/IPG_CONSTANTS                                         *
+*----------------------------------------------------------------------*
+*                        IP-GLOBAL CONSTANTS
+*----------------------------------------------------------------------*
+
+DATA BEGIN OF COMMON PART irm_ipg_const.
+****Classes
+CONSTANTS: BEGIN OF c_class,
+             billbacks            TYPE   /irm/ip_class VALUE '0',
+             chargebacks          TYPE   /irm/ip_class VALUE '1',
+             sales_incentives     TYPE   /irm/ip_class VALUE '2',
+             customer_rebates     TYPE   /irm/ip_class VALUE '3',
+             purchasing_rebates   TYPE   /irm/ip_class VALUE '4',
+             others_sales         TYPE   /irm/ip_class VALUE '5',
+             others_purchasing    TYPE   /irm/ip_class VALUE '6',
+             business_register    TYPE   /irm/ip_class VALUE 'A',
+             direct_agreement     TYPE   /irm/ip_class VALUE 'D',
+             sales                TYPE   /irm/ip_class VALUE '0',
+             purchasing           TYPE   /irm/ip_class VALUE '1',
+***E05 24256 SK - Extending of bucket data mapping for transactional in case of Claim and TR
+             claim                TYPE   /irm/ip_class VALUE 'C',
+             transaction_register TYPE   /irm/ip_class VALUE 'T',
+***
+****ESP6 Task #31706  - Pools integration for calculation buckets
+             calculation_bucket   TYPE   /irm/ip_class VALUE 'B',
+****
+           END OF c_class.
+
+****ESP5 Task #9307 - Configuration Changes for Source Document Buckets
+CONSTANTS : BEGIN OF c_sd_class,
+              data_object        TYPE   /irm/ip_bckappl VALUE 'B',
+              claims             TYPE   /irm/ip_bckappl VALUE 'C',
+              transactions       TYPE   /irm/ip_bckappl VALUE 'T',
+***E07 NK 1909 SP1 73597 - Aggregation Bucket Updation
+              calculation_bucket TYPE /irm/ip_bckappl VALUE 'D',
+***
+            END OF c_sd_class.
+****
+****Programs
+CONSTANTS: c_program_ipg LIKE sy-repid VALUE '/IRM/SAPLIPG'.
+
+****Fields
+CONSTANTS: BEGIN OF c_fieldname,
+             ipnum    TYPE   fieldname VALUE 'IPNUM',
+             ipitm    TYPE   fieldname VALUE 'IPITM',
+             rowcolor TYPE   fieldname VALUE 'ROWCOLOR',
+             styles   TYPE   fieldname VALUE 'STYLES',
+           END OF c_fieldname.
+
+****Partner types
+CONSTANTS: BEGIN OF c_nrart,
+             customer          TYPE  nrart VALUE 'KU',
+             vendor            TYPE  nrart VALUE 'LI',
+             employee          TYPE  nrart VALUE 'PE',
+             contact_person    TYPE  nrart VALUE 'AP',
+             material          TYPE /irm/ip_patype VALUE 'MA',
+             agreement         TYPE /irm/ip_patype VALUE 'AG',
+****Release 60E_SP2 - ECIP 7099 - DM partners in IP
+             dm_customer       TYPE  nrart VALUE 'X1',
+             dm_vendor         TYPE  nrart VALUE 'X2',
+****
+****SP7 Added on 12/21/2007
+             organization      TYPE  nrart VALUE 'O',
+             position          TYPE  nrart VALUE 'S',
+***40C Changed on 11/17/2009
+             company_code      TYPE /irm/ip_patype VALUE 'CC',
+             plant             TYPE /irm/ip_patype VALUE 'WK',
+             business_partner  TYPE /irm/ip_patype VALUE 'XP',
+****Release 60D_SP3 #ECIP 3044 - Team_Departament Hierarchy
+             team_departament  TYPE /irm/ip_patype VALUE 'TD',
+****RELEASE 60E SP2 Agreement Request Integration in Composite
+             agreement_request TYPE /irm/ip_patype VALUE 'AR',
+****RLE 60E SP2 Agreement Group Integration in Composite
+             agreement_group   TYPE /irm/ip_patype VALUE 'AU',
+***REL 2021 V2-AA-142119-IP Hierarchy
+             entity            TYPE /irm/ip_patype  VALUE 'E',
+***
+           END OF c_nrart.
+
+****Overall Status (Document Completion Status)
+CONSTANTS: BEGIN OF c_ostat,
+             open      TYPE /irm/ip_ostat VALUE ' ',
+             completed TYPE /irm/ip_ostat VALUE 'X',
+           END OF c_ostat.
+
+****Accrual Status
+CONSTANTS: BEGIN OF c_astat,
+             not_relevant       TYPE /irm/ip_astat VALUE space,
+             not_yet_accrued    TYPE /irm/ip_astat VALUE 'A',
+             partially_accrued  TYPE /irm/ip_astat VALUE 'B',
+             completely_accrued TYPE /irm/ip_astat VALUE 'C',
+           END OF c_astat.
+
+****Settlement Status
+CONSTANTS: BEGIN OF c_sstat,
+             not_relevant       TYPE /irm/ip_sstat VALUE space,
+             not_yet_settled    TYPE /irm/ip_sstat VALUE 'A',
+             partially_settled  TYPE /irm/ip_sstat VALUE 'B',
+             completely_settled TYPE /irm/ip_sstat VALUE 'C',
+           END OF c_sstat.
+
+****Park Status
+CONSTANTS: BEGIN OF c_pstat,
+             not_relevant      TYPE /irm/ip_sstat VALUE space,
+             not_yet_parked    TYPE /irm/ip_sstat VALUE 'A',
+             partially_parked  TYPE /irm/ip_sstat VALUE 'B',
+             completely_parked TYPE /irm/ip_sstat VALUE 'C',
+           END OF c_pstat.
+
+****Settlement Status - Item
+CONSTANTS: BEGIN OF c_sstat_item,
+             not_yet_processed     TYPE /irm/ip_sstat_itm VALUE space,
+             parked                TYPE /irm/ip_sstat_itm VALUE '1',
+             settled               TYPE /irm/ip_sstat_itm VALUE '2',
+             reverse_parked        TYPE /irm/ip_sstat_itm VALUE '3',
+             reverse_settled       TYPE /irm/ip_sstat_itm VALUE '4',
+             force_settled         TYPE /irm/ip_sstat_itm VALUE '5',
+             settled_thr_composite TYPE /irm/ip_sstat_itm VALUE '6',
+           END OF c_sstat_item.
+
+****IP document Categories - Docflow
+CONSTANTS: BEGIN OF  c_ipvbtyp,
+             sales_order                TYPE /irm/ip_vbtyp_n VALUE 'SO',
+             billing                    TYPE /irm/ip_vbtyp_n VALUE 'BL',
+             ipdoc                      TYPE /irm/ip_vbtyp_n VALUE 'IP',
+             accrual                    TYPE /irm/ip_vbtyp_n VALUE 'AC',
+             rev_accrual                TYPE /irm/ip_vbtyp_n VALUE 'AR',
+****Added on 06/09/2005
+             accrual_adjustment         TYPE /irm/ip_vbtyp_n VALUE 'AA',
+             rev_accrual_adjustment     TYPE /irm/ip_vbtyp_n VALUE 'RA',
+             park                       TYPE /irm/ip_vbtyp_n VALUE 'SP',
+             del_park                   TYPE /irm/ip_vbtyp_n VALUE 'PD',
+             settlement                 TYPE /irm/ip_vbtyp_n VALUE 'SE',
+             rev_settlement             TYPE /irm/ip_vbtyp_n VALUE 'SR',
+             adj_settlement             TYPE /irm/ip_vbtyp_n VALUE 'SA',
+             interim_settlement         TYPE /irm/ip_vbtyp_n VALUE 'SI',
+****Release 40C - Reverse Interim Settlement
+             rev_intm_settlement        TYPE /irm/ip_vbtyp_n VALUE 'RI',
+             payroll_clearing_hr        TYPE /irm/ip_vbtyp_n VALUE 'HR',
+             invoice_clearing           TYPE /irm/ip_vbtyp_n VALUE 'IC',
+             invoice_clearing_reversal  TYPE /irm/ip_vbtyp_n    VALUE 'IR',
+****SP6 - 999 Split for Accounting
+             subsequent_settlement      TYPE /irm/ip_vbtyp_n VALUE 'SS',
+****SP7 - Funds Management during Settlement Adjust
+             funds_commitment           TYPE /irm/ip_vbtyp_n VALUE 'FC',
+
+***SP8 IP docflow updation from Composite
+             comp_accrual               TYPE /irm/ip_vbtyp_n VALUE 'C1',
+             comp_reverse_accrual       TYPE /irm/ip_vbtyp_n VALUE 'C2',
+             comp_settlement            TYPE /irm/ip_vbtyp_n VALUE 'C3',
+             comp_reverse_settlement    TYPE /irm/ip_vbtyp_n VALUE 'C4',
+             comp_interim_settlement    TYPE  /irm/ip_vbtyp VALUE 'C5',
+             comp_settlement_adjustment TYPE /irm/ip_vbtyp  VALUE 'C6',
+             comp_accrual_adjustment    TYPE /irm/ip_vbtyp  VALUE 'C7',
+***40C Composite Reverse INterim Settlement
+             comp_rev_intm_settlement   TYPE /irm/ip_vbtyp  VALUE 'C8',
+***
+****RLE 60E SP2 - Roster Run
+             award_request              TYPE /irm/ip_vbtyp  VALUE  'AQ',
+             enrollment_request         TYPE /irm/ip_vbtyp  VALUE  'EQ',
+*****Release-60E SP5 - Enrollment Cancellation Req Changes
+             cancel_enrollment_request  TYPE /irm/ip_vbtyp  VALUE  'CE',
+***
+           END OF c_ipvbtyp.
+
+****Price Calculation types
+CONSTANTS: BEGIN OF c_calculation_type,
+             adjust                     TYPE ksteu VALUE 'A',
+             free                       TYPE ksteu VALUE 'B',
+             manual                     TYPE ksteu VALUE 'C',
+             fixed                      TYPE ksteu VALUE 'D',
+****Post ESP7 Bug 57449 CIP 20648 - incorrect group calculation
+             cond_value_and_basis_fixed TYPE ksteu VALUE 'E',
+****
+             condition_basis_fixed
+                    TYPE ksteu VALUE 'G',
+           END OF c_calculation_type.
+
+****Docindex Actions
+CONSTANTS: BEGIN OF c_action_docindex,
+             create(1)   VALUE 'A',
+             recreate(1) VALUE 'B',
+             reprice(1)  VALUE 'C',
+****Release 60D_SP3 - Parallel & background process for delete mass
+             delete(1)   VALUE 'D',
+****
+****Release 60D_SP3 - Cancellation Document
+             cancel(1)   VALUE 'E',
+****
+*****E06 SP - Calculation Buckets Using Recreate as Re Process in Buckets
+             reprocess   VALUE 'B',
+***
+***REL SW - 57637 - Support source doc delete option from bucket mass process report / WB.
+             srcdel(1)   VALUE 'F',
+***
+****REL 2020 V2 - NK 99020 Support DO as Source in Calc Bucket Simulation Report
+             simulate(1) VALUE 'S',
+****
+           END OF c_action_docindex.
+
+****VBTYPs - Billing & Sales
+CONSTANTS: BEGIN OF c_vbtyp,
+             sales(13)     VALUE 'ABCDEFGHIKLW0',      " 'CEFHIW' ??
+             billing(8)    VALUE 'MNOPSU56',
+****Release 60D - Delivery as source doc
+             delivery(4)   VALUE 'JT7g',
+****
+             purchasing(1) VALUE 'V',
+****ESP3 - CIP #10655 - Do not considder shkzg only for returns document
+             returns(6)    VALUE 'HKNOT6',
+****
+****ESP6 Task #30669 - Using /IRM/IPG_CONSTANTS instead of SAP Constants
+             lief(2)       VALUE 'JT',
+****
+           END OF c_vbtyp.
+
+****Added on 03/06/2006, 05/07/2007
+CONSTANTS: BEGIN OF c_vbtyp_a,
+             claim_request           TYPE /irm/ip_vbtyp_a VALUE '1',
+             revenue_cost_adjustment TYPE /irm/ip_vbtyp_a VALUE '2',
+             price_book              TYPE /irm/ip_vbtyp_a VALUE '3',
+             calculation_bucket      TYPE /irm/ip_vbtyp_a VALUE '4',
+***REL E08 A1910 NK 83907 - DO to Calculation Buckets
+             data_object             TYPE /irm/ip_vbtyp_a VALUE '5',
+***
+           END OF c_vbtyp_a.
+
+
+****Release 40C - Integration of Transaction Register with Purchase Rebates
+CONSTANTS: BEGIN OF c_bstyp_a,
+             transaction_register TYPE /irm/ip_vbtyp_a VALUE '1',
+             calculation_bucket   TYPE /irm/ip_bstyp_a VALUE '2',
+***REL E08 A1910 NK 83907 - DO to Calculation Buckets
+             data_object          TYPE /irm/ip_bstyp_a VALUE '3',
+***
+           END OF c_bstyp_a.
+
+****Authorizations - Activities
+CONSTANTS: BEGIN OF c_authorization_activity,
+             create(2)     VALUE '01',
+             change(2)     VALUE '02',
+             display(2)    VALUE '03',
+             delete(2)     VALUE '06',
+             post(2)       VALUE '10',
+****Added on 04/14/2006
+             output(2)     VALUE '04',
+             release(2)    VALUE '43',
+****Release 60D_SP3 - Cancellation Document
+             cancel(2)     VALUE '85',
+****
+***1610 Task #12715 - SAP security code scan changes
+             archive(2)    VALUE '24',
+***
+*****Check Out/In
+             unlock(2)     VALUE '95',
+***E SP4 - Signature Profile Integration
+             esignature(2) VALUE '73',
+           END OF c_authorization_activity.
+
+
+****Application Log - IP Global Log Object
+CONSTANTS: c_object_log_ipg TYPE balobj_d VALUE '/IRM/IPG'.
+
+
+*CONSTANTS: BEGIN OF c_log_subobject,
+*             read TYPE balsubobj VALUE 'READ',
+*             change TYPE balsubobj VALUE 'CHANGE',
+*             copy TYPE balsubobj VALUE 'COPY',
+*             check TYPE balsubobj VALUE 'CHECK',
+*             policies TYPE balsubobj VALUE 'POLICY',
+*           END OF c_log_subobject.
+
+****Application Log Initiator
+CONSTANTS: BEGIN OF c_log_initiator,
+             check               TYPE /irm/gdescr VALUE 'CHECK',
+             create              TYPE /irm/gdescr VALUE 'CREATE',
+             change              TYPE /irm/gdescr VALUE 'CHANGE',
+             display             TYPE /irm/gdescr VALUE 'DISPLAY',
+             delete              TYPE /irm/gdescr VALUE 'DELETE',
+****Release 60D_SP3 - Cancellation Document
+             cancel              TYPE /irm/gdescr VALUE 'CANCEL',
+****
+             recreate            TYPE /irm/gdescr VALUE 'RECREATE',
+             reprice             TYPE /irm/gdescr VALUE 'REPRICE',
+             accrue              TYPE /irm/gdescr VALUE 'ACCRUAL',
+             reverse_accrue      TYPE /irm/gdescr VALUE 'REVERSE_ACCRUAL',
+             park                TYPE /irm/gdescr VALUE 'PARK',
+             reverse_park        TYPE /irm/gdescr VALUE 'REVERSE_PARK',
+             settlement          TYPE /irm/gdescr VALUE 'SETTLE',
+             reverse_settle      TYPE /irm/gdescr VALUE 'REVERSE_SETTLE',
+             settlement_adjust   TYPE /irm/gdescr VALUE 'SETTLEMENT_ADJUST',
+             interim_settlement  TYPE /irm/gdescr VALUE 'INTERIM_SETTLE',
+             partner_comm_update TYPE /irm/gdescr VALUE 'PARTNER_COMM_UPDATE',
+             participant_checks  TYPE /irm/gdescr VALUE 'PARTICIPANT_CHECKS',
+             parked_docs_replace TYPE /irm/gdescr VALUE 'PARKED_DOCS_REPLACE',
+             statistics_load     TYPE /irm/gdescr VALUE 'STATISTICS_LOAD',
+****SP 60D
+             reverse_accr_adjust TYPE /irm/gdescr VALUE 'REVERSE_ACCRUAL_ADJUST',
+             update              TYPE /irm/gdescr VALUE 'UPDATE',
+
+**** 60E Changes - Resubmit Process
+             resubmit            TYPE /irm/gdescr VALUE 'RESUBMIT',
+****
+*****Release-60E SP3 ECI#8536
+             calc_run_pprt_post  TYPE /irm/gdescr VALUE 'PPRT_POST',
+***
+****RLE 60E SP2 - Roster Run
+             ros_run_post        TYPE /irm/gdescr VALUE 'ROS_RUN_POST',
+****
+****Release 60E_SP2 - Reverse Cancellation
+             reverse_cancel      TYPE /irm/gdescr VALUE 'REVERSE_CANCEL',
+****
+***60E SP2
+             schedule            TYPE /irm/gdescr VALUE 'SCHEDULE',
+             proforma            TYPE /irm/gdescr VALUE 'PROFORMA',
+             closeout            TYPE /irm/gdescr VALUE 'CLOSEOUT',
+             bucket              TYPE /irm/gdescr VALUE 'BUCKET',
+             activity            TYPE /irm/gdescr VALUE 'ACTIVITY',
+             accounting          TYPE /irm/gdescr VALUE 'ACNTNG',
+****E07 180901 NK – 50824 – Message log related changes
+             reprocess           TYPE /irm/gdescr VALUE 'REPROCESS',
+****
+           END OF c_log_initiator.
+
+****Status Management - Object Type for IP
+CONSTANTS: c_obtyp_iphdr         TYPE j_obtyp VALUE 'XIP'.
+****SP6 - User Statuses Integration for Park documents
+CONSTANTS: c_obtyp_ip_settlement TYPE j_obtyp VALUE 'X70'.
+
+****Status Management - IP Business Transactions
+CONSTANTS: BEGIN OF c_business_transaction,
+             reprice              TYPE j_vorgang VALUE 'XIP1',
+             accrue               TYPE j_vorgang VALUE 'XIP2',
+             park                 TYPE j_vorgang VALUE 'XIP3',
+             settle               TYPE j_vorgang VALUE 'XIP4',
+             reverse_accrue       TYPE j_vorgang VALUE 'XIP5',
+             delete_park          TYPE j_vorgang VALUE 'XIP6',
+             reverse_settle       TYPE j_vorgang VALUE 'XIP7',
+             settle_adjust        TYPE j_vorgang VALUE 'XIP8',
+             delete               TYPE j_vorgang VALUE 'XIP9',
+****Release 60D_SP3 - Cancellation Document
+             cancel               TYPE j_vorgang VALUE 'XIPC',
+****
+*****E05 17033 VM - Add Authorization checks
+             enrollment_request   TYPE j_vorgang VALUE 'XRR1',
+             cancellation_request TYPE j_vorgang VALUE 'XRR2',
+             award_request        TYPE j_vorgang VALUE 'XRR3',
+***
+***REL 2022 AA-160305-Introduce new business transaction for simulate in status flow
+             simulate             TYPE j_vorgang VALUE 'XIPS',
+***
+***REL 6.4-2022-AA-167519-[Dev]Create a new business transaction
+             refresh              TYPE j_vorgang VALUE 'XIPR',
+***
+           END OF c_business_transaction.
+
+****Item types
+CONSTANTS: BEGIN OF c_item_type,
+             text_item TYPE posar VALUE 'B',
+           END OF c_item_type.
+
+****Docindex - Processing Statuses
+CONSTANTS: BEGIN OF c_docindex_status,
+             successful           TYPE /irm/ip_sdestat VALUE space,
+             partially_successful TYPE /irm/ip_sdestat VALUE '1',
+             failed               TYPE /irm/ip_sdestat VALUE '2',
+           END OF c_docindex_status.
+
+****Partner Communication - Processing Statuses
+CONSTANTS: BEGIN OF c_prstat,
+             all_successful   VALUE 'A',
+             all_failed       VALUE 'B',
+             partially_failed VALUE 'C',
+           END OF c_prstat,
+           BEGIN OF c_prstat_item,
+****Release 60E - PC doc updating claim conditions
+*             no_ip VALUE ' ',
+*             error_in_ip VALUE 'A',
+*             ip_processed VALUE 'B',
+             originating_doc_not_updated VALUE ' ',
+             error_in_orig_doc_update    VALUE 'A',
+             originating_doc_updated     VALUE 'B',
+****
+             duplicate                   VALUE 'C',
+****Release 40C - Partner Communication
+             invalid                     VALUE 'D',
+             no_ip_document_found        VALUE 'E',
+           END OF c_prstat_item.
+
+****Reconciliation Statuses - IP Acctg doc
+CONSTANTS: BEGIN OF c_rstat,
+             no_reconciliation    VALUE 'A',
+             outside_tolerance    VALUE 'B',
+             within_tolerance     VALUE 'C',
+             partially_reconciled VALUE 'D',
+             fully_reconciled     VALUE 'E',
+           END OF c_rstat.
+
+****Added on 04/18/2006
+****Approval Statuses
+CONSTANTS: BEGIN OF c_aprstat,
+             not_relevant       TYPE /irm/ip_aprstat VALUE ' ',
+             pending            TYPE /irm/ip_aprstat VALUE 'A',
+             in_process         TYPE /irm/ip_aprstat VALUE 'B',
+             partially_approved TYPE /irm/ip_aprstat VALUE 'C',
+             approved           TYPE /irm/ip_aprstat VALUE 'D',
+           END OF c_aprstat.
+
+****Account types
+CONSTANTS: BEGIN OF c_koart,
+             customer       TYPE koart VALUE 'D',
+             vendor         TYPE koart VALUE 'K',
+             general_ledger TYPE koart VALUE 'S',
+           END OF c_koart.
+
+****Currency Conversion Types
+CONSTANTS: BEGIN OF c_conversion_type,
+             foreign VALUE 'F',
+             local   VALUE 'L',
+           END OF c_conversion_type.
+
+****IP - Settlement Methods
+CONSTANTS: BEGIN OF c_settlement_method,
+             sales_document       VALUE 'A',
+             mm_invoice           VALUE 'B',
+             accounts_receivable  VALUE 'C',
+             hr_payroll           VALUE 'D',
+             accounts_payable     VALUE 'E',
+             internal_settlement  VALUE 'I',
+****Release 40C - VBD and CBD, Release 40C SP1 - VBD and CBD
+             vendor_billing_doc   VALUE 'K',
+             customer_billing_doc VALUE 'D',
+****
+****Release 60D - Settle to SD-Billing
+             sd_billing_doc       VALUE 'S',
+****
+****Release 60D - MIRO Postings
+             miro_with_nf         VALUE 'M',
+             miro_without_nf      VALUE 'N',
+****
+*****E06 SP - Condition contract
+             condition_contract   VALUE 'X',
+***
+***E06 A1709 SP2 SK - 47003 - External Posting Integration
+             external_posting     VALUE 'Z',
+***
+           END OF c_settlement_method.
+***E06 SK - Condition_contract changes
+CONSTANTS : BEGIN OF c_accrual_method,
+              accounting         VALUE ' ',
+              internal_accrual   VALUE 'X',
+              condition_contract VALUE 'Y',
+***E06 A1709 SP2 SK - 47003 - External Posting Integration
+              external_posting   VALUE 'Z',
+***
+            END OF c_accrual_method.
+***
+
+****Payment Schedule - Payout dates
+CONSTANTS: BEGIN OF c_payout_date,
+             invoice(1)          VALUE '1',
+             customer_payment(1) VALUE '2',
+             order(1)            VALUE '3',
+           END OF c_payout_date.
+
+****Account Assignment Category
+CONSTANTS: BEGIN OF c_knttp,
+             default TYPE knttp VALUE 'X',
+           END OF c_knttp.
+
+****Infotype Operations
+CONSTANTS: BEGIN OF c_operation,
+****ESP6 Task#34739 - HR Posting - Removal of SAP data elements
+*             create TYPE actio VALUE 'INS',
+*             change TYPE actio VALUE 'MOD',
+*             delete TYPE actio VALUE 'DEL',
+             create TYPE /irm/ip_hraction VALUE 'INS',
+             change TYPE /irm/ip_hraction VALUE 'MOD',
+             delete TYPE /irm/ip_hraction VALUE 'DEL',
+****
+           END OF c_operation.
+
+****Origin
+CONSTANTS: BEGIN OF c_origin,
+             transaction_bb TYPE /irm/ip_origin VALUE '0',
+             transaction_cb TYPE /irm/ip_origin VALUE '1',
+             transaction_si TYPE /irm/ip_origin VALUE '2',
+             transaction_cr TYPE /irm/ip_origin VALUE '3',
+             transaction_pr TYPE /irm/ip_origin VALUE '4',
+             transaction_br TYPE /irm/ip_origin VALUE 'A',
+
+             composite_cb   TYPE /irm/ip_origin VALUE '5',
+             composite_si   TYPE /irm/ip_origin VALUE '6',
+             composite_cr   TYPE /irm/ip_origin VALUE '7',
+             composite_pr   TYPE /irm/ip_origin VALUE '8',
+             composite_bb   TYPE /irm/ip_origin VALUE '9',
+             composite_br   TYPE /irm/ip_origin VALUE 'B',
+****ESP6 Task #42425 - Update IPBKPF in case of claim postings
+             claim          TYPE /irm/ip_origin VALUE 'X',
+             tr             TYPE /irm/ip_origin VALUE 'Y',
+****
+           END OF c_origin.
+
+****Others
+CONSTANTS:
+  c_posnr                 TYPE  posnr_va               VALUE '000000',
+  c_debit                 TYPE /irm/ip_dcind           VALUE 'S',
+  c_credit                TYPE /irm/ip_dcind           VALUE 'H',
+  c_accrual_document_type TYPE  blart                  VALUE 'SA',
+  c_currency_type         TYPE  curtp                  VALUE '00',
+  c_uepvw_not_used        TYPE uepvw                   VALUE 'E',
+****Release 60D - SP1 - BOM processing changes
+  c_uepvw_bom_item        TYPE uepvw                   VALUE '&'.
+
+****Item Selection Process
+CONSTANTS: BEGIN OF c_item_process_type,
+             set_stmt_blk              VALUE '1',
+             reverse_settle            VALUE '2',
+             delete                    VALUE '3',
+****Added on 10/21/2005
+             set_accepted_amt_status   VALUE '4',
+****Added on 03/30/2006
+             set_approval_code         VALUE '5',
+****SP6
+             reset_accepted_amt_status VALUE '6',
+****ESP4 CIP #11448 - Revese using IPITM of acc doc as IPnum can have multiple acc doc
+             rev_setl_acc_doc          VALUE '8',
+****
+****SP6 - Items Undo Deletion Functionality
+             undo_delete               VALUE '7'.
+CONSTANTS: END OF c_item_process_type.
+
+CONSTANTS:
+  c_online  VALUE '1',
+  c_history VALUE '2'.
+
+CONSTANTS: BEGIN OF c_memory_id,
+             ipcb_changed_docs(17) VALUE 'IPCB_CHANGED_DOCS',
+             ipbb_changed_docs(17) VALUE 'IPBB_CHANGED_DOCS',
+             ipsi_changed_docs(17) VALUE 'IPSI_CHANGED_DOCS',
+             ipcr_changed_docs(17) VALUE 'IPCR_CHANGED_DOCS',
+             ippr_changed_docs(17) VALUE 'IPPR_CHANGED_DOCS',
+             ipbr_changed_docs(17) VALUE 'IPBR_CHANGED_DOCS',
+           END OF c_memory_id.
+
+CONSTANTS: BEGIN OF c_pdstat,
+             not_yet_settled          VALUE '1',
+             final_settlement         VALUE '2',
+             interim_settlement       VALUE '3',
+             settlement_not_necessary VALUE '4',
+             deleted                  VALUE '5',
+             replaced                 VALUE '6',
+           END OF c_pdstat.
+
+CONSTANTS: BEGIN OF c_diagnose_object,
+             park_confirm TYPE doku_obj VALUE '/IRM/IPM_PARK_CONFIRM',
+             setl_confirm TYPE doku_obj VALUE '/IRM/IPM_SETTLEMENT_CONFIRM',
+           END OF c_diagnose_object.
+
+****Added on 05/08/2006
+****IP TYPE Accrual Indicator
+CONSTANTS: BEGIN OF c_accrual_indicator,
+             actual_accruals   TYPE /irm/ip_acind VALUE ' ',
+             expected_accruals TYPE /irm/ip_acind VALUE 'A',
+           END OF c_accrual_indicator.
+
+****Added on 05/15/2006
+****Agreemenet Settlement parameters - Flag
+CONSTANTS: BEGIN OF c_agspe,
+             with_setparam     TYPE /irm/ip_agspe VALUE 'A',
+             with_out_setparam TYPE /irm/ip_agspe VALUE 'B',
+           END OF c_agspe.
+
+****SP7 - Discrepancy Processing
+CONSTANTS: BEGIN OF c_discrepancy_control,
+             do_not_process        TYPE /irm/tiphdr-dpctl VALUE space,
+             process_agr_not_found TYPE /irm/tiphdr-dpctl VALUE 'A',
+             always_process        TYPE /irm/tiphdr-dpctl VALUE 'B',
+             no_analysis           TYPE /irm/tiphdr-dpctl VALUE 'C'.
+CONSTANTS: END OF c_discrepancy_control.
+
+****SP7 - Update Agreement Status if Agreement based Settlement
+CONSTANTS: BEGIN OF c_agreement_status,
+             open               TYPE /irm/s_gkona-bosta VALUE space,
+             check_release      TYPE /irm/s_gkona-bosta VALUE 'A',
+             released           TYPE /irm/s_gkona-bosta VALUE 'B',
+             settlement_created TYPE /irm/s_gkona-bosta VALUE 'C',
+             closed             TYPE /irm/s_gkona-bosta VALUE 'D'.
+CONSTANTS: END OF c_agreement_status.
+
+***RelE SP2 ***Extensions
+CONSTANTS: BEGIN OF c_extension_source,
+             billbacks          TYPE /irm/gagr_class VALUE '0',
+             chargebacks        TYPE /irm/gagr_class VALUE '1',
+             sales_incentives   TYPE /irm/gagr_class VALUE '2',
+             customer_rebates   TYPE /irm/gagr_class VALUE '3',
+             purchasing_rebates TYPE /irm/gagr_class VALUE '4',
+             business_register  TYPE /irm/gagr_class VALUE 'A',
+             direct_agreement   TYPE /irm/gagr_class VALUE 'D',
+             deals              TYPE /irm/gagr_class VALUE 'Q',
+             direct_agr_request TYPE /irm/gagr_class VALUE 'F',
+             agreement_request  TYPE /irm/gagr_class VALUE 'J',
+             deal_request       TYPE /irm/gagr_class VALUE 'U'.
+CONSTANTS: END OF c_extension_source.
+
+***E SP2 Price Request
+CONSTANTS: BEGIN OF c_application_source,
+             agreement          TYPE /irm/gagr_srcappl VALUE '1',
+             agreement_request  TYPE /irm/gagr_srcappl VALUE '2',
+             deal               TYPE /irm/gagr_srcappl VALUE '3',
+             deal_request       TYPE /irm/gagr_srcappl VALUE '4',
+             direct_agreement   TYPE /irm/gagr_srcappl VALUE '5',
+             direct_agr_request TYPE /irm/gagr_srcappl VALUE '6',
+             price_request      TYPE /irm/gagr_srcappl VALUE '7',
+             master_agreement   TYPE /irm/gagr_srcappl VALUE '8',
+             revision           TYPE /irm/gagr_srcappl VALUE '9'.
+CONSTANTS: END OF c_application_source.
+****SP7 - Contra Postings
+CONSTANTS: BEGIN OF c_contra_postings,
+             only                 VALUE 'X',
+             for_zero_value_items VALUE 'Z',
+           END OF c_contra_postings.
+
+****Release 40C - Transaction IP Log
+CONSTANTS: BEGIN OF c_environment,
+             default VALUE ' ',
+             log     VALUE 'L',
+           END OF c_environment.
+****
+
+****Release 40C - Composite IP Log
+****Composite Document Category
+CONSTANTS: BEGIN OF c_composite_doc_cat,
+             accrual(2)               VALUE 'C1',
+             reverse_accrual(2)       VALUE 'C2',
+             settlement(2)            VALUE 'C3',
+             reverse_settlement(2)    VALUE 'C4',
+             interim_settlement(2)    VALUE 'C5',
+             settlement_adjustment(2) VALUE 'C6',
+             accrual_adjustment(2)    VALUE 'C7',
+             calculation_run(2)       VALUE 'CR',
+           END OF c_composite_doc_cat.
+****
+
+****Release 40C - Distribute amounts across line items
+CONSTANTS: BEGIN OF c_distribute_amount,
+             net_value    TYPE /irm/g_dstamt VALUE 'A',
+             quantity     TYPE /irm/g_dstamt VALUE 'B',
+             parallel_qty TYPE /irm/g_dstamt VALUE 'C',
+             subtotal_1   TYPE /irm/g_dstamt VALUE 'D',
+             subtotal_2   TYPE /irm/g_dstamt VALUE 'E',
+             subtotal_3   TYPE /irm/g_dstamt VALUE 'F',
+             subtotal_4   TYPE /irm/g_dstamt VALUE 'G',
+             subtotal_5   TYPE /irm/g_dstamt VALUE 'H',
+             subtotal_6   TYPE /irm/g_dstamt VALUE 'I',
+             net_weight   TYPE /irm/g_dstamt VALUE 'J',
+             gross_weight TYPE /irm/g_dstamt VALUE 'K',
+             volume       TYPE /irm/g_dstamt VALUE 'L'.
+CONSTANTS: END OF c_distribute_amount.
+***E SP2 Agreement Postings
+CONSTANTS: BEGIN OF c_agpus,
+             actual_accruals       VALUE '1',
+             expected_accruals     VALUE '2',
+             actual_settlements    VALUE '3',
+             original_claim        VALUE '4',
+             off_invoice           VALUE '5',
+             adjusted_accruals     VALUE '6',
+             reservations          VALUE '7',
+             closed_out            VALUE '8',
+             act_adjusted_accruals VALUE 'A',
+             exp_adjusted_accruals VALUE 'B',
+           END OF c_agpus.
+
+CONSTANTS: BEGIN OF c_agups_contribution,
+             positive VALUE '+',
+             negitive VALUE '-',
+           END OF  c_agups_contribution.
+**
+****Release 60D - Settlement Calendar
+CONSTANTS: BEGIN OF c_ip_calobjty,
+             agreement         TYPE /irm/ip_calobjty VALUE 'A',
+             customer          TYPE /irm/ip_calobjty VALUE 'C',
+             vendor            TYPE /irm/ip_calobjty VALUE 'V',
+             participation     TYPE /irm/ip_calobjty VALUE 'P',
+             employee          TYPE /irm/ip_calobjty VALUE 'E',
+             agreement_depcode TYPE /irm/ip_calobjty VALUE 'D',
+           END OF c_ip_calobjty.
+
+CONSTANTS: BEGIN OF c_ip_calsobjty,
+             settlement            TYPE /irm/ip_calsobjty VALUE space,
+             interim_settlement    TYPE /irm/ip_calsobjty VALUE '1',
+             accrual               TYPE /irm/ip_calsobjty VALUE '2',
+             calculation_run       TYPE /irm/ip_calsobjty VALUE '3',
+******  Rel 60 D
+             settlement_adjustment TYPE /irm/ip_calsobjty VALUE '4',
+           END OF c_ip_calsobjty.
+
+CONSTANTS: BEGIN OF c_object_calendar,
+             agreement          VALUE 'A',
+             partner            VALUE 'P',
+             partner_with_bukrs VALUE 'W',
+           END OF c_object_calendar.
+*****
+
+********Change Docuemnts
+CONSTANTS: BEGIN OF c_cdoc_view,
+             package  TYPE i VALUE 1,
+             document TYPE i VALUE 2,
+           END OF c_cdoc_view.
+
+****Release 60D - Interim Settlement Status
+CONSTANTS: BEGIN OF c_isstat,
+             not_defined             TYPE /irm/ip_isstat VALUE space,
+             not_relevant            TYPE /irm/ip_isstat VALUE 'A',
+             not_yet_intm_settled    TYPE /irm/ip_isstat VALUE 'B',
+             partially_intm_settled  TYPE /irm/ip_isstat VALUE 'C',
+             completely_intm_settled TYPE /irm/ip_isstat VALUE 'D',
+           END OF c_isstat.
+
+****Release 60D - Partner Communication Category
+CONSTANTS: BEGIN OF c_pccat,
+             original                     TYPE /irm/ippchdr-pccat VALUE space,
+             resubmission                 TYPE /irm/ippchdr-pccat VALUE 'A',
+             claim                        TYPE /irm/ippchdr-pccat VALUE 'B',
+             without_reference            TYPE /irm/ippchdr-pccat VALUE 'C',
+****ESP6 Task#37501 - Calculation bucket integration in partner communication
+             calculation_run              TYPE /irm/ippchdr-pccat VALUE 'D',
+****2022DC02 - TFS Bug #139904 (CIP #588110) - To support calculation run resubmission in PC
+*             calculation_run_without_ref TYPE /irm/ippchdr-pccat VALUE 'E',
+             calculation_run_resubmission TYPE /irm/ippchdr-pccat VALUE 'E',
+****
+****
+           END OF c_pccat.
+****
+
+****Release 60D - Failure Reason
+CONSTANTS: BEGIN OF c_flrsn,
+             no_authorization               TYPE /irm/ip_flrsn VALUE '01',
+             document_locked                TYPE /irm/ip_flrsn VALUE '02',
+             requirement_not_fulfilled      TYPE /irm/ip_flrsn VALUE '03',
+             ip_document_exist              TYPE /irm/ip_flrsn VALUE '04',
+             subsequent_doc_exist           TYPE /irm/ip_flrsn VALUE '05',
+             doc_does_not_exist             TYPE /irm/ip_flrsn VALUE '06',
+             others                         TYPE /irm/ip_flrsn VALUE '07',
+****E_SP3 - VMS IP Functions integrition
+             accrual_not_possible           TYPE /irm/ip_flrsn VALUE '08',
+             settlement_already_posted      TYPE /irm/ip_flrsn VALUE '09',
+             accrual_already_posted         TYPE /irm/ip_flrsn VALUE '10',
+             accrual_profile_not_found      TYPE /irm/ip_flrsn VALUE '11',
+             accrual_profile_not_valid      TYPE /irm/ip_flrsn VALUE '12',
+             zero_accrual_amount            TYPE /irm/ip_flrsn VALUE '13',
+             accrual_posting_failed         TYPE /irm/ip_flrsn VALUE '14',
+             no_company_code_data           TYPE /irm/ip_flrsn VALUE '15',
+             reverse_accrual_failed         TYPE /irm/ip_flrsn VALUE '16',
+             accrual_not_allowed            TYPE /irm/ip_flrsn VALUE '17',
+             incorrect_delta_accrual_config TYPE /irm/ip_flrsn VALUE '18',
+             settlement_profile_not_found   TYPE /irm/ip_flrsn VALUE '19',
+             document_not_accrued           TYPE /irm/ip_flrsn VALUE '20',
+             settlement_not_possible        TYPE /irm/ip_flrsn VALUE '21',
+             recipient_locked               TYPE /irm/ip_flrsn VALUE '22',
+*****E06 SP -
+             bucket_not_found               TYPE /irm/ip_flrsn VALUE '23',
+****
+           END OF c_flrsn.
+****
+
+****Release 60D - Additional Credit
+CONSTANTS: BEGIN OF c_aatyp,
+             overwrite TYPE /irm/ip_aatyp VALUE space,
+             increment TYPE /irm/ip_aatyp VALUE 'A',
+             decrement TYPE /irm/ip_aatyp VALUE 'B',
+           END OF c_aatyp.
+****
+
+****Release 60D - VBD and CBD
+****AWTYP in case of VBD/CBD
+CONSTANTS: c_agency_bus_awtyp TYPE awtyp VALUE 'WBRK'.
+****
+
+***REL E08 1909 SK - 58398 - Price change accrual
+CONSTANTS: c_prchg_awtyp TYPE awtyp VALUE 'PRCHG'.
+***
+
+****Release 60D - Recipient locking for park documents
+CONSTANTS: BEGIN OF c_lock_type,
+             settlement TYPE /irm/ip_lktyp VALUE '01',
+             global     TYPE /irm/ip_lktyp VALUE '02'.
+CONSTANTS: END OF c_lock_type.
+****
+
+****Release 60D - Claim Amount Source from Calculation Run
+CONSTANTS: BEGIN OF c_claim_source,
+             settlement     VALUE ' ',
+             int_settlement VALUE 'A',
+             adj_settlement VALUE 'B',
+           END OF c_claim_source.
+
+****Release 60D - Interim Settlement Status
+CONSTANTS: BEGIN OF c_intm_stlmt_status,
+             no_intm_stlmt         TYPE /irm/ippchdr-isstat VALUE '1',
+             intm_stlmt_posted     TYPE /irm/ippchdr-isstat VALUE '2',
+****1909 task #63484 - Removal of interim settlement option for calculation run from PC workbench
+*             rev_intm_stlmt_posted TYPE /irm/ippchdr-isstat VALUE '3'.
+             rev_intm_stlmt_posted TYPE /irm/ippchdr-isstat VALUE '3',
+             not_relevant          TYPE /irm/ippchdr-isstat VALUE '4'.
+****
+CONSTANTS  END OF c_intm_stlmt_status.
+****2022 DC02 Bug #141080 ( CIP #591378 ) - Migration issues
+CONSTANTS: BEGIN OF c_pc_posting_status,
+             not_posted       TYPE /irm/ippchdr-pstat VALUE '1',
+             posted           TYPE /irm/ippchdr-pstat VALUE '2',
+             error            TYPE /irm/ippchdr-pstat VALUE '3',
+             partially_posted TYPE /irm/ippchdr-pstat VALUE '4'.
+CONSTANTS  END OF c_pc_posting_status.
+****
+
+****Release 60D
+CONSTANTS: BEGIN OF c_field_category,
+             header             TYPE /irm/gdspfcatg VALUE 'H',
+             item               TYPE /irm/gdspfcatg VALUE 'I',
+****Release 60D_SP3 - Bucket Integration
+             partner            TYPE /irm/gdspfcatg VALUE 'P',
+****Release 60E_SP2 - Bucket aggregations
+             condition          TYPE /irm/ip_agg_fcatg VALUE 'C',
+****ESP5 Task #9307 - Bucket Aggregation for Source Documents
+             dimension          TYPE /irm/ip_agg_fcatg VALUE 'D',
+             item_extended_data TYPE /irm/ip_agg_fcatg VALUE 'E',
+****
+****ESP6 Task#33412 (PDIP#1869) - Provide /VTA/BDOVER table as section for filter
+             section_doversn(3) VALUE 'AAA',
+****
+           END OF c_field_category.
+
+CONSTANTS: BEGIN OF c_settlement_anchor,
+             material   TYPE /irm/ipstanc VALUE '1',
+             gl_account TYPE /irm/ipstanc VALUE '2',
+           END OF c_settlement_anchor.
+
+CONSTANTS: BEGIN OF c_document_posting_type,
+             fi_document              TYPE /irm/ippstty VALUE space,
+             billing_document         TYPE /irm/ippstty VALUE '1',
+             mm_document              TYPE /irm/ippstty VALUE '2',
+             agency_business_document TYPE /irm/ippstty VALUE '3',
+             internal_posting         TYPE /irm/ippstty VALUE '4',
+             price_change             TYPE /irm/ippstty VALUE '5',
+*****E06 SP - Condition contract changes
+             condition_contract       TYPE /irm/ippstty VALUE '6',
+****ESP7 Bug #51795 ( CIP #20353 ) - Integration of internal postings from Claims/TR
+             external_posting         TYPE /irm/g_pstty  VALUE '7',
+****
+           END OF c_document_posting_type.
+
+CONSTANTS: BEGIN OF c_awtyp,
+             billing_document TYPE awtyp VALUE 'VBRK',
+             mm_document      TYPE awtyp VALUE 'RMRP',
+           END OF c_awtyp.
+
+****Release 60D - SP1 - BOM processing changes
+CONSTANTS: BEGIN OF c_bom_processing,
+             source_document TYPE /irm/ip_bomps VALUE 'A',
+             ip_document     TYPE /irm/ip_bomps VALUE 'B'.
+CONSTANTS: END OF c_bom_processing.
+
+****Releasef 60D_SP2 - Accrual Posting period configuration
+CONSTANTS:BEGIN OF c_posting_period,
+            posting_date_period TYPE /irm/tipacp-psgpd VALUE '',
+            current_period      TYPE /irm/tipacp-psgpd VALUE 'A',
+            first_open_period   TYPE /irm/tipacp-psgpd VALUE 'B',
+          END OF c_posting_period.
+****
+
+****Release 60E - Optional Claim/TR Stage update
+CONSTANTS: BEGIN OF c_src_doc_upd,
+             do_no_update             TYPE /irm/ip_upflv VALUE ' ',
+             immediate_src_doc        TYPE /irm/ip_upflv VALUE 'X',
+             all_src_doc              TYPE /irm/ip_upflv VALUE 'Y',
+             claim_stage_update       TYPE /irm/ip_upflv VALUE 'A',
+             transaction_stage_update TYPE /irm/ip_upflv VALUE 'B',
+           END OF c_src_doc_upd.
+****
+****Release 60E - SAVE REVAMP
+CONSTANTS:BEGIN OF c_process_type,
+            create                  TYPE /irm/ip_process VALUE '01',
+            delete                  TYPE /irm/ip_process VALUE '02',
+            change                  TYPE /irm/ip_process VALUE '03',
+            reprice                 TYPE /irm/ip_process VALUE '04',
+            accrue                  TYPE /irm/ip_process VALUE '05',
+            reverse_accrue          TYPE /irm/ip_process VALUE '06',
+            park                    TYPE /irm/ip_process VALUE '07',
+            reverse_park            TYPE /irm/ip_process VALUE '08',
+            settle                  TYPE /irm/ip_process VALUE '09',
+            reverse_settle          TYPE /irm/ip_process VALUE '10',
+            set_completion_status   TYPE /irm/ip_process VALUE '11',
+            reset_completion_status TYPE /irm/ip_process VALUE '12',
+            settlement_adjust       TYPE /irm/ip_process VALUE '13',
+            interim_settlement      TYPE /irm/ip_process VALUE '14',
+            rev_interim_settlement  TYPE /irm/ip_process VALUE '15',
+            partner_comm_update     TYPE /irm/ip_process VALUE '16',
+            create_and_accrue       TYPE /irm/ip_process VALUE '17',
+            resubmission            TYPE /irm/ip_process VALUE '18',
+            cancel                  TYPE /irm/ip_process VALUE '19',
+            rebill                  TYPE /irm/ip_process VALUE '20',
+            payment_schedule        TYPE /irm/ip_process VALUE '21',
+            payment_schedule_delete TYPE /irm/ip_process VALUE '22',
+****Release 60E_SP2 - Reverse Cancellation
+            reverse_cancel          TYPE /irm/ip_process VALUE '23',
+****
+          END OF c_process_type.
+****
+
+****Release 60E_SP1 - ECIP #4511 - Pricing is wrong in IP Doc when source doc has PC doc
+CONSTANTS: BEGIN OF c_partner_comm,
+             relevant                TYPE /irm/ip_pcrel VALUE ' ',
+             not_relevant            TYPE /irm/ip_pcrel VALUE 'X',
+             relevant_after_creation TYPE /irm/ip_pcrel VALUE 'Y',
+           END OF c_partner_comm.
+****
+***Release 60E SP2 - Process Observer
+CONSTANTS: BEGIN OF c_business_function,
+             agreement_block           TYPE /irm/gpobufun VALUE 'AGBK',
+             agreement_change          TYPE /irm/gpobufun VALUE 'AGCH',
+             agreement_create          TYPE /irm/gpobufun VALUE 'AGCR',
+             agreement_release         TYPE /irm/gpobufun VALUE 'AGRL',
+             agreement_terminate       TYPE /irm/gpobufun VALUE 'AGTR',
+             agreement_validity_change TYPE /irm/gpobufun VALUE 'AGVC',
+           END OF c_business_function.
+**** Proforma Source
+CONSTANTS : BEGIN OF c_proforma_source,
+              agreements    VALUE '2',
+              agr_request   VALUE '3',
+              price_request VALUE '4',
+              composite     VALUE '5',
+              direct_agr    VALUE '6',
+              campaign      VALUE '7',
+            END OF c_proforma_source.
+
+DATA END OF COMMON PART.
+
+*****E06 VM - Calculation Bucket Changes
+CONSTANTS : BEGIN OF c_bucket_validity,
+              header_dates        VALUE '',
+              settlement_calender VALUE 'X',
+              period_profile      VALUE 'Y',
+            END OF c_bucket_validity.
+
+CONSTANTS : BEGIN OF c_bucket_create,
+              manual              VALUE '',
+              automatic           VALUE 'X',
+              automatic_using_job VALUE 'Y',
+            END OF c_bucket_create.
+***
+****1909 Task #61013 - Supporting Closeout and Schedule for TR - Posting Changes required to handle Closeout Scenarios
+CONSTANTS : BEGIN OF c_transaction_usage,
+              transaction TYPE /irm/grcausg VALUE ' ',
+              schedule    TYPE /irm/grcausg VALUE 'A',
+              closeout    TYPE /irm/grcausg VALUE 'B',
+            END OF c_transaction_usage.
+****

@@ -1,0 +1,2006 @@
+*&---------------------------------------------------------------------*
+*&  Include           ZMDM_FG_EXTENSION_FORMS
+*&---------------------------------------------------------------------*
+*& Title             : FG extension program
+*& Program           : ZMDM_FG_EXTENSION_FORMS
+*& Tcode             : XXXXX
+*& Author            : Gajanan Patil
+*& Functional Design :
+*& Technical Design  : Gajanan Patil
+*& Creation Date     : 16.12.2021
+*& Transport Request :
+*& Change request    :
+*& Description       : FG extension program
+*&---------------------------------------------------------------------*
+* Modification Information
+* Date            : 28.10.2014
+* Author          : Shubham Mishra
+* Change request  : 8000003825
+* Transport number: CRDK993163
+* Description     :  Change logic for 3 series material and 1 series.
+*----------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*&      Form  GET_DATA
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM get_data.
+
+  CLEAR: wa_mara,wa_marc,wa_mbew,wa_mvke,wa_final,wa_log,wa_depot,wa_zmm_prctr.
+
+  REFRESH: ta_mara[],ta_marc[],ta_mbew[],ta_mvke[],ta_final[],ta_log[],ta_depot[],ta_zmm_prctr[].
+
+  "Fetch data from table MARA
+  SELECT matnr ersda mbrsh mtart bstme ekwsl labor mprof qmpur vabme normt mstav hazmat
+         tempb raube profl mstae groes
+         spart
+  FROM mara INTO TABLE ta_mara
+  WHERE ersda IN r_date
+    AND mtart = 'ZFGS'
+    AND labor IN (co_loc,co_gen,co_exp).
+
+  IF NOT ta_mara IS INITIAL.
+    SORT ta_mara BY matnr.
+
+    "Fetch Depot data from table ZMDM_EXTND_DEPOT
+    SELECT * FROM zmdm_extnd_depot INTO TABLE ta_depot.
+    IF NOT ta_depot IS INITIAL.
+      SORT ta_depot BY vkorg werks.
+
+      SELECT * FROM zmm_prctr INTO TABLE ta_zmm_prctr
+        FOR ALL ENTRIES IN ta_depot
+        WHERE werks = ta_depot-werks.
+
+      "SOA by Debasmita - CR#8000007721 - 06.09.2022
+      SELECT werks
+             lgort
+             lgnum
+        FROM t320
+        INTO TABLE ta_t320
+        FOR ALL ENTRIES IN ta_depot
+          WHERE werks = ta_depot-werks.
+      IF sy-subrc EQ 0.
+        SORT ta_t320 BY werks lgort.
+      ENDIF.
+      "EOA by Debasmita - CR#8000007721 - 06.09.2022
+    ENDIF.
+
+    "Fetch data from table MARC
+    SELECT matnr werks mmsta ekgrp xchpf fevor sfcpf sernp webaz kordb steuc dismm dispo plifz dzeit
+           beskz fhori kzech strgr vrmod minbe eisbe disls bstmi bstma bstfe rdprf sobsl bstrf mtvfp
+           altsl sbdkz ausme qmata prfrq qzgtp ssqss qssys bwtty ncost prctr losgr awsls vint2 vint1
+           uneto ueeto rgekz mtver mmstd mabst lgpro lgfsb herkl casnr ahdis sobsk ladgr kzdkz matgr
+    FROM marc INTO CORRESPONDING FIELDS OF TABLE ta_marc
+    FOR ALL ENTRIES IN ta_mara
+    WHERE matnr = ta_mara-matnr.
+
+    IF NOT ta_marc IS INITIAL.
+      SORT ta_marc BY matnr werks.
+
+      DATA(ta_marc_temp) = ta_marc.
+      SORT ta_marc_temp BY werks.
+      DELETE ADJACENT DUPLICATES FROM ta_marc_temp COMPARING werks.
+
+      IF NOT ta_marc_temp IS INITIAL.
+        SELECT werks,vkorg FROM t001w INTO TABLE @DATA(ta_t001w)
+          FOR ALL ENTRIES IN @ta_marc_temp
+          WHERE werks = @ta_marc_temp-werks.
+
+        IF NOT ta_t001w IS INITIAL.
+          SORT ta_t001w BY werks.
+
+          LOOP AT ta_marc INTO DATA(wa_marc_temp).
+            READ TABLE ta_t001w INTO DATA(wa_t001w) WITH KEY werks = wa_marc_temp-werks
+                                                             BINARY SEARCH.
+
+            IF sy-subrc = 0.
+              wa_marc_temp-vkorg = wa_t001w-vkorg.
+              MODIFY ta_marc FROM wa_marc_temp TRANSPORTING vkorg.
+              CLEAR: wa_t001w.
+            ENDIF.
+            CLEAR: wa_marc_temp.
+          ENDLOOP.
+        ENDIF.
+      ENDIF.
+
+      "Fetch data from table MBEW
+      SELECT matnr bwkey bwtar bklas vprsv verpr stprs peinh hkmat ekalr zplp1 zpld1 kosgr
+      FROM mbew INTO TABLE ta_mbew
+      FOR ALL ENTRIES IN ta_marc
+      WHERE matnr = ta_marc-matnr
+        AND bwkey = ta_marc-werks
+        AND bwtar EQ abap_false.
+
+      IF NOT ta_mbew IS INITIAL.
+        SORT ta_mbew BY matnr bwkey.
+      ENDIF.
+
+
+*-------------------------------------*
+*----------- BOC BY SM CR:8000003825--------------*
+*** Check value for co_1series
+
+*      SELECT id_name
+*             id_number
+*             param_name
+      SELECT *
+              FROM zparam_table
+                       INTO TABLE ta_zparm
+                       WHERE id_name IN  ( co_1 , co_3 ) .  "   company codes'.
+
+***Populate range for co_1series
+
+      IF sy-subrc = 0.
+        LOOP AT ta_zparm INTO wa_zparm WHERE id_name EQ co_1 .  " range for company codes
+
+
+          IF wa_zparm-param_name IS NOT INITIAL.
+            wa_series1-sign = 'I'.
+            wa_series1-option = 'EQ'.
+            wa_series1-low = wa_zparm-param_name.
+            APPEND wa_series1 TO co_1series.
+          ENDIF.
+        ENDLOOP.
+        CLEAR wa_series1.
+      ENDIF.
+***Populate range for co_3series
+
+*      IF sy-subrc = 0.
+      LOOP AT ta_zparm INTO wa_zparm WHERE id_name EQ co_3 .  " range for company codes
+
+
+        IF wa_zparm-param_name IS NOT INITIAL.
+          wa_series3-sign = 'I'.
+          wa_series3-option = 'EQ'.
+          wa_series3-low = wa_zparm-param_name.
+          APPEND wa_series3 TO co_3series.
+        ENDIF.
+      ENDLOOP.
+      CLEAR wa_series3.
+*      ENDIF.
+*---------------------------------------------------* " COMMENTED BY SM
+      "Fetch data from table MVKE
+*        SELECT matnr vkorg vtweg vmsta vmstd aumng lfmng dwerk scmng
+*        FROM mvke INTO TABLE ta_mvke
+*        FOR ALL ENTRIES IN ta_marc
+*        WHERE matnr = ta_marc-matnr
+**       AND vkorg IN (co_1000,co_3800).
+
+      IF co_1series IS NOT INITIAL.
+
+        IF NOT ta_marc IS INITIAL.
+          "Fetch data from table MVKE
+          SELECT matnr vkorg vtweg vmsta vmstd aumng lfmng dwerk scmng
+          FROM mvke INTO TABLE ta_mvke
+          FOR ALL ENTRIES IN ta_marc
+          WHERE matnr = ta_marc-matnr
+*            AND vkorg IN (co_1000,co_3800).
+            AND vkorg IN co_1series.
+        ENDIF.
+      ENDIF.
+*
+
+      IF co_3series IS NOT INITIAL.  " commented by SM
+
+        IF NOT ta_marc IS INITIAL.
+          "Fetch data from table MVKE
+          SELECT matnr vkorg vtweg vmsta vmstd aumng lfmng dwerk scmng
+          FROM mvke APPENDING TABLE ta_mvke
+          FOR ALL ENTRIES IN ta_marc
+          WHERE matnr = ta_marc-matnr
+*            AND vkorg IN (co_1000,co_3800).
+            AND vkorg IN co_3series.
+
+        ENDIF.
+      ENDIF.
+*----------- EOC BY SM CR:8000003825--------------*
+
+
+      IF NOT ta_mvke IS INITIAL.
+        SORT ta_mvke BY matnr.
+      ENDIF.
+
+
+      LOOP AT ta_mara INTO wa_mara.
+
+        READ TABLE ta_mvke WITH KEY matnr = wa_mara-matnr
+                                      BINARY SEARCH
+                                      TRANSPORTING NO FIELDS.
+        IF sy-subrc = 0.
+          DATA(lv_tabix) = sy-tabix.
+
+          LOOP AT ta_mvke FROM lv_tabix INTO wa_mvke.
+
+            IF wa_mvke-matnr <> wa_mara-matnr.
+              EXIT.
+            ENDIF.
+
+            wa_final-matnr = wa_mara-matnr.
+            wa_final-mbrsh = wa_mara-mbrsh.
+            wa_final-mtart = wa_mara-mtart.
+            wa_final-labor = wa_mara-labor.
+            wa_final-bstme = wa_mara-bstme.
+            wa_final-ekwsl = wa_mara-ekwsl.
+            wa_final-mprof = wa_mara-mprof.
+            wa_final-qmpur = wa_mara-qmpur.
+            wa_final-vabme = wa_mara-vabme.
+            wa_final-normt = wa_mara-normt.
+            wa_final-mstav = wa_mara-mstav.
+            wa_final-hazmat = wa_mara-hazmat.
+
+
+*            IF wa_mvke-vkorg = co_1000. " comment by SM
+            IF wa_mvke-vkorg IN co_1series. " added by sm :8000003825
+*            IF wa_mvke-vkorg = s_1series. " added by sm :8000003825
+              wa_final-dismm = co_pd. "'PD'.
+*            ELSEIF wa_mvke-vkorg = co_3800.
+            ELSEIF wa_mvke-vkorg IN co_3series. " added by sm :8000003825
+*            ELSEIF wa_mvke-vkorg = s_3series.
+              wa_final-dismm = co_nd. "'ND'.
+            ENDIF.
+
+            wa_final-vkorg = wa_mvke-vkorg.
+            wa_final-vmsta = wa_mvke-vmsta.
+            wa_final-vmstd = wa_mvke-vmstd.
+            wa_final-aumng = wa_mvke-aumng.
+            wa_final-lfmng = wa_mvke-lfmng.
+            wa_final-dwerk = wa_mvke-dwerk.
+            wa_final-scmng = wa_mvke-scmng.
+            wa_final-prodh = abap_false.
+
+            READ TABLE ta_marc INTO wa_marc WITH KEY matnr = wa_mara-matnr
+                                                     vkorg = wa_mvke-vkorg.
+
+            IF sy-subrc = 0.
+
+              wa_final-werks = wa_marc-werks.
+              wa_final-mmsta = abap_false.
+              wa_final-ekgrp = wa_marc-ekgrp.
+              wa_final-fevor = abap_false.
+              wa_final-sfcpf = abap_false.
+              wa_final-sernp = wa_marc-sernp.
+              wa_final-webaz = 1 .
+              wa_final-xchpf = wa_marc-xchpf.
+              wa_final-kordb = wa_marc-kordb.
+              wa_final-steuc = wa_marc-steuc.
+              wa_final-dispo = 'F05'.
+              wa_final-plifz = wa_marc-plifz.
+              wa_final-dzeit = abap_false.
+              wa_final-beskz = 'F'.
+              wa_final-fhori = '000'.
+              wa_final-kzech = abap_false.
+              wa_final-strgr = wa_marc-strgr.
+              wa_final-vrmod = wa_marc-vrmod.
+              wa_final-minbe = wa_marc-minbe.
+              wa_final-eisbe = wa_marc-eisbe.
+              wa_final-disls = wa_marc-disls.
+              wa_final-bstmi = abap_false.
+              wa_final-bstma = abap_false.
+              wa_final-bstfe = wa_marc-bstfe.
+              wa_final-rdprf = abap_false.
+              wa_final-sobsl = abap_false.
+              wa_final-bstrf = wa_marc-bstrf.
+              wa_final-mtvfp = wa_marc-mtvfp.
+              wa_final-altsl = abap_false.
+              wa_final-sbdkz = abap_false.
+              wa_final-ausme = wa_marc-ausme.
+              wa_final-qmata = wa_marc-qmata.
+              wa_final-prfrq = wa_marc-prfrq.
+              wa_final-qzgtp = wa_marc-qzgtp.
+              wa_final-ssqss = wa_marc-ssqss.
+              wa_final-qssys = wa_marc-qssys.
+              wa_final-bwtty = wa_marc-bwtty.
+              wa_final-ncost = wa_marc-ncost.
+              wa_final-prctr = wa_marc-prctr.
+              wa_final-losgr = '1000'.
+              wa_final-awsls = abap_false.
+              wa_final-vint2 = wa_marc-vint2.
+              wa_final-vint1 = wa_marc-vint1.
+              wa_final-uneto = wa_marc-uneto.
+              wa_final-ueeto = wa_marc-ueeto.
+              wa_final-rgekz = wa_marc-rgekz.
+              wa_final-mtver = wa_marc-mtver.
+              wa_final-mmstd = wa_marc-mmstd.
+              wa_final-mabst = wa_marc-mabst.
+              wa_final-lgpro = abap_false.
+              wa_final-lgfsb = 'FGS1'.
+              wa_final-herkl = wa_marc-herkl.
+              wa_final-casnr = wa_marc-casnr.
+              wa_final-ahdis = wa_marc-ahdis.
+              wa_final-sobsk = wa_marc-sobsk.
+              wa_final-sobsk = wa_marc-sobsk.
+              wa_final-ladgr = wa_marc-ladgr.
+              wa_final-kzdkz = abap_true.
+              wa_final-matgr = abap_false.
+              wa_final-lgort = 'FGS1'.
+
+              READ TABLE ta_mbew INTO wa_mbew WITH KEY matnr = wa_mara-matnr
+                                                       bwkey = wa_marc-werks
+                                                       BINARY SEARCH.
+              IF sy-subrc = 0.
+                wa_final-bwtar = wa_mbew-bwtar.
+                wa_final-bklas = wa_mbew-bklas.
+
+                wa_final-vprsv = 'V'.
+                wa_final-verpr = '0.01'.
+                wa_final-stprs = abap_false.
+                wa_final-peinh = wa_mbew-peinh.
+                wa_final-hkmat = wa_mbew-hkmat.
+                wa_final-ekalr = wa_mbew-ekalr.
+                wa_final-zplp1 = wa_mbew-zplp1.
+                wa_final-zpld1 = abap_false.
+                wa_final-kosgr = abap_false.
+              ENDIF.
+            ENDIF.
+
+            APPEND wa_final TO ta_final.
+
+********BOC by Kumar Sourav on 14/03/22***************************
+
+            DATA(lwa_final_mms1) = wa_final .
+            lwa_final_mms1-lgort = 'MMS1' .
+            lwa_final_mms1-lgfsb = 'MMS1' .
+            DATA(lwa_final_mqlt) = wa_final .
+            lwa_final_mqlt-lgort = 'MQLT' .
+            lwa_final_mqlt-lgfsb = 'MQLT' .
+            APPEND lwa_final_mms1 TO ta_final .
+            APPEND lwa_final_mqlt TO ta_final .
+            CLEAR : lwa_final_mqlt , lwa_final_mms1 .
+
+********EOC by Kumar Sourav on 14/03/22***************************
+
+
+            CLEAR: wa_mvke,wa_marc,wa_mbew,wa_final.
+
+
+
+          ENDLOOP.
+        ENDIF.
+
+        CLEAR : wa_mara,wa_marc,wa_mvke,wa_mbew,wa_final.
+      ENDLOOP.
+
+    ENDIF.
+
+  ELSE.
+
+    MESSAGE text-002 TYPE co_s DISPLAY LIKE co_e.
+    LEAVE LIST-PROCESSING.
+
+  ENDIF.
+
+  IF NOT ta_final IS INITIAL.
+    DELETE ta_final WHERE werks IS INITIAL.
+  ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  EXTEND_MATERIAL
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM extend_material.
+
+  DATA: lwa_headdata             TYPE bapimathead,
+        lwa_clientdata           TYPE bapi_mara,
+        lwa_clientdatax          TYPE bapi_marax,
+        lwa_plantdata            TYPE bapi_marc,
+        lwa_plantdatax           TYPE bapi_marcx,
+        lwa_forecastparameters   TYPE bapi_mpop,
+        lwa_forecastparametersx  TYPE bapi_mpopx,
+        lwa_planningdata         TYPE bapi_mpgd,
+        lwa_planningdatax        TYPE bapi_mpgdx,
+        lwa_storagelocationdata  TYPE bapi_mard,
+        lwa_storagelocationdatax TYPE bapi_mardx,
+        lwa_valuationdata        TYPE bapi_mbew,
+        lwa_valuationdatax       TYPE bapi_mbewx,
+        lwa_warehousenumberdata  TYPE bapi_mlgn,
+        lwa_warehousenumberdatax TYPE bapi_mlgnx,
+        lwa_salesdata            TYPE bapi_mvke,
+        lwa_salesdatax           TYPE bapi_mvkex,
+        lwa_storagetypedata      TYPE bapi_mlgt,
+        lwa_storagetypedatax     TYPE bapi_mlgtx,
+        lta_materialdescription  TYPE TABLE OF bapi_makt,
+        lwa_materialdescription  TYPE bapi_makt,
+        lta_unitsofmeasure       TYPE TABLE OF bapi_marm,
+        lwa_unitsofmeasure       TYPE bapi_marm,
+        lta_unitsofmeasurex      TYPE TABLE OF bapi_marmx,
+        lwa_unitsofmeasurex      TYPE bapi_marmx,
+        lta_internationalartnos  TYPE TABLE OF bapi_mean,
+        lwa_internationalartnos  TYPE bapi_mean,
+        lta_materiallongtext     TYPE TABLE OF bapi_mltx,
+        lwa_materiallongtext     TYPE bapi_mltx,
+        lta_taxclassifications   TYPE TABLE OF bapi_mlan,
+        lwa_taxclassifications   TYPE bapi_mlan,
+        lta_return               TYPE TABLE OF bapi_matreturn2,
+        lwa_return               TYPE bapi_matreturn2.
+
+  CLEAR: lwa_headdata,lwa_clientdata,lwa_clientdatax,lwa_plantdata,lwa_plantdatax,lwa_forecastparameters,lwa_forecastparametersx,
+         lwa_planningdata,lwa_planningdatax,lwa_storagelocationdata,lwa_storagelocationdatax,lwa_valuationdata,lwa_valuationdatax,
+         lwa_warehousenumberdata,lwa_warehousenumberdatax,lwa_salesdata,lwa_salesdatax,lwa_storagetypedata,lwa_storagetypedatax,
+         lwa_materialdescription,lwa_unitsofmeasure,lwa_unitsofmeasurex,lwa_internationalartnos,lwa_materiallongtext,
+         lwa_taxclassifications,lwa_return,gv_lines_1000,gv_lines_3800.
+
+  REFRESH: lta_materialdescription[],lta_unitsofmeasure[],lta_unitsofmeasurex[],lta_internationalartnos[],lta_materiallongtext[],
+           lta_taxclassifications[],lta_return[].
+
+"S.O.A by vema Cr8000004741-CPLS on 05.03.2026.
+  SELECT vkorg,werks,zzspart FROM kotg919
+    INTO TABLE @DATA(ta_kotg919)
+    WHERE vkorg = '3900'.
+  IF sy-subrc = 0.
+    SORT ta_kotg919 BY werks.
+    SELECT * FROM zmm_prctr INTO TABLE @DATA(ta_zmm_prctr2)
+       FOR ALL ENTRIES IN @ta_kotg919
+       WHERE werks = @ta_kotg919-werks.
+  ENDIF.
+  "E.O.A by vema Cr8000004741-CPLS on 05.03.2026.
+  TYPES : BEGIN OF ty_kot,
+            vkorg   TYPE kotg919-vkorg,
+            werks   TYPE kotg919-werks,
+            zzspart TYPE kotg919-zzspart,
+          END OF ty_kot.
+  DATA :  ta_kotg919_filter TYPE STANDARD TABLE OF ty_kot.
+
+  LOOP AT ta_final INTO wa_final.
+
+    IF wa_final-labor <> co_exp. "Extend material with LOB = LOC OR GEN
+
+      DATA(ta_depot_1000) = ta_depot.
+*      DELETE ta_depot_1000 WHERE vkorg EQ co_3800. " commented by SM
+      DELETE ta_depot_1000 WHERE vkorg IN co_3series.
+      DELETE ta_depot_1000 WHERE werks EQ wa_final-werks.
+      IF NOT ta_depot_1000 IS INITIAL.
+        DESCRIBE TABLE ta_depot_1000 LINES gv_lines_1000.
+      ENDIF.
+
+      DATA(ta_depot_3800) = ta_depot[].
+
+*------------BOC CR:8000003825 BY sm
+
+*      IF co_3series IS NOT INITIAL.  " commented by SM
+*
+*        IF NOT ta_marc IS INITIAL.
+*          "Fetch data from table MVKE
+*          SELECT matnr vkorg vtweg vmsta vmstd aumng lfmng dwerk scmng
+*          FROM mvke APPENDING TABLE ta_mvke
+*          FOR ALL ENTRIES IN ta_marc
+*          WHERE matnr = ta_marc-matnr
+**            AND vkorg IN (co_1000,co_3800).
+*            AND vkorg IN co_3series.
+*
+*        ENDIF.
+*      ENDIF.
+
+*------------EOC CR:8000003825 BY sm
+
+*      DELETE ta_depot_3800 WHERE vkorg EQ co_1000. " commented by SM
+*      DELETE ta_depot_3800 WHERE vkorg IN co_1series. " commented by SM
+*      DELETE ta_depot_3800 WHERE vkorg NE wa_mvke-vkorg . " commented  by SM
+      DELETE ta_depot_3800 WHERE vkorg NE wa_final-vkorg . " added by SM
+      DELETE ta_depot_3800 WHERE werks EQ wa_final-werks.
+      IF NOT ta_depot_3800 IS INITIAL.
+        DESCRIBE TABLE ta_depot_3800 LINES gv_lines_3800.
+      ENDIF.
+
+*      IF wa_final-vkorg = co_1000. " commented by SM
+      IF wa_final-vkorg IN co_1series.
+        CLEAR: gv_counter.
+
+        DO gv_lines_1000 TIMES.
+
+          gv_counter = gv_counter + 1.
+
+          READ TABLE ta_depot_1000 INTO DATA(wa_temp_1000) INDEX gv_counter.
+          IF sy-subrc = 0.
+            IF line_exists( ta_marc[ matnr =  wa_final-matnr werks = wa_temp_1000-werks ] ).
+              CONTINUE.
+            ENDIF.
+            "Do Nothing.
+          ENDIF.
+
+          "Copy start
+          "Fill Header segment(HEADDATA)
+          lwa_headdata-material = wa_final-matnr.
+          lwa_headdata-ind_sector = wa_final-mbrsh.
+          lwa_headdata-matl_type = wa_final-mtart.
+          lwa_headdata-basic_view = abap_true.
+          lwa_headdata-sales_view = abap_true.
+          lwa_headdata-purchase_view = abap_true.
+          lwa_headdata-mrp_view = abap_true.
+          lwa_headdata-forecast_view = abap_true.
+          lwa_headdata-work_sched_view = abap_true.
+          lwa_headdata-prt_view = abap_true.
+          lwa_headdata-storage_view = abap_true.
+          lwa_headdata-warehouse_view = abap_true.
+          lwa_headdata-quality_view = abap_true.
+          lwa_headdata-account_view = abap_true.
+          lwa_headdata-cost_view = abap_true.
+*          lwa_headdata-warehouse_view = abap_true. "Added by Debasmita - CR#8000007721 - 06.09.2022
+
+
+          "Fill Plant-specific material data(Plantdata)
+          lwa_plantdata-plant = wa_temp_1000-werks.
+          lwa_plantdatax-plant = wa_temp_1000-werks.
+          lwa_plantdata-pur_group = wa_final-ekgrp.
+          lwa_plantdatax-pur_group = abap_true.
+          lwa_plantdata-issue_unit = wa_final-ausme.
+          lwa_plantdatax-issue_unit = abap_true.
+          lwa_plantdata-mrp_type = wa_final-dismm.
+          lwa_plantdatax-mrp_type = abap_true.
+          lwa_plantdata-mrp_ctrler = wa_final-dispo.
+          lwa_plantdatax-mrp_ctrler = abap_true.
+          lwa_plantdata-plnd_delry = wa_final-plifz.
+          lwa_plantdatax-plnd_delry = abap_true.
+          lwa_plantdata-gr_pr_time = wa_final-webaz.
+          lwa_plantdatax-gr_pr_time = abap_true.
+          lwa_plantdata-lotsizekey = wa_final-disls.
+          lwa_plantdatax-lotsizekey = abap_true.
+          lwa_plantdata-proc_type = wa_final-beskz.
+          lwa_plantdatax-proc_type = abap_true.
+          lwa_plantdata-spproctype = wa_final-sobsl.
+          lwa_plantdatax-spproctype = abap_true.
+          lwa_plantdata-reorder_pt = wa_final-minbe.
+          lwa_plantdatax-reorder_pt = abap_true.
+          lwa_plantdata-safety_stk = wa_final-eisbe.
+          lwa_plantdatax-safety_stk = abap_true.
+          lwa_plantdata-mat_grp_trans = wa_final-matgr.
+          lwa_plantdatax-mat_grp_trans = abap_true.
+          lwa_plantdata-minlotsize = wa_final-bstmi.
+          lwa_plantdatax-minlotsize = abap_true.
+          lwa_plantdata-maxlotsize = wa_final-bstma.
+          lwa_plantdatax-maxlotsize = abap_true.
+          lwa_plantdata-fixed_lot = wa_final-bstfe.
+          lwa_plantdatax-fixed_lot = abap_true.
+          lwa_plantdata-specprocty = wa_final-sobsk.
+          lwa_plantdatax-specprocty = abap_true.
+          lwa_plantdata-round_val = wa_final-bstrf.
+          lwa_plantdatax-round_val = abap_true.
+          lwa_plantdata-max_stock = wa_final-mabst.
+          lwa_plantdatax-max_stock = abap_true.
+          lwa_plantdata-dep_req_id = wa_final-sbdkz.
+          lwa_plantdatax-dep_req_id = abap_true.
+          lwa_plantdata-alt_bom_id = wa_final-altsl.
+          lwa_plantdatax-alt_bom_id = abap_true.
+          lwa_plantdata-sm_key = wa_final-fhori.
+          lwa_plantdatax-sm_key = abap_true.
+          lwa_plantdata-backflush = wa_final-rgekz.
+          lwa_plantdatax-backflush = abap_true.
+          lwa_plantdata-production_scheduler = wa_final-fevor.
+          lwa_plantdatax-production_scheduler = abap_true.
+          lwa_plantdata-inhseprodt = wa_final-dzeit.
+          lwa_plantdatax-inhseprodt = abap_true.
+          lwa_plantdata-over_tol = wa_final-ueeto.
+          lwa_plantdatax-over_tol = abap_true.
+          lwa_plantdata-under_tol = wa_final-uneto.
+          lwa_plantdatax-under_tol = abap_true.
+          lwa_plantdata-ctrl_key = wa_final-ssqss.
+          lwa_plantdatax-ctrl_key = abap_true.
+          lwa_plantdata-cert_type = wa_final-qzgtp.
+          lwa_plantdatax-cert_type = abap_true.
+          lwa_plantdata-doc_reqd = wa_final-kzdkz.
+          lwa_plantdatax-doc_reqd = abap_true.
+          lwa_plantdata-loadinggrp = wa_final-ladgr.
+          lwa_plantdatax-loadinggrp = abap_true.
+          lwa_plantdata-batch_mgmt = wa_final-xchpf.
+          lwa_plantdatax-batch_mgmt = abap_true.
+          lwa_plantdata-availcheck = wa_final-mtvfp.
+          lwa_plantdatax-availcheck = abap_true.
+          lwa_plantdata-sourcelist = wa_final-kordb.
+          lwa_plantdatax-sourcelist = abap_true.
+          lwa_plantdata-no_costing = wa_final-ncost.
+          lwa_plantdatax-no_costing = abap_true.
+          lwa_plantdata-countryori = wa_final-herkl.
+          lwa_plantdatax-countryori = abap_true.
+          lwa_plantdata-expimpgrp = wa_final-mtver.
+          lwa_plantdatax-expimpgrp = abap_true.
+
+          READ TABLE ta_zmm_prctr INTO wa_zmm_prctr WITH KEY werks = wa_temp_1000-werks
+                                                             BINARY SEARCH.
+          IF sy-subrc = 0.
+            lwa_plantdata-profit_ctr = wa_zmm_prctr-prctr.
+            lwa_plantdatax-profit_ctr = abap_true.
+
+          ELSE.
+
+            CLEAR: wa_log.
+            wa_log-vkorg = wa_final-vkorg.
+            wa_log-matnr = wa_final-matnr.
+            wa_log-werks = wa_temp_1000-werks.
+            CONCATENATE text-005 wa_temp_1000-werks INTO wa_log-mess SEPARATED BY space.
+            wa_log-stat  = 'ERROR'.
+            APPEND wa_log TO ta_log.
+            CLEAR: wa_log.
+            CONTINUE.
+          ENDIF.
+
+          lwa_plantdata-consummode = wa_final-vrmod.
+          lwa_plantdatax-consummode = abap_true.
+          lwa_plantdata-bwd_cons = wa_final-vint1.
+          lwa_plantdatax-bwd_cons = abap_true.
+          lwa_plantdata-fwd_cons = wa_final-vint2.
+          lwa_plantdatax-fwd_cons = abap_true.
+          lwa_plantdata-lot_size = wa_final-losgr.
+          lwa_plantdatax-lot_size = abap_true.
+          lwa_plantdata-iss_st_loc = wa_final-lgpro.
+          lwa_plantdatax-iss_st_loc = abap_true.
+          lwa_plantdata-variance_key = wa_final-awsls.
+          lwa_plantdatax-variance_key = abap_true.
+          lwa_plantdata-serno_prof = wa_final-sernp.
+          lwa_plantdatax-serno_prof = abap_true.
+          lwa_plantdata-qm_rgmts = wa_final-qssys.
+          lwa_plantdatax-qm_rgmts = abap_true.
+          lwa_plantdata-round_prof = wa_final-rdprf.
+          lwa_plantdatax-round_prof = abap_true.
+          lwa_plantdata-insp_int = wa_final-prfrq.
+          lwa_plantdatax-insp_int = abap_true.
+          lwa_plantdata-plan_strgp = wa_final-strgr.
+          lwa_plantdatax-plan_strgp = abap_true.
+          lwa_plantdata-sloc_exprc = wa_final-lgfsb.
+          lwa_plantdatax-sloc_exprc = abap_true.
+          IF wa_temp_1000-werks = '1187' OR wa_temp_1000-werks = '1188' OR wa_temp_1000-werks = '1189' OR wa_temp_1000-werks = '1190' OR
+             wa_temp_1000-werks = '1192' OR wa_temp_1000-werks = '1196'.
+            CLEAR: lwa_plantdata-sloc_exprc,lwa_plantdatax-sloc_exprc.
+          ENDIF.
+          lwa_plantdata-qm_authgrp = wa_final-qmata.
+          lwa_plantdatax-qm_authgrp = abap_true.
+          lwa_plantdata-pur_status = wa_final-mmsta.
+          lwa_plantdatax-pur_status = abap_true.
+          lwa_plantdata-batchentry = wa_final-kzech.
+          lwa_plantdatax-batchentry = abap_true.
+          lwa_plantdata-prodprof = wa_final-sfcpf.
+          lwa_plantdatax-prodprof = abap_true.
+          lwa_plantdata-pvalidfrom = wa_final-mmstd.
+          lwa_plantdatax-pvalidfrom = abap_true.
+          lwa_plantdata-cas_no = wa_final-casnr.
+          lwa_plantdatax-cas_no = abap_true.
+          lwa_plantdata-ctrl_code = wa_final-steuc.
+          lwa_plantdatax-ctrl_code = abap_true.
+          lwa_plantdata-mrp_relevancy_dep_requirements = wa_final-ahdis.
+          lwa_plantdatax-mrp_relevancy_dep_requirements = abap_true.
+
+
+          "Fill Storage-location-specific material data(STORAGELOCATIONDATA)
+          lwa_storagelocationdata-plant = wa_temp_1000-werks.
+          lwa_storagelocationdatax-plant = wa_temp_1000-werks.
+          lwa_storagelocationdata-stge_loc = wa_final-lgort.
+          lwa_storagelocationdatax-stge_loc = wa_final-lgort.
+          IF wa_temp_1000-werks = '1187' OR wa_temp_1000-werks = '1188' OR wa_temp_1000-werks = '1189' OR wa_temp_1000-werks = '1190' OR
+             wa_temp_1000-werks = '1192' OR wa_temp_1000-werks = '1196'.
+            CLEAR: lwa_storagelocationdata-stge_loc,lwa_storagelocationdatax-stge_loc.
+          ENDIF.
+
+          "Fill Valuation data(VALUATIONDATA)
+          lwa_valuationdata-val_area = wa_temp_1000-werks.
+          lwa_valuationdatax-val_area = wa_temp_1000-werks.
+          lwa_valuationdata-val_type = wa_final-bwtar.
+          lwa_valuationdatax-val_type = wa_final-bwtar.
+          lwa_valuationdata-val_class = wa_final-bklas.
+          lwa_valuationdatax-val_class = abap_true.
+          lwa_valuationdata-price_ctrl = wa_final-vprsv.
+          lwa_valuationdatax-price_ctrl = abap_true.
+          lwa_valuationdata-moving_pr = wa_final-verpr.
+          lwa_valuationdatax-moving_pr = abap_true.
+          lwa_valuationdata-std_price = wa_final-stprs.
+          lwa_valuationdatax-std_price = abap_true.
+          lwa_valuationdata-price_unit = wa_final-peinh.
+          lwa_valuationdatax-price_unit = abap_true.
+          lwa_valuationdata-orig_mat = wa_final-hkmat.
+          lwa_valuationdatax-orig_mat = abap_true.
+          lwa_valuationdata-qty_struct = wa_final-ekalr.
+          lwa_valuationdatax-qty_struct = abap_true.
+          lwa_valuationdata-plndprice1 = wa_final-zplp1.
+          lwa_valuationdatax-plndprice1 = abap_true.
+          lwa_valuationdata-plndprdate1 = wa_final-zpld1.
+          lwa_valuationdatax-plndprdate1 = abap_true.
+          lwa_valuationdata-overhead_grp = wa_final-kosgr.
+          lwa_valuationdatax-overhead_grp = abap_true.
+
+          "SOA by Debasmita - CR#8000007721 - 06.09.2022
+          READ TABLE ta_t320 INTO DATA(lwa_t320) WITH KEY werks = wa_temp_1000-werks
+                                                          lgort = wa_final-lgort
+                                                          BINARY SEARCH.
+          IF sy-subrc EQ 0.
+            lwa_warehousenumberdata-whse_no    = lwa_t320-lgnum.  " WarehouseNumber
+            lwa_warehousenumberdata-stgesector = '002'.           " Storage Section Indiactor
+            lwa_warehousenumberdata-placement  = 'ACS'.           " Stock Placement Indiator
+            lwa_warehousenumberdata-withdrawal = 'ACS'.           " Stock Removal Indicator
+            lwa_warehousenumberdatax-whse_no    = lwa_t320-lgnum. "WarehouseNumber
+            lwa_warehousenumberdatax-stgesector = 'X'.
+            lwa_warehousenumberdatax-placement  = 'X'.
+            lwa_warehousenumberdatax-withdrawal = 'X'.
+          ENDIF.
+          "EOA by Debasmita - CR#8000007721 - 06.09.2022
+
+          CALL FUNCTION 'BAPI_MATERIAL_SAVEDATA'
+            EXPORTING
+              headdata             = lwa_headdata
+*             CLIENTDATA           =
+*             CLIENTDATAX          =
+              plantdata            = lwa_plantdata
+              plantdatax           = lwa_plantdatax
+*             FORECASTPARAMETERS   =
+*             FORECASTPARAMETERSX  =
+*             PLANNINGDATA         =
+*             PLANNINGDATAX        =
+              storagelocationdata  = lwa_storagelocationdata
+              storagelocationdatax = lwa_storagelocationdatax
+              valuationdata        = lwa_valuationdata
+              valuationdatax       = lwa_valuationdatax
+              warehousenumberdata  = lwa_warehousenumberdata    "Added by Debasmita - CR#8000007721 - 06.09.2022
+              warehousenumberdatax = lwa_warehousenumberdatax   ""Added by Debasmita - CR#8000007721 - 06.09.2022
+*             SALESDATA            =
+*             SALESDATAX           =
+*             STORAGETYPEDATA      =
+*             STORAGETYPEDATAX     =
+*             FLAG_ONLINE          = ' '
+*             FLAG_CAD_CALL        = ' '
+*             NO_DEQUEUE           = ' '
+*             NO_ROLLBACK_WORK     = ' '
+*          IMPORTING
+*             return               = lta_return
+            TABLES
+*             MATERIALDESCRIPTION  =
+*             UNITSOFMEASURE       =
+*             UNITSOFMEASUREX      =
+*             INTERNATIONALARTNOS  =
+*             MATERIALLONGTEXT     =
+*             TAXCLASSIFICATIONS   =
+              returnmessages       = lta_return
+*             PRTDATA              =
+*             PRTDATAX             =
+*             EXTENSIONIN          =
+*             EXTENSIONINX         =
+            .
+
+
+          READ TABLE lta_return WITH KEY type = co_e
+                                TRANSPORTING NO FIELDS.
+          IF sy-subrc = 0.
+
+            CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'.
+            SORT lta_return BY type.
+
+            LOOP AT lta_return INTO DATA(lwa_return_temp) WHERE type = co_e.
+              IF lwa_return_temp-id = 'M3' AND lwa_return_temp-number = '305'.
+                CONTINUE.
+              ENDIF.
+              CLEAR: wa_log.
+              wa_log-vkorg = wa_final-vkorg.
+              wa_log-matnr = wa_final-matnr.
+              wa_log-werks = wa_temp_1000-werks.
+              wa_log-mess  = lwa_return_temp-message.
+              wa_log-stat  = 'ERROR'.
+              APPEND wa_log TO ta_log.
+              CLEAR: wa_log,lwa_return_temp.
+            ENDLOOP.
+
+          ELSE.
+            CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
+              EXPORTING
+                wait = abap_true.
+            CLEAR: wa_log.
+            wa_log-vkorg = wa_final-vkorg.
+            wa_log-matnr = wa_final-matnr.
+            wa_log-werks = wa_temp_1000-werks.
+            CONCATENATE text-003 wa_temp_1000-werks INTO wa_log-mess SEPARATED BY space.
+            wa_log-stat  = 'SUCCSESS'.
+            APPEND wa_log TO ta_log.
+            CLEAR: wa_log.
+
+
+          ENDIF.
+
+          CLEAR: lwa_headdata,lwa_clientdata,lwa_clientdatax,lwa_plantdata,lwa_plantdatax,lwa_forecastparameters,lwa_forecastparametersx,
+                 lwa_planningdata,lwa_planningdatax,lwa_storagelocationdata,lwa_storagelocationdatax,lwa_valuationdata,lwa_valuationdatax,
+                 lwa_warehousenumberdata,lwa_warehousenumberdatax,lwa_salesdata,lwa_salesdatax,lwa_storagetypedata,lwa_storagetypedatax,
+                 lwa_materialdescription,lwa_unitsofmeasure,lwa_unitsofmeasurex,lwa_internationalartnos,lwa_materiallongtext,
+                 lwa_taxclassifications,lwa_return,wa_temp_1000,wa_zmm_prctr,lwa_return_temp,wa_log.
+
+          REFRESH: lta_return[].
+          "Copy end
+        ENDDO.
+
+*      ELSEIF wa_final-vkorg = co_3800. " commented by SM
+      ELSEIF wa_final-vkorg IN co_3series.
+        CLEAR: gv_counter.
+*------------------------------------------------------------------------------------------Vema
+"S.O.A by vema Cr8000004741-CPLS on 05.03.2026.
+        IF wa_final-vkorg = '3900'.
+          DATA(lv_spart) = VALUE #( ta_mara[ matnr = wa_final-matnr ]-spart OPTIONAL ).
+          ta_kotg919_filter =  VALUE #( FOR ls_kotg919 IN ta_kotg919
+                                        WHERE ( zzspart = lv_spart )
+                                        ( ls_kotg919 ) ).
+
+          LOOP AT ta_kotg919_filter INTO DATA(wa_kotg919).
+            "Fill Header segment(HEADDATA)
+            lwa_headdata-material = wa_final-matnr.
+            lwa_headdata-ind_sector = wa_final-mbrsh.
+            lwa_headdata-matl_type = wa_final-mtart.
+            lwa_headdata-basic_view = abap_true.
+            lwa_headdata-sales_view = abap_true.
+            lwa_headdata-purchase_view = abap_true.
+            lwa_headdata-mrp_view = abap_true.
+            lwa_headdata-forecast_view = abap_true.
+            lwa_headdata-work_sched_view = abap_true.
+            lwa_headdata-prt_view = abap_true.
+            lwa_headdata-storage_view = abap_true.
+            lwa_headdata-warehouse_view = abap_true.
+            lwa_headdata-quality_view = abap_true.
+            lwa_headdata-account_view = abap_true.
+            lwa_headdata-cost_view = abap_true.
+
+
+            "Fill Plant-specific material data(Plantdata)
+*            lwa_plantdata-plant = wa_temp_3800-werks.
+            lwa_plantdata-plant = wa_kotg919-werks.
+*            lwa_plantdatax-plant = wa_temp_3800-werks.
+            lwa_plantdatax-plant = wa_kotg919-werks.
+            lwa_plantdata-pur_group = wa_final-ekgrp.
+            lwa_plantdatax-pur_group = abap_true.
+            lwa_plantdata-issue_unit = wa_final-ausme.
+            lwa_plantdatax-issue_unit = abap_true.
+            lwa_plantdata-mrp_type = wa_final-dismm.
+            lwa_plantdatax-mrp_type = abap_true.
+            lwa_plantdata-mrp_ctrler = wa_final-dispo.
+            lwa_plantdatax-mrp_ctrler = abap_true.
+            lwa_plantdata-plnd_delry = wa_final-plifz.
+            lwa_plantdatax-plnd_delry = abap_true.
+            lwa_plantdata-gr_pr_time = wa_final-webaz.
+            lwa_plantdatax-gr_pr_time = abap_true.
+            lwa_plantdata-lotsizekey = wa_final-disls.
+            lwa_plantdatax-lotsizekey = abap_true.
+            lwa_plantdata-proc_type = wa_final-beskz.
+            lwa_plantdatax-proc_type = abap_true.
+            lwa_plantdata-spproctype = wa_final-sobsl.
+            lwa_plantdatax-spproctype = abap_true.
+            lwa_plantdata-reorder_pt = wa_final-minbe.
+            lwa_plantdatax-reorder_pt = abap_true.
+            lwa_plantdata-safety_stk = wa_final-eisbe.
+            lwa_plantdatax-safety_stk = abap_true.
+            lwa_plantdata-mat_grp_trans = wa_final-matgr.
+            lwa_plantdatax-mat_grp_trans = abap_true.
+            lwa_plantdata-minlotsize = wa_final-bstmi.
+            lwa_plantdatax-minlotsize = abap_true.
+            lwa_plantdata-maxlotsize = wa_final-bstma.
+            lwa_plantdatax-maxlotsize = abap_true.
+            lwa_plantdata-fixed_lot = wa_final-bstfe.
+            lwa_plantdatax-fixed_lot = abap_true.
+            lwa_plantdata-specprocty = wa_final-sobsk.
+            lwa_plantdatax-specprocty = abap_true.
+            lwa_plantdata-round_val = wa_final-bstrf.
+            lwa_plantdatax-round_val = abap_true.
+            lwa_plantdata-max_stock = wa_final-mabst.
+            lwa_plantdatax-max_stock = abap_true.
+            lwa_plantdata-dep_req_id = wa_final-sbdkz.
+            lwa_plantdatax-dep_req_id = abap_true.
+            lwa_plantdata-alt_bom_id = wa_final-altsl.
+            lwa_plantdatax-alt_bom_id = abap_true.
+            lwa_plantdata-sm_key = wa_final-fhori.
+            lwa_plantdatax-sm_key = abap_true.
+            lwa_plantdata-backflush = wa_final-rgekz.
+            lwa_plantdatax-backflush = abap_true.
+            lwa_plantdata-production_scheduler = wa_final-fevor.
+            lwa_plantdatax-production_scheduler = abap_true.
+            lwa_plantdata-inhseprodt = wa_final-dzeit.
+            lwa_plantdatax-inhseprodt = abap_true.
+            lwa_plantdata-over_tol = wa_final-ueeto.
+            lwa_plantdatax-over_tol = abap_true.
+            lwa_plantdata-under_tol = wa_final-uneto.
+            lwa_plantdatax-under_tol = abap_true.
+            lwa_plantdata-ctrl_key = wa_final-ssqss.
+            lwa_plantdatax-ctrl_key = abap_true.
+            lwa_plantdata-cert_type = wa_final-qzgtp.
+            lwa_plantdatax-cert_type = abap_true.
+            lwa_plantdata-doc_reqd = wa_final-kzdkz.
+            lwa_plantdatax-doc_reqd = abap_true.
+            lwa_plantdata-loadinggrp = wa_final-ladgr.
+            lwa_plantdatax-loadinggrp = abap_true.
+            lwa_plantdata-batch_mgmt = wa_final-xchpf.
+            lwa_plantdatax-batch_mgmt = abap_true.
+            lwa_plantdata-availcheck = wa_final-mtvfp.
+            lwa_plantdatax-availcheck = abap_true.
+            lwa_plantdata-sourcelist = wa_final-kordb.
+            lwa_plantdatax-sourcelist = abap_true.
+            lwa_plantdata-no_costing = wa_final-ncost.
+            lwa_plantdatax-no_costing = abap_true.
+            lwa_plantdata-countryori = wa_final-herkl.
+            lwa_plantdatax-countryori = abap_true.
+            lwa_plantdata-expimpgrp = wa_final-mtver.
+            lwa_plantdatax-expimpgrp = abap_true.
+
+            READ TABLE ta_zmm_prctr2 INTO DATA(wa_zmm_prctr2) WITH KEY werks = wa_kotg919-werks
+                                                               BINARY SEARCH.
+            IF sy-subrc = 0.
+              lwa_plantdata-profit_ctr = wa_zmm_prctr2-prctr.
+              lwa_plantdatax-profit_ctr = abap_true.
+
+            ELSE.
+              CLEAR: wa_log.
+              wa_log-vkorg = wa_final-vkorg.
+              wa_log-matnr = wa_final-matnr.
+*              wa_log-werks = wa_temp_3800-werks.
+              wa_log-werks = wa_kotg919-werks.
+*              CONCATENATE text-005 wa_temp_3800-werks INTO wa_log-mess SEPARATED BY space.
+              CONCATENATE text-005 wa_kotg919-werks INTO wa_log-mess SEPARATED BY space.
+              wa_log-stat  = 'ERROR'.
+              APPEND wa_log TO ta_log.
+              CLEAR: wa_log.
+              CONTINUE.
+            ENDIF.
+
+            lwa_plantdata-consummode = wa_final-vrmod.
+            lwa_plantdatax-consummode = abap_true.
+            lwa_plantdata-bwd_cons = wa_final-vint1.
+            lwa_plantdatax-bwd_cons = abap_true.
+            lwa_plantdata-fwd_cons = wa_final-vint2.
+            lwa_plantdatax-fwd_cons = abap_true.
+            lwa_plantdata-lot_size = wa_final-losgr.
+            lwa_plantdatax-lot_size = abap_true.
+            lwa_plantdata-iss_st_loc = wa_final-lgpro.
+            lwa_plantdatax-iss_st_loc = abap_true.
+            lwa_plantdata-variance_key = wa_final-awsls.
+            lwa_plantdatax-variance_key = abap_true.
+            lwa_plantdata-serno_prof = wa_final-sernp.
+            lwa_plantdatax-serno_prof = abap_true.
+            lwa_plantdata-qm_rgmts = wa_final-qssys.
+            lwa_plantdatax-qm_rgmts = abap_true.
+            lwa_plantdata-round_prof = wa_final-rdprf.
+            lwa_plantdatax-round_prof = abap_true.
+            lwa_plantdata-insp_int = wa_final-prfrq.
+            lwa_plantdatax-insp_int = abap_true.
+            lwa_plantdata-plan_strgp = wa_final-strgr.
+            lwa_plantdatax-plan_strgp = abap_true.
+            lwa_plantdata-sloc_exprc = wa_final-lgfsb.
+            lwa_plantdatax-sloc_exprc = abap_true.
+            lwa_plantdata-qm_authgrp = wa_final-qmata.
+            lwa_plantdatax-qm_authgrp = abap_true.
+            lwa_plantdata-pur_status = wa_final-mmsta.
+            lwa_plantdatax-pur_status = abap_true.
+            lwa_plantdata-batchentry = wa_final-kzech.
+            lwa_plantdatax-batchentry = abap_true.
+            lwa_plantdata-prodprof = wa_final-sfcpf.
+            lwa_plantdatax-prodprof = abap_true.
+            lwa_plantdata-pvalidfrom = wa_final-mmstd.
+            lwa_plantdatax-pvalidfrom = abap_true.
+            lwa_plantdata-cas_no = wa_final-casnr.
+            lwa_plantdatax-cas_no = abap_true.
+            lwa_plantdata-ctrl_code = wa_final-steuc.
+            lwa_plantdatax-ctrl_code = abap_true.
+            lwa_plantdata-mrp_relevancy_dep_requirements = wa_final-ahdis.
+            lwa_plantdatax-mrp_relevancy_dep_requirements = abap_true.
+
+
+            "Fill Storage-location-specific material data(STORAGELOCATIONDATA)
+*            lwa_storagelocationdata-plant = wa_temp_3800-werks.
+            lwa_storagelocationdata-plant = wa_kotg919-werks.
+*            lwa_storagelocationdatax-plant = wa_temp_3800-werks.
+            lwa_storagelocationdatax-plant = wa_kotg919-werks.
+            lwa_storagelocationdata-stge_loc = wa_final-lgort.
+            lwa_storagelocationdatax-stge_loc = wa_final-lgort.
+
+            "Fill Valuation data(VALUATIONDATA)
+*            lwa_valuationdata-val_area = wa_temp_3800-werks.
+            lwa_valuationdata-val_area = wa_kotg919-werks.
+*            lwa_valuationdatax-val_area = wa_temp_3800-werks.
+            lwa_valuationdatax-val_area = wa_kotg919-werks.
+            lwa_valuationdata-val_type = wa_final-bwtar.
+            lwa_valuationdatax-val_type = wa_final-bwtar.
+            lwa_valuationdata-val_class = wa_final-bklas.
+            lwa_valuationdatax-val_class = abap_true.
+            lwa_valuationdata-price_ctrl = wa_final-vprsv.
+            lwa_valuationdatax-price_ctrl = abap_true.
+            lwa_valuationdata-moving_pr = wa_final-verpr.
+            lwa_valuationdatax-moving_pr = abap_true.
+            lwa_valuationdata-std_price = wa_final-stprs.
+            lwa_valuationdatax-std_price = abap_true.
+            lwa_valuationdata-price_unit = wa_final-peinh.
+            lwa_valuationdatax-price_unit = abap_true.
+            lwa_valuationdata-orig_mat = wa_final-hkmat.
+            lwa_valuationdatax-orig_mat = abap_true.
+            lwa_valuationdata-qty_struct = wa_final-ekalr.
+            lwa_valuationdatax-qty_struct = abap_true.
+            lwa_valuationdata-plndprice1 = wa_final-zplp1.
+            lwa_valuationdatax-plndprice1 = abap_true.
+            lwa_valuationdata-plndprdate1 = wa_final-zpld1.
+            lwa_valuationdatax-plndprdate1 = abap_true.
+            lwa_valuationdata-overhead_grp = wa_final-kosgr.
+            lwa_valuationdatax-overhead_grp = abap_true.
+
+            "SOA by Debasmita - CR#8000007721 - 06.09.2022
+*            READ TABLE ta_t320 INTO lwa_t320 WITH KEY werks = wa_temp_3800-werks
+            READ TABLE ta_t320 INTO lwa_t320 WITH KEY werks = wa_kotg919-werks
+                                                            lgort = wa_final-lgort
+                                                            BINARY SEARCH.
+            IF sy-subrc EQ 0.
+              lwa_warehousenumberdata-whse_no    = lwa_t320-lgnum.  " WarehouseNumber
+              lwa_warehousenumberdata-stgesector = '002'.           " Storage Section Indiactor
+              lwa_warehousenumberdata-placement  = 'ACS'.           " Stock Placement Indiator
+              lwa_warehousenumberdata-withdrawal = 'ACS'.           " Stock Removal Indicator
+              lwa_warehousenumberdatax-whse_no    = lwa_t320-lgnum. "WarehouseNumber
+              lwa_warehousenumberdatax-stgesector = 'X'.
+              lwa_warehousenumberdatax-placement  = 'X'.
+              lwa_warehousenumberdatax-withdrawal = 'X'.
+            ENDIF.
+            "EOA by Debasmita - CR#8000007721 - 06.09.2022
+
+            CALL FUNCTION 'BAPI_MATERIAL_SAVEDATA'
+              EXPORTING
+                headdata             = lwa_headdata
+*               CLIENTDATA           =
+*               CLIENTDATAX          =
+                plantdata            = lwa_plantdata
+                plantdatax           = lwa_plantdatax
+*               FORECASTPARAMETERS   =
+*               FORECASTPARAMETERSX  =
+*               PLANNINGDATA         =
+*               PLANNINGDATAX        =
+                storagelocationdata  = lwa_storagelocationdata
+                storagelocationdatax = lwa_storagelocationdatax
+                valuationdata        = lwa_valuationdata
+                valuationdatax       = lwa_valuationdatax
+                warehousenumberdata  = lwa_warehousenumberdata  "Added by Debasmita - CR#8000007721 - 06.09.2022
+                warehousenumberdatax = lwa_warehousenumberdatax "Added by Debasmita - CR#8000007721 - 06.09.2022
+*               SALESDATA            =
+*               SALESDATAX           =
+*               STORAGETYPEDATA      =
+*               STORAGETYPEDATAX     =
+*               FLAG_ONLINE          = ' '
+*               FLAG_CAD_CALL        = ' '
+*               NO_DEQUEUE           = ' '
+*               NO_ROLLBACK_WORK     = ' '
+*          IMPORTING
+*               return               = lta_return
+              TABLES
+*               MATERIALDESCRIPTION  =
+*               UNITSOFMEASURE       =
+*               UNITSOFMEASUREX      =
+*               INTERNATIONALARTNOS  =
+*               MATERIALLONGTEXT     =
+*               TAXCLASSIFICATIONS   =
+                returnmessages       = lta_return
+*               PRTDATA              =
+*               PRTDATAX             =
+*               EXTENSIONIN          =
+*               EXTENSIONINX         =
+              .
+
+
+            READ TABLE lta_return WITH KEY type = co_e
+                                  TRANSPORTING NO FIELDS.
+            IF sy-subrc = 0.
+
+              CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'.
+              SORT lta_return BY type.
+
+              LOOP AT lta_return INTO lwa_return_temp WHERE type = co_e.
+                IF lwa_return_temp-id = 'M3' AND lwa_return_temp-number = '305'.
+                  CONTINUE.
+                ENDIF.
+                CLEAR: wa_log.
+                wa_log-vkorg = wa_final-vkorg.
+                wa_log-matnr = wa_final-matnr.
+*                wa_log-werks = wa_temp_3800-werks.
+                wa_log-werks = wa_kotg919-werks.
+                wa_log-mess  = lwa_return_temp-message.
+                wa_log-stat  = 'ERROR'.
+                APPEND wa_log TO ta_log.
+                CLEAR: wa_log,lwa_return_temp.
+              ENDLOOP.
+
+            ELSE.
+              CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
+                EXPORTING
+                  wait = abap_true.
+              CLEAR: wa_log.
+              wa_log-vkorg = wa_final-vkorg.
+              wa_log-matnr = wa_final-matnr.
+*              wa_log-werks = wa_temp_3800-werks.
+              wa_log-werks = wa_kotg919-werks.
+              CONCATENATE text-003 wa_kotg919-werks INTO wa_log-mess SEPARATED BY space.
+              wa_log-stat  = 'SUCCESS'.
+              APPEND wa_log TO ta_log.
+              CLEAR: wa_log.
+
+
+            ENDIF.
+
+            CLEAR: lwa_headdata,lwa_clientdata,lwa_clientdatax,lwa_plantdata,lwa_plantdatax,lwa_forecastparameters,lwa_forecastparametersx,
+                   lwa_planningdata,lwa_planningdatax,lwa_storagelocationdata,lwa_storagelocationdatax,lwa_valuationdata,lwa_valuationdatax,
+                   lwa_warehousenumberdata,lwa_warehousenumberdatax,lwa_salesdata,lwa_salesdatax,lwa_storagetypedata,lwa_storagetypedatax,
+                   lwa_materialdescription,lwa_unitsofmeasure,lwa_unitsofmeasurex,lwa_internationalartnos,lwa_materiallongtext,
+                   lwa_taxclassifications,lwa_return,wa_zmm_prctr,lwa_return_temp,wa_log."wa_temp_3800
+
+            REFRESH: lta_return[].
+            CLEAR : wa_kotg919.
+          ENDLOOP.
+        ENDIF.
+*-----------------------------------------------------------------------------------------------------------------
+"E.O.A by vema Cr8000004741-CPLS on 05.03.2026.
+        IF wa_final-vkorg <> '3900'.
+          DO gv_lines_3800 TIMES.
+
+            gv_counter = gv_counter + 1.
+
+            READ TABLE ta_depot_3800 INTO DATA(wa_temp_3800) INDEX gv_counter.
+            IF sy-subrc = 0.
+*            IF wa_final-vkorg <> '3900'.
+              IF line_exists( ta_marc[ matnr =  wa_final-matnr werks = wa_temp_3800-werks ] ).
+                CONTINUE.
+              ENDIF.
+              "Do Nothing.
+*            ELSEIF wa_final-vkorg = '3900'.
+*              IF NOT line_exists( ta_kotg919[ vkorg = wa_final-vkorg werks = wa_temp_3800-werks ] ).   "Vema
+*                CONTINUE.
+*              ENDIF.
+*            ENDIF.
+
+            ENDIF.
+
+            ""
+            "Fill Header segment(HEADDATA)
+            lwa_headdata-material = wa_final-matnr.
+            lwa_headdata-ind_sector = wa_final-mbrsh.
+            lwa_headdata-matl_type = wa_final-mtart.
+            lwa_headdata-basic_view = abap_true.
+            lwa_headdata-sales_view = abap_true.
+            lwa_headdata-purchase_view = abap_true.
+            lwa_headdata-mrp_view = abap_true.
+            lwa_headdata-forecast_view = abap_true.
+            lwa_headdata-work_sched_view = abap_true.
+            lwa_headdata-prt_view = abap_true.
+            lwa_headdata-storage_view = abap_true.
+            lwa_headdata-warehouse_view = abap_true.
+            lwa_headdata-quality_view = abap_true.
+            lwa_headdata-account_view = abap_true.
+            lwa_headdata-cost_view = abap_true.
+
+
+            "Fill Plant-specific material data(Plantdata)
+            lwa_plantdata-plant = wa_temp_3800-werks.
+            lwa_plantdatax-plant = wa_temp_3800-werks.
+            lwa_plantdata-pur_group = wa_final-ekgrp.
+            lwa_plantdatax-pur_group = abap_true.
+            lwa_plantdata-issue_unit = wa_final-ausme.
+            lwa_plantdatax-issue_unit = abap_true.
+            lwa_plantdata-mrp_type = wa_final-dismm.
+            lwa_plantdatax-mrp_type = abap_true.
+            lwa_plantdata-mrp_ctrler = wa_final-dispo.
+            lwa_plantdatax-mrp_ctrler = abap_true.
+            lwa_plantdata-plnd_delry = wa_final-plifz.
+            lwa_plantdatax-plnd_delry = abap_true.
+            lwa_plantdata-gr_pr_time = wa_final-webaz.
+            lwa_plantdatax-gr_pr_time = abap_true.
+            lwa_plantdata-lotsizekey = wa_final-disls.
+            lwa_plantdatax-lotsizekey = abap_true.
+            lwa_plantdata-proc_type = wa_final-beskz.
+            lwa_plantdatax-proc_type = abap_true.
+            lwa_plantdata-spproctype = wa_final-sobsl.
+            lwa_plantdatax-spproctype = abap_true.
+            lwa_plantdata-reorder_pt = wa_final-minbe.
+            lwa_plantdatax-reorder_pt = abap_true.
+            lwa_plantdata-safety_stk = wa_final-eisbe.
+            lwa_plantdatax-safety_stk = abap_true.
+            lwa_plantdata-mat_grp_trans = wa_final-matgr.
+            lwa_plantdatax-mat_grp_trans = abap_true.
+            lwa_plantdata-minlotsize = wa_final-bstmi.
+            lwa_plantdatax-minlotsize = abap_true.
+            lwa_plantdata-maxlotsize = wa_final-bstma.
+            lwa_plantdatax-maxlotsize = abap_true.
+            lwa_plantdata-fixed_lot = wa_final-bstfe.
+            lwa_plantdatax-fixed_lot = abap_true.
+            lwa_plantdata-specprocty = wa_final-sobsk.
+            lwa_plantdatax-specprocty = abap_true.
+            lwa_plantdata-round_val = wa_final-bstrf.
+            lwa_plantdatax-round_val = abap_true.
+            lwa_plantdata-max_stock = wa_final-mabst.
+            lwa_plantdatax-max_stock = abap_true.
+            lwa_plantdata-dep_req_id = wa_final-sbdkz.
+            lwa_plantdatax-dep_req_id = abap_true.
+            lwa_plantdata-alt_bom_id = wa_final-altsl.
+            lwa_plantdatax-alt_bom_id = abap_true.
+            lwa_plantdata-sm_key = wa_final-fhori.
+            lwa_plantdatax-sm_key = abap_true.
+            lwa_plantdata-backflush = wa_final-rgekz.
+            lwa_plantdatax-backflush = abap_true.
+            lwa_plantdata-production_scheduler = wa_final-fevor.
+            lwa_plantdatax-production_scheduler = abap_true.
+            lwa_plantdata-inhseprodt = wa_final-dzeit.
+            lwa_plantdatax-inhseprodt = abap_true.
+            lwa_plantdata-over_tol = wa_final-ueeto.
+            lwa_plantdatax-over_tol = abap_true.
+            lwa_plantdata-under_tol = wa_final-uneto.
+            lwa_plantdatax-under_tol = abap_true.
+            lwa_plantdata-ctrl_key = wa_final-ssqss.
+            lwa_plantdatax-ctrl_key = abap_true.
+            lwa_plantdata-cert_type = wa_final-qzgtp.
+            lwa_plantdatax-cert_type = abap_true.
+            lwa_plantdata-doc_reqd = wa_final-kzdkz.
+            lwa_plantdatax-doc_reqd = abap_true.
+            lwa_plantdata-loadinggrp = wa_final-ladgr.
+            lwa_plantdatax-loadinggrp = abap_true.
+            lwa_plantdata-batch_mgmt = wa_final-xchpf.
+            lwa_plantdatax-batch_mgmt = abap_true.
+            lwa_plantdata-availcheck = wa_final-mtvfp.
+            lwa_plantdatax-availcheck = abap_true.
+            lwa_plantdata-sourcelist = wa_final-kordb.
+            lwa_plantdatax-sourcelist = abap_true.
+            lwa_plantdata-no_costing = wa_final-ncost.
+            lwa_plantdatax-no_costing = abap_true.
+            lwa_plantdata-countryori = wa_final-herkl.
+            lwa_plantdatax-countryori = abap_true.
+            lwa_plantdata-expimpgrp = wa_final-mtver.
+            lwa_plantdatax-expimpgrp = abap_true.
+
+            READ TABLE ta_zmm_prctr INTO wa_zmm_prctr WITH KEY werks = wa_temp_3800-werks
+                                                               BINARY SEARCH.
+            IF sy-subrc = 0.
+              lwa_plantdata-profit_ctr = wa_zmm_prctr-prctr.
+              lwa_plantdatax-profit_ctr = abap_true.
+
+            ELSE.
+              CLEAR: wa_log.
+              wa_log-vkorg = wa_final-vkorg.
+              wa_log-matnr = wa_final-matnr.
+              wa_log-werks = wa_temp_3800-werks.
+              CONCATENATE text-005 wa_temp_3800-werks INTO wa_log-mess SEPARATED BY space.
+              wa_log-stat  = 'ERROR'.
+              APPEND wa_log TO ta_log.
+              CLEAR: wa_log.
+              CONTINUE.
+            ENDIF.
+
+            lwa_plantdata-consummode = wa_final-vrmod.
+            lwa_plantdatax-consummode = abap_true.
+            lwa_plantdata-bwd_cons = wa_final-vint1.
+            lwa_plantdatax-bwd_cons = abap_true.
+            lwa_plantdata-fwd_cons = wa_final-vint2.
+            lwa_plantdatax-fwd_cons = abap_true.
+            lwa_plantdata-lot_size = wa_final-losgr.
+            lwa_plantdatax-lot_size = abap_true.
+            lwa_plantdata-iss_st_loc = wa_final-lgpro.
+            lwa_plantdatax-iss_st_loc = abap_true.
+            lwa_plantdata-variance_key = wa_final-awsls.
+            lwa_plantdatax-variance_key = abap_true.
+            lwa_plantdata-serno_prof = wa_final-sernp.
+            lwa_plantdatax-serno_prof = abap_true.
+            lwa_plantdata-qm_rgmts = wa_final-qssys.
+            lwa_plantdatax-qm_rgmts = abap_true.
+            lwa_plantdata-round_prof = wa_final-rdprf.
+            lwa_plantdatax-round_prof = abap_true.
+            lwa_plantdata-insp_int = wa_final-prfrq.
+            lwa_plantdatax-insp_int = abap_true.
+            lwa_plantdata-plan_strgp = wa_final-strgr.
+            lwa_plantdatax-plan_strgp = abap_true.
+            lwa_plantdata-sloc_exprc = wa_final-lgfsb.
+            lwa_plantdatax-sloc_exprc = abap_true.
+            lwa_plantdata-qm_authgrp = wa_final-qmata.
+            lwa_plantdatax-qm_authgrp = abap_true.
+            lwa_plantdata-pur_status = wa_final-mmsta.
+            lwa_plantdatax-pur_status = abap_true.
+            lwa_plantdata-batchentry = wa_final-kzech.
+            lwa_plantdatax-batchentry = abap_true.
+            lwa_plantdata-prodprof = wa_final-sfcpf.
+            lwa_plantdatax-prodprof = abap_true.
+            lwa_plantdata-pvalidfrom = wa_final-mmstd.
+            lwa_plantdatax-pvalidfrom = abap_true.
+            lwa_plantdata-cas_no = wa_final-casnr.
+            lwa_plantdatax-cas_no = abap_true.
+            lwa_plantdata-ctrl_code = wa_final-steuc.
+            lwa_plantdatax-ctrl_code = abap_true.
+            lwa_plantdata-mrp_relevancy_dep_requirements = wa_final-ahdis.
+            lwa_plantdatax-mrp_relevancy_dep_requirements = abap_true.
+
+
+            "Fill Storage-location-specific material data(STORAGELOCATIONDATA)
+            lwa_storagelocationdata-plant = wa_temp_3800-werks.
+            lwa_storagelocationdatax-plant = wa_temp_3800-werks.
+            lwa_storagelocationdata-stge_loc = wa_final-lgort.
+            lwa_storagelocationdatax-stge_loc = wa_final-lgort.
+
+            "Fill Valuation data(VALUATIONDATA)
+            lwa_valuationdata-val_area = wa_temp_3800-werks.
+            lwa_valuationdatax-val_area = wa_temp_3800-werks.
+            lwa_valuationdata-val_type = wa_final-bwtar.
+            lwa_valuationdatax-val_type = wa_final-bwtar.
+            lwa_valuationdata-val_class = wa_final-bklas.
+            lwa_valuationdatax-val_class = abap_true.
+            lwa_valuationdata-price_ctrl = wa_final-vprsv.
+            lwa_valuationdatax-price_ctrl = abap_true.
+            lwa_valuationdata-moving_pr = wa_final-verpr.
+            lwa_valuationdatax-moving_pr = abap_true.
+            lwa_valuationdata-std_price = wa_final-stprs.
+            lwa_valuationdatax-std_price = abap_true.
+            lwa_valuationdata-price_unit = wa_final-peinh.
+            lwa_valuationdatax-price_unit = abap_true.
+            lwa_valuationdata-orig_mat = wa_final-hkmat.
+            lwa_valuationdatax-orig_mat = abap_true.
+            lwa_valuationdata-qty_struct = wa_final-ekalr.
+            lwa_valuationdatax-qty_struct = abap_true.
+            lwa_valuationdata-plndprice1 = wa_final-zplp1.
+            lwa_valuationdatax-plndprice1 = abap_true.
+            lwa_valuationdata-plndprdate1 = wa_final-zpld1.
+            lwa_valuationdatax-plndprdate1 = abap_true.
+            lwa_valuationdata-overhead_grp = wa_final-kosgr.
+            lwa_valuationdatax-overhead_grp = abap_true.
+
+            "SOA by Debasmita - CR#8000007721 - 06.09.2022
+            READ TABLE ta_t320 INTO lwa_t320 WITH KEY werks = wa_temp_3800-werks
+                                                            lgort = wa_final-lgort
+                                                            BINARY SEARCH.
+            IF sy-subrc EQ 0.
+              lwa_warehousenumberdata-whse_no    = lwa_t320-lgnum.  " WarehouseNumber
+              lwa_warehousenumberdata-stgesector = '002'.           " Storage Section Indiactor
+              lwa_warehousenumberdata-placement  = 'ACS'.           " Stock Placement Indiator
+              lwa_warehousenumberdata-withdrawal = 'ACS'.           " Stock Removal Indicator
+              lwa_warehousenumberdatax-whse_no    = lwa_t320-lgnum. "WarehouseNumber
+              lwa_warehousenumberdatax-stgesector = 'X'.
+              lwa_warehousenumberdatax-placement  = 'X'.
+              lwa_warehousenumberdatax-withdrawal = 'X'.
+            ENDIF.
+            "EOA by Debasmita - CR#8000007721 - 06.09.2022
+
+            CALL FUNCTION 'BAPI_MATERIAL_SAVEDATA'
+              EXPORTING
+                headdata             = lwa_headdata
+*               CLIENTDATA           =
+*               CLIENTDATAX          =
+                plantdata            = lwa_plantdata
+                plantdatax           = lwa_plantdatax
+*               FORECASTPARAMETERS   =
+*               FORECASTPARAMETERSX  =
+*               PLANNINGDATA         =
+*               PLANNINGDATAX        =
+                storagelocationdata  = lwa_storagelocationdata
+                storagelocationdatax = lwa_storagelocationdatax
+                valuationdata        = lwa_valuationdata
+                valuationdatax       = lwa_valuationdatax
+                warehousenumberdata  = lwa_warehousenumberdata  "Added by Debasmita - CR#8000007721 - 06.09.2022
+                warehousenumberdatax = lwa_warehousenumberdatax "Added by Debasmita - CR#8000007721 - 06.09.2022
+*               SALESDATA            =
+*               SALESDATAX           =
+*               STORAGETYPEDATA      =
+*               STORAGETYPEDATAX     =
+*               FLAG_ONLINE          = ' '
+*               FLAG_CAD_CALL        = ' '
+*               NO_DEQUEUE           = ' '
+*               NO_ROLLBACK_WORK     = ' '
+*          IMPORTING
+*               return               = lta_return
+              TABLES
+*               MATERIALDESCRIPTION  =
+*               UNITSOFMEASURE       =
+*               UNITSOFMEASUREX      =
+*               INTERNATIONALARTNOS  =
+*               MATERIALLONGTEXT     =
+*               TAXCLASSIFICATIONS   =
+                returnmessages       = lta_return
+*               PRTDATA              =
+*               PRTDATAX             =
+*               EXTENSIONIN          =
+*               EXTENSIONINX         =
+              .
+
+
+            READ TABLE lta_return WITH KEY type = co_e
+                                  TRANSPORTING NO FIELDS.
+            IF sy-subrc = 0.
+
+              CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'.
+              SORT lta_return BY type.
+
+              LOOP AT lta_return INTO lwa_return_temp WHERE type = co_e.
+                IF lwa_return_temp-id = 'M3' AND lwa_return_temp-number = '305'.
+                  CONTINUE.
+                ENDIF.
+                CLEAR: wa_log.
+                wa_log-vkorg = wa_final-vkorg.
+                wa_log-matnr = wa_final-matnr.
+                wa_log-werks = wa_temp_3800-werks.
+                wa_log-mess  = lwa_return_temp-message.
+                wa_log-stat  = 'ERROR'.
+                APPEND wa_log TO ta_log.
+                CLEAR: wa_log,lwa_return_temp.
+              ENDLOOP.
+
+            ELSE.
+              CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
+                EXPORTING
+                  wait = abap_true.
+              CLEAR: wa_log.
+              wa_log-vkorg = wa_final-vkorg.
+              wa_log-matnr = wa_final-matnr.
+              wa_log-werks = wa_temp_3800-werks.
+              CONCATENATE text-003 wa_temp_3800-werks INTO wa_log-mess SEPARATED BY space.
+              wa_log-stat  = 'SUCCESS'.
+              APPEND wa_log TO ta_log.
+              CLEAR: wa_log.
+
+
+            ENDIF.
+
+            CLEAR: lwa_headdata,lwa_clientdata,lwa_clientdatax,lwa_plantdata,lwa_plantdatax,lwa_forecastparameters,lwa_forecastparametersx,
+                   lwa_planningdata,lwa_planningdatax,lwa_storagelocationdata,lwa_storagelocationdatax,lwa_valuationdata,lwa_valuationdatax,
+                   lwa_warehousenumberdata,lwa_warehousenumberdatax,lwa_salesdata,lwa_salesdatax,lwa_storagetypedata,lwa_storagetypedatax,
+                   lwa_materialdescription,lwa_unitsofmeasure,lwa_unitsofmeasurex,lwa_internationalartnos,lwa_materiallongtext,
+                   lwa_taxclassifications,lwa_return,wa_temp_3800,wa_zmm_prctr,lwa_return_temp,wa_log.
+
+            REFRESH: lta_return[].
+            ""
+
+          ENDDO.
+        ENDIF. "Vema
+
+      ENDIF.
+
+      CLEAR: wa_final,gv_lines_1000,gv_lines_3800.
+
+      REFRESH: ta_depot_1000[], ta_depot_3800[].
+
+
+
+    ELSE. "Extend material with LOB = EXP
+*      if wa_final-vkorg IN co_3series.
+*
+*      endif.
+      "Fill Header segment(HEADDATA)
+      lwa_headdata-material = wa_final-matnr.
+      lwa_headdata-ind_sector = wa_final-mbrsh.
+      lwa_headdata-matl_type = wa_final-mtart.
+      lwa_headdata-basic_view = abap_true.
+      lwa_headdata-sales_view = abap_true.
+      lwa_headdata-purchase_view = abap_true.
+      lwa_headdata-mrp_view = abap_true.
+      lwa_headdata-forecast_view = abap_true.
+      lwa_headdata-work_sched_view = abap_true.
+      lwa_headdata-prt_view = abap_true.
+      lwa_headdata-storage_view = abap_true.
+      lwa_headdata-warehouse_view = abap_true.
+      lwa_headdata-quality_view = abap_true.
+      lwa_headdata-account_view = abap_true.
+      lwa_headdata-cost_view = abap_true.
+
+
+      "Fill Plant-specific material data(Plantdata)
+      lwa_plantdata-plant = '1301'.
+      lwa_plantdatax-plant = '1301'.
+      lwa_plantdata-pur_group = wa_final-ekgrp.
+      lwa_plantdatax-pur_group = abap_true.
+      lwa_plantdata-issue_unit = wa_final-ausme.
+      lwa_plantdatax-issue_unit = abap_true.
+      lwa_plantdata-mrp_type = wa_final-dismm.
+      lwa_plantdatax-mrp_type = abap_true.
+      lwa_plantdata-mrp_ctrler = wa_final-dispo.
+      lwa_plantdatax-mrp_ctrler = abap_true.
+      lwa_plantdata-plnd_delry = wa_final-plifz.
+      lwa_plantdatax-plnd_delry = abap_true.
+      lwa_plantdata-gr_pr_time = wa_final-webaz.
+      lwa_plantdatax-gr_pr_time = abap_true.
+      lwa_plantdata-lotsizekey = wa_final-disls.
+      lwa_plantdatax-lotsizekey = abap_true.
+      lwa_plantdata-proc_type = wa_final-beskz.
+      lwa_plantdatax-proc_type = abap_true.
+      lwa_plantdata-spproctype = wa_final-sobsl.
+      lwa_plantdatax-spproctype = abap_true.
+      lwa_plantdata-reorder_pt = wa_final-minbe.
+      lwa_plantdatax-reorder_pt = abap_true.
+      lwa_plantdata-safety_stk = wa_final-eisbe.
+      lwa_plantdatax-safety_stk = abap_true.
+      lwa_plantdata-mat_grp_trans = wa_final-matgr.
+      lwa_plantdatax-mat_grp_trans = abap_true.
+      lwa_plantdata-minlotsize = wa_final-bstmi.
+      lwa_plantdatax-minlotsize = abap_true.
+      lwa_plantdata-maxlotsize = wa_final-bstma.
+      lwa_plantdatax-maxlotsize = abap_true.
+      lwa_plantdata-fixed_lot = wa_final-bstfe.
+      lwa_plantdatax-fixed_lot = abap_true.
+      lwa_plantdata-specprocty = wa_final-sobsk.
+      lwa_plantdatax-specprocty = abap_true.
+      lwa_plantdata-round_val = wa_final-bstrf.
+      lwa_plantdatax-round_val = abap_true.
+      lwa_plantdata-max_stock = wa_final-mabst.
+      lwa_plantdatax-max_stock = abap_true.
+      lwa_plantdata-dep_req_id = wa_final-sbdkz.
+      lwa_plantdatax-dep_req_id = abap_true.
+      lwa_plantdata-alt_bom_id = wa_final-altsl.
+      lwa_plantdatax-alt_bom_id = abap_true.
+      lwa_plantdata-sm_key = wa_final-fhori.
+      lwa_plantdatax-sm_key = abap_true.
+      lwa_plantdata-backflush = wa_final-rgekz.
+      lwa_plantdatax-backflush = abap_true.
+      lwa_plantdata-production_scheduler = wa_final-fevor.
+      lwa_plantdatax-production_scheduler = abap_true.
+      lwa_plantdata-inhseprodt = wa_final-dzeit.
+      lwa_plantdatax-inhseprodt = abap_true.
+      lwa_plantdata-over_tol = wa_final-ueeto.
+      lwa_plantdatax-over_tol = abap_true.
+      lwa_plantdata-under_tol = wa_final-uneto.
+      lwa_plantdatax-under_tol = abap_true.
+      lwa_plantdata-ctrl_key = wa_final-ssqss.
+      lwa_plantdatax-ctrl_key = abap_true.
+      lwa_plantdata-cert_type = wa_final-qzgtp.
+      lwa_plantdatax-cert_type = abap_true.
+      lwa_plantdata-doc_reqd = wa_final-kzdkz.
+      lwa_plantdatax-doc_reqd = abap_true.
+      lwa_plantdata-loadinggrp = wa_final-ladgr.
+      lwa_plantdatax-loadinggrp = abap_true.
+      lwa_plantdata-batch_mgmt = wa_final-xchpf.
+      lwa_plantdatax-batch_mgmt = abap_true.
+      lwa_plantdata-availcheck = wa_final-mtvfp.
+      lwa_plantdatax-availcheck = abap_true.
+      lwa_plantdata-sourcelist = wa_final-kordb.
+      lwa_plantdatax-sourcelist = abap_true.
+      lwa_plantdata-no_costing = wa_final-ncost.
+      lwa_plantdatax-no_costing = abap_true.
+      lwa_plantdata-countryori = wa_final-herkl.
+      lwa_plantdatax-countryori = abap_true.
+      lwa_plantdata-expimpgrp = wa_final-mtver.
+      lwa_plantdatax-expimpgrp = abap_true.
+
+      SELECT SINGLE prctr FROM zmm_prctr INTO @DATA(lv_prctr_1301) WHERE werks = '1301'.
+
+      IF sy-subrc = 0.
+        lwa_plantdata-profit_ctr = lv_prctr_1301.
+        lwa_plantdatax-profit_ctr = abap_true.
+
+      ELSE.
+
+        CLEAR: wa_log.
+        wa_log-vkorg = wa_final-vkorg.
+        wa_log-matnr = wa_final-matnr.
+        wa_log-werks = '1301'.
+        CONCATENATE text-005 '1301' INTO wa_log-mess SEPARATED BY space.
+        wa_log-stat  = 'ERROR'.
+        APPEND wa_log TO ta_log.
+        CLEAR: wa_log.
+        CONTINUE.
+      ENDIF.
+
+      lwa_plantdata-consummode = wa_final-vrmod.
+      lwa_plantdatax-consummode = abap_true.
+      lwa_plantdata-bwd_cons = wa_final-vint1.
+      lwa_plantdatax-bwd_cons = abap_true.
+      lwa_plantdata-fwd_cons = wa_final-vint2.
+      lwa_plantdatax-fwd_cons = abap_true.
+      lwa_plantdata-lot_size = wa_final-losgr.
+      lwa_plantdatax-lot_size = abap_true.
+      lwa_plantdata-iss_st_loc = wa_final-lgpro.
+      lwa_plantdatax-iss_st_loc = abap_true.
+      lwa_plantdata-variance_key = wa_final-awsls.
+      lwa_plantdatax-variance_key = abap_true.
+      lwa_plantdata-serno_prof = wa_final-sernp.
+      lwa_plantdatax-serno_prof = abap_true.
+      lwa_plantdata-qm_rgmts = wa_final-qssys.
+      lwa_plantdatax-qm_rgmts = abap_true.
+      lwa_plantdata-round_prof = wa_final-rdprf.
+      lwa_plantdatax-round_prof = abap_true.
+      lwa_plantdata-insp_int = wa_final-prfrq.
+      lwa_plantdatax-insp_int = abap_true.
+      lwa_plantdata-plan_strgp = wa_final-strgr.
+      lwa_plantdatax-plan_strgp = abap_true.
+      lwa_plantdata-sloc_exprc = wa_final-lgfsb.
+      lwa_plantdatax-sloc_exprc = abap_true.
+*          IF wa_temp_1000-werks = '1187' OR wa_temp_1000-werks = '1188' OR wa_temp_1000-werks = '1189' OR wa_temp_1000-werks = '1190' OR
+*             wa_temp_1000-werks = '1192' OR wa_temp_1000-werks = '1196'.
+*            CLEAR: lwa_plantdata-sloc_exprc,lwa_plantdatax-sloc_exprc.
+*          ENDIF.
+      lwa_plantdata-qm_authgrp = wa_final-qmata.
+      lwa_plantdatax-qm_authgrp = abap_true.
+      lwa_plantdata-pur_status = wa_final-mmsta.
+      lwa_plantdatax-pur_status = abap_true.
+      lwa_plantdata-batchentry = wa_final-kzech.
+      lwa_plantdatax-batchentry = abap_true.
+      lwa_plantdata-prodprof = wa_final-sfcpf.
+      lwa_plantdatax-prodprof = abap_true.
+      lwa_plantdata-pvalidfrom = wa_final-mmstd.
+      lwa_plantdatax-pvalidfrom = abap_true.
+      lwa_plantdata-cas_no = wa_final-casnr.
+      lwa_plantdatax-cas_no = abap_true.
+      lwa_plantdata-ctrl_code = wa_final-steuc.
+      lwa_plantdatax-ctrl_code = abap_true.
+      lwa_plantdata-mrp_relevancy_dep_requirements = wa_final-ahdis.
+      lwa_plantdatax-mrp_relevancy_dep_requirements = abap_true.
+
+
+      "Fill Storage-location-specific material data(STORAGELOCATIONDATA)
+      lwa_storagelocationdata-plant = '1301'.
+      lwa_storagelocationdatax-plant = '1301'.
+      lwa_storagelocationdata-stge_loc = wa_final-lgort.
+      lwa_storagelocationdatax-stge_loc = wa_final-lgort.
+*          IF wa_temp_1000-werks = '1187' OR wa_temp_1000-werks = '1188' OR wa_temp_1000-werks = '1189' OR wa_temp_1000-werks = '1190' OR
+*             wa_temp_1000-werks = '1192' OR wa_temp_1000-werks = '1196'.
+*            CLEAR: lwa_storagelocationdata-stge_loc,lwa_storagelocationdatax-stge_loc.
+*          ENDIF.
+
+      "Fill Valuation data(VALUATIONDATA)
+      lwa_valuationdata-val_area = '1301'.
+      lwa_valuationdatax-val_area = '1301'.
+      lwa_valuationdata-val_type = wa_final-bwtar.
+      lwa_valuationdatax-val_type = wa_final-bwtar.
+      lwa_valuationdata-val_class = wa_final-bklas.
+      lwa_valuationdatax-val_class = abap_true.
+      lwa_valuationdata-price_ctrl = wa_final-vprsv.
+      lwa_valuationdatax-price_ctrl = abap_true.
+      lwa_valuationdata-moving_pr = wa_final-verpr.
+      lwa_valuationdatax-moving_pr = abap_true.
+      lwa_valuationdata-std_price = wa_final-stprs.
+      lwa_valuationdatax-std_price = abap_true.
+      lwa_valuationdata-price_unit = wa_final-peinh.
+      lwa_valuationdatax-price_unit = abap_true.
+      lwa_valuationdata-orig_mat = wa_final-hkmat.
+      lwa_valuationdatax-orig_mat = abap_true.
+      lwa_valuationdata-qty_struct = wa_final-ekalr.
+      lwa_valuationdatax-qty_struct = abap_true.
+      lwa_valuationdata-plndprice1 = wa_final-zplp1.
+      lwa_valuationdatax-plndprice1 = abap_true.
+      lwa_valuationdata-plndprdate1 = wa_final-zpld1.
+      lwa_valuationdatax-plndprdate1 = abap_true.
+      lwa_valuationdata-overhead_grp = wa_final-kosgr.
+      lwa_valuationdatax-overhead_grp = abap_true.
+
+      "SOA by Debasmita - CR#8000007721 - 06.09.2022
+      READ TABLE ta_t320 INTO lwa_t320 WITH KEY werks = '1301'
+                                                      lgort = wa_final-lgort
+                                                      BINARY SEARCH.
+      IF sy-subrc EQ 0.
+        lwa_warehousenumberdata-whse_no    = lwa_t320-lgnum.  " WarehouseNumber
+        lwa_warehousenumberdata-stgesector = '002'.           " Storage Section Indiactor
+        lwa_warehousenumberdata-placement  = 'ACS'.           " Stock Placement Indiator
+        lwa_warehousenumberdata-withdrawal = 'ACS'.           " Stock Removal Indicator
+        lwa_warehousenumberdatax-whse_no    = lwa_t320-lgnum. "WarehouseNumber
+        lwa_warehousenumberdatax-stgesector = 'X'.
+        lwa_warehousenumberdatax-placement  = 'X'.
+        lwa_warehousenumberdatax-withdrawal = 'X'.
+      ENDIF.
+      "EOA by Debasmita - CR#8000007721 - 06.09.2022
+
+      CALL FUNCTION 'BAPI_MATERIAL_SAVEDATA'
+        EXPORTING
+          headdata             = lwa_headdata
+*         CLIENTDATA           =
+*         CLIENTDATAX          =
+          plantdata            = lwa_plantdata
+          plantdatax           = lwa_plantdatax
+*         FORECASTPARAMETERS   =
+*         FORECASTPARAMETERSX  =
+*         PLANNINGDATA         =
+*         PLANNINGDATAX        =
+          storagelocationdata  = lwa_storagelocationdata
+          storagelocationdatax = lwa_storagelocationdatax
+          valuationdata        = lwa_valuationdata
+          valuationdatax       = lwa_valuationdatax
+          warehousenumberdata  = lwa_warehousenumberdata  "Added by Debasmita - CR#8000007721 - 06.09.2022
+          warehousenumberdatax = lwa_warehousenumberdatax "Added by Debasmita - CR#8000007721 - 06.09.2022
+*         SALESDATA            =
+*         SALESDATAX           =
+*         STORAGETYPEDATA      =
+*         STORAGETYPEDATAX     =
+*         FLAG_ONLINE          = ' '
+*         FLAG_CAD_CALL        = ' '
+*         NO_DEQUEUE           = ' '
+*         NO_ROLLBACK_WORK     = ' '
+*          IMPORTING
+*         return               = lta_return
+        TABLES
+*         MATERIALDESCRIPTION  =
+*         UNITSOFMEASURE       =
+*         UNITSOFMEASUREX      =
+*         INTERNATIONALARTNOS  =
+*         MATERIALLONGTEXT     =
+*         TAXCLASSIFICATIONS   =
+          returnmessages       = lta_return
+*         PRTDATA              =
+*         PRTDATAX             =
+*         EXTENSIONIN          =
+*         EXTENSIONINX         =
+        .
+
+
+      READ TABLE lta_return WITH KEY type = co_e
+                            TRANSPORTING NO FIELDS.
+      IF sy-subrc = 0.
+
+        CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'.
+        SORT lta_return BY type.
+
+        LOOP AT lta_return INTO lwa_return_temp WHERE type = co_e.
+          IF lwa_return_temp-id = 'M3' AND lwa_return_temp-number = '305'.
+            CONTINUE.
+          ENDIF.
+          CLEAR: wa_log.
+          wa_log-vkorg = wa_final-vkorg.
+          wa_log-matnr = wa_final-matnr.
+          wa_log-werks = '1301'.
+          wa_log-mess  = lwa_return_temp-message.
+          wa_log-stat  = 'ERROR'.
+          APPEND wa_log TO ta_log.
+          CLEAR: wa_log,lwa_return_temp.
+        ENDLOOP.
+
+      ELSE.
+        CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
+          EXPORTING
+            wait = abap_true.
+        CLEAR: wa_log.
+        wa_log-vkorg = wa_final-vkorg.
+        wa_log-matnr = wa_final-matnr.
+        wa_log-werks = '1301'.
+        CONCATENATE text-003 '1301' INTO wa_log-mess SEPARATED BY space.
+        wa_log-stat  = 'SUCCSESS'.
+        APPEND wa_log TO ta_log.
+        CLEAR: wa_log.
+
+
+      ENDIF.
+
+      CLEAR: lwa_headdata,lwa_clientdata,lwa_clientdatax,lwa_plantdata,lwa_plantdatax,lwa_forecastparameters,lwa_forecastparametersx,
+             lwa_planningdata,lwa_planningdatax,lwa_storagelocationdata,lwa_storagelocationdatax,lwa_valuationdata,lwa_valuationdatax,
+             lwa_warehousenumberdata,lwa_warehousenumberdatax,lwa_salesdata,lwa_salesdatax,lwa_storagetypedata,lwa_storagetypedatax,
+             lwa_materialdescription,lwa_unitsofmeasure,lwa_unitsofmeasurex,lwa_internationalartnos,lwa_materiallongtext,
+             lwa_taxclassifications,lwa_return,wa_zmm_prctr,lwa_return_temp,wa_log,lv_prctr_1301.
+
+      REFRESH: lta_return[].
+
+    ENDIF.
+
+  ENDLOOP.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  SEND_MAIL
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM send_mail.
+
+  DATA: lta_message            TYPE STANDARD TABLE OF solisti1,
+        lwa_message            TYPE solisti1,
+        lv_subject             TYPE sodocchgi1-obj_descr,
+        lwa_doc_data           TYPE sodocchgi1,
+        lta_packing_list       TYPE TABLE OF sopcklsti1,
+        lwa_packing_list       TYPE sopcklsti1,
+        lta_receivers          TYPE TABLE OF somlreci1,
+        lwa_receivers          TYPE somlreci1,
+        lv_lines               TYPE i,
+        lv_send_address        TYPE so_rec_ext,
+        lv_sender_address_type TYPE  soextreci1-adr_typ,
+        lv_sent_all            TYPE c,
+        lv_string              TYPE string,
+        lta_xstring            TYPE xstring,
+        lta_attach             TYPE STANDARD TABLE OF solisti1,
+        lwa_attach             TYPE solisti1.
+
+  CONSTANTS:  lc_ext(3) VALUE 'XLS',
+              lc_tab    TYPE c VALUE cl_abap_char_utilities=>horizontal_tab.
+
+  CLEAR: lwa_message,lv_subject,lwa_doc_data,lwa_packing_list,lwa_receivers,lta_xstring,lv_lines,lv_send_address,
+         lv_sender_address_type,lv_sent_all,lv_string,lwa_attach.
+
+  REFRESH: lta_message[],lta_packing_list[],lta_receivers[],lta_attach[].
+
+  "Subject line
+  CONCATENATE 'FG Extension' sy-datum sy-uzeit INTO lv_subject SEPARATED BY '_'.
+
+  "Attachment Data - Header
+  CONCATENATE 'Sales Organization' 'Material' 'Plant' 'Message' 'Status'
+              INTO lv_string SEPARATED BY lc_tab.
+  CONCATENATE lv_string lc_tab INTO lv_string.
+
+  "Attachment Data - Details
+  LOOP AT ta_log INTO wa_log.
+
+    CONCATENATE lv_string cl_abap_char_utilities=>newline
+    wa_log-vkorg lc_tab wa_log-matnr lc_tab wa_log-werks lc_tab wa_log-mess lc_tab wa_log-stat lc_tab
+    INTO lv_string.
+
+    CLEAR: wa_log.
+  ENDLOOP.
+
+  "Convert string to xstring
+  CALL FUNCTION 'SCMS_STRING_TO_XSTRING'
+    EXPORTING
+      text   = lv_string
+    IMPORTING
+      buffer = lta_xstring
+    EXCEPTIONS
+      failed = 1
+      OTHERS = 2.
+  IF sy-subrc <> 0.
+* Implement suitable error handling here
+  ENDIF.
+
+  "Converting the table contents from xstring to binary
+  CALL FUNCTION 'SCMS_XSTRING_TO_BINARY'
+    EXPORTING
+      buffer     = lta_xstring
+    TABLES
+      binary_tab = lta_attach.
+
+  "Message Body - Start
+  CLEAR: lwa_message.
+
+  lwa_message-line = 'Respected Sir/Madam,'.
+  APPEND lwa_message TO lta_message.
+  CLEAR: lwa_message.
+
+  lwa_message = '<br />'.
+  APPEND lwa_message TO lta_message.
+  CLEAR lwa_message.
+
+  lwa_message = '<br />'.
+  APPEND lwa_message TO lta_message.
+  CLEAR lwa_message.
+
+  lwa_message = 'PFA status file for FG Extension'.
+  APPEND lwa_message TO lta_message.
+  CLEAR lwa_message.
+
+  lwa_message = '<br />'.
+  APPEND lwa_message TO lta_message.
+  CLEAR lwa_message.
+
+  lwa_message = '<br />'.
+  APPEND lwa_message TO lta_message.
+  CLEAR lwa_message.
+
+  lwa_message-line = 'Thanks & Regards,'.
+  APPEND lwa_message TO lta_message.
+  CLEAR: lwa_message.
+
+  lwa_message = '<br />'.
+  APPEND lwa_message TO lta_message.
+  CLEAR lwa_message.
+
+  lwa_message-line = 'Cipla - SAP'.
+  APPEND lwa_message TO lta_message.
+  CLEAR: lwa_message.
+
+  lwa_message = '<br />'.
+  APPEND lwa_message TO lta_message.
+  CLEAR lwa_message.
+
+  lwa_message = '<br />'.
+  APPEND lwa_message TO lta_message.
+  CLEAR lwa_message.
+
+  "Message Body - End
+
+  lwa_doc_data-obj_langu  = sy-langu.
+  lwa_doc_data-obj_name   = 'SAPRPT'.
+  lwa_doc_data-obj_descr  = text-004."lv_subject.
+  lwa_doc_data-sensitivty = 'F'.
+
+  CLEAR lwa_packing_list.
+  REFRESH lta_packing_list[].
+  lwa_packing_list-transf_bin = space.
+  lwa_packing_list-head_start = 1.
+  lwa_packing_list-head_num   = 0.
+  lwa_packing_list-body_start = 1.
+  DESCRIBE TABLE lta_message LINES lwa_packing_list-body_num.
+  lwa_packing_list-doc_type   = 'HTM'.
+  APPEND lwa_packing_list TO lta_packing_list.
+
+  "Create attachment notification
+  lwa_packing_list-transf_bin = abap_true.
+  lwa_packing_list-body_start = 1.
+  DESCRIBE TABLE lta_attach LINES lv_lines.
+  lwa_packing_list-body_num   = lv_lines.
+  lwa_packing_list-doc_type   =  lc_ext.
+  lwa_packing_list-obj_descr  = lv_subject."'FG status'.
+  lwa_packing_list-obj_name   = lv_subject."'FG status'.
+  lwa_packing_list-doc_size   =  lwa_packing_list-body_num * 555.
+  APPEND lwa_packing_list TO lta_packing_list.
+  CLEAR: lwa_packing_list,lv_lines.
+
+  "Sender Address
+  lv_send_address = 'Do_Not_Reply@Cipla.com'.
+  lv_sender_address_type = 'INT'.
+
+  "Receiver Adress
+  REFRESH lta_receivers[].
+  CLEAR: lwa_receivers.
+  lwa_receivers-receiver = 'Gajanan.Patil5@cipla.com'.
+  lwa_receivers-rec_type = co_u.
+  lwa_receivers-com_type = 'INT'.
+  lwa_receivers-notif_del = ''.
+  lwa_receivers-notif_ndel = ''.
+  APPEND lwa_receivers TO lta_receivers.
+  lwa_receivers-receiver = 'Shashikant.Mohite@cipla.com'.
+  APPEND lwa_receivers TO lta_receivers.
+  CLEAR: lwa_receivers.
+
+  IF lta_receivers IS NOT INITIAL.
+
+    CALL FUNCTION 'SO_DOCUMENT_SEND_API1'
+      EXPORTING
+        document_data              = lwa_doc_data
+*       put_in_outbox              = 'X'
+        sender_address             = lv_send_address
+        sender_address_type        = lv_sender_address_type
+        commit_work                = abap_true
+      IMPORTING
+        sent_to_all                = lv_sent_all
+      TABLES
+        packing_list               = lta_packing_list
+        contents_bin               = lta_attach
+*       contents_hex               = lta_content_hex
+        contents_txt               = lta_message
+        receivers                  = lta_receivers
+      EXCEPTIONS
+        too_many_receivers         = 1
+        document_not_sent          = 2
+        document_type_not_exist    = 3
+        operation_no_authorization = 4
+        parameter_error            = 5
+        x_error                    = 6
+        enqueue_error              = 7
+        OTHERS                     = 8.
+
+    IF sy-subrc = 0.
+      "Do Nothing
+    ENDIF.
+
+  ENDIF.
+
+  CLEAR: lwa_message,lv_subject,lwa_doc_data,lwa_packing_list,lwa_receivers,lta_xstring,lv_lines,lv_send_address,lv_sender_address_type,
+         lv_sent_all,lv_string,lwa_attach.
+
+  REFRESH: lta_message[],lta_packing_list[],lta_receivers[],lta_attach[].
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  GET_DATE_RANGE
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM get_date_range.
+
+  "Get paramater value(Date Range) from table ZPARAM_TABLE
+  SELECT SINGLE id_name,id_number,param_name
+      FROM zparam_table INTO @DATA(wa_start)
+      WHERE id_name = @co_fg_st_dat.
+
+  IF NOT wa_start-param_name IS INITIAL.
+    r_date-sign = co_i.
+    r_date-option = co_bt.
+    r_date-low = wa_start-param_name.
+
+    SELECT SINGLE id_name,id_number,param_name
+      FROM zparam_table INTO @DATA(wa_end)
+      WHERE id_name = @co_fg_end_dat.
+
+    IF NOT wa_end-param_name IS INITIAL.
+      r_date-high = wa_end-param_name.
+      APPEND r_date.
+    ELSE.
+      CLEAR: r_date.
+    ENDIF.
+
+  ENDIF.
+  CLEAR: wa_start,wa_end.
+
+  "Calculate FG creation date range
+  CLEAR: gv_start_date,gv_end_date.
+
+  gv_end_date = sy-datum.
+  gv_start_date = sy-datum - 1.
+
+  r_date-sign = co_i.
+  r_date-option = co_bt.
+  r_date-low = gv_start_date.
+  r_date-high = gv_end_date.
+  APPEND r_date.
+
+ENDFORM.

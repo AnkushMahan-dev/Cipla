@@ -1,0 +1,282 @@
+*----------------------------------------------------------------------*
+***INCLUDE ZPPR_BMR_1002_MODULES_V2.
+*----------------------------------------------------------------------*
+*----------------------------------------------------------------------*
+* Modification Information
+* Date            : 21.05.2020
+* Author          : Tanushri Goel
+* Functional      : Cameron Ramsay
+* Change request  : #8000005794
+* Transport number: CRDK970493
+* Description     : Changes for SA
+*----------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*&      Module  STATUS_1002  OUTPUT
+*&---------------------------------------------------------------------*
+MODULE status_1002 OUTPUT.
+*  REFRESH lt_exclude.
+*  APPEND 'DISP' TO lt_exclude.
+*  APPEND 'EXECUTE' TO lt_exclude.
+****  soa on 11.04.2014 to not allow blank value save
+*  IF p_ds IS INITIAL.
+*    APPEND 'SAVE' TO lt_exclude.
+*  ENDIF.
+****  eoa on 11.04.2014 to not allow blank value save
+*  SET PF-STATUS 'S1000' EXCLUDING lt_exclude.
+*  SET TITLEBAR 'T1002'.
+*  PERFORM create_text_editor.
+ENDMODULE.                 " STATUS_1002  OUTPUT
+
+MODULE tc_caution_change_tc_attr OUTPUT.
+  DESCRIBE TABLE gt_caution LINES tc_caution-lines.
+ENDMODULE.
+
+MODULE tc_caution_modify INPUT.
+  MODIFY gt_caution
+    FROM gs_caution
+    INDEX tc_caution-current_line.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_1002  INPUT
+*&---------------------------------------------------------------------*
+MODULE user_command_1002 INPUT.
+  DATA: lt_bom LIKE gt_bom,
+        ls_bom LIKE gs_bom.
+  DATA: l_toprem TYPE string,
+        l_botrem TYPE string.
+
+  CASE fcode.
+
+    WHEN 'SELECT'.
+      gv_select = 'X'.
+      "Fetch Caution data
+      IF gt_caution IS INITIAL.
+        PERFORM fetch_caution.
+      ENDIF.
+      "Clear gt_caution
+      LOOP AT gt_caution INTO gs_caution WHERE select = 'X'.
+        CLEAR gs_caution-select.
+        MODIFY gt_caution FROM gs_caution INDEX sy-tabix.
+      ENDLOOP.
+      IF p_dms IS NOT INITIAL.
+        PERFORM select_mdoc_caution.
+        PERFORM select_mdoc_stages.
+      ENDIF.
+      IF p_ds IS NOT INITIAL.
+        "Mark the cautions already selected previously
+        SORT gt_mdoc_caution BY ds_code.
+        READ TABLE gt_mdoc_caution WITH KEY ds_code = p_ds BINARY SEARCH TRANSPORTING NO FIELDS.
+        IF sy-subrc = 0.
+          LOOP AT gt_mdoc_caution INTO gs_mdoc_caution FROM sy-tabix.
+            IF gs_mdoc_caution-ds_code <> p_ds.
+              EXIT.
+            ELSE.
+              READ TABLE gt_caution INTO gs_caution WITH KEY caution_code = gs_mdoc_caution-caution_code.
+              IF sy-subrc = 0.
+                gs_caution-select = 'X'.
+                MODIFY gt_caution FROM gs_caution INDEX sy-tabix.
+              ENDIF.
+            ENDIF.
+          ENDLOOP.
+        ENDIF.
+      ENDIF.
+      CLEAR: p_new_page, p_tab_format.
+      CLEAR p_ds_seq.   "added on 10.04.2014 for sequencing
+      "Clear text editors
+      PERFORM fill_text_editor USING editor1 ' '.
+      PERFORM fill_text_editor USING editor2 ' '.
+      READ TABLE gt_mdoc_stages INTO gs_mdoc_stages WITH KEY ds_code = p_ds BINARY SEARCH.
+      IF sy-subrc = 0.
+        p_new_page = gs_mdoc_stages-nw_pg.
+        p_tab_format = gs_mdoc_stages-tabformat.
+        p_ds_seq = gs_mdoc_stages-ds_seq.
+        PERFORM fill_text_editor USING editor1 gs_mdoc_stages-top_remark.
+        PERFORM fill_text_editor USING editor2 gs_mdoc_stages-bottom_remark.
+      ENDIF.
+      "Fill lots table control
+      lt_bom = gt_bom.
+      SORT lt_bom BY ds_code ps_code.
+      DELETE ADJACENT DUPLICATES FROM lt_bom COMPARING ds_code ps_code.
+      CLEAR: gs_lots, gt_lots.
+      gs_lots-ds_code = p_ds.
+      LOOP AT lt_bom INTO ls_bom WHERE ds_code = p_ds.
+        gs_lots-ps_code = ls_bom-ps_code.
+        READ TABLE gt_process WITH KEY ps_code = ls_bom-ps_code.
+        gs_lots-ps_desc = gt_process-ps_desc.
+        gs_lots-lots = ls_bom-lots.
+        gs_lots-ps_seq = ls_bom-ps_seq.       "added on 10.04.2014 for sequencing
+        APPEND gs_lots TO gt_lots.
+      ENDLOOP.
+      CLEAR fcode. "This is to avoid clearing of gt_caution in case of vertical scrolling
+
+    WHEN 'SAVE'.
+      IF p_ds IS NOT INITIAL.
+        CLEAR gs_mdoc_stages.
+        gs_mdoc_stages-dokar = gs_mdoc-dokar.
+        gs_mdoc_stages-doknr = gs_mdoc-DMS_DOC.
+        gs_mdoc_stages-dokvr = gs_mdoc-dokvr.
+        gs_mdoc_stages-ds_code = p_ds.
+        gs_mdoc_stages-nw_pg = p_new_page.
+        IF p_ds_seq IS INITIAL.
+          CLEAR fcode.
+          MESSAGE e062(zppr_formu).
+        ENDIF.
+        gs_mdoc_stages-ds_seq = p_ds_seq.      "added for sequencing on 10.04.2014
+        IF p_tab_format IS NOT INITIAL.
+          gs_mdoc_stages-tabformat = p_tab_format.
+*      ELSE. "Set it to default 'BMR1'. "Commented as Tab format is mandatory
+*        gs_mdoc_stages-tabformat = 'BMR1'.
+        ENDIF.
+
+*        PERFORM get_remark CHANGING gs_mdoc_stages-top_remark gs_mdoc_stages-bottom_remark.
+        PERFORM get_remark CHANGING l_toprem l_botrem.
+        gs_mdoc_stages-top_remark = l_toprem .
+        gs_mdoc_stages-bottom_remark = l_botrem.
+
+        READ TABLE gt_mdoc_stages WITH KEY ds_code = p_ds TRANSPORTING NO FIELDS.
+        IF sy-subrc = 0.
+          DELETE gt_mdoc_stages INDEX sy-tabix.
+        ENDIF.
+        APPEND gs_mdoc_stages TO gt_mdoc_stages.
+
+        LOOP AT gt_mdoc_caution INTO gs_mdoc_caution WHERE ds_code = p_ds.
+          DELETE gt_mdoc_caution INDEX sy-tabix.
+        ENDLOOP.
+        LOOP AT gt_caution INTO gs_caution WHERE select = 'X'.
+          gs_mdoc_caution-dokar = gs_mdoc-dokar.
+          gs_mdoc_caution-doknr = gs_mdoc-DMS_DOC.
+          gs_mdoc_caution-dokvr = gs_mdoc-dokvr.
+          gs_mdoc_caution-ds_code = p_ds.
+          gs_mdoc_caution-caution_code = gs_caution-caution_code.
+          APPEND gs_mdoc_caution TO gt_mdoc_caution.
+        ENDLOOP.
+
+*        LOOP AT gt_bom ASSIGNING <ls_bom> WHERE ds_code = p_ds.
+*          READ TABLE gt_lots INTO gs_lots WITH KEY ds_code = <ls_bom>-ds_code ps_code = <ls_bom>-ps_code.
+*          IF sy-subrc = 0.    "added
+*            <ls_bom>-lots = gs_lots-lots.
+***added on 09.04.2013 for sequencing
+*            <ls_bom>-ds_seq = p_ds_seq.
+*            <ls_bom>-ps_seq = gs_lots-ps_seq.
+***end added on 09.04.2013 for sequencing
+*            MODIFY gt_bom FROM <ls_bom>.
+*          ENDIF.
+*        ENDLOOP.
+*        MESSAGE s057(zppr_formu).
+      ENDIF.
+
+    WHEN 'BOM'.
+      CLEAR: fcode, p_ds, p_new_page, p_tab_format, gt_lots , p_ds_seq.
+      LOOP AT gt_caution INTO gs_caution WHERE select = 'X'.
+        CLEAR gs_caution-select.
+        MODIFY gt_caution FROM gs_caution INDEX sy-tabix.
+      ENDLOOP.
+      PERFORM fill_text_editor USING editor1 ' '.
+      PERFORM fill_text_editor USING editor2 ' '.
+      CALL SCREEN 1001.
+
+    WHEN 'BACK'.
+      CLEAR: fcode, p_ds, p_new_page, p_tab_format, gt_lots , p_ds_seq.
+      CALL SCREEN 1000.
+
+    WHEN 'EXIT'.
+      LEAVE PROGRAM.
+
+  ENDCASE.
+ENDMODULE.                 " USER_COMMAND_1002  INPUT
+*&---------------------------------------------------------------------*
+*&      Module  LIST_TABFORMAT  INPUT
+*&---------------------------------------------------------------------*
+MODULE list_tabformat INPUT.
+  DATA: lt_tabf TYPE vrm_values, ls_tabf LIKE LINE OF lt_tabf.
+****S.O.C Rahul Nishankar #8000004096 CRDK955491 14/06/2018
+
+
+  IF lt_tabf IS INITIAL.
+    ls_tabf-key = 'BMR1'.
+    ls_tabf-text = '(Normal)'.
+    APPEND ls_tabf TO lt_tabf.
+
+    ls_tabf-key = 'BMR2'.
+    ls_tabf-text = '(Primary PM, Capsule, Propellant)'.
+    APPEND ls_tabf TO lt_tabf.
+
+    ls_tabf-key = 'BMR3'.
+    ls_tabf-text = 'Normal (WH)'.
+    APPEND ls_tabf TO lt_tabf.
+
+    ls_tabf-key = 'BMR4'.
+    ls_tabf-text = 'Primary PM, Capsule (WH)'.
+    APPEND ls_tabf TO lt_tabf.
+
+    ls_tabf-key = 'BMR5'.
+    ls_tabf-text = 'Non Dispensed (MFG/PKG)'.
+    APPEND ls_tabf TO lt_tabf.
+
+    " begin of changes #8000005794 CRDK970493 25.05.2020
+     ls_tabf-key = 'BMR6'.
+    ls_tabf-text = 'API + Filler'.
+    APPEND ls_tabf TO lt_tabf.
+
+    ls_tabf-key = 'BMR7'.
+    ls_tabf-text = 'Excipients'.
+    APPEND ls_tabf TO lt_tabf.
+    " end of changes #8000005794 CRDK970493 25.05.2020
+
+  ENDIF.
+****E.O.C Rahul Nishankar #8000004096 CRDK955491 14/06/2018
+
+
+  CALL FUNCTION 'VRM_SET_VALUES'
+    EXPORTING
+      id              = 'P_TAB_FORMAT'
+      values          = lt_tabf
+    EXCEPTIONS
+      id_illegal_name = 1
+      OTHERS          = 2.
+  IF sy-subrc <> 0.
+* Implement suitable error handling here
+  ENDIF.
+ENDMODULE.                 " LIST_TABFORMAT  INPUT
+*&---------------------------------------------------------------------*
+*&      Module  GET_SELECTED_DS  INPUT
+*&---------------------------------------------------------------------*
+MODULE get_selected_ds INPUT.
+*  DATA: lt_ds TYPE vrm_values, ls_ds LIKE LINE OF lt_ds.
+*  CLEAR: ls_ds, lt_ds.
+*  "Fetch dispensing stage description
+*  LOOP AT gt_bom ASSIGNING <ls_bom>.
+*    READ TABLE gt_disp_stage WITH KEY ds_code = <ls_bom>-ds_code.
+*    IF sy-subrc = 0.
+*      <ls_bom>-ds_desc = gt_disp_stage-ds_description.
+*    ENDIF.
+*  ENDLOOP.
+*  LOOP AT gt_bom INTO gs_bom.
+*    ls_ds-key = gs_bom-ds_code.
+*    ls_ds-text = gs_bom-ds_desc.
+*    APPEND ls_ds TO lt_ds.
+*  ENDLOOP.
+*
+*  SORT lt_ds BY key.
+*  DELETE ADJACENT DUPLICATES FROM lt_ds COMPARING key.
+*  CALL FUNCTION 'VRM_SET_VALUES'
+*    EXPORTING
+*      id              = 'P_DS'
+*      values          = lt_ds
+*    EXCEPTIONS
+*      id_illegal_name = 1
+*      OTHERS          = 2.
+*  IF sy-subrc <> 0.
+** Implement suitable error handling here
+*  ENDIF.
+
+ENDMODULE.                 " GET_SELECTED_DS  INPUT
+MODULE tc_lots_change_tc_attr OUTPUT.
+  DESCRIBE TABLE gt_lots LINES tc_lots-lines.
+ENDMODULE.
+
+MODULE tc_lots_modify INPUT.
+  MODIFY gt_lots
+    FROM gs_lots
+    INDEX tc_lots-current_line.
+ENDMODULE.

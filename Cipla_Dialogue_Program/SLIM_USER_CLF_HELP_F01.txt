@@ -1,0 +1,10 @@
+*** Include <symbol>.
+*-----------------------------------------------------------------------
+*  Instead of statement 'INCLUDE <symbol>.', please use
+*  statement 'TYPE-POOLS: sym.' directly.
+*-----------------------------------------------------------------------
+TYPE-POOLS: sym.
+
+
+
+

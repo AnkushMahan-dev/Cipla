@@ -1,0 +1,631 @@
+*----------------------------------------------------------------------*
+*   INCLUDE /IRM/GLOBAL_MACROS                                         *
+*----------------------------------------------------------------------*
+****Macros Definition for reading fields descriptions.
+*DATA : gv_table LIKE dd02d-tabname,
+*       gv_field LIKE dd03d-fieldname.
+*FIELD-SYMBOLS : <gv_val>, <gv_sval>, <gv_field_val>.
+*
+*DEFINE descriptions_from_table_get.
+*  assign : &1 to <gv_val>.
+*  assign : &2 to <gv_sval>.
+*  assign : &5 to <gv_field_val>.
+*  if not ( <gv_val> is initial ) and
+*         ( <gv_val> ne <gv_sval> ).
+*    move : &4 to gv_field.
+*    move : &3 to gv_table.
+*    perform mc_read_table_buffer using gv_table
+*                                       gv_field
+*                                       <gv_val>
+*                              changing <gv_field_val>.
+*  elseif <gv_val> is initial.
+*    clear <gv_field_val>.
+*  endif.
+*END-OF-DEFINITION.
+*
+*DEFINE descriptions_from_domain_get.
+*  assign: &1 to <gv_val>,
+*          &2 to <gv_sval>.
+*  move &3 to gv_field.
+*  perform mc_read_table_buffered_domain using <gv_val>
+*                                              gv_field
+*                                     changing <gv_sval>.
+*END-OF-DEFINITION.
+
+DEFINE popup_to_confirm.
+  call function 'POPUP_TO_CONFIRM'
+       exporting
+           titlebar              = &1
+*         DIAGNOSE_OBJECT       = ' '
+            text_question         = &2
+*            text_button_1         = 'Yes'
+*         ICON_BUTTON_1         = ' '
+*            text_button_2         = 'No'
+*         ICON_BUTTON_2         = ' '
+*         DEFAULT_BUTTON        = '1'
+            display_cancel_button = &3
+*         USERDEFINED_F1_HELP   = ' '
+*         START_COLUMN          = 25
+*         START_ROW             = 6
+*         POPUP_TYPE            =
+      importing
+           answer                = &4
+*    TABLES
+*         PARAMETER             =
+      exceptions ##fm_subrc_ok
+           text_not_found        = 1
+           others                = 2.
+  if sy-subrc <> 0.
+  endif.
+END-OF-DEFINITION.
+
+DEFINE popup_to_confirm_with_object.
+  call function 'POPUP_TO_CONFIRM'
+       exporting
+           titlebar              = &1
+           diagnose_object       = &4
+            text_question         = &2
+*            text_button_1         = 'Yes'
+*         ICON_BUTTON_1         = ' '
+*            text_button_2         = 'No'
+*         ICON_BUTTON_2         = ' '
+*         DEFAULT_BUTTON        = '1'
+            display_cancel_button = &3
+*         USERDEFINED_F1_HELP   = ' '
+*         START_COLUMN          = 25
+*         START_ROW             = 6
+*         POPUP_TYPE            =
+      importing
+           answer                = &5
+*     tables
+*          parameter             = &6
+      exceptions ##fm_subrc_ok
+           text_not_found        = 1
+           others                = 2.
+  if sy-subrc <> 0.
+  endif.
+END-OF-DEFINITION.
+
+DEFINE grid_firsttime_display.
+****For the first time
+  call method &1->set_table_for_first_display
+    exporting
+*     I_BUFFER_ACTIVE               =
+*     I_BYPASSING_BUFFER            =
+      i_structure_name              = &2
+      is_variant                    = &3
+      i_save                        = 'A'
+*     I_DEFAULT                     = 'X'
+      is_layout                     = &4
+*     IS_PRINT                      =
+*     IT_SPECIAL_GROUPS             =
+      it_toolbar_excluding          = &5
+    changing
+      it_outtab                     = &6
+      it_fieldcatalog               = &7
+*     IT_SORT                       =
+*     IT_FILTER                     =
+    exceptions
+      ##fm_subrc_ok
+      invalid_parameter_combination = 1
+      program_error                 = 2
+      others                        = 3.
+  if sy-subrc <> 0.
+  endif.
+END-OF-DEFINITION.
+
+****Icon create
+DEFINE icon_create.
+  call function 'ICON_CREATE'
+    exporting
+      name                  = &1
+      text                  = &2
+*     INFO                  = ' '
+*     ADD_STDINF            = 'X'
+    importing
+      result                = &3
+    exceptions
+      ##fm_subrc_ok
+      icon_not_found        = 1
+      outputfield_too_short = 2
+      others                = 3.
+END-OF-DEFINITION.
+
+DEFINE toolbar_button_collect.
+  clear &2.
+  &2-butn_type  = &3.
+  &2-function   = &4.
+  &2-icon       = &5.
+  &2-quickinfo  = &6.
+  &2-text       = &7.
+  append &2 to &1.
+END-OF-DEFINITION.
+
+DEFINE toolbar_button_insert.
+  clear &2.
+  &2-butn_type  = &3.
+  &2-function   = &4.
+  &2-icon       = &5.
+  &2-quickinfo  = &6.
+  &2-text       = &7.
+  insert &2 into &1 index 1.
+END-OF-DEFINITION.
+
+DEFINE menu_function_add.
+  call method &1->add_function
+    exporting
+      fcode = &2
+      text  = &3.
+END-OF-DEFINITION.
+
+DEFINE submenu_add.
+  call method &1->add_submenu
+    exporting
+      menu = &2
+      text = &3.
+*     ICON             =
+*     DISABLED         =
+*     HIDDEN           =
+*     ACCELERATOR      = .
+END-OF-DEFINITION.
+
+DEFINE static_context_set.
+  clear &2.
+  &2-function = &4.
+  &2-ctmenu = &3.
+  append &2 to &1.
+END-OF-DEFINITION.
+
+****To fill dropdowns
+DEFINE dropdowns_fill.
+  call function 'VRM_SET_VALUES'
+    exporting
+      id              = &2
+      values          = &1
+    exceptions
+      ##fm_subrc_ok
+      id_illegal_name = 1
+      others          = 2.
+  if sy-subrc <> 0.
+  endif.
+END-OF-DEFINITION.
+
+****Parent Object get
+DEFINE parent_object_get.
+  data : lt_supertypes like swotip occurs 0 with header line.
+  call function 'SWO_QUERY_SUPERTYPES'
+    exporting
+      objtype           = &1
+    tables
+      supertypes        = lt_supertypes
+    exceptions ##fm_subrc_ok
+      objtype_not_found = 1
+      others            = 2.
+
+  read table lt_supertypes index 1.
+  if sy-subrc eq 0.
+    &2 = lt_supertypes-parent.
+  else.
+    &2 = &1.
+  endif.
+END-OF-DEFINITION.
+
+****Partner number get
+DEFINE partner_number_get.
+  call function '/IRM/G_PARTNER_NUMBER_GET'
+    exporting
+      i_program                  = &1
+      i_screen                   = &2
+      i_scrfield_parvw           = &3
+      i_scrfield_ktonr           = &4
+      i_parvw                    = &5
+    changing
+      c_ktonr                    = &6
+    exceptions
+      ##fm_subrc_ok
+      partner_function_not_found = 1
+      others                     = 2.
+  if sy-subrc <> 0
+  and not sy-msgid is initial
+  and not sy-msgty is initial
+  and not sy-msgno is initial.
+    message id sy-msgid type sy-msgty number sy-msgno
+            with sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  endif.
+END-OF-DEFINITION.
+
+****Partner valid check
+DEFINE partner_valid_check.
+  call function '/IRM/G_PARTNER_VALID_CHECK'
+    exporting
+      i_parvw            = &1
+      i_ktonr            = &2
+      i_suppress_message = &3
+    exceptions
+      ##fm_subrc_ok
+      invalid_partner    = 1
+      others             = 2.
+  if sy-subrc <> 0.
+    &4 = sy-subrc.
+  endif.
+END-OF-DEFINITION.
+
+****Fcode execute macro
+DEFINE fcode_execute.
+  data : lv_subroutine(40).
+  concatenate 'FCODE' &1 into lv_subroutine separated by '_'.
+  perform (lv_subroutine) in program &2 if found.
+END-OF-DEFINITION.
+
+****Begin of Key text get macros
+DEFINE keytext_get_simple.
+  call function '/IRM/G_KEYTEXT_GET'
+    exporting
+      i_tabname             = &1
+      i_fieldname           = &2
+      i_fieldvalue          = &3
+    importing
+      e_text                = &4
+    exceptions
+      ##fm_subrc_ok                                         "#EC *
+      inadequate_parameters = 1
+      text_not_found        = 2
+      others                = 3 ##fm_subrc_ok.
+  if sy-subrc <> 0.
+  endif.
+END-OF-DEFINITION.
+
+DEFINE key_text_get.
+  call function '/IRM/G_KEYTEXT_GET'
+    exporting
+      i_keytype             = 'KEY'
+      i_tabname             = &1
+      i_fieldname           = &2
+      i_fieldvalue          = &3
+      i_workarea            = &4
+    importing
+      e_text                = &5
+    exceptions
+      ##fm_subrc_ok
+      inadequate_parameters = 1
+      text_not_found        = 2
+      others                = 3.
+  if sy-subrc <> 0.
+  endif.
+END-OF-DEFINITION.
+
+*****Release 40C - Key Text existence check
+DEFINE key_text_existence_check.
+  call function '/IRM/G_KEYTEXT_GET'
+    exporting
+      i_keytype             = 'KEY'
+      i_tabname             = &1
+      i_fieldname           = &2
+      i_check_text          = &3
+    importing
+      e_text_exists         = &4
+    exceptions
+      ##fm_subrc_ok
+      inadequate_parameters = 1
+      text_not_found        = 2
+      others                = 3.
+  if sy-subrc <> 0.
+  endif.
+END-OF-DEFINITION.
+
+****Release 60D - Prefetch Text
+DEFINE key_text_prefetch.
+  call function '/IRM/G_KEYTEXT_PREFETCH'
+    exporting
+      it_field_values = &1.
+END-OF-DEFINITION.
+
+
+****SP7
+****SP6
+****Added on 09/28/2007
+*DEFINE keytext_get_simple_new.
+*  call function '/IRM/G_KEYTEXT_GET'
+*       exporting
+*            i_tabname             = &1
+*            i_fieldname           = &2
+*            i_fieldvalue          = &3
+*            i_textfield_position  = 1
+*       importing
+*            e_text                = &4
+*       exceptions
+*            inadequate_parameters = 1
+*            text_not_found        = 2
+*            others                = 3.
+*  if sy-subrc <> 0.
+*  endif.
+*END-OF-DEFINITION.
+****
+
+DEFINE document_text_get_by_objtyp.
+  call function '/IRM/G_KEYTEXT_GET'
+    exporting
+      i_keytype             = 'BOR'
+      i_objtyp              = &1
+      i_objkey              = &2
+    importing
+      e_text                = &3
+    exceptions
+      ##fm_subrc_ok
+      inadequate_parameters = 1
+      text_not_found        = 2
+      others                = 3.
+  if sy-subrc <> 0.
+  endif.
+END-OF-DEFINITION.
+
+DEFINE document_text_get_by_vbtyp.
+  call function '/IRM/G_KEYTEXT_GET'
+    exporting
+      i_keytype             = 'BOR'
+      i_vbtyp               = &1
+      i_objkey              = &2
+    importing
+      e_text                = &3
+    exceptions
+      ##fm_subrc_ok
+      inadequate_parameters = 1
+      text_not_found        = 2
+      others                = 3.
+  if sy-subrc <> 0.
+  endif.
+END-OF-DEFINITION.
+
+DEFINE partner_name_get.
+  call function '/IRM/G_KEYTEXT_GET'
+    exporting
+      i_keytype             = 'PAR'
+      i_nrart               = &1
+      i_adrnr               = &3
+      i_partner             = &2
+      i_home_address        = &4
+    importing
+      e_name                = &5
+    exceptions
+      ##fm_subrc_ok
+      inadequate_parameters = 1
+      text_not_found        = 2
+      others                = 3.
+  if sy-subrc <> 0.
+  endif.
+END-OF-DEFINITION.
+
+DEFINE partner_address_get.
+  clear: &5.
+  call function '/IRM/G_KEYTEXT_GET'
+    exporting
+      i_keytype             = 'PAR'
+      i_nrart               = &1
+      i_adrnr               = &3
+      i_partner             = &2
+      i_home_address        = &4
+    importing
+      e_address             = &5
+    exceptions ##fm_subrc_ok
+      inadequate_parameters = 1
+      text_not_found        = 2
+      others                = 3.
+  if sy-subrc <> 0.
+  endif.
+END-OF-DEFINITION.
+****End of Key text get macros
+
+****Object Publish
+DEFINE object_publish.
+****ESP6 Task#36253 - Unreleaseed API Elimination
+*  call function 'SWU_OBJECT_PUBLISH'
+*    exporting
+*      objtype                 = &1
+*      objkey                  = &2
+**   CREATOR                 = ' '
+**   METHOD                  = ' '
+** TABLES
+**   CONTAINER               =
+*   exceptions ##fm_subrc_ok
+*     objtype_not_found       = 1
+*     others                  = 2.
+
+
+  call function '/IRM/SO_SWU_OBJECT_PUBLISH'
+    exporting
+      i_objtype         = &1
+      i_objkey          = &2
+    exceptions ##fm_subrc_ok
+      objtype_not_found = 1
+      others            = 2.
+
+****
+END-OF-DEFINITION.
+
+****Object Refresh
+DEFINE object_refresh.
+****ESP6 Task#36253 - Unreleaseed API Elimination
+*  call function 'SWU_OBJECT_REFRESH'
+*    exporting
+*      objtype = &1.
+  call function '/IRM/SO_SWU_OBJECT_REFRESH'
+    exporting
+      i_objtype = &1.
+****
+END-OF-DEFINITION.
+
+DEFINE object_refresh_all.
+****ESP6 Task#36253 - Unreleaseed API Elimination
+*  call function 'SWU_OBJECT_REFRESH'.
+  call function '/IRM/SO_SWU_OBJECT_REFRESH'.
+****
+END-OF-DEFINITION.
+
+****Added on 06/30/2005
+DEFINE process_progress_publish.
+  if not sy-batch is initial.
+    message id sy-msgid type 'I' number sy-msgno
+    with sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  else.
+    call function 'SAPGUI_PROGRESS_INDICATOR'
+      exporting
+        percentage = &1
+        text       = sy-msgli.
+  endif.
+END-OF-DEFINITION.
+
+****Added on 07/28/2005
+DEFINE notes_title_prepare.
+  call function '/IRM/G_NOTES_TITLE_PREPARE'
+    exporting
+      i_objtyp       = &1
+      i_objkey       = &2
+      i_subobj       = &3
+    changing
+      cs_notes_title = &4.
+END-OF-DEFINITION.
+
+*** REL E SP2
+DEFINE notes_title_prepare_new.
+  call function '/IRM/G_NOTES_TITLE_PREPARE_NEW'
+    exporting
+      i_objtyp       = &1
+      i_objkey       = &2
+      i_subobj       = &3
+    changing
+      cs_notes_title = &4.
+END-OF-DEFINITION.
+***
+
+DEFINE activities_mail_send.
+  call function '/IRM/GAC_MAIL_SEND1_NEW'
+    exporting
+      i_commit_work              = &1
+    exceptions
+      ##fm_subrc_ok
+      too_many_receivers         = 1
+      document_not_sent          = 2
+      document_type_not_exist    = 3
+      operation_no_authorization = 4
+      parameter_error            = 5
+      x_error                    = 6
+      enqueue_error              = 7
+      others                     = 8.
+  if sy-subrc <> 0.
+* Implement suitable error handling here
+  endif.
+END-OF-DEFINITION.
+***Rel 60E_SP1 - Authorization check for Customizing Transactions
+DEFINE config_tcode_authority_check.
+  authority-check object 'V_GB_CNFTX'
+        id '/IRM/TCODE' field &1
+        id 'ACTVT' field &2.
+  &3 = sy-subrc.
+END-OF-DEFINITION.
+***
+****REL 60E SP2 - Key Text Type get
+DEFINE keytext_type_get.
+
+  call function '/IRM/G_KEYTEXT_TYPE_GET'
+    exporting
+      i_tabname       = &1
+      i_fieldname     = &2
+    importing
+      e_multipart_key = &3.
+END-OF-DEFINITION.
+***** Ranges table fill
+*DEFINE range_tab_fill.
+*  &1-sign = &2.
+*  &1-option = &3.
+*  &1-low = &4.
+*  &1-high = &5.
+*  append &1.
+*END-OF-DEFINITION.
+*
+*****Form Routines
+**&---------------------------------------------------------------------
+**
+**&      Form  MC_READ_TABLE_BUFFER
+**&---------------------------------------------------------------------
+**
+**       text
+**----------------------------------------------------------------------
+**
+**      -->P_gv_table  text
+**      -->P_gv_field  text
+**      -->P_<gv_val>  text
+**      <--P_<gv_field_val>  text
+**----------------------------------------------------------------------
+**
+*FORM mc_read_table_buffer USING lv_table lv_field lv_value
+*                       CHANGING lv_text.
+*
+*  DATA : lv_lang LIKE dd03d-fieldname.
+*  DATA : l_text(80).
+*  IF lv_field EQ 'TITLE' AND lv_table EQ 'TSAD3T'.
+*    MOVE 'LANGU' TO lv_lang.
+*  ELSE.
+*    MOVE 'SPRAS' TO lv_lang.
+*  ENDIF.
+*  CALL FUNCTION 'READ_TABLE_BUFFERED'
+*       EXPORTING
+*          i_table          = lv_table
+*          i_key1           = lv_lang
+*          i_key2           = lv_field
+**         I_KEY3           = ' '
+**         I_KEY4           = ' '
+*          i_value         = sy-langu
+*          i_value2         = lv_value
+**         I_VALUE3         = ' '
+**         I_VALUE4         = ' '
+**         I_BUFFER_TYPE    = '1'
+*      IMPORTING
+*          e_table_workarea =  lv_text
+*       EXCEPTIONS
+*          no_entry_found   = 1
+*          no_table_name    = 2
+*          OTHERS           = 3.
+*
+*ENDFORM.                    " MC_READ_TABLE_BUFFER
+**&---------------------------------------------------------------------
+**
+**&      Form  MC_READ_TABLE_BUFFERED_DOMAIN
+**&---------------------------------------------------------------------
+**
+**       text
+**----------------------------------------------------------------------
+**
+**      -->P_<gv_val>  text
+**      -->P_gv_field  text
+**      <--P_<gv_sval>  text
+**----------------------------------------------------------------------
+**
+*FORM mc_read_table_buffered_domain USING lv_value lv_field
+*                                CHANGING lv_text.
+*
+*  DATA: lwa_dd07v LIKE dd07v.
+*  IF NOT lv_value IS INITIAL.
+*    CALL FUNCTION 'READ_TABLE_BUFFERED'
+*         EXPORTING
+*          i_table          = 'DD07V'
+*          i_key1           = 'DDLANGUAGE'
+*          i_key2           = 'DOMNAME'
+*          i_key3           = 'DOMVALUE_L'
+**         I_KEY4           = ' '
+*          i_value         = sy-langu
+*          i_value2         = lv_field
+*          i_value3         = lv_value
+**         I_VALUE4         = ' '
+**         I_BUFFER_TYPE    = '1'
+*         IMPORTING
+*          e_table_workarea = lwa_dd07v
+*         EXCEPTIONS
+*          no_entry_found   = 1
+*          no_table_name    = 2
+*          OTHERS           = 3.
+*    lv_text = lwa_dd07v-ddtext.
+*  ELSE.
+*    CLEAR lv_text.
+*  ENDIF.
+*
+*ENDFORM.                    " MC_READ_TABLE_BUFFERED_DOMAIN
