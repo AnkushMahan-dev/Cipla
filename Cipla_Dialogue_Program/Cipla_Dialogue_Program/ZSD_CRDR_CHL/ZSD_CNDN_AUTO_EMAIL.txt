@@ -1,0 +1,317 @@
+*&---------------------------------------------------------------------*
+*& Report  ZSD_CNDN_AUTO_EMAIL
+*&
+*&---------------------------------------------------------------------*
+*&
+*&
+*&---------------------------------------------------------------------*
+
+*----------------------------------------------------------------------*
+* Program         : ZSD_CNDN_AUTO_EMAIL
+* Title           : Credit Note/Debit Note auto email
+* Author          : Rahul Nishankar
+* Program Type    : E
+* Creation Date   : 25/09/2018
+* Transaction     : ZSD_CRDR_CHL
+* Functional      : Sandeep More
+* Change request  : 8000004767
+* Transport no    : MAN: CRDK957670
+* Description     : Credit Note/Debit Note auto email
+*----------------------------------------------------------------------*
+
+*----------------------------------------------------------------------*
+* Modification Information
+* Date            : 09/10/2018
+* Author          : Rahul Nishankar
+* Functional      : sandeep more
+* Change request  : #8000004767
+* Transport number: CRDK957951
+* Description     : Credit Note/Debit Note auto email
+*----------------------------------------------------------------------*
+* Modification Information
+* Date            : 06/11/2018
+* Author          : Rahul Magdum
+* Functional      : Sandeep More
+* Change request  : 8000004934
+* Transport number:  CRDK959048
+* Description     : Addition of YCNC, YCCR, YDDN, YAVC output types
+*----------------------------------------------------------------------*
+*  *----------------------------------------------------------------------*
+* Modification Information
+* Date            : 13.05.2019
+* Author          : Swapnil Pable
+* Change request  : <8000005449>
+* Transport number: <CRDK962815,CRDK962857>
+* Description     : 1.  Mail is send through DO_NOT_REPLY default mail ID, user need to change to another mail ID.
+*                   2.  Naming conveyance need to change in invoice number + customer number + Date.
+*                   3.  Multiple output type can assign to one invoice type, which will facilitate to send the multiple PDF mail from one invoice.
+*                   4.  Mail to be send to all the mail IDs maintained in the customer master.
+*  *----------------------------------------------------------------------*
+REPORT zsd_cndn_auto_email.
+
+TABLES:vbrk,nast.
+TYPE-POOLS zcdt.
+
+SELECTION-SCREEN : BEGIN OF BLOCK b1 WITH FRAME TITLE text-001.
+SELECT-OPTIONS : s_bukrs FOR vbrk-bukrs OBLIGATORY,
+                 s_vkorg FOR vbrk-vkorg OBLIGATORY,
+                 s_fkart FOR vbrk-fkart OBLIGATORY,
+                 s_fkdat FOR vbrk-fkdat OBLIGATORY,
+                 s_kunrg FOR vbrk-kunrg. " Customer code payer has been added by Sushil against ticket number 8000004934
+
+SELECTION-SCREEN : END OF BLOCK b1.
+
+CLASS cl_cndn_mail DEFINITION.
+  PUBLIC SECTION.
+    TYPES:BEGIN OF ty_vbrk,
+            vbeln TYPE vbrk-vbeln,
+            fkart TYPE vbrk-fkart,
+            vbtyp TYPE vbrk-vbtyp,
+            fkdat TYPE vbrk-fkdat,
+            kunag TYPE vbrk-kunag,
+          END OF ty_vbrk,
+
+          BEGIN OF ty_kna1,
+            kunnr TYPE kna1-kunnr,
+            adrnr TYPE kna1-adrnr,
+          END OF ty_kna1,
+
+          BEGIN OF ty_adr6,
+            addrnumber TYPE adr6-addrnumber,
+            persnumber TYPE adr6-persnumber,
+            date_from  TYPE adr6-date_from,
+            consnumber TYPE adr6-consnumber,
+            flgdefault TYPE adr6-flgdefault,
+            smtp_addr  TYPE adr6-smtp_addr,
+            smtp_srch  TYPE adr6-smtp_srch,
+          END OF ty_adr6,
+
+
+          BEGIN OF ty_nast,
+            kappl TYPE nast-kappl,
+            objky TYPE nast-objky,
+            kschl TYPE nast-kschl,
+            spras TYPE nast-spras,
+            parnr TYPE nast-parnr,
+            parvw TYPE nast-parvw,
+            erdat TYPE nast-erdat,
+            eruhr TYPE nast-eruhr,
+          END OF ty_nast,
+
+          BEGIN OF ty_tnapr,
+            kschl TYPE tnapr-kschl,
+            nacha TYPE tnapr-nacha,
+            kappl TYPE tnapr-kappl,
+            pgnam TYPE tnapr-pgnam,
+            sform TYPE tnapr-sform,
+          END OF ty_tnapr,
+
+
+          BEGIN OF ty_objky,
+            objky TYPE nast-objky,
+          END OF ty_objky.
+
+*****CONSTANTS for code inspector check
+    CONSTANTS : co_zcri       TYPE fkart VALUE 'ZCRI',
+*            co_tir        TYPE fkart VALUE 'ZTIR',
+*            co_tie        TYPE fkart VALUE 'ZTIE',
+                co_plant72    TYPE werks_d VALUE '1172',
+                co_plant76    TYPE werks_d VALUE '1176',
+                co_plant80    TYPE werks_d VALUE '1180',
+                co_cocode38   TYPE bukrs VALUE '3800',
+                co_plt(3)     TYPE c VALUE 'PLT',
+                co_re         TYPE parvw VALUE 'RE',
+                co_sh         TYPE parvw VALUE 'SH',
+                co_docatc     TYPE vbtyp_v VALUE 'C',
+                co_docatt     TYPE vbtyp_v VALUE 'T',
+                co_docatm     TYPE vbtyp_v VALUE 'M',
+                co_docatk     TYPE vbtyp_v VALUE 'K',
+                co_zlr        TYPE lfart VALUE 'ZLR',
+                co_zsdf       TYPE lfart VALUE 'ZSDF',
+                co_zmrp       TYPE kschl VALUE 'ZMRP',
+                co_zpts       TYPE kschl VALUE 'ZPTS',
+                co_zpd1       TYPE kschl VALUE 'ZPD1',
+                co_zcom       TYPE kschl VALUE 'ZCOM',
+                co_jvat       TYPE kschl VALUE 'JVAT',
+                co_jasv       TYPE kschl VALUE 'JASV',
+                co_jadv       TYPE kschl VALUE 'JADV',
+                co_jcst       TYPE kschl VALUE 'JCST',
+                co_zbdr       TYPE kschl VALUE 'ZBDR',
+                co_jvt1       TYPE kschl VALUE 'JVT1',
+                co_zpdf       TYPE kschl VALUE 'ZPDF',
+                co_zwti       TYPE kschl VALUE 'ZWTI',
+                co_jvan       TYPE kschl VALUE 'JVAN',
+                co_jvtn       TYPE kschl VALUE 'JVTN',
+                co_jasn       TYPE kschl VALUE 'JASN',
+                co_jadn       TYPE kschl VALUE 'JADN',
+                co_zspf       TYPE kschl VALUE 'ZSPF',
+                co_jcsn       TYPE kschl VALUE 'JCSN',
+                co_diff       TYPE kschl VALUE 'DIFF',
+                co_zdis       TYPE kschl VALUE 'ZDIS',
+                co_zpta       TYPE kschl VALUE 'ZPTA',
+                co_zds1       TYPE kschl VALUE 'ZDS1',
+                co_zch1       TYPE kschl VALUE 'ZCH1',
+                co_zch2       TYPE kschl VALUE 'ZCH2',
+                co_zch3       TYPE kschl VALUE 'ZCH3',
+                co_zch4       TYPE kschl VALUE 'ZCH4',
+                co_zch5       TYPE kschl VALUE 'ZCH5',
+                co_dash       TYPE c VALUE '-',
+                co_zero       TYPE c VALUE '0',
+                co_param1(8)  TYPE c VALUE 'WERKS_SD',
+                co_param2(8)  TYPE c VALUE 'WERKS_38',
+                co_param3(10) TYPE c VALUE 'CHCCIN3800',
+                co_param4(9)  TYPE c VALUE 'CHCCINNOR',
+                co_renn       TYPE pstyv VALUE 'RENN',
+                co_zeros(4)   TYPE c VALUE '0.00',
+                co_flag       TYPE c VALUE 'B',
+                co_remark1    TYPE string VALUE 'Non-Eligible',
+                co_remark2    TYPE string VALUE 'Eligible',
+                co_remark3    TYPE string VALUE 'Bonus',
+                co_ren(3)     TYPE c VALUE 'REN',
+                co_vf31(4)    TYPE c VALUE 'VF31',
+                co_x          TYPE c VALUE 'X',
+                co_j_1i02     TYPE party VALUE 'J_1I02',
+                co_en         TYPE spras VALUE 'E',
+
+** SOA BY RAHUL MAGDUM, 8000004934 **
+                co_ycnc       TYPE nast-kschl VALUE 'YCNC',
+                co_yccr       TYPE nast-kschl VALUE 'YCCR',
+                co_yddn       TYPE nast-kschl VALUE 'YDDN',
+                co_yavc       TYPE nast-kschl VALUE 'YAVC'.
+** EOA BY RAHUL MAGDUM, 8000004934 **
+
+    DATA: ta_vbrk  TYPE TABLE OF ty_vbrk,
+          ta_nast  TYPE TABLE OF ty_nast,
+          ta_objky TYPE TABLE OF ty_objky,
+          ta_out   TYPE TABLE OF zsd_inv_chl_out,
+          ta_tnapr TYPE TABLE OF ty_tnapr,
+          ta_kna1  TYPE TABLE OF ty_kna1,
+          ta_adr6  TYPE TABLE OF ty_adr6,
+
+          wa_vbrk  TYPE ty_vbrk,
+          wa_nast  TYPE ty_nast,
+          wa_objky TYPE ty_objky,
+          wa_out   TYPE zsd_inv_chl_out,
+          wa_tnapr TYPE ty_tnapr.
+
+    METHODS:
+      m_get_data,
+      m_procee_credit_note_data IMPORTING wa_vbrk TYPE ty_vbrk.
+ENDCLASS.
+
+DATA : lo_cndn TYPE REF TO cl_cndn_mail.
+FIELD-SYMBOLS : <fs_mail> TYPE string.
+***    <fs_mail> = zcdt_co_mail.
+ASSIGN zcdt_co_mail TO <fs_mail>.
+
+CREATE OBJECT lo_cndn.
+
+lo_cndn->m_get_data( ).
+
+CLASS cl_cndn_mail IMPLEMENTATION.
+  METHOD m_get_data.
+
+    SELECT vbeln fkart vbtyp fkdat kunag
+      FROM vbrk
+      INTO TABLE ta_vbrk
+      WHERE fkart  IN s_fkart
+        AND vkorg  IN s_vkorg
+        AND fkdat  IN s_fkdat
+        AND rfbsk  EQ zcdt_co_c
+        AND bukrs  IN s_bukrs
+        AND kunrg IN s_kunrg   " Customer code payer has been added by Sushil against ticket number 8000004934
+        AND fksto EQ space.
+    IF sy-subrc EQ 0.
+      LOOP AT ta_vbrk INTO wa_vbrk.
+        wa_objky-objky = wa_vbrk-vbeln.
+        APPEND wa_objky TO ta_objky.
+      ENDLOOP.
+
+      DATA(lta_kunag) = ta_vbrk[].
+      SORT lta_kunag BY kunag.
+
+      DELETE ADJACENT DUPLICATES FROM lta_kunag COMPARING kunag.
+
+      IF lta_kunag[] IS NOT INITIAL.
+        SELECT kunnr adrnr
+        FROM kna1
+        INTO TABLE ta_kna1
+        FOR ALL ENTRIES IN lta_kunag
+        WHERE kunnr EQ lta_kunag-kunag.
+        IF sy-subrc EQ 0.
+          SELECT addrnumber persnumber date_from consnumber flgdefault smtp_addr smtp_srch
+            FROM adr6
+            INTO TABLE ta_adr6
+            FOR ALL ENTRIES IN ta_kna1
+            WHERE addrnumber EQ ta_kna1-adrnr
+              AND flgdefault EQ zcdt_co_x.
+        ENDIF.
+      ENDIF.
+    ENDIF.
+
+    SELECT *
+      FROM zsd_inv_chl_out
+      INTO TABLE ta_out.
+    "WHERE kschl IN (zcdt_co_ya4c,zcdt_co_ya4d).
+    IF sy-subrc EQ 0.
+      SELECT kschl nacha kappl pgnam sform
+        FROM tnapr
+        INTO TABLE ta_tnapr
+        FOR ALL ENTRIES IN ta_out
+        WHERE kschl EQ ta_out-kschl.
+    ENDIF.
+    "Start of comment by swapnil 8000005449 13.05.19
+*    LOOP AT ta_vbrk INTO wa_vbrk.
+*      IF LINE_EXISTS( TA_OUT[ FKART = WA_VBRK-FKART ] ).
+*        DATA(WA_OUT) = TA_OUT[ FKART = WA_VBRK-FKART ] .
+*        SELECT SINGLE *
+*        FROM nast
+*        INTO @DATA(lwa_nast)
+*        WHERE kappl EQ @zcdt_co_v3
+*          AND objky EQ @wa_vbrk-vbeln
+*          AND kschl = @WA_OUT-KSCHL." Commented by Sushil against ticket no. 8000004934 "IN (@zcdt_co_ya4c,@zcdt_co_ya4d, @CO_YCCR, @CO_YCNC, @CO_YDDN, @CO_YAVC ).
+*      IF sy-subrc EQ 0.
+*        nast = lwa_nast.
+*        lo_cndn->m_procee_credit_note_data( wa_vbrk ).
+*      ENDIF.
+*      ENDIF.
+*
+*    ENDLOOP.
+    "End of comment by swapnil 8000005449 13.05.19
+
+    "Start of addition by swapnil 8000005449 13.05.19
+    SORT ta_out BY fkart ASCENDING zdefault DESCENDING.
+
+    LOOP AT ta_vbrk INTO wa_vbrk.
+      IF line_exists( ta_out[ fkart = wa_vbrk-fkart ] ).
+*        DATA(WA_OUT) = TA_OUT[ FKART = WA_VBRK-FKART ] .
+        LOOP AT ta_out INTO DATA(wa_out) WHERE fkart = wa_vbrk-fkart.
+          SELECT SINGLE   *
+            FROM nast
+            INTO @DATA(lwa_nast)
+            WHERE kappl EQ @zcdt_co_v3
+            AND objky EQ @wa_vbrk-vbeln
+            AND kschl = @wa_out-kschl.
+          IF sy-subrc EQ 0.
+            nast = lwa_nast.
+            lo_cndn->m_procee_credit_note_data( wa_vbrk ).
+            EXIT.
+          ENDIF.
+          CLEAR : nast, lwa_nast.
+        ENDLOOP.
+      ENDIF.
+
+    ENDLOOP.
+    "End of addition by swapnil 8000005449 13.05.19
+  ENDMETHOD.
+
+  METHOD m_procee_credit_note_data.
+
+    FIELD-SYMBOLS: <fs_otf> TYPE ssfcrescl-otfdata.
+
+    "call print program.
+    PERFORM einzelnachricht_screen IN PROGRAM rsnast00 USING sy-subrc.
+
+****    ASSIGN ('(ZSD_CREDIT_NOTE_VALUE_GST_CHL)LWA_GT_OTF-OTFDATA)') TO <fs_otf>.
+  ENDMETHOD.
+ENDCLASS.

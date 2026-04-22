@@ -1,0 +1,4697 @@
+*--------------------------------------------------------------*
+*Modification Information
+* Date              : 10.07.2020
+* Author            : Nikita Khanekar
+* Change request    : 8000006524
+* Transport request : CRDK970122,CRDK970179,CRDK970291,CRDK971150,
+*                     CRDK971725,CRDK971771,CRDK971887,CRDK971917,
+*                     CRDK972461
+*--------------------------------------------------------------*
+*--------------------------------------------------------------*
+*Modification Information
+* Date              : 24.02.2021
+* Author            : Sushank Patankar
+* Functional        : Hitesh
+* Change request    : 8000006684
+* Transport request : CRDK976530,CRDK976681,CRDK976777
+* Description       : changes for value of GJAHR.
+*--------------------------------------------------------------*
+*Modification Information
+* Date              : 03.01.2023
+* Author            : Gauri Tandel
+* Change request    : 8000008734
+* Transport request : CRDK985851
+* Description       : Performance Improvement
+*--------------------------------------------------------------*
+*Modification Information
+* Date              : 16.05.2023
+* Author            : Prathamesh Parab
+* Change request    : 8000008444
+* Transport request : CRDK987042, CRDK987383, CRDK987218,
+*                     CRDK987171, CRDK987165, CRDK987155,
+*                     CRDK987415, CRDK987497, CRDK987505,
+*                     CRDK987522
+* Description       : Inward Register Changes
+*--------------------------------------------------------------*
+REPORT zgst_miro_new.
+DATA: lv_total_netwr TYPE vbak-netwr.
+*****************inward ********
+TYPES : BEGIN OF ty_bkpf,
+          bukrs     TYPE bkpf-bukrs,
+          belnr     TYPE belnr_d,
+          gjahr     TYPE gjahr,
+          blart     TYPE bkpf-blart,
+          bldat     TYPE bldat,
+          budat     TYPE bkpf-budat,
+          xblnr     TYPE bkpf-xblnr,
+          monat     TYPE monat,
+          waers     TYPE waers,
+          awkey     TYPE awkey,
+          bstat     TYPE bstat_d,
+          xblnr_alt TYPE bkpf-xblnr_alt,
+        END OF ty_bkpf,
+*****************inward ********
+
+*****************inward ********
+        BEGIN OF ty_bseg,
+          bukrs   TYPE bseg-bukrs,
+          belnr   TYPE belnr_d,
+          gjahr   TYPE gjahr,
+          buzei   TYPE bseg-buzei,
+          dmbtr   TYPE bseg-dmbtr,
+          bschl   TYPE bseg-bschl,
+          hkont   TYPE hkont,
+          matnr   TYPE bseg-matnr,
+          menge   TYPE bseg-menge,
+          meins   TYPE bseg-meins,
+          bupla   TYPE bseg-bupla,
+          plc_sup TYPE bseg-plc_sup,
+          hsn_sac TYPE bseg-hsn_sac,
+          lifnr   TYPE lifnr,
+          wrbtr   TYPE bseg-wrbtr,
+          txgrp   TYPE bseg-txgrp,
+          ktosl   TYPE bseg-ktosl,
+          prctr   TYPE bseg-prctr,
+          werks   TYPE bseg-werks,
+          rebzg   TYPE bseg-rebzg,
+          rebzt   TYPE bseg-rebzt,
+          ebelp   TYPE bseg-ebelp,
+          taxps   TYPE bseg-taxps,
+          buzid   TYPE bseg-buzid,
+          koart   TYPE bseg-koart,
+          qsskz   TYPE bseg-qsskz,
+          ebeln   TYPE bseg-ebeln,
+          shkzg   TYPE bseg-shkzg,
+          mwskz   TYPE bseg-mwskz,
+          pswsl   TYPE bseg-pswsl,
+        END OF ty_bseg,
+
+        BEGIN OF gty_mseg,
+          mblnr TYPE mseg-mblnr,
+          mjahr TYPE mseg-mjahr,
+          werks TYPE mseg-werks,
+          ebeln TYPE mseg-ebeln,
+          gjahr TYPE mseg-gjahr,
+        END OF gty_mseg,
+
+        BEGIN OF gty_zmm_grnmigo,
+          mblnr TYPE zmm_grnmigo-mblnr,
+          mjahr TYPE zmm_grnmigo-mjahr,
+          zwbn  TYPE zmm_grnmigo-zwbn,
+          zwbd  TYPE zmm_grnmigo-zwbd,
+        END OF gty_zmm_grnmigo,
+
+
+*****************inward ********
+        BEGIN OF ty_bukrs,
+          bukrs TYPE bukrs,
+          butxt TYPE butxt,
+          adrnr TYPE adrnr,
+        END OF ty_bukrs,
+        BEGIN OF ty_adrc,
+          addrnumber TYPE ad_addrnum,
+          region     TYPE regio,
+        END OF ty_adrc,
+*********inward***********
+        BEGIN OF ty_makt,
+          matnr TYPE matnr,
+          maktx TYPE maktx,
+          maktg TYPE maktg,
+        END OF ty_makt,
+*********inward***********
+        BEGIN OF ty_marc,
+          matnr TYPE matnr,
+          steuc TYPE steuc,
+        END OF ty_marc,
+        BEGIN OF ty_gst,
+          bukrs  TYPE bukrs,
+          branch TYPE j_1bbranc_,
+          gstin  TYPE j_1igstcd3,
+        END OF ty_gst,
+        BEGIN OF ty_pan,
+          kunnr     TYPE kunnr,
+          j_1ipanno TYPE j_1ipanno,
+        END OF ty_pan,
+        BEGIN OF ty_werks,
+          werks      TYPE werks_d,
+          j_1bbranch TYPE j_1bbranc_,
+        END OF ty_werks,
+        BEGIN OF ty_werks_gstin,
+          branch TYPE j_1bbranc_,
+          gstin  TYPE j_1igstcd3,
+        END OF ty_werks_gstin,
+        BEGIN OF ty_t001w,
+          werks TYPE werks_d,
+          name1 TYPE name1,
+          regio TYPE regio,
+        END OF ty_t001w,
+        BEGIN OF ty_vbfa,
+          vbelv   TYPE vbeln_von,
+          vbeln   TYPE vbeln_nach,
+          vbtyp_v TYPE vbtyp_v,
+        END OF ty_vbfa,
+        BEGIN OF ty_likp,
+          vbeln TYPE vbeln_vl,
+          kunnr TYPE kunwe,
+        END OF ty_likp,
+        BEGIN OF typ_zsd_region_gst1,
+          region     TYPE zsd_region_gst1-region,
+          bezei      TYPE zsd_region_gst1-bezei, "
+          gst_region TYPE zsd_region_gst1-gst_region,  "
+        END OF typ_zsd_region_gst1,
+        BEGIN OF typ_mara,
+          matnr TYPE mara-matnr,
+        END OF typ_mara,
+        BEGIN OF ty_heading,
+          text(50),
+        END OF ty_heading,
+        BEGIN OF typ_zmm_plant_invgst,
+          unit_cd     TYPE werks_d,
+          werks(10)   TYPE c,
+          plnt_regio  TYPE regio,
+          buyer_gstno TYPE zmm_plant_invgst-buyer_gstno,
+          name1       TYPE zmm_plant_invgst-name1,
+          state_code  TYPE zmm_plant_invgst-state_code,
+        END OF typ_zmm_plant_invgst,
+        BEGIN OF typ_j_1bbranch,
+          bukrs  TYPE j_1bbranch-bukrs,
+          branch TYPE j_1bbranch-branch,
+          adrnr  TYPE j_1bbranch-adrnr,
+          gstin  TYPE j_1bbranch-gstin,
+        END OF typ_j_1bbranch,
+*****************inward ********
+        BEGIN OF typ_t001,
+          bukrs TYPE t001-bukrs,
+          butxt TYPE t001-butxt,
+        END OF typ_t001,
+        BEGIN OF typ_lfa1,
+          lifnr TYPE lfa1-lifnr,
+          land1 TYPE lfa1-land1, " Change added by Inc 8000008444 | TR CRDK987155 | Prathamesh Parab | 30.05.2023
+*         stcd3 TYPE lfa1-stcd3, " Change added by Inc 8000008444 | TR CRDK987155 | Prathamesh Parab | 30.05.2023
+*         regio TYPE lfa1-regio, " Change added by Inc 8000008444 | TR CRDK987155 | Prathamesh Parab | 30.05.2023
+          name1 TYPE lfa1-name1,
+          regio TYPE lfa1-regio, " Change added by Inc 8000008444 | TR CRDK987155 | Prathamesh Parab | 30.05.2023
+          adrnr TYPE lfa1-adrnr, " Change added by Inc 8000008444 | TR CRDK987155 | Prathamesh Parab | 30.05.2023
+          stcd3 TYPE lfa1-stcd3, " Change added by Inc 8000008444 | TR CRDK987155 | Prathamesh Parab | 30.05.2023
+        END OF typ_lfa1,
+        BEGIN OF typ_j_1imovend,
+          lifnr     TYPE j_1imovend-lifnr,
+          ven_class TYPE j_1imovend-ven_class,
+          j_1ipanno TYPE  j_1imovend-j_1ipanno,
+        END  OF typ_j_1imovend,
+        BEGIN OF typ_t005u,
+          bezei TYPE t005u-bezei,
+        END OF typ_t005u,
+        BEGIN OF  typ_rseg,
+          bukrs       TYPE rseg-bukrs,
+          belnr       TYPE rseg-belnr,
+          gjahr       TYPE rseg-gjahr,
+          buzei       TYPE rseg-buzei,
+          ebeln       TYPE rseg-ebeln,
+          ebelp       TYPE rseg-ebelp,
+          matnr       TYPE rseg-matnr,
+          wrbtr       TYPE rseg-wrbtr , "
+          shkzg       TYPE rseg-shkzg,
+          menge       TYPE rseg-menge,
+          meins       TYPE rseg-meins,
+          hsn_sac     TYPE rseg-hsn_sac,
+          customs_val TYPE rseg-customs_val,
+          xekbz       TYPE rseg-xekbz,
+          kschl       TYPE rseg-kschl,
+          werks       TYPE rseg-werks,
+          mwskz       TYPE rseg-mwskz,
+          lfbnr       TYPE rseg-lfbnr,
+          lfgja       TYPE rseg-lfgja,
+          lfpos       TYPE rseg-lfpos,
+          awkey       TYPE bkpf-awkey,
+          flag        TYPE c,
+        END OF typ_rseg,
+        BEGIN OF typ_bset,
+          bukrs TYPE  bukrs,
+          belnr	TYPE belnr_d,
+          gjahr	TYPE gjahr,
+          buzei	TYPE buzei,
+          txgrp TYPE bset-txgrp,
+          fwbas TYPE bset-fwbas,
+          hwste TYPE bset-hwste,
+          kschl TYPE bset-kschl,
+          hwbas	TYPE  hwbas_bses,
+          kbetr TYPE bset-kbetr,
+          mwskz TYPE bset-mwskz,
+          shkzg TYPE bset-shkzg,
+          taxps TYPE bset-taxps,
+          ktosl TYPE bset-ktosl,
+        END OF typ_bset,
+        BEGIN OF typ_rbkp,
+          bukrs  TYPE bukrs,
+          belnr  TYPE   rbkp-belnr,
+          gjahr  TYPE gjahr,
+          bldat  TYPE rbkp-bldat,
+          sgtxt  TYPE rbkp-sgtxt,
+          xrech  TYPE rbkp-xrech,
+          blart  TYPE rbkp-blart,
+          budat  TYPE rbkp-budat,
+          bupla  TYPE bupla,
+          tcode  TYPE rbkp-tcode,
+          stblg  TYPE awkey,
+          wmwst1 TYPE rbkp-wmwst1,
+          kursf  TYPE rbkp-kursf,
+          lifnr  TYPE rbkp-lifnr,
+          waers  TYPE rbkp-waers,
+          mwskz1 TYPE rbkp-mwskz1,
+          rmwwr  TYPE rbkp-rmwwr,
+          awkey  TYPE bkpf-awkey,
+        END OF typ_rbkp,
+        BEGIN OF typ_makt ,
+          matnr TYPE makt-matnr,
+          maktx TYPE makt-maktx,
+        END OF typ_makt,
+**********************FB60**************
+        BEGIN OF ty_bkpf_t,
+          bukrs TYPE bkpf-bukrs,
+          belnr TYPE belnr_d,
+          gjahr TYPE gjahr,
+          blart TYPE bkpf-blart,
+          bldat TYPE bldat,
+          budat TYPE bkpf-budat,
+          xblnr TYPE bkpf-xblnr,
+          monat TYPE monat,
+          waers TYPE waers,
+          awkey TYPE awkey,
+          tcode TYPE rbkp-tcode,
+          bstat TYPE bstat_d,
+          stblg TYPE bkpf-stblg,
+        END OF ty_bkpf_t,
+        BEGIN OF ty_bseg_t,
+          bukrs   TYPE bseg-bukrs,
+          belnr   TYPE belnr_d,
+          gjahr   TYPE gjahr,
+          buzei   TYPE bseg-buzei,
+          dmbtr   TYPE bseg-dmbtr,
+          bschl   TYPE bseg-bschl,
+          hkont   TYPE hkont,
+          matnr   TYPE bseg-matnr,
+          menge   TYPE bseg-menge,
+          meins   TYPE bseg-meins,
+          bupla   TYPE bseg-bupla,
+          plc_sup TYPE bseg-plc_sup,
+          hsn_sac TYPE bseg-hsn_sac,
+          lifnr   TYPE lifnr,
+          wrbtr   TYPE bseg-wrbtr,
+          gvtyp   TYPE bseg-gvtyp,
+          buzid   TYPE bseg-buzid,
+          koart   TYPE bseg-koart,
+          ktosl   TYPE bseg-ktosl,
+          prctr   TYPE bseg-prctr,
+          werks   TYPE bseg-werks,
+          qsskz   TYPE bseg-qsskz,
+          shkzg   TYPE bseg-shkzg,
+        END OF ty_bseg_t,
+        BEGIN OF typ_bset_t,
+          bukrs TYPE  bukrs,
+          belnr	TYPE belnr_d,
+          gjahr	TYPE gjahr,
+          buzei	TYPE buzei,
+          fwbas TYPE bset-fwbas,
+          hwste TYPE bset-hwste,
+          kschl TYPE bset-kschl,
+          hwbas	TYPE  hwbas_bses,
+          kbetr TYPE bset-kbetr,
+          mwskz TYPE bset-mwskz,
+          txgrp TYPE bset-txgrp,
+        END OF typ_bset_t,
+        BEGIN OF typ_makt_t ,
+          matnr TYPE makt-matnr,
+          maktx TYPE makt-maktx,
+        END OF typ_makt_t,
+        BEGIN OF typ_ekko,
+          ebeln TYPE ekko-ebeln,
+          ebelp TYPE ekpo-ebelp,
+          bukrs TYPE ekko-bukrs,
+          lifnr TYPE ekko-lifnr,
+          ekorg TYPE ekko-ekorg,
+          llief TYPE ekko-llief,
+          matnr TYPE ekpo-matnr,
+          bedat TYPE ekko-bedat,
+          werks TYPE ekpo-werks,
+          mwskz TYPE ekpo-mwskz,
+          netpr TYPE ekpo-netpr,
+          netwr TYPE ekpo-netwr,
+          lgort TYPE ekpo-lgort, "Add
+        END OF typ_ekko,
+        BEGIN OF typ_rbco,                    """ GL Type
+          belnr   TYPE rbco-belnr,
+          gjahr   TYPE rbco-gjahr,
+          buzei   TYPE rbco-buzei,
+          cobl_nr TYPE rbco-cobl_nr,
+          wrbtr   TYPE rbco-wrbtr,
+          saknr   TYPE rbco-saknr,
+          mwskz   TYPE rbco-mwskz,
+          menge   TYPE rbco-menge,
+          shkzg   TYPE rbco-shkzg,
+          meins   TYPE rbco-meins,
+          flag    TYPE c,
+        END OF typ_rbco,
+        BEGIN OF ty_rbma,
+          belnr TYPE rbma-belnr,
+          gjahr TYPE rbma-gjahr,
+          buzei TYPE rbma-buzei,
+          wrbtr TYPE rbma-wrbtr,
+          shkzg TYPE rbma-shkzg,
+          matnr TYPE rbma-matnr,
+          menge TYPE rbma-menge,
+          meins TYPE rbma-meins,
+        END OF ty_rbma,
+        BEGIN OF ty_j_1ichidtx,
+          j_1ichid TYPE  j_1ichid,
+          langu    TYPE spras,
+          j_1icht1 TYPE j_1ichtx,
+        END OF ty_j_1ichidtx,
+        BEGIN OF ty_ekpo,
+          ebeln TYPE ekpo-ebeln,
+          ebelp TYPE ekpo-ebelp,
+          txz01 TYPE ekpo-txz01, " Change added by Inc 8000008444 | TR CRDK987042 | Prathamesh Parab | 15.05.2023
+          kntpp TYPE ekpo-knttp,
+        END OF ty_ekpo,
+
+        BEGIN OF ty_ekko,
+          ebeln TYPE ekko-ebeln,
+          bedat TYPE ekko-bedat,
+        END OF ty_ekko,
+
+        BEGIN OF typ_zuqc,
+          sap_uqc   TYPE zuqc-sap_uqc,
+          gstin_uqc TYPE zuqc-gstin_uqc,
+        END OF typ_zuqc,
+
+        BEGIN OF typ_zitc_po,
+          bsart       TYPE zitc_po-bsart,
+          purch_group TYPE zitc_po-purch_group,
+          description TYPE zitc_po-description,
+          itc         TYPE zitc_po-itc,
+          matkl       TYPE zitc_po-matkl,
+        END OF typ_zitc_po,
+
+        BEGIN OF ty_ekko_itc,
+          ebeln TYPE ekko-ebeln,
+          bukrs TYPE ekko-bukrs,
+          bsart TYPE ekko-bsart,
+          ekgrp TYPE ekko-ekgrp,
+        END OF ty_ekko_itc,
+
+        BEGIN OF typ_zgst_inward_port,
+          invoice_no TYPE zgst_inward_port-invoice_no,
+          port_code  TYPE zgst_inward_port-port_code,
+        END OF typ_zgst_inward_port,
+
+        BEGIN OF ty_ekbe,
+          ebeln TYPE ekbe-ebeln,
+          ebelp TYPE ekbe-ebelp,
+          gjahr TYPE ekbe-gjahr,
+          belnr TYPE ekbe-belnr,
+          buzei TYPE ekbe-buzei,
+          lfbnr TYPE ekbe-lfbnr,
+          charg TYPE ekbe-charg,
+          matnr TYPE ekbe-matnr,
+          budat TYPE ekbe-budat,
+          werks TYPE ekbe-werks,
+          bwart TYPE ekbe-bwart,
+        END OF ty_ekbe,
+
+
+        BEGIN OF ty_konp,
+          knumh TYPE konp-knumh,
+          kopos TYPE konp-kopos,
+          mwsk1 TYPE konp-mwsk1,
+        END OF ty_konp,
+
+
+        BEGIN OF ty_final,
+          bukrs           TYPE bukrs,         " Company Code
+          butxt           TYPE butxt,         " Company Name
+          state           TYPE bezei30,        " State
+          gstin           TYPE j_1igstcd3,    " GSTIN
+          gjahr           TYPE gjahr,         " Year
+          month           TYPE string,        " Month
+          belnr           TYPE belnr_d,       " Accounting Document No
+          bldat           TYPE char8, "bldat,         " Accounting Document Date
+          trans_count     TYPE string,        " Transaction Count
+          waers           TYPE waers,         " Currency
+          saknr           TYPE saknr,         " GL Account
+          fkart(15)       TYPE c,           " Document Type    "fkart,
+          taxability      TYPE string,        " Taxability
+*         nature_exemp    TYPE string,        " Nature of Exemption
+          supp_type       TYPE string,        " Supply Type
+          kunrg           TYPE kunrg,         " Supplier code
+          nat_recpnt      TYPE string,        " Nature of supllier
+          stcd3           TYPE stcd3,         " GSTIN/UIN of supplier
+          rep_state       TYPE bezei30,         " supplie state
+          name1           TYPE name1_gp,      "  Name of Supplier
+          vbeln           TYPE xblnr1, "vbeln_vf,      " Invoice No.
+          erdat           TYPE char8, "erdat,         " Invoice Date
+          netwr           TYPE string, "netwr,         " Invoice Value
+          rev_charge      TYPE string,        " Supply attract Reverse Charge
+          pos_state       TYPE bezei30,         " POS (State)
+*         gstin_e_com     TYPE string,        " GSTIN of e-commerce Portal
+          posnr           TYPE posnr_vf,      " Line Item
+          matnr           TYPE matnr,         " Item Code
+          category        TYPE string,        " Category
+          steuc           TYPE steuc,         " HSN/SAC
+          maktx           TYPE maktx,         " Product/Service Description
+          vrkme(20)       TYPE c, "vrkme,         " UQC
+          fkimg           TYPE fkimg,         " Quantity
+          val_bef_disc    TYPE string,         " Sale Price (before discount)
+          discount        TYPE string, "kwert,         " Discount
+          val_aft_disc    TYPE string, "kwert,         " Net Sale Price (after discount)
+          vat             TYPE string, "kwert,         " VAT
+          c_excise        TYPE string, "kwert,         " Central Excise
+          s_excise        TYPE string, "kwert,         " State Excise
+          taxable_val     TYPE string,         " Taxable Value
+          tot_gst(10)     TYPE c, "string, "kbetr,         " Total GST Rate
+          igst_rate(10)   TYPE c, "kbetr,         " IGST Rate
+          igst_amt        TYPE string, "kwert,         " IGST Amount
+          cgst_rate(10)   TYPE c, "kbetr,         " CGST Rate
+          cgst_amt        TYPE string, "kwert,         " CGST Amount
+          sgst_rate(10)   TYPE c, "kbetr,         " SGST Rate
+          sgst_amt        TYPE string, "kwert,         " SGST Amount
+          cess_rate(10)   TYPE c, "kbetr,         " CESS Rate
+          cess_amt        TYPE string, "kwert,         " CESS Amount
+          elg_itc(2)      TYPE c ,            "'Eligibility of ITC',
+          itc_igst        TYPE string, "kwert,          " 'ITC IGST (Amt)',
+          itc_cgst        TYPE string, ",          " 'ITC CGST (Amt)',
+          itc_sgst        TYPE string, "kwert,          " 'ITC SGST (Amt)',
+          itc_cess        TYPE string, "kwert,          "'ITC Cess (Amt)',
+          nature_exp      TYPE string,         "'Nature of expense',
+          ship_from_state TYPE bezei30,         " Ship From State
+          ship_to_state   TYPE bezei30,         " Ship To State
+          way_bill_no     TYPE string,        " Way Bill No
+          transporter     TYPE string,        " Transporter Name
+          lorry_no        TYPE string,        " Lorry Receipt No
+          lorry_date      TYPE string,        " Lorry Receipt Date
+          cdn_no          TYPE string,        " Credit/Debit Note (Original Doc No)
+          cdn_date        TYPE string,        " Credit/Debit Note (Original Doc Date)
+          cdn_reason      TYPE string,        " Reason for Credit/Debit Note
+          assess_value    TYPE kbetr,         " assessable value before BCD
+          basic_cust_duty TYPE kbetr,         " Basic custom duty
+          port_code       TYPE string,        " Port Code
+          is_adv_adj      TYPE string,        " If Advance Adjustment
+          adv_adj_no      TYPE string,        " Advance Adjustment (Invoice No)
+          adv_adj_date    TYPE string,        " Advance Adjustment (Invoice Date)
+          is_amd          TYPE string,        " Is Amendment
+          amd_year        TYPE string,        " Amendment (Original Year)
+          amd_month       TYPE string,        " Amendment (Original Month)
+          amd_gstin       TYPE string,        " Amendment (Original Recepient's GSTIN)
+          amd_doc_no      TYPE string,        " Amendment (Original Doc No)
+          amd_doc_date    TYPE string,        " Amendment (Original Doc Date)
+          is_isd          TYPE c,               "'Is ISD',
+          isd             TYPE string ,         "'ISD (Location Details)',
+          mis1            TYPE string,        " MIS-1
+          mis2            TYPE awkey,        " MIS-2
+          mis3            TYPE string,        " MIS-3
+          mis4            TYPE string,        " MIS-4
+          mis5            TYPE string,        " MIS-5
+          mis6            TYPE string,        " MIS-6
+          mis7            TYPE string,        " MIS-7
+          mis8            TYPE string,        " MIS-8
+          mis9            TYPE string,        " MIS-9
+          mis10           TYPE string,        " MIS-10
+          maktx1          TYPE makt-maktx,    " added Material and prod des by vaibhav
+          mwskz1          TYPE bseg-mwskz,    " ADDED Tax code by vaibhav
+          lfbnr           TYPE rseg-lfbnr,    " added  by vaibhav
+          charg(11),          " TYPE CHARG_D,        "EKBE-CHARG,    " added batch no by vaibhav
+          budat           TYPE ekbe-budat,
+          ebeln           TYPE ekbe-ebeln,    " Added by Priyanka KOre on 16/11/2018 #8000003582
+          budat1          TYPE ekbe-budat,    " Added by Priyanka Kore on 16/11/2018 #8000003582
+          mat_grp         TYPE matkl,         " Material Group "Nikita on #8000006524
+          mtgr_desc       TYPE t023t-wgbez60, " Material Group Description "Nikita on #8000006524
+          flag            TYPE c,
+          table           TYPE c,             " Indicator for RBMA adn RBCO not to calculate igst amount by 100
+          cnt             TYPE i,
+* Start of Change Inc 8000008444 | TR CRDK987042 | Prathamesh Parab | 15.05.2023
+          irn_no          TYPE c LENGTH 80,   " IRN Number
+          irn_date        TYPE c LENGTH 10.   " IRN Date
+* End of Change Inc 8000008444 | TR CRDK987042 | Prathamesh Parab | 15.05.2023
+TYPES: END OF ty_final.
+
+TYPES : BEGIN OF ty_werks_bseg,
+          bukrs TYPE bseg-bukrs,
+          belnr TYPE bseg-belnr,
+          gjahr TYPE bseg-gjahr,
+          werks TYPE bseg-werks,
+        END OF ty_werks_bseg.
+
+TYPES : BEGIN OF ty_lifnr_bseg,
+          bukrs TYPE bseg-bukrs,
+          belnr TYPE bseg-belnr,
+          gjahr TYPE bseg-gjahr,
+          lifnr TYPE bseg-lifnr,
+        END OF ty_lifnr_bseg.
+
+TYPES : BEGIN OF ty_mwskz,
+          bukrs TYPE bset-bukrs,
+          belnr TYPE bset-belnr,
+          gjahr TYPE bset-gjahr,
+          mwskz TYPE bset-mwskz,
+          hwste TYPE bset-hwste,
+          kschl TYPE bset-kschl,
+        END OF ty_mwskz.
+
+TYPES : BEGIN OF ty_mara,
+          matnr TYPE mara-matnr,
+          matkl TYPE mara-matkl,
+        END OF ty_mara.
+
+TYPES : BEGIN OF ty_t023t,
+          spras   TYPE t023t-spras,
+          matkl   TYPE t023t-matkl,
+          wgbez60 TYPE t023t-wgbez60,
+        END OF ty_t023t.
+
+
+
+DATA : lv_netwr TYPE kwert.
+DATA : lv_cgst TYPE kwert.
+DATA : lv_sgst TYPE kwert.
+DATA : lv_igst TYPE kwert.
+DATA : lv_tot TYPE kwert.
+DATA : lv_taxbale TYPE kwert.
+DATA: lv_steuc         TYPE steuc,         " HSN/SAC
+      lv_maktx         TYPE maktx,
+      lv_rseg-buzei(6) TYPE n.          " Product/Service Description
+
+DATA: lt_bkpf                 TYPE TABLE OF ty_bkpf,
+      ls_bkpf                 TYPE ty_bkpf,
+      lt_bkpf_can             TYPE TABLE OF ty_bkpf,      "for cancel invoice
+      ls_bkpf_can             TYPE ty_bkpf,
+      lt_rbkp_can             TYPE TABLE OF typ_rbkp,
+      ls_rbkp_can             TYPE typ_rbkp,
+      lt_bseg                 TYPE TABLE OF ty_bseg,
+      lt_bseg_ninr            TYPE TABLE OF ty_bseg,
+      ls_bseg                 TYPE ty_bseg,
+      ls_bseg1                TYPE ty_bseg,
+      ls_bseg2                TYPE ty_bseg,
+      lt_bseg_c               TYPE TABLE OF ty_bseg,
+      ls_bseg_c               TYPE ty_bseg,
+      lt_bseg_h               TYPE TABLE OF ty_bseg,
+      ls_bseg_h               TYPE ty_bseg,
+      lt_bseg_uqc             TYPE TABLE OF ty_bseg,    "Table for UQC Field
+      ls_bseg_uqc             TYPE ty_bseg,
+      lt_bseg_p               TYPE TABLE OF ty_bseg,    "table for profit center
+      ls_bseg_p               TYPE ty_bseg,
+      lt_bseg_plant           TYPE TABLE OF ty_bseg,    "table for plant
+      ls_bseg_plant           TYPE ty_bseg,
+      lt_bseg_r               TYPE TABLE OF ty_bseg,
+      ls_bseg_r               TYPE ty_bseg,
+      lt_t001                 TYPE TABLE OF ty_bukrs,
+      ls_t001                 TYPE ty_bukrs,
+      lt_adrc                 TYPE TABLE OF ty_adrc,
+      ls_adrc                 TYPE ty_adrc,
+      lt_adrc1                TYPE TABLE OF ty_adrc,
+      ls_adrc1                TYPE ty_adrc,
+      lt_adrc2                TYPE TABLE OF ty_adrc,
+      ls_adrc2                TYPE ty_adrc,
+      lt_adrc_s               TYPE TABLE OF ty_adrc,
+      ls_adrc_s               TYPE ty_adrc,
+      lt_marc                 TYPE TABLE OF ty_marc,
+      ls_marc                 TYPE ty_marc,
+      lt_final                TYPE TABLE OF ty_final,
+      lt_final1               TYPE TABLE OF ty_final,
+      ls_final                TYPE ty_final,
+      ls_final1               TYPE ty_final,
+      lt_final_total          TYPE TABLE OF ty_final,
+      ls_final_total          TYPE ty_final,
+      lt_final_com            TYPE TABLE OF ty_final,
+      ls_final_com            TYPE ty_final,
+      lt_pan                  TYPE TABLE OF ty_pan,
+      ls_pan                  TYPE ty_pan,
+      lt_gst                  TYPE TABLE OF ty_gst,
+      ls_gst                  TYPE ty_gst,
+      p_file1                 TYPE string,
+      lt_werks                TYPE TABLE OF ty_werks,
+      ls_werks                TYPE ty_werks,
+      lt_werks_gstin          TYPE TABLE OF ty_werks_gstin,
+      ls_werks_gstin          TYPE ty_werks_gstin,
+      lt_t001w                TYPE TABLE OF ty_t001w,
+      ls_t001w                TYPE ty_t001w,
+      lt_vbfa                 TYPE TABLE OF ty_vbfa,
+      ls_vbfa                 TYPE ty_vbfa,
+      lt_likp                 TYPE TABLE OF ty_likp,
+      ls_likp                 TYPE ty_likp,
+      w_fkdat                 TYPE fkdat,
+      lt_zsd_region_gst1      TYPE TABLE OF  typ_zsd_region_gst1,
+      ls_zsd_region_gst1      TYPE  typ_zsd_region_gst1,
+      lt_mara                 TYPE TABLE OF typ_mara,
+      ls_mara                 TYPE typ_mara,
+      lt_zmm_plant_invgst     TYPE TABLE OF  typ_zmm_plant_invgst,
+      ls_zmm_plant_invgst     TYPE typ_zmm_plant_invgst,
+      lt_zmm_plant_invgst_new TYPE TABLE OF  typ_zmm_plant_invgst,
+      ls_zmm_plant_invgst_new TYPE typ_zmm_plant_invgst,
+      lt_j_1bbranch           TYPE TABLE OF typ_j_1bbranch,
+      ls_j_1bbranch           TYPE typ_j_1bbranch,
+*************inward *************
+      lt_bset                 TYPE TABLE OF typ_bset,
+      ls_bset                 TYPE typ_bset,
+      lt_lfa1                 TYPE TABLE OF typ_lfa1,
+      ls_lfa1                 TYPE typ_lfa1,
+      lt_j_1imovend           TYPE TABLE OF typ_j_1imovend,
+      ls_j_1imovend           TYPE typ_j_1imovend,
+      lt_rseg                 TYPE TABLE OF typ_rseg,
+      ls_rseg                 TYPE typ_rseg,
+
+      ta_ekko                 TYPE TABLE OF ty_ekko,
+
+      lt_ekpo                 TYPE TABLE OF ty_ekpo,
+      ls_ekpo                 TYPE ty_ekpo,
+      lt_rseg_c               TYPE TABLE OF typ_rseg,
+      lt_rseg_c1              TYPE TABLE OF typ_rseg,
+      ls_rseg_c               TYPE typ_rseg,
+      ls_rseg_c1              TYPE typ_rseg,
+      lt_rseg_hsn             TYPE TABLE OF typ_rseg,
+      ls_rseg_hsn             TYPE typ_rseg,
+      lt_rbkp                 TYPE TABLE OF typ_rbkp,
+      lt_rbkp_inr_n           TYPE TABLE OF typ_rbkp,
+      lt_rbkp_t               TYPE TABLE OF typ_rbkp,
+      ls_rbkp                 TYPE typ_rbkp,
+      lt_rbkp_c               TYPE TABLE OF typ_rbkp,
+      ls_rbkp_c               TYPE typ_rbkp,
+      lt_ekko                 TYPE TABLE OF typ_ekko,
+      ls_ekko                 TYPE typ_ekko,
+      lt_makt                 TYPE TABLE OF  typ_makt,
+      ls_makt                 TYPE   typ_makt,
+      lt_rbco                 TYPE TABLE OF typ_rbco,
+      ls_rbco                 TYPE typ_rbco,
+      lt_rbma                 TYPE TABLE OF ty_rbma,
+      ls_rbma                 TYPE ty_rbma,
+*************inward *************
+*************FB60***************
+      lt_bkpf_t               TYPE TABLE OF ty_bkpf_t,
+      ls_bkpf_t               TYPE ty_bkpf_t,
+      lt_bseg_t               TYPE TABLE OF ty_bseg_t,
+      ls_bseg_t               TYPE ty_bseg_t,
+      lt_bseg_t1              TYPE TABLE OF ty_bseg_t,
+      ls_bseg_t1              TYPE ty_bseg_t,
+      lt_bseg_tc              TYPE TABLE OF ty_bseg_t,
+      ls_bseg_tc              TYPE ty_bseg_t,
+      lt_bseg_th              TYPE TABLE OF ty_bseg_t,
+      ls_bseg_th              TYPE ty_bseg_t,
+      lt_bseg_tx              TYPE TABLE OF ty_bseg_t,
+      ls_bseg_tx              TYPE ty_bseg_t,
+      lt_bseg_tr              TYPE TABLE OF ty_bseg_t,
+      ls_bseg_tr              TYPE ty_bseg_t,
+      lt_bset_t               TYPE TABLE OF typ_bset_t,
+      ls_bset_t               TYPE typ_bset_t,
+      lt_lfa1_t               TYPE TABLE OF typ_lfa1,
+      ls_lfa1_t               TYPE typ_lfa1,
+      lt_final_t              TYPE TABLE OF ty_final,
+      ls_final_t              TYPE ty_final,
+      lt_j_1bbranch_t         TYPE TABLE OF typ_j_1bbranch,
+      ls_j_1bbranch_t         TYPE typ_j_1bbranch,
+      lt_adrc_ts              TYPE TABLE OF ty_adrc,
+      ls_adrc_ts              TYPE ty_adrc,
+      lt_adrc_t               TYPE TABLE OF ty_adrc,
+      ls_adrc_t               TYPE ty_adrc,
+      lt_adrc1_t              TYPE TABLE OF ty_adrc,
+      ls_adrc1_t              TYPE ty_adrc,
+      lt_makt_t               TYPE TABLE OF  typ_makt_t,
+      ls_makt_t               TYPE   typ_makt_t,
+      lt_t001_t               TYPE TABLE OF ty_bukrs,
+      ls_t001_t               TYPE ty_bukrs,
+      lw_taxcom               TYPE taxcom,
+      lt_xkomv                TYPE STANDARD TABLE OF komv,
+      lw_komv                 TYPE komv,
+      lt_j_1imovend_t         TYPE TABLE OF typ_j_1imovend,
+      ls_j_1imovend_t         TYPE typ_j_1imovend,
+      lt_zmm_plant_invgst_t   TYPE TABLE OF  typ_zmm_plant_invgst,
+      ls_zmm_plant_invgst_t   TYPE typ_zmm_plant_invgst,
+      lt_j_1ichidtx           TYPE TABLE OF ty_j_1ichidtx,
+      ls_j_1ichidtx           TYPE ty_j_1ichidtx,
+      lt_zuqc                 TYPE TABLE OF typ_zuqc,
+      ls_zuqc                 TYPE typ_zuqc,
+      lt_zitc_po              TYPE TABLE OF typ_zitc_po,
+      ls_zitc_po              TYPE typ_zitc_po,
+      lt_ekko_itc             TYPE TABLE OF ty_ekko_itc,
+      ls_ekko_itc             TYPE ty_ekko_itc,
+      lt_zgst_inward_port     TYPE TABLE OF typ_zgst_inward_port,
+      ls_zgst_inward_port     TYPE typ_zgst_inward_port,
+      lt_ekbe                 TYPE TABLE OF ty_ekbe,
+      ls_ekbe                 TYPE ty_ekbe,
+      lt_mseg                 TYPE TABLE OF gty_mseg,
+      ls_mseg                 TYPE gty_mseg,
+      lt_grn                  TYPE TABLE OF gty_zmm_grnmigo,
+      ls_grn                  TYPE gty_zmm_grnmigo,
+      lt_werks_bseg           TYPE TABLE OF ty_werks_bseg,
+      ls_werks_bseg           TYPE ty_werks_bseg,
+      lt_lifnr_bseg           TYPE TABLE OF ty_lifnr_bseg,
+      ls_lifnr_bseg           TYPE ty_lifnr_bseg,
+      lt_bseg_hk              TYPE TABLE OF ty_bseg,
+      ls_bseg_hk              TYPE ty_bseg,
+      lt_bseg_state           TYPE TABLE OF ty_bseg,
+      ls_bseg_state           TYPE ty_bseg,
+      lt_konp                 TYPE TABLE OF ty_konp,
+      ls_konp                 TYPE ty_konp,
+      ta_mwskz                TYPE TABLE OF ty_mwskz,
+      wa_mwskz                TYPE ty_mwskz,
+      ta_mara                 TYPE TABLE OF ty_mara,
+      ta_t023t                TYPE TABLE OF ty_t023t,
+      ta_bseg_gl              TYPE TABLE OF ty_bseg,
+      ta_bset_gst             TYPE TABLE OF typ_bset,
+      o_ta_data               TYPE REF TO data,
+      ta_tab                  TYPE TABLE OF zst_inw_mirotab.
+
+FIELD-SYMBOLS: <fs_data> TYPE STANDARD TABLE.
+
+DATA : lv_igsth    TYPE c, lv_cgsth TYPE c, lv_sgsth TYPE c, lv_cessrate TYPE c.
+DATA:  lv_len TYPE i.
+DATA:  l_cnt TYPE i.
+DATA : lv_igst_total TYPE bset-hwste.
+
+DATA : lt_heading     TYPE STANDARD TABLE OF ty_heading,
+       lw_heading     TYPE ty_heading,
+       tax_amount     TYPE netwr,
+       line_item_1(5) TYPE n,
+       lv_accessvalue TYPE netwr,
+       lv_zicd_value  TYPE netwr.
+DATA : lv_lifnr TYPE lifnr.
+FIELD-SYMBOLS:<fs_rseg> TYPE typ_rseg.
+DATA : lt_ddfields    TYPE ddfields,
+       lt_ddfields_1  TYPE ddfields,
+       lfs_ddfields_1 LIKE LINE OF lt_ddfields_1.
+
+FIELD-SYMBOLS: <lfs_ddfields>  LIKE LINE OF lt_ddfields,
+               <lfs_component> TYPE any.
+
+*DATA :r_ta_werks TYPE RANGE OF zmm_plant_invgst-unit_cd,
+*      r_wa_werks LIKE LINE OF r_ta_werks.
+CONSTANTS: co_zz2 TYPE bseg-ktosl VALUE 'ZZ2'.
+*CONSTANTS: co_i TYPE c VALUE 'I'.
+*CONSTANTS: co_eq(2) TYPE c VALUE 'EQ'.
+*Constants
+CONSTANTS :  lv_x               TYPE string VALUE 'X',
+             lv_re              TYPE string VALUE 'RE',
+             lv_miro            TYPE string VALUE 'MIRO',
+             lv_mr8m            TYPE string VALUE  'MR8M',
+             lv_inr             TYPE string VALUE  'INR',
+             lv_rcm             TYPE zparam_table-id_name VALUE 'RCM_GL',
+             lv_gl              TYPE string VALUE 'GL',
+             lv_gn              TYPE string VALUE 'GN',
+             lv_20170701        TYPE string VALUE '20170701',
+             lv_rmrp            TYPE string VALUE 'RMRP',
+             lv_v               TYPE string VALUE 'V',
+             lv_gz              TYPE string VALUE 'GZ',
+             lv_t               TYPE string VALUE 'T',
+             lv_s               TYPE string VALUE 'S',
+             lv_0005350028      TYPE string VALUE '0005350028',
+             lv_0005010102      TYPE string VALUE '0005010102',
+             lv_h               TYPE string VALUE 'H',
+             lv_en              TYPE string VALUE 'EN',
+             lv_1               TYPE string VALUE '1',
+             lv_kg              TYPE string VALUE 'KG',
+             lv_debit_note      TYPE string VALUE 'Debit Note',
+             lv_kr              TYPE string VALUE 'KR',
+             lv_z8              TYPE string VALUE 'Z8',
+             lv_za              TYPE string VALUE 'ZA',
+             lv_ka              TYPE string VALUE 'KA',
+             lv_invoice         TYPE string VALUE 'Invoice',
+             lv_kz              TYPE string VALUE 'KZ',
+             lv_zb              TYPE string VALUE 'ZB',
+             lv_payment_voucher TYPE string VALUE 'Payment Voucher',
+             lv_y               TYPE string VALUE 'Y',
+             lv_zfdf            TYPE string VALUE 'ZFDF',
+             lv_zav0            TYPE string VALUE 'ZAV0',
+             lv_jipc            TYPE string VALUE 'JIPC',
+             lv_jvct            TYPE string VALUE 'JVCT',
+             lv_zipc            TYPE string VALUE 'ZIPC',
+             lv_jvrd            TYPE string VALUE 'JVRD',
+             lv_jvrn            TYPE string VALUE 'JVRN',
+             lv_yvcs            TYPE string VALUE 'YVCS',
+             lv_zvcn            TYPE string VALUE 'ZVCN',
+             lv_yvrn            TYPE string VALUE 'YVRN',
+             lv_zvrd            TYPE string VALUE 'ZVRD',
+             lv_jvcs            TYPE string VALUE 'JVCS',
+             lv_jvcn            TYPE string VALUE 'JVCN',
+* Tax Codes
+             lv_jcst            TYPE string VALUE 'JCST',
+             lv_jlst            TYPE string VALUE 'JLST',
+             lv_jiig            TYPE string VALUE 'JIIG',
+             lv_jiin            TYPE string VALUE 'JIIN',
+             lv_jicg            TYPE string VALUE 'JICG',
+             lv_jicn            TYPE string VALUE 'JICN',
+             lv_jisg            TYPE string VALUE 'JISG',
+             lv_jisn            TYPE string VALUE 'JISN',
+             lv_jiun            TYPE string VALUE 'JIUN',
+             lv_jiug            TYPE string VALUE 'JIUG',
+             lv_jimd            TYPE string VALUE 'JIMD',
+             lv_jiir            TYPE string VALUE 'JIIR',
+             lv_jisr            TYPE string VALUE 'JISR',
+             lv_jicr            TYPE string VALUE 'JICR',
+             lv_jiur            TYPE string VALUE 'JIUR',
+             lv_zero1           TYPE string VALUE '0.00',
+             lv_zero            TYPE string VALUE '0',
+             lv_jcir            TYPE string VALUE 'JCIR',
+             lv_jcv1            TYPE string VALUE 'JCV1',
+             lv_jecv            TYPE string VALUE 'JECV',
+             lv_j1cv            TYPE string VALUE 'J1CV',
+             lv_jcdb            TYPE string VALUE 'JCDB',
+
+             lv_996511          TYPE string VALUE '996511',
+             lv_996521          TYPE string VALUE '996521',
+             lv_998211          TYPE string VALUE '998211',
+             lv_998212          TYPE string VALUE '998212',
+             lv_998213          TYPE string VALUE '998213',
+             lv_998214          TYPE string VALUE '998214',
+             lv_998215          TYPE string VALUE '998215',
+             lv_998216          TYPE string VALUE '998216',
+             lv_999119          TYPE string VALUE '999119',
+             lv_999799          TYPE string VALUE '999799',
+             lv_no              TYPE string VALUE 'NO',
+             lv_wit             TYPE string VALUE 'WIT',
+             lv_import          TYPE string VALUE 'Import',
+             lv_exempted        TYPE string VALUE 'Exempted',
+             lv_taxable         TYPE string VALUE 'Taxable',
+             lv_suply           TYPE string VALUE 'Supply to SEZ Unit',
+             lv_plnt            TYPE string VALUE  'PLNT',
+             lv_vendor          TYPE string VALUE  '0100020331',
+             lv_blank           TYPE string VALUE  ' ',
+             lv_intra-state     TYPE string VALUE  'Intra-state',
+             lv_inter-state     TYPE string VALUE  'Inter-state',
+             lv_registered      TYPE string VALUE  'Registered',
+             lv_un-registered   TYPE string VALUE  'Un-registered',
+             lv_compounding     TYPE string VALUE  'Compounding',
+             lv_99              TYPE string VALUE  '99',
+             lv_g               TYPE string VALUE  'G',
+             lv_bill_of_entry   TYPE string VALUE  'Bill of Entry',
+             lv_zadp            TYPE string VALUE  'ZADP',
+             lv_zadq            TYPE string VALUE   'ZADQ',
+             lv_jedb            TYPE string VALUE   'JEDB',
+             lv_jsed            TYPE string VALUE   'JSED',
+             lv_dot             TYPE string VALUE   '.',
+             lv_jvat            TYPE string VALUE  'JVAT',
+             lv_gd              TYPE string VALUE  'GD',
+*             lv_gn              TYPE string VALUE  'GN',
+             lv_gk              TYPE string VALUE  'GK',
+             lv_gj              TYPE string VALUE  'GJ',
+             lv_gh              TYPE string VALUE  'GH',
+             lv_v0              TYPE string VALUE  'V0',
+             lv_g9              TYPE string VALUE  'G9',
+             lv_zicd            TYPE string VALUE  'ZICD',
+             lv_zsws            TYPE string VALUE  'ZSWS',
+             co_und(1)          VALUE '_',
+             lv_86              TYPE string VALUE '86',
+             lv_96              TYPE string VALUE '96',
+             lv_matnr           TYPE mara-matnr VALUE '41000699',
+             lv_nongst          TYPE string VALUE  'Non GST'.
+
+CONSTANTS:  co_miro TYPE sy-tcode VALUE 'MIRO',
+            co_mr8m TYPE sy-tcode VALUE 'MR8M',
+            co_mir7 TYPE sy-tcode VALUE 'MIR7',
+            co_mr1m TYPE sy-tcode VALUE 'MR1M'.
+CONSTANTS:  co_gc        TYPE rseg-mwskz VALUE 'GC',
+            co_gd        TYPE rseg-mwskz VALUE 'GD',
+            co_ge        TYPE rseg-mwskz VALUE 'GE',
+            co_gh        TYPE rseg-mwskz VALUE 'GH',
+            co_gi        TYPE rseg-mwskz VALUE 'GI',
+            co_gj        TYPE rseg-mwskz VALUE 'GJ',
+            co_gk        TYPE rseg-mwskz VALUE 'GK',
+            co_gl        TYPE rseg-mwskz VALUE 'GL',
+            co_gn        TYPE rseg-mwskz VALUE 'GN',
+            co_n         TYPE c          VALUE 'N',
+            co_no        TYPE c          VALUE 'NO',
+            co_ip(2)     TYPE c          VALUE 'IP',
+            co_cp(2)     TYPE c          VALUE 'CP',
+            co_is(2)     TYPE c          VALUE 'IS',
+            co_zcer(4)   TYPE c          VALUE 'ZCER',
+            co_134(3)    TYPE c          VALUE '134',
+            co_155(3)    TYPE c          VALUE '155',
+            co_99(2)     TYPE c          VALUE '99',
+            co_eng008(6) TYPE c          VALUE 'ENG008',
+            co_fb70(4)   TYPE c          VALUE 'FB70',
+            co_inr(3)    TYPE c          VALUE 'INR',
+            co_w(1)      TYPE c          VALUE 'W',
+            co_cgst(4)   TYPE c          VALUE 'CGST',
+            co_sgst(4)   TYPE c          VALUE 'SGST',
+            co_igst(4)   TYPE c          VALUE 'IGST'.
+DATA : gv_name TYPE zparam_table-param_name.
+
+* Start of Change Inc 8000008444 | TR CRDK987042 | Prathamesh Parab | 15.05.2023
+TYPES: BEGIN OF ty_grn2,
+         mblnr TYPE mblnr,
+         mjahr TYPE mjahr,
+         zlrn  TYPE zlrn,
+         zwbn  TYPE zwbn,
+       END OF ty_grn2.
+
+DATA: ls_grn2     TYPE ty_grn2,
+      wa_fieldcat TYPE slis_fieldcat_alv,
+      lt_grn2     TYPE TABLE OF ty_grn2,
+      lt_fieldcat TYPE slis_t_fieldcat_alv.
+* End of Change Inc 8000008444 | TR CRDK987042 | Prathamesh Parab | 15.05.2023
+
+* Start of Change Inc 8000008444 | TR CRDK987505 | Prathamesh Parab | 10.07.2023
+DATA: lv_count1      TYPE i,
+      lv_count2      TYPE i,
+      lv_strlen      TYPE i,
+      lv_temp_maktx1 TYPE maktx..
+
+CONSTANTS: lc_abc TYPE string VALUE 'AaBbCcDdEeFfGgHhIiJjKkLlMmNnOoPpQqRrSsTtUuVvWwXxYyZz'.
+* End of Change Inc 8000008444 | TR CRDK987505 | Prathamesh Parab | 10.07.2023
+
+CONSTANTS: lc_123 TYPE string VALUE '1234567890', " Change added by Inc 8000008444 | TR CRDK987522 | Prathamesh Parab | 11.07.2023
+           lc_dot TYPE string VALUE '.'. " Change added by Inc 8000008444 | TR CRDK987522 | Prathamesh Parab | 11.07.2023
+
+SELECTION-SCREEN: BEGIN OF BLOCK b1 WITH FRAME TITLE text-001.
+PARAMETERS: r1 RADIOBUTTON GROUP g1  USER-COMMAND mod,
+            r2 RADIOBUTTON GROUP g1 DEFAULT 'X',
+            r3 RADIOBUTTON GROUP g1. " Change added by Inc 8000008444 | TR CRDK987042 | Prathamesh Parab | 15.05.2023
+SELECTION-SCREEN: END OF BLOCK b1.
+
+SELECTION-SCREEN: BEGIN OF BLOCK b2 WITH FRAME TITLE text-002.
+SELECT-OPTIONS:  s_bukrs FOR ls_rbkp-bukrs OBLIGATORY NO INTERVALS  MODIF ID dat .
+SELECT-OPTIONS:  s_bupla FOR ls_rbkp-bupla.
+SELECT-OPTIONS:  s_budat FOR ls_rbkp-budat OBLIGATORY .
+SELECT-OPTIONS:  s_belnr  FOR ls_rbkp-belnr NO INTERVALS .
+PARAMETERS:      p_file TYPE ibipparms-path MODIF ID m1 .
+SELECTION-SCREEN: END OF BLOCK b2.
+
+AT SELECTION-SCREEN OUTPUT.
+  IF r1 = lv_x."'X'.
+    PERFORM default_file.
+  ENDIF.
+
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_file.
+  IF r2 = lv_x."'X'.
+    PERFORM file_f4.
+  ENDIF.
+
+AT SELECTION-SCREEN.
+  IF r1 = lv_x."'X'.
+    PERFORM default_file.
+  ENDIF.
+  IF r2 = lv_x."'X'.
+    IF p_file IS INITIAL.
+      MESSAGE e398(00) WITH 'Filepath is Mandatory'.
+    ENDIF.
+  ELSEIF r1 = lv_x."'X'.
+    PERFORM default_file.
+  ENDIF.
+
+START-OF-SELECTION.
+  PERFORM miro_tab_data.
+  PERFORM get_data.
+  PERFORM populate_final_table.
+
+  IF r2 = lv_x."'X'.
+    PERFORM download_excel.
+  ELSEIF r1 = lv_x."'X'.
+    PERFORM download_to_server.
+* Start of Change Inc 8000008444 | TR CRDK987042 | Prathamesh Parab | 15.05.2023
+  ELSEIF r3 = lv_x.
+    PERFORM display_alv.
+* End of Change Inc 8000008444 | TR CRDK987042 | Prathamesh Parab | 15.05.2023
+  ENDIF.
+
+FORM get_data .
+
+  SELECT bukrs
+         belnr
+         gjahr
+         bldat
+         sgtxt
+         xrech
+         blart
+         budat
+         bupla
+         tcode
+         stblg
+         wmwst1
+         kursf
+         lifnr
+         waers
+         mwskz1                      "V
+         rmwwr
+    FROM rbkp
+    INTO TABLE lt_rbkp
+     WHERE bukrs IN s_bukrs AND
+           belnr IN s_belnr AND
+           blart =  lv_re  AND
+           budat  IN s_budat AND
+           bupla IN s_bupla AND
+           tcode IN ( co_miro, co_mr8m, co_mir7, co_mr1m ).
+  IF lt_rbkp IS INITIAL.
+    MESSAGE 'No data for given input for MIRO ' TYPE 'I'.
+  ENDIF.
+
+  SELECT SINGLE param_name
+                INTO gv_name
+                FROM zparam_table
+                WHERE id_name = 'SPL_CHAR'.
+
+  IF lt_rbkp IS NOT INITIAL.
+    SELECT bukrs
+           belnr
+           gjahr
+           buzei
+           ebeln
+           ebelp
+           matnr
+           wrbtr
+           shkzg
+           menge
+           meins
+           hsn_sac
+           customs_val
+           xekbz
+           kschl
+           werks
+           mwskz
+           lfbnr
+           lfgja
+           lfpos
+      FROM rseg
+      INTO TABLE lt_rseg
+      FOR ALL ENTRIES IN lt_rbkp
+      WHERE bukrs = lt_rbkp-bukrs AND
+            belnr = lt_rbkp-belnr AND
+            gjahr = lt_rbkp-gjahr AND
+            mwskz IN ( co_gc, co_gd, co_ge, co_gh, co_gi, co_gj, co_gk, co_gl, co_gn ).
+  ENDIF.
+
+  IF lt_rbkp[] IS NOT INITIAL.
+    SELECT bukrs,
+           belnr,
+           gjahr,
+           buzei,
+           ebeln,
+           ebelp,
+           matnr,
+           wrbtr," invoice value
+           shkzg,
+           menge, " quantity
+           meins,    "uqc
+           hsn_sac,
+           customs_val,
+           xekbz,
+           kschl,
+           werks,
+           mwskz,
+*         awkey
+           lfbnr,
+           lfgja,
+           lfpos
+      FROM rseg
+      INTO TABLE @DATA(lt_rseg_nongst)
+      FOR ALL ENTRIES IN @lt_rbkp
+      WHERE bukrs = @lt_rbkp-bukrs AND
+            belnr = @lt_rbkp-belnr AND
+            gjahr = @lt_rbkp-gjahr AND
+            mwskz NOT IN ( @co_gc, @co_gd, @co_ge, @co_gh, @co_gi, @co_gj, @co_gk, @co_gl, @co_gn ).
+
+    IF sy-subrc EQ 0.
+      SORT lt_rseg_nongst BY bukrs belnr gjahr.
+    ENDIF.
+  ENDIF.
+  CLEAR ls_rseg.
+  LOOP AT lt_rseg_nongst INTO DATA(ls_rseg_nongst).
+    CLEAR ls_rseg.
+    READ TABLE lt_rseg INTO ls_rseg WITH KEY bukrs = ls_rbkp-bukrs
+                                             belnr = ls_rbkp-belnr
+                                             gjahr = ls_rbkp-gjahr.
+    IF sy-subrc <> 0.
+      APPEND ls_rseg_nongst TO lt_rseg.
+    ENDIF.
+    CLEAR : ls_rseg,ls_rseg_nongst.
+  ENDLOOP.
+
+  IF lt_rseg IS NOT INITIAL.
+    DATA(lt_rseg_tmp2) = lt_rseg[].
+    SORT lt_rseg_tmp2 BY lfbnr.
+    DELETE ADJACENT DUPLICATES FROM lt_rseg_tmp2 COMPARING lfbnr.
+    DELETE lt_rseg_tmp2 WHERE lfbnr IS INITIAL.
+    IF lt_rseg_tmp2[] IS NOT INITIAL.
+      SELECT    ebeln
+                ebelp
+                gjahr
+                belnr
+                buzei
+                lfbnr
+                charg
+                matnr
+                budat
+                werks
+                bwart
+        FROM ekbe  INTO TABLE  lt_ekbe
+         FOR ALL ENTRIES IN lt_rseg_tmp2
+        WHERE belnr = lt_rseg_tmp2-lfbnr
+*        %_HINTS ORACLE 'INDEX("EKBE" "EKBE~ZZB")'.
+        %_HINTS MSSQLNT 'INDEX("EKBE" "EKBE~ZBE")'.  "changed by Gauri Tandel - 8000008734 - 03.01.2023
+    ENDIF.
+
+    LOOP AT lt_rseg INTO ls_rseg.
+      IF ls_rseg-mwskz =  lv_gl  OR ls_rseg-mwskz = lv_gn .
+      ELSE.
+        READ TABLE lt_rbkp INTO ls_rbkp WITH KEY  belnr = ls_rseg-belnr
+                                                  gjahr = ls_rseg-gjahr
+                                                  bukrs = ls_rseg-bukrs.
+        IF sy-subrc = 0.
+          IF ls_rbkp-bldat < lv_20170701 .
+            DELETE lt_rbkp WHERE belnr = ls_rbkp-belnr.
+            DELETE lt_rseg WHERE belnr = ls_rbkp-belnr.
+          ENDIF.
+        ENDIF.
+      ENDIF.
+    ENDLOOP.
+
+
+    IF lt_rseg IS NOT INITIAL.
+      LOOP AT lt_rseg ASSIGNING <fs_rseg>.
+        CONCATENATE <fs_rseg>-belnr <fs_rseg>-gjahr INTO <fs_rseg>-awkey.
+      ENDLOOP.
+    ENDIF.
+
+
+    IF lt_rseg IS NOT INITIAL.
+      SELECT ebeln
+             ebelp
+             txz01 " Change added by Inc 8000008444 | TR CRDK987042 | Prathamesh Parab | 15.05.2023
+             knttp
+             INTO TABLE lt_ekpo
+             FROM ekpo
+             FOR ALL ENTRIES IN lt_rseg
+             WHERE ebeln = lt_rseg-ebeln
+             AND   ebelp = lt_rseg-ebelp.
+
+      SELECT  bukrs
+              belnr
+              gjahr
+              blart
+              bldat
+              budat
+              xblnr
+              monat
+              waers
+              awkey
+              bstat
+              xblnr_alt
+        FROM bkpf
+        INTO TABLE lt_bkpf
+        FOR ALL ENTRIES IN lt_rseg
+        WHERE bukrs = lt_rseg-bukrs AND
+              gjahr = lt_rseg-gjahr AND
+              awkey = lt_rseg-awkey AND
+              awtyp =  lv_rmrp .
+
+
+      SELECT matnr maktx
+        FROM makt
+        INTO TABLE lt_makt
+        FOR ALL ENTRIES IN lt_rseg
+        WHERE matnr = lt_rseg-matnr.
+
+    ENDIF.
+
+    IF lt_bkpf IS NOT INITIAL.
+      DELETE lt_bkpf WHERE bstat = lv_v .
+    ENDIF.
+
+    IF lt_bkpf IS NOT INITIAL.
+      SELECT bukrs
+             belnr
+             gjahr
+             buzei
+             txgrp
+             fwbas
+             hwste
+             kschl
+             hwbas
+             kbetr
+             mwskz
+             shkzg
+            taxps
+            ktosl"Nikita
+       FROM bset
+       INTO TABLE lt_bset
+       FOR ALL ENTRIES IN lt_bkpf
+       WHERE  bukrs = lt_bkpf-bukrs AND
+              belnr = lt_bkpf-belnr AND
+              gjahr = lt_bkpf-gjahr." AND
+
+    ENDIF.
+
+
+    DELETE lt_bset WHERE mwskz = lv_gz .
+    IF lt_bset IS NOT INITIAL.
+      SELECT  bukrs
+              belnr
+              gjahr
+              buzei
+              dmbtr
+              bschl
+              hkont
+              matnr
+              menge
+              meins
+              bupla
+              plc_sup
+              hsn_sac
+              lifnr
+              wrbtr
+              txgrp
+              ktosl
+              prctr
+              werks
+              rebzg
+              rebzt
+              ebelp
+              taxps
+              buzid
+              koart
+              qsskz
+              ebeln
+              shkzg
+              mwskz
+              pswsl
+        FROM bseg
+        INTO TABLE lt_bseg
+        FOR ALL ENTRIES IN lt_bset
+        WHERE bukrs = lt_bset-bukrs AND
+              belnr = lt_bset-belnr AND
+              gjahr = lt_bset-gjahr.
+
+      DATA : lt_bseg_temp TYPE TABLE OF ty_bseg,
+             ls_bseg_temp TYPE ty_bseg.
+      DATA : lt_bkpf_temp TYPE TABLE OF ty_bkpf,
+             ls_bkpf_temp TYPE ty_bkpf.
+      CLEAR ls_bset.
+      LOOP AT lt_bkpf INTO ls_bkpf.
+        READ TABLE lt_bset INTO ls_bset WITH KEY bukrs = ls_bkpf-bukrs
+                                                 belnr = ls_bkpf-belnr
+                                                 gjahr = ls_bkpf-gjahr.
+        IF sy-subrc NE 0.
+          APPEND ls_bkpf TO lt_bkpf_temp.
+        ENDIF.
+        CLEAR : ls_bset,ls_bkpf.
+      ENDLOOP.
+
+
+      DATA(ta_rseg) = lt_rseg.
+      DATA : line_item(5)  TYPE n.
+
+      LOOP AT ta_rseg ASSIGNING FIELD-SYMBOL(<fs_rseg_temp>).
+        ON CHANGE OF <fs_rseg_temp>-belnr.
+          CLEAR : line_item.
+        ENDON.
+        line_item = line_item + 1.
+        <fs_rseg_temp>-buzei = line_item.
+      ENDLOOP.
+      UNASSIGN <fs_rseg_temp>.
+
+      DATA(lv_count_bset) = lines( lt_bset ).
+      DATA(lv_count_rseg) = lines( ta_rseg ).
+
+
+      IF lv_count_rseg LT lv_count_bset.
+        LOOP AT lt_bset ASSIGNING FIELD-SYMBOL(<fs_bset>).
+          READ TABLE lt_bkpf ASSIGNING FIELD-SYMBOL(<fs_bkpf>) WITH KEY belnr = <fs_bset>-belnr.
+          READ TABLE ta_rseg ASSIGNING FIELD-SYMBOL(<fs_rseg>) WITH KEY awkey = <fs_bkpf>-awkey
+                                                                        buzei = <fs_bset>-txgrp.
+          IF sy-subrc NE 0.
+            APPEND INITIAL LINE TO ta_bset_gst ASSIGNING FIELD-SYMBOL(<fs_bset_gst>).
+            MOVE-CORRESPONDING <fs_bset> TO <fs_bset_gst>.
+          ENDIF.
+        ENDLOOP.
+      ENDIF.
+      UNASSIGN : <fs_bset>,<fs_bkpf>,<fs_rseg>,<fs_bset_gst>.
+
+
+      IF lt_bkpf_temp[] IS NOT INITIAL.
+        SELECT  bukrs
+                belnr
+                gjahr
+                buzei
+                dmbtr
+                bschl
+                hkont
+                matnr
+                menge
+                meins
+                bupla
+                plc_sup
+                hsn_sac
+                lifnr
+                wrbtr
+                txgrp
+                ktosl
+                prctr
+                werks
+                rebzg
+                rebzt
+                ebelp
+                taxps
+                buzid
+                koart
+                qsskz
+                ebeln
+                shkzg
+                mwskz
+                pswsl
+          FROM bseg
+          INTO TABLE lt_bseg_temp
+          FOR ALL ENTRIES IN lt_bkpf_temp
+          WHERE bukrs = lt_bkpf_temp-bukrs AND
+                belnr = lt_bkpf_temp-belnr AND
+                gjahr = lt_bkpf_temp-gjahr.
+
+        IF lt_bseg_temp[] IS NOT INITIAL.
+          CLEAR ls_bseg_temp.
+          LOOP AT lt_bseg_temp INTO ls_bseg_temp.
+            CLEAR ls_bseg.
+            READ TABLE lt_bseg INTO ls_bseg WITH KEY bukrs = ls_bseg_temp-bukrs
+                                                     belnr = ls_bseg_temp-belnr
+                                                     gjahr = ls_bseg_temp-gjahr
+                                                     buzei = ls_bseg_temp-buzei.
+            IF sy-subrc <> 0.
+              APPEND ls_bseg_temp TO lt_bseg.
+            ENDIF.
+            CLEAR : ls_bseg,ls_bseg_temp.
+          ENDLOOP.
+
+        ENDIF.
+      ENDIF.
+
+
+      ta_bseg_gl[] = lt_bseg[].
+
+      SELECT * FROM zparam_table INTO TABLE @DATA(ta_param)
+          WHERE id_name EQ @lv_rcm.
+
+      SORT   lt_bseg BY belnr gjahr.
+      DATA : lv_ninr TYPE flag.
+      CLEAR lv_ninr.
+      LOOP AT lt_bkpf INTO ls_bkpf WHERE waers NE lv_inr.
+        CLEAR lv_ninr.
+        READ TABLE lt_bseg WITH KEY belnr = ls_bkpf-belnr gjahr = ls_bkpf-gjahr TRANSPORTING NO FIELDS BINARY SEARCH.
+        IF sy-subrc IS INITIAL.
+          LOOP AT  lt_bseg ASSIGNING FIELD-SYMBOL(<fs_bseg_tmp>) FROM sy-tabix.
+
+            IF <fs_bseg_tmp>-belnr NE ls_bkpf-belnr OR
+               <fs_bseg_tmp>-gjahr NE ls_bkpf-gjahr.
+              EXIT.
+            ELSE.
+              <fs_bseg_tmp>-pswsl = ls_bkpf-waers.
+              DATA(lv_hkont_tmp) = <fs_bseg_tmp>-hkont.
+              lv_hkont_tmp = |{ lv_hkont_tmp ALPHA = OUT }|.
+              IF line_exists( ta_param[ param_name =  lv_hkont_tmp ] ) .
+                lv_ninr = abap_true.
+              ENDIF.
+
+            ENDIF.
+          ENDLOOP.
+          IF lv_ninr = abap_false.
+            DELETE lt_rseg WHERE bukrs = ls_bkpf-bukrs AND awkey = ls_bkpf-awkey AND gjahr = ls_bkpf-gjahr.
+          ENDIF.
+
+        ENDIF.
+      ENDLOOP.
+
+      lt_bseg_ninr[] = lt_bseg[].
+      DELETE lt_bseg WHERE pswsl NE lv_inr.
+      DELETE lt_bseg_ninr WHERE pswsl EQ lv_inr.
+
+      DATA :ta_rng TYPE RANGE OF bseg-hkont,
+            wa_rng LIKE LINE OF ta_rng.
+      DATA : lv_gl_inr TYPE bseg-hkont.
+
+      LOOP AT ta_param INTO DATA(wa_param).
+        wa_rng-sign = 'I'.
+        wa_rng-option = 'EQ'.
+        CLEAR : lv_gl_inr.
+        CALL FUNCTION 'CONVERSION_EXIT_ALPHA_INPUT'
+          EXPORTING
+            input  = wa_param-param_name
+          IMPORTING
+            output = lv_gl_inr.
+        wa_rng-low = lv_gl_inr.
+        APPEND wa_rng TO ta_rng.
+        CLEAR : wa_rng.
+      ENDLOOP.
+
+      DATA(lt_bseg_werks) = lt_bseg_ninr[].
+      DATA(lt_bseg_lifnr) = lt_bseg_ninr[].
+
+
+      DELETE ADJACENT DUPLICATES FROM lt_bseg_lifnr COMPARING bukrs belnr gjahr lifnr.
+      DELETE ADJACENT DUPLICATES FROM lt_bseg_werks COMPARING bukrs belnr gjahr werks.
+
+      DELETE lt_bseg_werks WHERE werks IS INITIAL.
+      DELETE lt_bseg_lifnr WHERE lifnr IS INITIAL.
+
+      LOOP AT lt_bseg_ninr INTO DATA(wa_bseg_ninr).
+        DATA(lv_idx) = sy-tabix.
+        IF wa_bseg_ninr-lifnr IS INITIAL.
+          READ TABLE lt_bseg_lifnr INTO DATA(ls_bseg_l) WITH KEY bukrs = wa_bseg_ninr-bukrs
+                                                                 belnr = wa_bseg_ninr-belnr
+                                                                 gjahr = wa_bseg_ninr-gjahr.
+          IF sy-subrc EQ 0.
+            wa_bseg_ninr-lifnr = ls_bseg_l-lifnr.
+          ENDIF.
+        ENDIF.
+        IF wa_bseg_ninr-werks IS INITIAL.
+          READ TABLE lt_bseg_werks INTO DATA(ls_bseg_w) WITH KEY bukrs = wa_bseg_ninr-bukrs
+                                                                 belnr = wa_bseg_ninr-belnr
+                                                                 gjahr = wa_bseg_ninr-gjahr.
+          IF sy-subrc EQ 0.
+            wa_bseg_ninr-werks = ls_bseg_w-werks.
+          ENDIF.
+        ENDIF.
+        MODIFY lt_bseg_ninr FROM wa_bseg_ninr INDEX lv_idx TRANSPORTING lifnr werks.
+        CLEAR : ls_bseg, wa_bseg_ninr,ls_bseg_w,ls_bseg_l.
+      ENDLOOP.
+
+      DELETE lt_bseg_ninr WHERE hkont NOT IN ta_rng.
+
+      LOOP AT lt_bseg_ninr INTO wa_bseg_ninr.
+        MOVE-CORRESPONDING wa_bseg_ninr TO ls_bseg.
+        APPEND ls_bseg TO lt_bseg.
+        CLEAR ls_bseg.
+      ENDLOOP.
+
+      IF lt_ekbe[] IS NOT INITIAL.
+        DATA : co_101 TYPE ekbe-bwart VALUE '101'.
+
+        DATA(lt_ekbe_grn) = lt_ekbe[].
+        SORT lt_ekbe_grn BY belnr werks gjahr.
+
+        DELETE lt_ekbe_grn WHERE bwart NE co_101.
+        DELETE lt_ekbe_grn WHERE werks IS INITIAL
+                            AND  gjahr IS INITIAL.
+        IF lt_ekbe_grn[] IS NOT INITIAL.
+          SELECT  mblnr
+                  mjahr
+                  werks
+                  ebeln
+                  gjahr
+              FROM mseg INTO TABLE lt_mseg
+              FOR ALL ENTRIES IN lt_ekbe_grn
+              WHERE mblnr EQ lt_ekbe_grn-belnr
+              AND   werks EQ lt_ekbe_grn-werks
+              AND   gjahr EQ lt_ekbe_grn-gjahr.
+        ELSE.
+          IF lt_rseg[] IS NOT INITIAL.
+            SELECT mblnr
+                   mjahr
+                   werks
+                   ebeln
+                   gjahr
+               FROM mseg INTO TABLE lt_mseg
+               FOR ALL ENTRIES IN lt_rseg
+               WHERE mblnr EQ lt_rseg-lfbnr
+               AND   werks EQ lt_rseg-werks
+               AND   gjahr EQ lt_rseg-lfgja.
+          ENDIF.
+        ENDIF.
+
+        IF lt_mseg IS NOT INITIAL.
+          SELECT mblnr
+                 mjahr
+                 zwbn
+                 zwbd
+            FROM zmm_grnmigo
+            INTO TABLE lt_grn
+            FOR ALL ENTRIES IN lt_mseg
+            WHERE mblnr EQ lt_mseg-mblnr
+            AND   mjahr EQ lt_mseg-mjahr.
+        ENDIF.
+
+* Start of Change Inc 8000008444 | TR CRDK987042 | Prathamesh Parab | 15.05.2023
+        IF lt_rseg IS NOT INITIAL.
+          SELECT mblnr
+                 mjahr
+                 zlrn
+                 zwbn
+            FROM zmm_grnmigo
+            INTO TABLE lt_grn2
+            FOR ALL ENTRIES IN lt_rseg
+           WHERE mblnr EQ lt_rseg-lfbnr
+             AND mjahr EQ lt_rseg-lfgja.
+        ENDIF.
+* End of Change Inc 8000008444 | TR CRDK987042 | Prathamesh Parab | 15.05.2023
+      ENDIF.
+    ENDIF.
+
+
+    IF lt_rseg[] IS NOT INITIAL.
+      SELECT matnr matkl
+        FROM mara
+        INTO TABLE ta_mara
+        FOR ALL ENTRIES IN lt_rseg
+        WHERE matnr = lt_rseg-matnr.
+      IF sy-subrc EQ 0.
+        SORT ta_mara BY matnr.
+      ENDIF.
+
+      IF ta_mara[] IS NOT INITIAL.
+        SELECT spras matkl wgbez60
+          FROM t023t
+          INTO TABLE ta_t023t
+          FOR ALL ENTRIES IN ta_mara
+          WHERE matkl EQ ta_mara-matkl.
+        IF sy-subrc EQ 0.
+          SORT ta_t023t BY matkl.
+        ENDIF.
+
+      ENDIF.
+
+    ENDIF.
+
+    lt_bseg_h = lt_bseg .
+    lt_bseg_c = lt_bseg .
+    lt_bseg_r = lt_bseg .
+    lt_bseg_p = lt_bseg_h.
+    lt_bseg_plant = lt_bseg_h.
+    lt_bseg_uqc = lt_bseg.
+
+    lt_bseg_hk[] = lt_bseg_h[].
+
+    IF lt_bseg IS NOT INITIAL.
+      DELETE lt_bseg_c WHERE  lifnr IS INITIAL .
+      DELETE lt_bseg_h WHERE  buzid EQ  lv_t.
+      DELETE lt_bseg_h WHERE  koart  NE lv_s.
+      DELETE lt_bseg_h WHERE  qsskz IS NOT INITIAL.
+      DELETE lt_bseg_h WHERE hkont = lv_0005350028.
+      DELETE lt_bseg_h WHERE hkont = lv_0005010102.
+      DELETE lt_bseg_p WHERE prctr = ' '.
+      DELETE lt_bseg_plant WHERE werks = ' '.
+      DELETE lt_bseg_uqc WHERE meins IS INITIAL.
+
+*REVERVESE CHARGE
+      DELETE lt_bseg_r WHERE  buzid NE lv_t .
+      DELETE lt_bseg_r WHERE  koart NE lv_s .
+      DELETE lt_bseg_r WHERE  qsskz IS NOT INITIAL .
+      DELETE lt_bseg_r WHERE  shkzg NE lv_h .
+
+    ENDIF.
+
+    IF lt_bseg_h IS NOT INITIAL.
+      SELECT j_1ichid
+             langu
+             j_1icht1
+             FROM j_1ichidtx
+             INTO TABLE lt_j_1ichidtx
+             FOR ALL ENTRIES IN lt_bseg_h
+             WHERE j_1ichid = lt_bseg_h-hsn_sac+0(12) AND
+                      langu = lv_en .
+    ENDIF.
+
+    IF lt_bseg_h IS NOT INITIAL.
+      SELECT a~ebeln b~ebelp a~bukrs a~lifnr a~ekorg a~llief b~matnr
+             a~bedat b~werks b~mwskz b~netpr b~netwr
+             b~lgort
+        FROM ekko AS a
+        INNER JOIN ekpo AS b
+        ON a~ebeln = b~ebeln
+        INTO TABLE lt_ekko
+        FOR ALL ENTRIES IN lt_bseg_h
+        WHERE a~ebeln = lt_bseg_h-ebeln
+         AND  b~ebelp = lt_bseg_h-ebelp.
+
+*** J_1IMOVEND : Vendor Classification
+      IF lt_ekko[] IS NOT INITIAL .
+        SELECT lifnr ven_class  j_1ipanno
+          FROM j_1imovend
+          INTO TABLE lt_j_1imovend
+          FOR ALL ENTRIES IN lt_ekko
+           WHERE lifnr = lt_ekko-lifnr.
+      ENDIF.
+    ENDIF.
+
+*
+    IF lt_rseg IS NOT INITIAL.
+      SELECT bukrs
+             belnr
+             gjahr
+             buzei
+             ebeln
+             ebelp
+             matnr
+             wrbtr " invoice value
+             shkzg
+             menge  " quantity
+             meins    "uqc
+             hsn_sac
+             customs_val
+             xekbz
+             kschl
+             werks
+             mwskz
+*          awkey
+        FROM rseg
+        INTO TABLE lt_rseg_c
+        FOR ALL ENTRIES IN lt_rseg
+        WHERE bukrs =  lt_rseg-bukrs AND
+              gjahr = lt_rseg-gjahr  AND
+              ebeln =  lt_rseg-ebeln AND " AND
+              xekbz = lv_x.
+
+      IF lt_rseg_c IS NOT INITIAL.
+        SELECT bukrs
+               belnr
+               gjahr
+               bldat
+               sgtxt
+               xrech
+               blart
+               budat
+               bupla
+               tcode
+               stblg
+               wmwst1
+               kursf
+          FROM rbkp
+          INTO TABLE lt_rbkp_c
+          FOR ALL ENTRIES IN lt_rseg_c
+           WHERE belnr = lt_rseg_c-belnr AND
+                 gjahr = lt_rseg_c-gjahr." AND
+
+      ENDIF.
+    ENDIF.
+*************************************
+    IF lt_bkpf IS NOT INITIAL.
+      SELECT bukrs butxt
+        FROM t001
+        INTO TABLE lt_t001
+        FOR ALL ENTRIES IN lt_bkpf
+        WHERE bukrs = lt_bkpf-bukrs.
+    ENDIF.
+
+    IF lt_bseg_c IS NOT INITIAL.
+* Start of Change Inc 8000008444 | TR CRDK987218 | Prathamesh Parab | 07.06.2023
+*     SELECT lifnr
+*            stcd3
+*            regio
+*            name1
+      SELECT lifnr
+             land1
+             name1
+             regio
+             adrnr
+             stcd3
+        FROM lfa1
+        INTO TABLE lt_lfa1
+        FOR ALL ENTRIES IN lt_bseg_c
+        WHERE lifnr = lt_bseg_c-lifnr.
+* End of Change Inc 8000008444 | TR CRDK987218 | Prathamesh Parab | 07.06.2023
+    ENDIF.
+
+    IF lt_lfa1 IS NOT INITIAL.
+      SELECT lifnr
+             ven_class
+        FROM j_1imovend
+        INTO   TABLE lt_j_1imovend
+        FOR ALL ENTRIES IN lt_lfa1
+        WHERE lifnr = lt_lfa1-lifnr.
+    ENDIF.
+*****************************************
+
+    IF lt_rbkp IS NOT INITIAL.
+      SELECT bukrs
+             branch
+             adrnr
+             gstin
+        FROM j_1bbranch
+        INTO TABLE lt_j_1bbranch
+        FOR ALL ENTRIES IN lt_rbkp
+        WHERE bukrs = lt_rbkp-bukrs AND
+              branch = lt_rbkp-bupla.
+
+    ENDIF.
+
+    IF lt_j_1bbranch IS NOT INITIAL.
+      SELECT  addrnumber region
+        FROM adrc
+        INTO TABLE lt_adrc_s
+        FOR ALL ENTRIES IN lt_j_1bbranch
+        WHERE addrnumber =  lt_j_1bbranch-adrnr.
+    ENDIF.
+
+
+    IF lt_rbkp IS NOT INITIAL.
+      SELECT bukrs butxt adrnr  FROM t001 INTO TABLE lt_t001
+        FOR ALL ENTRIES IN lt_rbkp WHERE bukrs = lt_rbkp-bukrs.
+    ENDIF.
+    IF lt_bseg_h IS NOT INITIAL.
+      SELECT unit_cd
+              werks
+              plnt_regio
+             buyer_gstno
+              name1
+           state_code
+         FROM zmm_plant_invgst
+         INTO  TABLE lt_zmm_plant_invgst
+         FOR ALL ENTRIES IN lt_bseg_h
+         WHERE unit_cd = lt_bseg_h-werks AND
+               bukrs = lt_bseg_h-bukrs .
+    ENDIF.
+
+    IF lt_bseg_plant IS NOT INITIAL.
+      SELECT unit_cd
+             werks
+             plnt_regio
+             buyer_gstno
+             name1
+             state_code
+         FROM zmm_plant_invgst
+         INTO  TABLE lt_zmm_plant_invgst_new
+         FOR ALL ENTRIES IN lt_bseg_plant
+         WHERE unit_cd = lt_bseg_plant-werks ."AND
+
+    ENDIF.
+
+
+
+    IF lt_lfa1 IS  NOT INITIAL.
+      SELECT addrnumber region
+        FROM adrc
+         INTO TABLE lt_adrc
+        FOR ALL ENTRIES IN lt_lfa1 WHERE addrnumber = lt_lfa1-adrnr.
+    ENDIF.
+    IF lt_bseg_c IS NOT INITIAL.
+      SELECT addrnumber region FROM adrc INTO TABLE lt_adrc1
+          FOR ALL ENTRIES IN lt_bseg_c WHERE addrnumber = lt_bseg_c-lifnr.
+    ENDIF.
+
+    SELECT region bezei  gst_region FROM zsd_region_gst1 INTO TABLE lt_zsd_region_gst1.
+
+    IF lt_bkpf IS NOT INITIAL.
+      SELECT bukrs
+             belnr
+             gjahr
+             bldat
+             sgtxt
+             xrech
+             blart
+             budat
+             bupla
+             tcode
+             stblg
+             wmwst1
+             kursf
+             lifnr
+        FROM rbkp
+        INTO TABLE lt_rbkp_can
+        FOR ALL ENTRIES IN lt_bkpf
+        WHERE belnr = lt_bkpf-awkey+0(10) AND
+              gjahr = lt_bkpf-gjahr.
+    ENDIF.
+
+    IF lt_rbkp_can IS NOT INITIAL.
+      SELECT  bukrs
+              belnr
+              gjahr
+              blart
+              bldat
+              budat
+              xblnr
+              monat
+              waers
+              awkey
+              bstat
+        FROM bkpf
+        INTO TABLE lt_bkpf_can
+         FOR ALL ENTRIES IN lt_rbkp_can
+        WHERE bukrs = lt_rbkp_can-bukrs AND
+              gjahr = lt_rbkp_can-gjahr AND
+              awkey = lt_rbkp_can-stblg AND
+              awtyp  = lv_rmrp.    "'RMRP'..
+    ENDIF.
+*-----------------------
+    IF lt_bseg_h IS NOT INITIAL.
+      SELECT sap_uqc
+             gstin_uqc
+        FROM zuqc
+        INTO TABLE lt_zuqc
+        FOR ALL ENTRIES IN lt_bseg_h
+        WHERE sap_uqc = lt_bseg_h-meins.
+    ENDIF.
+
+    IF lt_bkpf IS NOT INITIAL.
+      SELECT invoice_no
+             port_code
+      FROM zgst_inward_port
+      INTO TABLE lt_zgst_inward_port
+      FOR ALL ENTRIES IN lt_bkpf
+      WHERE invoice_no = lt_bkpf-xblnr+0(10).
+
+      SELECT invoice_no
+             port_code
+      FROM zgst_inward_port
+      APPENDING TABLE lt_zgst_inward_port
+      FOR ALL ENTRIES IN lt_bkpf
+      WHERE invoice_no = lt_bkpf-xblnr_alt+0(10).
+    ENDIF.
+
+    IF lt_rseg IS NOT INITIAL.
+      SELECT ebeln
+             bukrs
+             bsart
+             ekgrp
+      FROM ekko INTO TABLE lt_ekko_itc
+      FOR ALL ENTRIES IN lt_rseg
+      WHERE  ebeln = lt_rseg-ebeln.
+    ENDIF.
+
+    IF lt_ekko_itc IS NOT INITIAL.
+      SELECT bsart
+             purch_group
+             description
+             itc
+             matkl
+      INTO TABLE lt_zitc_po
+      FROM zitc_po
+      FOR ALL ENTRIES IN lt_ekko_itc
+      WHERE bsart = lt_ekko_itc-bsart.
+    ENDIF.
+  ENDIF.
+
+  IF lt_rseg IS NOT INITIAL.
+    DATA(lt_rseg_ebeln) = lt_rseg.
+    SORT lt_rseg_ebeln BY ebeln.
+    DELETE ADJACENT DUPLICATES FROM lt_rseg_ebeln COMPARING ebeln.
+    DELETE lt_rseg_ebeln WHERE ebeln IS INITIAL.
+
+    IF lt_rseg_ebeln IS NOT INITIAL.
+      SELECT
+        ebeln
+        bedat
+      FROM ekko INTO TABLE ta_ekko FOR ALL ENTRIES IN lt_rseg_ebeln
+     WHERE ebeln EQ lt_rseg_ebeln-ebeln.
+
+      IF sy-subrc = 0.
+        SORT ta_ekko BY ebeln.
+      ENDIF.
+    ENDIF.
+  ENDIF.
+  IF lt_bkpf[] IS NOT INITIAL.
+    SELECT bukrs
+           belnr
+           gjahr
+           buzei
+           dmbtr
+           bschl
+           hkont
+           matnr
+           menge
+           meins
+           bupla
+           plc_sup
+           hsn_sac
+           lifnr
+           wrbtr
+           txgrp
+           ktosl
+           prctr
+           werks
+           rebzg
+           rebzt
+           ebelp
+           taxps
+           buzid
+           koart
+           qsskz
+           ebeln
+           shkzg
+           mwskz
+           pswsl  FROM bseg
+      INTO TABLE lt_bseg_state
+      FOR ALL ENTRIES IN lt_bkpf
+      WHERE bukrs EQ lt_bkpf-bukrs
+      AND   belnr EQ lt_bkpf-belnr
+      AND   gjahr EQ lt_bkpf-gjahr.
+  ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  POPULATE_FINAL_TABLE
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM populate_final_table .
+
+  DATA: lv_date       TYPE string,
+        lv_idx        TYPE sy-tabix,
+        lv_idx_bset   TYPE sy-tabix,
+        line_item(5)  TYPE n,
+        line_item1(5) TYPE n,
+        lv_invoice_d  TYPE netwr.
+
+  SORT :  lt_bkpf    BY awkey,  "
+         lt_bseg     BY belnr,  "
+         lt_bseg_c   BY belnr buzei,  "
+         lt_bseg_h   BY belnr  ,
+         lt_bseg_uqc BY belnr  ,
+          lt_t001    BY bukrs,
+          lt_adrc    BY addrnumber,
+          lt_adrc1   BY addrnumber,
+          lt_adrc2   BY addrnumber,
+          lt_adrc_s  BY addrnumber,
+          lt_gst     BY bukrs branch,
+          lt_likp    BY vbeln,
+          lt_t001w   BY werks,
+          lt_zsd_region_gst1  BY region ,
+          lt_zmm_plant_invgst BY unit_cd,
+          lt_zmm_plant_invgst_new BY unit_cd,
+          lt_j_1bbranch       BY bukrs branch,
+*********inward************
+          lt_bset BY  belnr ,
+          lt_lfa1 BY  lifnr,
+          lt_j_1imovend BY lifnr,
+          lt_rseg BY belnr ,
+          lt_rbkp BY  belnr,
+          lt_t001 BY bukrs," werks
+          lt_ekko BY ebeln ebelp ,
+          lt_makt BY matnr,
+          lt_rbco BY belnr gjahr,
+********************** fb60****
+          lt_bkpf_t   BY belnr,  "
+          lt_bset_t   BY belnr,  "
+          lt_bseg_t   BY belnr,
+          lt_bseg_t1  BY belnr,
+          lt_bseg_tc  BY belnr,  "
+          lt_bseg_th  BY belnr,
+          lt_bseg_tx  BY belnr,
+          lt_lfa1_t   BY  lifnr,
+          lt_adrc_t   BY addrnumber,
+          lt_adrc1_t  BY addrnumber,
+*          lt_adrc2 BY addrnumber,
+          lt_adrc_ts BY addrnumber,
+          lt_makt_t  BY matnr,
+          lt_t001_t  BY bukrs ,
+          lt_xkomv   BY knumv ,
+          lt_j_1imovend_t BY lifnr,
+          lt_j_1ichidtx BY j_1ichid,
+          lt_rbkp_can BY belnr,
+          lt_zuqc     BY sap_uqc ,
+          lt_bkpf_can BY awkey,
+          lt_rseg_hsn BY belnr,
+          lt_zgst_inward_port  BY invoice_no,
+          lt_ekko_itc BY ebeln,
+          lt_zitc_po  BY bsart purch_group,
+          lt_bseg_p BY belnr ,
+          lt_bseg_plant BY belnr,
+          ta_mara BY matnr matkl,
+          ta_t023t BY matkl .
+
+  SORT lt_rseg BY belnr buzei ebeln ebelp.
+  SORT lt_rbco BY belnr buzei.
+  SORT: lt_ekbe BY ebeln ebelp belnr gjahr.
+
+  lt_rseg_c[]  = lt_rseg[].
+  lt_rseg_c1[] = lt_rseg[].
+  lt_rseg_hsn[] = lt_rseg[].
+  "new added
+  IF lt_rseg_hsn IS NOT INITIAL .
+    DELETE lt_rseg_hsn WHERE hsn_sac IS INITIAL.
+  ENDIF.
+
+  IF lt_rseg_c[] IS NOT INITIAL.
+    DELETE lt_rseg_c WHERE wrbtr IS INITIAL.
+  ENDIF.
+
+  SORT : lt_rseg BY belnr ebeln ebelp.
+
+  DELETE ADJACENT DUPLICATES FROM lt_rseg_c1 COMPARING belnr ebeln ebelp.
+  DELETE ADJACENT DUPLICATES FROM lt_rseg COMPARING belnr ebeln ebelp.
+  DELETE ADJACENT DUPLICATES FROM lt_rbco COMPARING belnr gjahr cobl_nr.
+
+
+  SORT lt_rseg BY belnr buzei ebeln ebelp.
+
+  LOOP AT lt_rseg INTO ls_rseg.
+    lv_idx = sy-tabix.
+    ls_final-bukrs =  ls_rseg-bukrs .
+    ls_final-fkimg  =   ls_rseg-menge.   " quantity
+    ls_final-matnr  =   ls_rseg-matnr.
+    ls_final-posnr  =   ls_rseg-ebelp.
+    ls_final-gjahr =  ls_rseg-gjahr.
+*    ls_final-gjahr =  s_budat-low+0(4). "LOC Added by Sushank suggested by devang on Date 24.02.2021 for Ticket No :8000006684 "Commented by sushank 08.03.2021
+*    ls_final-month =  s_budat-low+4(2). " Change added by Inc 8000008444 | TR CRDK987042 | Prathamesh Parab | 15.05.2023
+    ls_final-trans_count = lv_1 ."'1'.
+    ls_final-mis2 = ls_rseg-awkey.
+    lv_len = strlen( ls_final-mis2 ).
+    SUBTRACT 4 FROM lv_len.
+    ls_final-mis2 = ls_final-mis2+0(lv_len).
+
+
+    READ TABLE ta_ekko INTO DATA(lwa_ekko) WITH KEY ebeln = ls_rseg-ebeln BINARY SEARCH.
+    IF sy-subrc = 0.
+      ls_final-ebeln  = lwa_ekko-ebeln.
+      ls_final-budat1 = lwa_ekko-bedat.
+    ENDIF.
+
+    READ TABLE lt_ekbe INTO ls_ekbe WITH KEY belnr = ls_rseg-lfbnr.
+
+    IF sy-subrc = 0.
+
+
+      SELECT SINGLE budat FROM mkpf INTO ls_final-budat WHERE mblnr EQ ls_ekbe-belnr AND mjahr EQ ls_ekbe-gjahr.
+
+      CONCATENATE '''' ls_ekbe-charg INTO ls_final-charg.
+      ls_final-lfbnr = ls_rseg-lfbnr.
+      READ TABLE lt_ekbe INTO ls_ekbe WITH KEY     belnr = ls_rseg-lfbnr
+                                                   buzei = ls_ekbe-buzei BINARY SEARCH.
+      IF sy-subrc = 0.
+        IF ls_ekbe-charg IS NOT INITIAL.
+          CONCATENATE '''' ls_ekbe-charg INTO ls_final-charg.
+        ENDIF.
+        SELECT SINGLE budat FROM mkpf INTO ls_final-budat WHERE mblnr EQ ls_ekbe-belnr AND mjahr EQ ls_ekbe-gjahr.
+
+      ENDIF.
+    ENDIF.
+
+    CLEAR ls_rseg_hsn.
+    READ TABLE lt_rseg_hsn INTO ls_rseg_hsn WITH KEY belnr = ls_rseg-belnr
+                                                     buzei = ls_rseg-buzei BINARY SEARCH.
+    IF sy-subrc = 0.
+      SPLIT ls_rseg_hsn-hsn_sac AT co_und INTO DATA(lv_und_1) DATA(lv_und_2).
+      IF sy-subrc IS INITIAL.
+        ls_final-steuc = lv_und_1.
+      ELSE.
+        ls_final-steuc = ls_rseg_hsn-hsn_sac.
+      ENDIF.
+    ENDIF.
+
+    ON CHANGE OF ls_rseg-belnr.
+      CLEAR : line_item.
+    ENDON.
+    lv_rseg-buzei = ls_rseg-buzei.
+    line_item = line_item + 1.
+    ls_rseg-buzei = line_item.
+    READ TABLE lt_bkpf INTO ls_bkpf WITH KEY  awkey = ls_rseg-awkey .
+    IF sy-subrc = 0.
+      ls_final-belnr =  ls_bkpf-belnr.
+      ls_final-vbeln = ls_bkpf-xblnr.
+    ENDIF.
+
+    READ TABLE lt_zgst_inward_port INTO ls_zgst_inward_port WITH KEY invoice_no = ls_bkpf-xblnr BINARY SEARCH.
+    IF sy-subrc = 0.
+      ls_final-port_code = ls_zgst_inward_port-port_code.
+    ELSE.
+      READ TABLE lt_zgst_inward_port INTO ls_zgst_inward_port WITH KEY invoice_no = ls_bkpf-xblnr_alt BINARY SEARCH.
+      IF sy-subrc = 0.
+        ls_final-port_code = ls_zgst_inward_port-port_code.
+      ENDIF.
+    ENDIF.
+    READ TABLE lt_rbkp INTO ls_rbkp WITH KEY  belnr = ls_rseg-belnr . "BINARY SEARCH.
+    IF sy-subrc = 0.
+      MOVE ls_rbkp-budat TO ls_final-bldat .    " ACCOUNTING DOCUMENT DATE
+      ls_final-month = ls_rbkp-budat+4(2). " Change added by Inc 8000008444 | TR CRDK987042 | Prathamesh Parab | 15.05.2023
+      MOVE ls_rbkp-bldat TO ls_final-erdat.    " INVOICE DATE
+      ls_final-mis1 = ls_rbkp-tcode.
+
+      ls_final-mwskz1 = ls_rbkp-mwskz1.
+      IF ls_rbkp-tcode = lv_miro ."'MIRO'.
+        READ TABLE lt_rbkp_can INTO ls_rbkp_can WITH KEY belnr = ls_bkpf-awkey+0(10) BINARY SEARCH.
+        IF sy-subrc = 0.
+          ls_final-mis5 = ls_rbkp_can-stblg.
+        ENDIF.
+      ENDIF.
+*
+      IF ls_bkpf-waers NE lv_inr . "'INR'.
+        ls_final-waers = lv_inr .  " 'INR'.
+      ELSE.
+        ls_final-waers =  lv_inr. "'INR'.
+      ENDIF.
+
+      CASE ls_rbkp-blart.
+        WHEN   lv_kg .  "'KG' .
+          ls_final-fkart = lv_debit_note. " 'Debit Note'.
+        WHEN lv_re  OR lv_kr   OR lv_z8  OR lv_za OR lv_ka .
+          ls_final-fkart =   lv_invoice.   " 'Invoice'.
+        WHEN  lv_kz  OR lv_zb .
+          ls_final-fkart = lv_payment_voucher.   " 'Payment Voucher'.
+        WHEN  lv_ka . "'KA'.
+          ls_final-fkart = lv_payment_voucher   ." 'Payment Voucher'.
+        WHEN OTHERS .
+          ls_final-fkart = ls_rbkp-blart.
+      ENDCASE.
+    ENDIF.
+    READ TABLE lt_bseg_h  INTO  ls_bseg_h WITH KEY belnr = ls_bkpf-belnr.
+    IF sy-subrc = 0.
+    ENDIF.
+
+    READ TABLE lt_bseg_c  INTO  ls_bseg_c WITH KEY belnr = ls_bkpf-belnr.
+    IF sy-subrc = 0.
+      CLEAR ls_lfa1.
+      READ TABLE lt_lfa1 INTO ls_lfa1 WITH KEY lifnr = ls_bseg_c-lifnr BINARY SEARCH.
+      IF sy-subrc = 0.
+        CLEAR ls_j_1imovend.
+        READ TABLE lt_j_1imovend INTO ls_j_1imovend WITH KEY lifnr = ls_lfa1-lifnr BINARY SEARCH.
+        IF sy-subrc = 0.
+        ENDIF.
+      ENDIF.
+    ENDIF.
+
+    READ TABLE ta_mara ASSIGNING FIELD-SYMBOL(<fs_mara>) WITH KEY matnr = ls_rseg-matnr BINARY SEARCH.
+    IF sy-subrc EQ 0.
+      READ TABLE ta_t023t ASSIGNING FIELD-SYMBOL(<fs_t023t>) WITH KEY matkl = <fs_mara>-matkl BINARY SEARCH.
+      IF sy-subrc EQ 0.
+        ls_final-mat_grp = <fs_t023t>-matkl.
+        ls_final-mtgr_desc = <fs_t023t>-wgbez60.
+      ENDIF.
+    ENDIF.
+
+    CLEAR ls_bseg.
+
+    LOOP AT lt_bset INTO ls_bset WHERE   belnr  = ls_bkpf-belnr
+                                 AND     txgrp = ls_rseg-buzei  .
+
+      IF ls_bkpf-belnr NE ls_bset-belnr  OR ls_bset-txgrp NE ls_rseg-buzei.
+        EXIT.
+      ENDIF.
+      IF ls_bset-mwskz =  lv_gl  OR ls_bset-mwskz =  lv_gn .  " 'GL' , "'GN'.
+        ls_final-rev_charge = lv_y .   "'Y'.
+      ENDIF.
+*--------
+      IF ls_final-mwskz1 IS INITIAL.
+        ls_final-mwskz1 = ls_bset-mwskz.
+      ENDIF.
+      MOVE ls_bset-hwbas TO ls_final-val_bef_disc.
+      MOVE ls_bset-hwbas TO ls_final-val_aft_disc.
+      IF  ls_bset-kschl = 'JICN' OR
+          ls_bset-kschl = 'JISN' OR
+          ls_bset-kschl = 'JIIN' OR
+          ls_bset-kschl = 'JIUN'.
+        ls_final-taxable_val =  ls_bset-fwbas. " -
+      ELSE.
+        MOVE ls_bset-hwbas TO ls_final-taxable_val.
+      ENDIF.
+
+
+
+      IF ls_bset-shkzg = lv_h . "'H'.
+        ls_bset-hwbas = ls_bset-hwbas * ( -1 ).
+        MOVE ls_bset-hwbas TO ls_final-val_bef_disc.
+        MOVE ls_bset-hwbas TO ls_final-val_aft_disc.
+        IF  ls_bset-kschl = lv_jicn OR
+            ls_bset-kschl = lv_jisn OR
+            ls_bset-kschl = lv_jiin OR
+            ls_bset-kschl = lv_jiun.
+          ls_final-taxable_val =  ls_bset-fwbas * ( -1 ). " -
+        ELSE.
+          MOVE ls_bset-hwbas TO ls_final-taxable_val.
+        ENDIF.
+
+        CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+          CHANGING
+            value = ls_final-val_bef_disc.
+
+        CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+          CHANGING
+            value = ls_final-val_aft_disc.
+
+        CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+          CHANGING
+            value = ls_final-taxable_val.
+      ENDIF.
+
+      IF ls_bset-kschl = lv_zfdf .  " 'ZFDF'.
+
+        MOVE ls_bset-hwbas TO ls_final-discount.
+
+        IF ls_bset-shkzg = lv_h.   "'H'.
+          ls_bset-hwbas = ls_bset-hwbas  * ( -1 ).
+          MOVE ls_bset-hwbas TO ls_final-discount.
+          CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+            CHANGING
+              value = ls_final-discount.
+        ENDIF.
+        IF ls_final-mwskz1 IS INITIAL.
+          ls_final-mwskz1 = ls_bset-mwskz.
+        ENDIF.
+
+      ELSEIF ls_bset-kschl = lv_zav0 . "'ZAV0'.
+        MOVE ls_bset-hwbas TO ls_final-val_aft_disc.
+
+        IF ls_bset-shkzg = lv_h.   "'H'.
+          ls_bset-hwbas = ls_bset-hwbas  * ( -1 ).
+          MOVE ls_bset-hwbas TO ls_final-val_aft_disc.
+
+          CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+            CHANGING
+              value = ls_final-val_aft_disc.
+        ENDIF.
+        ls_final-mwskz1 = ls_bset-mwskz.
+
+      ELSEIF ls_bset-kschl = lv_jipc  OR ls_bset-kschl = lv_jvct   OR ls_bset-kschl = lv_zipc  OR ls_bset-kschl =  lv_jvrd  OR ls_bset-kschl =  lv_jvrn   OR ls_bset-kschl = lv_yvcs
+        OR ls_bset-kschl = lv_zvcn   OR ls_bset-kschl = lv_yvrn  OR ls_bset-kschl = lv_zvrd OR ls_bset-kschl = lv_jvcs OR ls_bset-kschl = lv_jvcn OR ls_bset-kschl = lv_jvrd
+        OR ls_bset-kschl = lv_jvrn OR ls_bset-kschl = lv_jvcs  OR ls_bset-kschl = lv_jvcn .
+
+        MOVE ls_bset-hwste TO ls_final-vat.
+        IF ls_bset-shkzg = lv_h .  "'H'.
+          ls_bset-hwste = ls_bset-hwste  * ( -1 ).
+
+          MOVE ls_bset-hwste TO ls_final-vat.
+          CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+            CHANGING
+              value = ls_final-vat.
+        ENDIF.
+        ls_final-mwskz1 = ls_bset-mwskz.
+      ELSEIF ls_bset-kschl = lv_jcst. "'JCST'.
+        MOVE ls_bset-hwbas TO ls_final-c_excise.
+        IF ls_bset-shkzg = lv_h . "'H'.
+          ls_bset-hwbas = ls_bset-hwbas  * ( -1 ).
+          MOVE ls_bset-hwbas TO ls_final-c_excise.
+          CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+            CHANGING
+              value = ls_final-c_excise.
+        ENDIF.
+
+        ls_final-mwskz1 = ls_bset-mwskz.
+
+      ELSEIF  ls_bset-kschl = lv_jlst. "'JLST'.
+        MOVE ls_bset-hwbas TO ls_final-s_excise.
+        IF ls_bset-shkzg = lv_h. "'H'.
+          ls_bset-hwbas = ls_bset-hwbas  * ( -1 ).
+          MOVE ls_bset-hwbas TO ls_final-s_excise.
+          CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+            CHANGING
+              value = ls_final-s_excise.
+        ENDIF.
+        ls_final-mwskz1 = ls_bset-mwskz.
+      ENDIF.
+      IF ls_bset-kschl = lv_jiig. "'JIIG' .
+        ls_final-igst_rate = ( ls_bset-kbetr ) / 10.
+        MOVE ls_bset-hwste TO ls_final-igst_amt.
+        ls_final-mwskz1 = ls_bset-mwskz.
+        IF ls_bset-shkzg = lv_h. "'H'.
+          ls_bset-hwste = ls_bset-hwste  * ( -1 ).
+          MOVE ls_bset-hwste TO ls_final-igst_amt.
+          CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+            CHANGING
+              value = ls_final-igst_amt.
+        ENDIF.
+      ELSEIF ls_bset-kschl = lv_jiin AND ls_bset-kbetr IS NOT INITIAL.
+        ls_final-igst_rate = ( ls_bset-kbetr ) / 10.
+        MOVE ls_bset-hwste TO ls_final-igst_amt.
+        ls_final-mwskz1 = ls_bset-mwskz.
+        IF ls_bset-shkzg = lv_h.
+          ls_final-igst_amt = ls_bset-hwste * ( -1 ).
+          CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+            CHANGING
+              value = ls_final-igst_amt.
+        ENDIF.
+
+      ELSEIF ls_bset-kschl = lv_jicg AND ls_bset-kbetr IS NOT INITIAL. " 'JICG'.
+        ls_final-cgst_rate = ( ls_bset-kbetr ) / 10 .
+        MOVE ls_bset-hwste TO ls_final-cgst_amt.
+        ls_final-mwskz1 = ls_bset-mwskz.
+        IF ls_bset-shkzg = lv_h. "'H'.
+          ls_bset-hwste = ls_bset-hwste  * ( -1 ).
+          MOVE ls_bset-hwste TO ls_final-cgst_amt.
+          CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+            CHANGING
+              value = ls_final-cgst_amt.
+        ENDIF.
+
+      ELSEIF ls_bset-kschl = lv_jicn AND ls_bset-kbetr IS NOT INITIAL.
+        ls_final-cgst_rate = ( ls_bset-kbetr ) / 10.
+        ls_final-mwskz1 = ls_bset-mwskz.
+        IF ls_bset-shkzg = lv_h. "'H'.
+          ls_final-cgst_amt = ls_bset-hwste * ( -1 ).
+        ELSE.
+          ls_final-cgst_amt = ls_bset-hwste.
+        ENDIF.
+
+        CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+          CHANGING
+            value = ls_final-cgst_amt.
+      ELSEIF ( ls_bset-kschl = lv_jisg  OR ls_bset-kschl = lv_jiug ) AND ls_bset-kbetr IS NOT INITIAL.    "'JISG', " 'JIUG'
+        ls_final-sgst_rate =  ( ls_bset-kbetr ) / 10.
+        MOVE ls_bset-hwste TO ls_final-sgst_amt.
+        ls_final-mwskz1 = ls_bset-mwskz.
+        IF ls_bset-shkzg = lv_h. "'H'.
+          ls_bset-hwste = ls_bset-hwste  * ( -1 ).
+          MOVE ls_bset-hwste TO ls_final-sgst_amt.
+          CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+            CHANGING
+              value = ls_final-sgst_amt.
+        ENDIF.
+
+      ELSEIF ( ls_bset-kschl = lv_jisn OR ls_bset-kschl = lv_jiun ).
+        ls_final-sgst_rate = ( ls_bset-kbetr ) / 10.
+        ls_final-mwskz1 = ls_bset-mwskz.
+        IF ls_bset-shkzg = lv_h.
+          ls_final-sgst_amt = ls_bset-hwste * ( -1 ).
+        ELSE.
+          ls_final-sgst_amt = ls_bset-hwste.
+        ENDIF.
+
+        CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+          CHANGING
+            value = ls_final-sgst_amt.
+      ENDIF.
+      IF  ls_final-steuc = lv_996511  OR ls_final-steuc = lv_996521 OR ls_final-steuc = lv_998211 OR ls_final-steuc = lv_998212
+        OR ls_final-steuc = lv_998213 OR ls_final-steuc = lv_998214 OR ls_final-steuc = lv_998215 OR ls_final-steuc = lv_998216
+        OR ls_final-steuc = lv_999119 OR ls_final-steuc = lv_999799 .
+
+        IF ls_j_1imovend-ven_class = lv_zero .  "'0'.
+          IF  ls_bset-kschl = lv_jiir.   " 'JIIR' .
+            ls_final-igst_rate = ( ls_bset-kbetr ) / 10.
+            ls_bset-hwste = ls_bset-hwste  * ( -1 ).
+            ls_final-mwskz1 = ls_bset-mwskz.
+            MOVE ls_bset-hwste TO ls_final-igst_amt.
+            CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+              CHANGING
+                value = ls_final-igst_amt.
+
+          ELSEIF ls_bset-kschl = lv_jiin."'JIIN'  .
+            ls_final-igst_rate = ( ls_bset-kbetr ) / 10.
+            ls_final-igst_amt = ls_bset-hwste.
+            ls_final-mwskz1 = ls_bset-mwskz.
+            CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+              CHANGING
+                value = ls_final-igst_amt.
+          ELSEIF  ls_bset-kschl = lv_jicr AND ( ls_bset-kbetr IS NOT INITIAL ).   "  'JICR'.
+            ls_final-cgst_rate = ( ls_bset-kbetr ) / 10 .
+            ls_bset-hwste = ls_bset-hwste  * ( -1 ).
+            ls_final-mwskz1 = ls_bset-mwskz.
+            MOVE ls_bset-hwste TO ls_final-cgst_amt.
+            CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+              CHANGING
+                value = ls_final-cgst_amt.
+          ELSEIF ls_bset-kschl = lv_jicn AND ( ls_bset-kbetr IS NOT INITIAL )."'JICN'  ."OR ls_bset_t-kschl = 'JIIR' .
+            ls_final-cgst_rate = ( ls_bset-kbetr ) / 10.
+            ls_final-cgst_amt = ls_bset-hwste.
+            ls_final-mwskz1 = ls_bset-mwskz.
+            CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+              CHANGING
+                value = ls_final-cgst_amt.
+          ELSEIF  ls_bset-kschl = lv_jisr  OR ls_bset-kschl = lv_jiur .    " 'JISR' ,  'JIUR'.
+            ls_final-sgst_rate =  ( ls_bset-kbetr ) / 10.
+            ls_bset-hwste = ls_bset-hwste  * ( -1 ).
+            ls_final-mwskz1 = ls_bset-mwskz.
+            MOVE ls_bset-hwste TO ls_final-sgst_amt.
+            CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+              CHANGING
+                value = ls_final-sgst_amt.
+
+          ELSEIF  ls_bset-kschl = lv_jcir.    " 'JCIR'.
+            ls_final-cess_rate =  ( ls_bset-kbetr ) / 10.
+            ls_bset-hwste = ls_bset-hwste  * ( -1 ).
+            ls_final-mwskz1 = ls_bset-mwskz.
+            MOVE ls_bset-hwste TO ls_final-cess_amt.
+            CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+              CHANGING
+                value = ls_final-cess_amt.
+          ELSEIF ( ls_bset-kschl = lv_jisn OR ls_bset-kschl = lv_jiun )."OR ls_bset_t-kschl = 'JIIR' .
+            ls_final-sgst_rate = ( ls_bset-kbetr ) / 10.
+            ls_final-sgst_amt = ls_bset-hwste.
+            ls_final-mwskz1 = ls_bset-mwskz.
+            CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+              CHANGING
+                value = ls_final-sgst_amt.
+          ENDIF.
+        ENDIF.
+      ENDIF.
+      IF ls_bset-kschl = lv_jiig OR ls_bset-kschl = lv_jicg  OR ls_bset-kschl = lv_jisg OR
+        ls_bset-kschl = lv_jiir OR ls_bset-kschl = lv_jicr  OR ls_bset-kschl = lv_jisr OR
+        ls_bset-kschl = lv_jcv1  OR  ls_bset-kschl = lv_jecv OR ls_bset-kschl = lv_j1cv OR ls_bset-kschl = lv_jcdb .
+        tax_amount =  tax_amount + ls_bset-hwste.
+      ENDIF.
+
+      IF  ls_bset-mwskz = lv_gd OR
+          ls_bset-mwskz = lv_gn OR
+          ls_bset-mwskz = lv_gk OR
+          ls_bset-mwskz = lv_gj OR
+          ls_bset-mwskz = lv_v0 OR
+          ls_bset-mwskz = lv_g9 .
+
+
+        CLEAR : ls_final-itc_igst, ls_final-itc_cgst, ls_final-itc_sgst, ls_final-itc_cess.
+      ENDIF.
+
+    ENDLOOP.
+    READ TABLE lt_bseg_c  INTO  ls_bseg_c WITH KEY belnr = ls_bkpf-belnr." BINARY SEARCH. "koart = 'K'
+    IF sy-subrc = 0.
+      ls_final-kunrg = ls_bseg_c-lifnr.
+      ls_final-netwr = ls_bseg_c-dmbtr.
+      READ TABLE lt_bseg INTO ls_bseg WITH KEY belnr = ls_bkpf-belnr  ktosl = lv_wit. "'WIT'.
+      IF sy-subrc = 0.
+        ls_final-netwr = ls_final-netwr + ls_bseg-dmbtr.
+      ENDIF.
+
+      READ TABLE lt_zsd_region_gst1 INTO ls_zsd_region_gst1 WITH KEY   region = ls_bseg_c-plc_sup  ."BINARY SEARCH.
+      IF   sy-subrc = 0.
+*       ls_final-pos_state = ls_zsd_region_gst1-bezei.
+      ENDIF.
+    ENDIF.
+
+    IF ls_j_1imovend-ven_class = lv_zero . "'0'.
+      READ TABLE lt_bseg_r  INTO  ls_bseg_r WITH KEY belnr = ls_bkpf-belnr." BINARY SEARCH.
+      IF sy-subrc = 0.
+        ls_final-saknr =  ls_bseg_r-hkont .
+      ENDIF.
+    ELSE.
+      SORT lt_bseg_h BY belnr taxps ."txgrp.
+      CLEAR ls_bseg_h.
+      READ TABLE lt_bseg_h  INTO  ls_bseg_h WITH KEY belnr = ls_bkpf-belnr
+                                                     taxps = ls_rseg-buzei BINARY SEARCH.
+      IF sy-subrc = 0.
+        ls_final-saknr =  ls_bseg_h-hkont .
+        ls_final-vrkme  =   ls_bseg_h-meins.
+      ENDIF.
+    ENDIF.
+    SORT lt_bseg_hk BY bukrs belnr gjahr .
+    lt_bseg_hk[] = lt_bseg_h[].
+    CLEAR ls_bseg_hk.
+    READ TABLE lt_bseg_hk INTO ls_bseg_hk WITH KEY bukrs = ls_bkpf-bukrs
+                                                   belnr = ls_bkpf-belnr
+                                                   gjahr = ls_bkpf-gjahr
+                                                   buzid = co_w.
+    IF sy-subrc EQ 0.
+      ls_final-saknr = ls_bseg_hk-hkont.
+    ENDIF.
+
+    IF ls_bseg_hk-pswsl NE lv_inr.
+      DELETE ta_bseg_gl WHERE  buzid EQ  lv_t.  "'T'
+      DELETE ta_bseg_gl WHERE  koart  NE lv_s.  " 'S'
+      DELETE ta_bseg_gl WHERE  qsskz IS NOT INITIAL.
+      READ TABLE ta_bseg_gl ASSIGNING FIELD-SYMBOL(<ls_bseg_gl>) WITH KEY bukrs = ls_bkpf-bukrs
+                                                                          belnr = ls_bkpf-belnr
+                                                                          gjahr = ls_bkpf-gjahr.
+*                                                     bschl = lv_86.
+      IF sy-subrc EQ 0.
+        ls_final-saknr = <ls_bseg_gl>-hkont.
+      ENDIF.
+    ENDIF.
+
+******------------UQC LOGIC-------------*******
+    READ TABLE lt_bseg_uqc INTO ls_bseg_uqc WITH KEY belnr = ls_bkpf-belnr BINARY SEARCH.
+    IF sy-subrc = 0.
+      READ TABLE lt_zuqc INTO ls_zuqc WITH KEY sap_uqc = ls_bseg_uqc-meins." BINARY SEARCH.
+      IF sy-subrc = 0.
+        ls_final-vrkme = ls_zuqc-gstin_uqc.
+      ELSE.
+        ls_final-vrkme = ls_bseg_uqc-meins.
+      ENDIF.
+    ENDIF.
+
+    READ TABLE lt_bseg_p  INTO  ls_bseg_p WITH KEY belnr = ls_bkpf-belnr ." ktosl =  'WRX' ."BINARY SEARCH.   "
+    IF sy-subrc = 0.
+      ls_final-mis3  =  ls_bseg_p-prctr.    " PROFIT CENTRE
+    ENDIF.
+    READ TABLE lt_bseg_plant  INTO  ls_bseg_plant WITH KEY belnr = ls_bkpf-belnr .
+    IF sy-subrc = 0.
+      ls_final-mis4   = ls_bseg_plant-werks.
+    ENDIF.
+    IF ls_rbkp-tcode = lv_mr8m .  "'MR8M' .
+      ls_final-mis5 = ls_rbkp-stblg.
+
+      ls_final-netwr = ls_final-netwr * ( -1 ).
+      ls_final-val_bef_disc = ls_final-val_bef_disc * ( -1 ).
+      ls_final-val_aft_disc  =  ls_final-val_aft_disc * ( -1 ) .
+      ls_final-taxable_val =  ls_final-taxable_val * ( -1 ).
+
+      CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+        CHANGING
+          value = ls_final-val_bef_disc.
+      CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+        CHANGING
+          value = ls_final-val_aft_disc.
+      CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+        CHANGING
+          value = ls_final-taxable_val.
+    ENDIF.
+
+    IF ls_bkpf-waers NE lv_inr .  "'INR'.
+      ls_final-taxability =  lv_import.  "'Import'.
+    ELSE.
+      IF ls_final-igst_rate IS INITIAL AND ls_final-cgst_rate IS INITIAL AND ls_final-sgst_rate IS INITIAL.
+        ls_final-taxability = lv_exempted. " 'Exempted'.
+      ELSE.
+        ls_final-taxability = lv_taxable.  "'Taxable'.
+      ENDIF.
+    ENDIF.
+
+    IF ls_bset-mwskz = 'GJ'." OR ls_bset-mwskz = 'GK'.
+      ls_final-taxability = lv_suply.
+    ENDIF.
+
+    READ TABLE lt_t001 INTO ls_t001 WITH KEY bukrs = ls_rbkp-bukrs ."BINARY SEARCH.
+    IF sy-subrc = 0.
+      ls_final-butxt = ls_t001-butxt.
+    ENDIF.
+* Start of Change Inc 8000008444 | TR CRDK987042 | Prathamesh Parab | 15.05.2023  * End of Change Inc 8000008444 | TR CRDK987042 | Prathamesh Parab | 15.05.2023
+*   READ TABLE lt_makt INTO ls_makt WITH KEY matnr = ls_rseg-matnr ."BINARY SEARCH.
+*   IF sy-subrc = 0.
+*     ls_final-maktx1 = ls_makt-maktx.
+*     TRANSLATE ls_final-maktx1  USING gv_name.
+*   ENDIF.
+
+    IF ls_final-maktx1 IS INITIAL.
+      READ TABLE lt_ekpo INTO DATA(wa_ekpo) WITH KEY ebeln = ls_rseg-ebeln ebelp = ls_rseg-ebelp.
+      IF sy-subrc = 0.
+        ls_final-maktx1 = wa_ekpo-txz01.
+        " Removal of special characters - #, ",:%$@ from material description
+        TRANSLATE ls_final-maktx1  USING gv_name.
+*        REPLACE ALL OCCURENCES OF '#' IN ls_final-maktx1 WITH ''.
+*        REPLACE ALL OCCURENCES OF ',' IN ls_final-maktx1 WITH ''.
+*        REPLACE ALL OCCURENCES OF '"' IN ls_final-maktx1 WITH ''.
+*        REPLACE ALL OCCURENCES OF ':' IN ls_final-maktx1 WITH ''.
+*        REPLACE ALL OCCURENCES OF '%' IN ls_final-maktx1 WITH ''.
+*        REPLACE ALL OCCURENCES OF '$' IN ls_final-maktx1 WITH ''.
+*        REPLACE ALL OCCURENCES OF '@' IN ls_final-maktx1 WITH ''.
+* Start of Change Inc 8000008444 | TR CRDK987383 | Prathamesh Parab | 23.06.2023
+        REPLACE ALL OCCURENCES OF cl_abap_char_utilities=>horizontal_tab IN ls_final-maktx1 WITH ''.
+        REPLACE ALL OCCURENCES OF cl_abap_char_utilities=>cr_lf IN ls_final-maktx1 WITH ''.
+* Start of Change Inc 8000008444 | TR CRDK987415 | Prathamesh Parab | 29.06.2023
+        REPLACE ALL OCCURENCES OF cl_abap_char_utilities=>vertical_tab IN ls_final-maktx1 WITH ''.
+        REPLACE ALL OCCURENCES OF cl_abap_char_utilities=>newline IN ls_final-maktx1 WITH ''.
+        REPLACE ALL OCCURENCES OF cl_abap_char_utilities=>form_feed IN ls_final-maktx1 WITH ''.
+        REPLACE ALL OCCURENCES OF cl_abap_char_utilities=>backspace IN ls_final-maktx1 WITH ''.
+* End of Change Inc 8000008444 | TR CRDK987415 | Prathamesh Parab | 29.06.2023
+* End of Change Inc 8000008444 | TR CRDK987383 | Prathamesh Parab | 23.06.2023
+* Start of Change Inc 8000008444 | TR CRDK987505 | Prathamesh Parab | 10.07.2023
+*       REPLACE ALL OCCURRENCES OF REGEX '[^[:alnum:]]' IN ls_final-maktx1 WITH ''. "  Change added by Inc 8000008444 | TR CRDK987497 | Prathamesh Parab | 07.07.2023
+        CLEAR: lv_temp_maktx1, lv_strlen.
+        lv_strlen = strlen( ls_final-maktx1 ).
+        lv_count1 = 0.
+        lv_count2 = 0.
+        WHILE lv_count1 < lv_strlen.
+          IF lc_abc CS ls_final-maktx1+lv_count1(1) OR
+             lc_123 CS ls_final-maktx1+lv_count1(1) OR " Change added by Inc 8000008444 | TR CRDK987522 | Prathamesh Parab | 11.07.2023
+             ls_final-maktx1+lv_count1(1) EQ lc_dot OR" Change added by Inc 8000008444 | TR CRDK987522 | Prathamesh Parab | 11.07.2023
+             ls_final-maktx1+lv_count1(1) EQ space.
+            lv_temp_maktx1+lv_count2(1) = ls_final-maktx1+lv_count1(1).
+            lv_count2 = lv_count2 + 1.
+          ENDIF.
+          lv_count1 = lv_count1 + 1.
+        ENDWHILE.
+        ls_final-maktx1 = lv_temp_maktx1.
+        CLEAR: lv_count1, lv_count2, lv_temp_maktx1, lv_strlen.
+* End of Change Inc 8000008444 | TR CRDK987505 | Prathamesh Parab | 10.07.2023
+        CLEAR wa_ekpo.
+      ENDIF.
+    ENDIF.
+* End of Change Inc 8000008444 | TR CRDK987042 | Prathamesh Parab | 15.05.2023
+
+    IF ls_bseg_c-lifnr+0(3) = lv_plnt  OR  ls_bseg_c-lifnr = lv_vendor .  "'PLNT' ,'0100020331'
+
+      READ TABLE lt_bseg_c  INTO  ls_bseg_c WITH KEY belnr = ls_bkpf-belnr ."BINARY SEARCH. "KOART = 'K'
+      IF sy-subrc = 0.
+        SORT lt_bkpf BY belnr.
+        READ TABLE lt_bkpf  INTO  ls_bkpf WITH KEY belnr = ls_bseg_c-belnr ."BINARY SEARCH.
+        IF sy-subrc = 0.
+          READ TABLE lt_zmm_plant_invgst INTO ls_zmm_plant_invgst WITH KEY  unit_cd  = ls_rseg-werks." BINARY SEARCH.
+          IF   sy-subrc = 0.
+            ls_final-gstin = ls_zmm_plant_invgst-buyer_gstno .
+            SORT lt_zsd_region_gst1 BY region.
+            READ TABLE lt_zsd_region_gst1 INTO ls_zsd_region_gst1 WITH KEY   region =  ls_zmm_plant_invgst-plnt_regio ."BINARY SEARCH.
+            IF   sy-subrc = 0.
+              ls_final-ship_to_state =  ls_zsd_region_gst1-bezei .
+            ENDIF.
+          ENDIF.
+        ENDIF.
+      ENDIF.
+    ELSE.
+
+      READ TABLE lt_j_1bbranch INTO ls_j_1bbranch WITH KEY bukrs = ls_rbkp-bukrs
+                                                             branch = ls_rbkp-bupla ."BINARY SEARCH.
+      IF sy-subrc = 0.
+        ls_final-gstin = ls_j_1bbranch-gstin.
+        READ TABLE lt_adrc_s INTO ls_adrc_s WITH KEY addrnumber = ls_j_1bbranch-adrnr ."BINARY SEARCH.
+        IF sy-subrc = 0.
+          SORT lt_zsd_region_gst1 BY region.
+          READ TABLE lt_zsd_region_gst1 INTO ls_zsd_region_gst1 WITH KEY region = ls_adrc_s-region ."BINARY SEARCH.
+          IF sy-subrc = 0.
+            ls_final-ship_to_state =  ls_zsd_region_gst1-bezei .
+          ENDIF.
+        ENDIF.
+      ENDIF.
+    ENDIF.
+
+*ship from state
+    READ TABLE lt_lfa1 INTO ls_lfa1 WITH KEY lifnr = ls_bseg_c-lifnr ."BINARY SEARCH.
+    IF sy-subrc = 0.
+      ls_final-stcd3  = ls_lfa1-stcd3.
+      ls_final-name1 = ls_lfa1-name1.
+      SORT lt_zsd_region_gst1 BY region.
+      READ TABLE lt_zsd_region_gst1 INTO ls_zsd_region_gst1 WITH KEY region = ls_lfa1-regio." BINARY SEARCH.
+      IF sy-subrc = 0.
+        ls_final-ship_from_state = ls_zsd_region_gst1-bezei.
+        ls_final-rep_state = ls_zsd_region_gst1-bezei.
+        CLEAR ls_zsd_region_gst1 .
+      ENDIF.
+    ENDIF.
+
+    READ TABLE lt_bseg_plant  INTO  ls_bseg_plant WITH KEY belnr = ls_bkpf-belnr ."ktosl =  'WRX' .
+    IF sy-subrc = 0.
+      "BOC by Sushank suggested by devang on Date 24.02.2021 for Ticket No :8000006684
+      IF ls_bseg_plant-ktosl = co_zz2." AND ls_bseg_plant-lifnr IS NOT INITIAL."'ZZ2'.
+        ls_final-state      = ls_final-ship_to_state."LOC Added by Sushank on Date 02.03.2021 for Ticket No :8000006684
+        ls_final-pos_state  = ls_final-ship_to_state."LOC Added by Sushank on Date 02.03.2021 for Ticket No :8000006684
+
+      ELSE.
+        "EOC by Sushank suggested by devang on Date 24.02.2021 for Ticket No :8000006684
+        READ TABLE lt_zmm_plant_invgst_new INTO ls_zmm_plant_invgst_new WITH KEY  unit_cd  = ls_bseg_plant-werks." BINARY SEARCH.
+        IF   sy-subrc = 0.
+          ls_final-gstin = ls_zmm_plant_invgst_new-buyer_gstno .
+          SORT lt_zsd_region_gst1 BY gst_region.
+          READ TABLE lt_zsd_region_gst1 INTO ls_zsd_region_gst1 WITH KEY   gst_region = ls_zmm_plant_invgst_new-state_code  ."BINARY SEARCH.
+          IF   sy-subrc = 0.
+            ls_final-state = ls_zsd_region_gst1-bezei.
+            ls_final-pos_state = ls_zsd_region_gst1-bezei.
+          ENDIF.
+        ENDIF.
+      ENDIF."LOC Added by Sushank suggested by devang on Date 24.02.2021 for Ticket No :8000006684
+    ENDIF.
+
+    IF ls_final-state IS INITIAL.
+      CLEAR ls_zmm_plant_invgst_new.
+      READ TABLE lt_zmm_plant_invgst_new INTO ls_zmm_plant_invgst_new WITH KEY  unit_cd  = ls_rseg-werks." BINARY SEARCH.
+      IF sy-subrc = 0.
+        SORT lt_zsd_region_gst1 BY gst_region.
+        CLEAR ls_zsd_region_gst1.
+        READ TABLE lt_zsd_region_gst1 INTO ls_zsd_region_gst1 WITH KEY   gst_region = ls_zmm_plant_invgst_new-state_code  ."BINARY SEARCH.
+        IF   sy-subrc = 0.
+          ls_final-state = ls_zsd_region_gst1-bezei.
+        ENDIF.
+      ENDIF.
+    ENDIF.
+
+
+    IF ls_final-kunrg = lv_vendor ."'0100020331'.
+      ls_final-rep_state = lv_blank ."' '.
+      ls_final-ship_from_state = lv_blank ."' '.
+    ENDIF.
+
+    IF ls_final-rep_state = ls_final-pos_state .
+      ls_final-supp_type =  lv_intra-state ." 'Intra-state'.
+    ELSE.
+      ls_final-supp_type = lv_inter-state. " 'Inter-state'.
+    ENDIF.
+*    ENDIF.
+
+    IF ls_final-stcd3 IS NOT INITIAL.
+      ls_final-nat_recpnt =  lv_registered .   "'Registered'.
+    ELSE.
+      ls_final-nat_recpnt =  lv_un-registered." 'Un-registered'.
+    ENDIF.
+
+    IF ls_final-nat_recpnt = lv_registered. " 'Registered'.
+      IF ls_j_1imovend_t-ven_class = lv_1 . "'1'.
+        ls_final-nat_recpnt = lv_compounding." 'Compounding'.
+      ENDIF.
+    ENDIF.
+
+    IF ls_rseg_hsn-hsn_sac IS NOT INITIAL.
+*    IF ls_bseg_h-hsn_sac+0(2)   EQ '99'.
+      IF ls_rseg_hsn-hsn_sac+0(2)  EQ lv_99. "'99'.
+        ls_final-category = lv_s. "'S'.
+      ELSE.
+        ls_final-category = lv_g . "'G'.
+      ENDIF.
+    ENDIF.
+
+    SORT lt_bset BY belnr kschl.
+    READ TABLE lt_bset INTO ls_bset WITH KEY belnr = ls_bkpf-belnr kschl = lv_jimd  txgrp = lv_rseg-buzei ." 'JIMD' ."BINARY SEARCH.
+    IF sy-subrc = 0.
+      IF ls_bset-kschl = lv_jimd.  " 'JIMD'.
+        ls_final-igst_rate = ( ls_bset-kbetr ) / 10.
+        MOVE ls_bset-hwste TO ls_final-igst_amt.
+      ENDIF.
+    ENDIF.
+
+    ls_final-tot_gst =  ls_final-igst_rate + ls_final-cgst_rate  + ls_final-sgst_rate +  ls_final-cess_rate.
+    IF lv_netwr < 0.
+      CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+        CHANGING
+          value = ls_final-netwr.
+    ENDIF.
+
+    IF ls_bseg_c-lifnr =  lv_vendor .
+      lv_lifnr = lv_vendor .
+      ls_final-fkart = lv_bill_of_entry.
+      LOOP AT lt_rseg_c INTO ls_rseg_c WHERE belnr = ls_rbkp-belnr AND  ebeln = ls_rseg-ebeln AND ebelp = ls_rseg-ebelp AND flag = lv_blank. "'' .
+        IF ls_rseg_c-kschl = lv_jcdb.
+          IF ls_bkpf-waers <> lv_inr .
+            ls_final-assess_value =  ls_final-assess_value + ls_rseg_c-customs_val * ls_rbkp-kursf.
+          ELSE.
+            ls_final-assess_value =  ls_final-assess_value + ls_rseg_c-customs_val.
+          ENDIF.
+        ENDIF.
+
+
+        IF ls_rseg_c-kschl = lv_jcdb  OR ls_rseg_c-kschl = lv_zadp  OR ls_rseg_c-kschl = lv_zadq . "'JCDB' , 'ZADP' , 'ZADQ'
+          IF ls_bkpf-waers <> lv_inr ." 'INR'.
+            ls_final-basic_cust_duty = ls_final-basic_cust_duty + ls_rseg_c-wrbtr * ls_rbkp-kursf.
+          ELSE.
+            ls_final-basic_cust_duty = ls_final-basic_cust_duty + ls_rseg_c-wrbtr.
+          ENDIF.
+        ENDIF.
+
+        IF ls_rseg_c-kschl = lv_jedb ." 'JEDB'.
+          IF ls_bkpf-waers <> lv_inr ."'INR'.
+            ls_final-mis6 = ls_final-mis6 + ls_rseg_c-wrbtr * ls_rbkp-kursf.
+          ELSE.
+            ls_final-mis6 = ls_final-mis6 + ls_rseg_c-wrbtr.
+          ENDIF.
+        ENDIF.
+        IF   ls_rseg_c-kschl = lv_jsed."  ' JSED' .
+          IF ls_bkpf-waers <> lv_inr ." 'INR'.
+            ls_final-mis7 = ls_final-mis7 + ls_rseg_c-wrbtr * ls_rbkp-kursf..
+          ELSE.
+            ls_final-mis7 =  ls_final-mis7 + ls_rseg_c-wrbtr.
+          ENDIF.
+        ENDIF.
+
+        IF   ls_rseg_c-kschl = lv_zsws.
+          IF ls_bkpf-waers <> lv_inr ." 'INR'.
+            ls_final-mis8 = ls_final-mis8 + ls_rseg_c-wrbtr * ls_rbkp-kursf..
+          ELSE.
+            ls_final-mis8 =  ls_final-mis8 + ls_rseg_c-wrbtr.
+          ENDIF.
+        ENDIF.
+
+
+        IF   ls_rseg_c-kschl = lv_zicd."  ' ZICD' .
+          IF ls_rseg_c-mwskz = 'GE' .
+            IF ls_bkpf-waers <> lv_inr ." 'INR'.
+              lv_zicd_value =  lv_zicd_value + ls_rseg_c-wrbtr * ls_rbkp-kursf..
+            ELSE.
+              lv_zicd_value = lv_zicd_value + ls_rseg_c-wrbtr.
+            ENDIF.
+          ENDIF.
+        ENDIF.
+        lv_taxbale = ls_final-assess_value + ls_final-basic_cust_duty + ls_final-mis6  + ls_final-mis7 + ls_final-mis8 + lv_zicd_value .
+        MOVE lv_taxbale TO ls_final-taxable_val.
+        lv_igst =  lv_taxbale * ls_final-igst_rate . " / 100.
+        MOVE lv_igst TO ls_final-igst_amt.
+
+        IF ls_rseg_c-shkzg = 'H'.
+          ls_final-taxable_val = ls_final-taxable_val * ( -1 ).
+          ls_final-igst_amt = ls_final-igst_amt * ( -1 ).
+
+
+          CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+            CHANGING
+              value = ls_final-taxable_val.
+
+          CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+            CHANGING
+              value = ls_final-igst_amt.
+
+        ENDIF.
+
+        ls_rseg_c-flag = lv_x. "'X'.
+
+        ls_final-itc_igst = ls_final-igst_amt.
+      ENDLOOP.
+
+      IF ls_rbkp-tcode = lv_mr8m . "'MR8M' .
+        CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+          CHANGING
+            value = ls_final-netwr.
+      ENDIF.
+
+************ to make zero rates as blank   ********
+      IF ls_final-tot_gst EQ  0.
+        REPLACE ALL OCCURRENCES OF lv_zero  IN ls_final-tot_gst WITH lv_blank .        "  '0'
+        REPLACE ALL OCCURRENCES OF lv_dot  IN ls_final-tot_gst WITH lv_blank.          "  LV_DOT = '.'
+      ENDIF.
+      IF ls_final-igst_rate EQ 0 .
+        REPLACE ALL OCCURRENCES OF lv_zero IN ls_final-igst_rate WITH lv_blank.
+        REPLACE ALL OCCURRENCES OF lv_dot IN ls_final-igst_rate WITH lv_blank.
+      ENDIF.
+
+      IF ls_final-cgst_rate EQ 0 .
+        REPLACE ALL OCCURRENCES OF lv_zero IN ls_final-cgst_rate WITH lv_blank.
+        REPLACE ALL OCCURRENCES OF lv_dot IN ls_final-cgst_rate WITH lv_blank.
+      ENDIF.
+      IF ls_final-sgst_rate EQ  0 .
+        REPLACE ALL OCCURRENCES OF lv_zero IN ls_final-sgst_rate WITH lv_blank.
+        REPLACE ALL OCCURRENCES OF lv_dot IN ls_final-sgst_rate WITH lv_blank.
+      ENDIF.
+      IF ls_final-cess_rate EQ  0 .
+        REPLACE ALL OCCURRENCES OF lv_zero IN ls_final-cess_rate WITH lv_blank.
+        REPLACE ALL OCCURRENCES OF lv_dot  IN ls_final-cess_rate WITH lv_blank.
+      ENDIF.
+*************************************************************
+      IF ls_final-taxable_val = 0.
+        CLEAR: ls_final-val_aft_disc,ls_final-val_bef_disc,
+               ls_final-tot_gst,ls_final-sgst_amt,ls_final-cgst_amt,ls_final-igst_amt,ls_final-cgst_rate,ls_final-sgst_rate,ls_final-igst_rate.
+      ENDIF.
+
+      CALL FUNCTION 'CONVERSION_EXIT_ALPHA_OUTPUT'
+        EXPORTING
+          input  = ls_rseg-matnr
+        IMPORTING
+          output = ls_rseg-matnr.
+
+      IF ls_rseg-matnr EQ lv_matnr.
+        ls_final-taxability = lv_nongst.
+        ls_final-rev_charge = co_n.
+      ENDIF.
+
+      IF ls_final-mwskz1 = lv_gd OR
+         ls_final-mwskz1 = lv_gn OR
+         ls_final-mwskz1 = lv_gk OR
+         ls_final-mwskz1 = lv_gj OR
+         ls_final-mwskz1 = lv_gh.
+        ls_final-elg_itc = lv_no.
+      ENDIF.
+
+      IF ls_final-taxability = lv_nongst.
+        ls_final-elg_itc = lv_no.
+      ENDIF.
+
+      IF ls_final-mwskz1 <> lv_gd AND
+         ls_final-mwskz1 <> lv_gn AND
+         ls_final-mwskz1 <> lv_gk AND
+         ls_final-mwskz1 <> lv_gj AND
+         ls_final-mwskz1 <> lv_gh.
+        ls_final-itc_igst = ls_final-igst_amt.
+        ls_final-itc_cgst = ls_final-cgst_amt.
+        ls_final-itc_sgst = ls_final-sgst_amt.
+        ls_final-itc_cess = ls_final-cess_amt.
+      ENDIF.
+
+      IF ls_final-elg_itc IS INITIAL.
+        IF ls_final-steuc+0(2) EQ co_99."Changed on 10.07.2020
+          ls_final-elg_itc = co_is.
+        ENDIF.
+      ENDIF.
+
+      IF ls_final-elg_itc IS INITIAL.
+        CLEAR ls_ekko_itc.
+        READ TABLE lt_ekko_itc INTO ls_ekko_itc WITH KEY ebeln = ls_rseg-ebeln.
+        IF sy-subrc = 0.
+          CLEAR ls_zitc_po.
+          READ TABLE lt_zitc_po INTO ls_zitc_po WITH KEY bsart = ls_ekko_itc-bsart purch_group = ls_ekko_itc-ekgrp.
+          IF sy-subrc EQ 0.
+            IF ls_zitc_po-bsart EQ co_zcer.
+              IF ls_zitc_po-purch_group EQ co_134 AND ls_zitc_po-matkl EQ co_eng008.
+                ls_final-elg_itc = co_cp.
+              ELSEIF ls_zitc_po-purch_group EQ co_155 AND ls_zitc_po-matkl EQ co_eng008.
+                ls_final-elg_itc = co_cp.
+              ENDIF.
+            ENDIF.
+          ENDIF.
+        ENDIF.
+      ENDIF.
+
+
+      IF ls_final-elg_itc IS INITIAL.
+        ls_final-elg_itc = co_ip.
+      ENDIF.
+      CLEAR ls_rbkp.
+      READ TABLE lt_rbkp INTO ls_rbkp WITH KEY  belnr = ls_rseg-belnr . "BINARY SEARCH
+      IF ls_rbkp-waers NE co_inr.
+        ls_final-netwr  = ls_rbkp-rmwwr * ls_rbkp-kursf.
+      ENDIF.
+
+      APPEND ls_final TO lt_final.
+      CLEAR : ls_final-itc_igst, ls_final-itc_cgst, ls_final-itc_sgst.
+      CLEAR : ls_final-assess_value, ls_final-basic_cust_duty, ls_final-mis6, ls_final-mis7, ls_final-taxable_val, ls_final-igst_amt,
+              lv_igst, lv_cgst, lv_sgst,lv_taxbale, lv_cessrate,ls_final-saknr,ls_final-fkimg, ls_final-cgst_amt, ls_final-sgst_amt,
+              ls_bseg_p, ls_zitc_po, ls_ekko_itc, ls_final-tot_gst ,ls_final-igst_rate,ls_final-cgst_rate ,ls_final-sgst_rate, ls_bseg_uqc ,lv_zicd_value,
+              ls_final-vat,ls_final-taxability,ls_final-mwskz1,ls_final-saknr.
+
+    ELSE.
+      CLEAR ls_rseg_c.
+      LOOP AT lt_rseg_c INTO ls_rseg_c WHERE belnr = ls_rseg-belnr AND ebeln = ls_rseg-ebeln AND ebelp = ls_rseg-ebelp AND flag = '' .
+        ls_final-bukrs =  ls_rseg_c-bukrs .
+        ls_final-fkimg  =   ls_rseg_c-menge.   " quantity
+        ls_final-matnr  =   ls_rseg_c-matnr.
+        ls_final-posnr  =   ls_rseg_c-ebelp.
+        ls_final-vrkme  =   ls_bseg_h-meins.
+        ls_final-mis2 = ls_rseg_c-awkey+0(10).            " miro doc no.
+        ls_final-mis1 = ls_rbkp-tcode.
+
+        CLEAR ls_rseg_hsn.
+        READ TABLE lt_rseg_hsn INTO ls_rseg_hsn WITH KEY belnr = ls_rseg_c-belnr
+                                                         buzei = ls_rseg_c-buzei BINARY SEARCH.
+        IF sy-subrc = 0.
+          SPLIT ls_rseg_hsn-hsn_sac AT co_und INTO lv_und_1 lv_und_2.
+          IF sy-subrc IS INITIAL.
+            ls_final-steuc = lv_und_1.
+          ELSE.
+            ls_final-steuc = ls_rseg_hsn-hsn_sac.
+          ENDIF.
+        ENDIF.
+        IF ls_rseg_hsn-hsn_sac IS NOT INITIAL.
+          IF ls_rseg_hsn-hsn_sac+0(2)  EQ lv_99. "'99'.
+            ls_final-category = lv_s ."'S'.
+          ELSE.
+            ls_final-category = lv_g. "'G'.
+          ENDIF.
+        ENDIF.
+****--------------UQC LOGIC---------****
+        READ TABLE lt_bseg_uqc INTO ls_bseg_uqc WITH KEY belnr = ls_bkpf-belnr BINARY SEARCH.
+        IF sy-subrc = 0.
+          READ TABLE lt_zuqc INTO ls_zuqc WITH KEY sap_uqc = ls_bseg_uqc-meins BINARY SEARCH.
+          IF sy-subrc = 0.
+            ls_final-vrkme = ls_zuqc-gstin_uqc.
+          ELSE.
+            ls_final-vrkme = ls_bseg_uqc-meins.
+          ENDIF.
+        ENDIF.
+
+        ON CHANGE OF ls_rseg_c-belnr.
+          CLEAR : line_item1.
+        ENDON.
+        line_item1 = line_item1 + 1.
+        ls_rseg_c-buzei = line_item1.
+
+**********  added on 05/10/2017  *********
+        READ TABLE lt_bseg_c  INTO  ls_bseg_c WITH KEY belnr = ls_bkpf-belnr.
+        IF sy-subrc = 0.
+          ls_final-kunrg = ls_bseg_c-lifnr.
+
+          ls_final-netwr = ls_bseg_c-dmbtr.
+          READ TABLE lt_bseg INTO ls_bseg WITH KEY belnr = ls_bkpf-belnr  ktosl = lv_wit . "'WIT'.
+          IF sy-subrc = 0.
+            ls_final-netwr = ls_final-netwr + ls_bseg-dmbtr.
+          ENDIF.
+        ENDIF.
+
+        IF ls_bkpf-waers NE lv_inr ."'INR'.
+          ls_final-waers =  lv_inr ."'INR'.
+        ELSE.
+          ls_final-waers =  lv_inr." 'INR'.
+        ENDIF.
+
+        IF ls_rbkp-tcode = lv_mr8m."  'MR8M' .
+          ls_final-mis5 = ls_rbkp-stblg.
+          ls_final-netwr = ls_final-netwr  * ( -1 ).
+          ls_final-val_bef_disc = ls_final-val_bef_disc * ( -1 ).
+          ls_final-val_aft_disc  =  ls_final-val_aft_disc * ( -1 ) .
+          ls_final-taxable_val =  ls_final-taxable_val * ( -1 ).
+          CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+            CHANGING
+              value = ls_final-netwr.
+
+          CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+            CHANGING
+              value = ls_final-val_bef_disc.
+          CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+            CHANGING
+              value = ls_final-val_aft_disc.
+          CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+            CHANGING
+              value = ls_final-taxable_val.
+
+          IF  ls_rbkp-tcode = lv_miro." 'MIRO'.
+            READ TABLE lt_rbkp_can INTO ls_rbkp_can WITH KEY belnr = ls_rbkp-belnr
+                                                             gjahr = ls_rbkp-gjahr.
+            IF sy-subrc = 0.
+              ls_final-mis5 = ls_rbkp_can-stblg.
+            ENDIF.
+          ENDIF.
+        ENDIF.
+
+
+        CLEAR ls_bseg.
+
+        LOOP AT lt_bset INTO ls_bset WHERE belnr  = ls_bkpf-belnr
+                                       AND txgrp = ls_rseg_c-buzei  .
+
+          IF ls_bkpf-belnr NE ls_bset-belnr  OR ls_bset-txgrp NE ls_rseg_c-buzei.
+            EXIT.
+          ENDIF.
+*--------ADDED LOGIC FOR REV_CHARGE = Y
+          IF ls_bset-mwskz =  lv_gl  OR ls_bset-mwskz = lv_gn .
+            ls_final-rev_charge = lv_y .
+          ENDIF.
+*--------
+          IF ls_final-mwskz1 IS INITIAL.
+            ls_final-mwskz1 = ls_bset-mwskz.
+          ENDIF.
+          MOVE ls_bset-hwbas TO ls_final-val_bef_disc.
+          MOVE ls_bset-hwbas TO ls_final-val_aft_disc.
+          IF  ls_bset-kschl = 'JICN' OR
+              ls_bset-kschl = 'JISN' OR
+              ls_bset-kschl = 'JIIN' OR
+              ls_bset-kschl = 'JIUN'.
+            ls_final-taxable_val =  ls_bset-fwbas. " -
+          ELSE.
+            MOVE ls_bset-hwbas TO ls_final-taxable_val.
+          ENDIF.
+
+          IF ls_bset-shkzg = lv_h ."'H'.
+            ls_bset-hwbas = ls_bset-hwbas * ( -1 ).
+            MOVE ls_bset-hwbas TO ls_final-val_bef_disc.
+            MOVE ls_bset-hwbas TO ls_final-val_aft_disc.
+            IF  ls_bset-kschl = 'JICN' OR
+                ls_bset-kschl = 'JISN' OR
+                ls_bset-kschl = 'JIIN' OR
+                ls_bset-kschl = 'JIUN'.
+              ls_final-taxable_val =  ls_bset-fwbas * ( -1 ). " -
+            ELSE.
+              MOVE ls_bset-hwbas TO ls_final-taxable_val.
+            ENDIF.
+
+            CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+              CHANGING
+                value = ls_final-val_bef_disc.
+
+            CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+              CHANGING
+                value = ls_final-val_aft_disc.
+
+            CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+              CHANGING
+                value = ls_final-taxable_val.
+          ENDIF.
+
+          IF ls_bset-kschl =  lv_zfdf .  "'ZFDF'.
+
+            MOVE ls_bset-hwbas TO ls_final-discount.
+
+            IF ls_bset-shkzg = lv_h ."'H'.
+              ls_bset-hwbas = ls_bset-hwbas  * ( -1 ).
+              MOVE ls_bset-hwbas TO ls_final-discount.
+              CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+                CHANGING
+                  value = ls_final-discount.
+            ENDIF.
+            ls_final-mwskz1 = ls_bset-mwskz.
+          ELSEIF ls_bset-kschl = lv_zav0." 'ZAV0'.
+            MOVE ls_bset-hwbas TO ls_final-val_aft_disc.
+
+            IF ls_bset-shkzg = lv_h ."'H'.
+              ls_bset-hwbas = ls_bset-hwbas  * ( -1 ).
+              MOVE ls_bset-hwbas TO ls_final-val_aft_disc.
+
+              CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+                CHANGING
+                  value = ls_final-val_aft_disc.
+            ENDIF.
+            ls_final-mwskz1 = ls_bset-mwskz.
+          ELSEIF ls_bset-kschl = lv_jvat. " 'JVAT'.
+            MOVE ls_bset-hwste TO ls_final-vat.
+            ls_final-mwskz1 = ls_bset-mwskz.
+            IF ls_bset-shkzg = lv_h . " 'H'.
+              ls_bset-hwste = ls_bset-hwste  * ( -1 ).
+              MOVE ls_bset-hwste TO ls_final-vat.
+
+              CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+                CHANGING
+                  value = ls_final-vat.
+            ENDIF.
+          ELSEIF ls_bset-kschl = lv_jcst ."  'JCST'.
+            MOVE ls_bset-hwbas TO ls_final-c_excise.
+            IF ls_bset-shkzg = lv_h ."'H'.
+              ls_bset-hwbas = ls_bset-hwbas  * ( -1 ).
+              ls_final-mwskz1 = ls_bset-mwskz.
+              MOVE ls_bset-hwbas TO ls_final-c_excise.
+              CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+                CHANGING
+                  value = ls_final-c_excise.
+            ENDIF.
+          ELSEIF  ls_bset-kschl = lv_jlst." 'JLST'.
+            MOVE ls_bset-hwbas TO ls_final-s_excise.
+            ls_final-mwskz1 = ls_bset-mwskz.
+            IF ls_bset-shkzg = lv_h ."'H'.
+              ls_bset-hwbas = ls_bset-hwbas  * ( -1 ).
+              MOVE ls_bset-hwbas TO ls_final-s_excise.
+              CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+                CHANGING
+                  value = ls_final-s_excise.
+            ENDIF.
+          ENDIF.
+          IF ls_bset-kschl = lv_jiig AND ls_bset-kbetr IS NOT INITIAL."'JIIG' .
+
+            ls_final-igst_rate = ( ls_bset-kbetr ) / 10.
+            MOVE ls_bset-hwste TO ls_final-igst_amt.
+            ls_final-mwskz1 = ls_bset-mwskz.
+            IF ls_bset-shkzg = lv_h."'H'.
+              ls_bset-hwste = ls_bset-hwste  * ( -1 ).
+              MOVE ls_bset-hwste TO ls_final-igst_amt.
+              CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+                CHANGING
+                  value = ls_final-igst_amt.
+            ENDIF.
+
+          ELSEIF ls_bset-kschl = lv_jicg AND ls_bset-kbetr IS NOT INITIAL. " 'JICG'.
+
+            ls_final-cgst_rate = ( ls_bset-kbetr ) / 10 .
+            MOVE ls_bset-hwste TO ls_final-cgst_amt.
+            ls_final-mwskz1 = ls_bset-mwskz.
+            IF ls_bset-shkzg = lv_h ." 'H'.
+              ls_bset-hwste = ls_bset-hwste  * ( -1 ).
+              MOVE ls_bset-hwste TO ls_final-cgst_amt.
+              CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+                CHANGING
+                  value = ls_final-cgst_amt.
+            ENDIF.
+
+          ELSEIF ls_bset-kschl = lv_jisg  OR ls_bset-kschl = lv_jiug .
+            IF ls_bset-kbetr IS NOT INITIAL.
+              ls_final-sgst_rate =  ( ls_bset-kbetr ) / 10.
+              MOVE ls_bset-hwste TO ls_final-sgst_amt.
+              ls_final-mwskz1 = ls_bset-mwskz.
+              IF ls_bset-shkzg = lv_h .
+                ls_bset-hwste = ls_bset-hwste  * ( -1 ).
+                MOVE ls_bset-hwste TO ls_final-sgst_amt.
+                CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+                  CHANGING
+                    value = ls_final-sgst_amt.
+              ENDIF.
+            ENDIF.
+          ENDIF." ELSEIF
+          IF  ls_final-steuc = lv_996511 OR ls_final-steuc = lv_996521 OR ls_final-steuc = lv_998211 OR ls_final-steuc = lv_998212
+            OR ls_final-steuc = lv_998213 OR ls_final-steuc = lv_998214 OR ls_final-steuc = lv_998215 OR ls_final-steuc = lv_998216
+            OR ls_final-steuc = lv_999119 OR ls_final-steuc = lv_999799.
+
+            IF ls_j_1imovend-ven_class = lv_zero .
+              IF  ls_bset-kschl = lv_jiir .
+                ls_final-igst_rate = ( ls_bset-kbetr ) / 10.
+                ls_final-mwskz1 = ls_bset-mwskz.
+                ls_bset-hwste = ls_bset-hwste  * ( -1 ).
+                MOVE ls_bset-hwste TO ls_final-igst_amt.
+                CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+                  CHANGING
+                    value = ls_final-igst_amt.
+              ELSEIF  ls_bset-kschl = lv_jicr AND ( ls_bset-kbetr IS NOT INITIAL ).
+                ls_final-cgst_rate = ( ls_bset-kbetr ) / 10 .
+                ls_bset-hwste = ls_bset-hwste  * ( -1 ).
+                ls_final-mwskz1 = ls_bset-mwskz.
+                MOVE ls_bset-hwste TO ls_final-cgst_amt.
+                CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+                  CHANGING
+                    value = ls_final-cgst_amt.
+              ELSEIF  ls_bset-kschl = lv_jisr OR  ls_bset-kschl = lv_jiur.
+                ls_final-sgst_rate =  ( ls_bset-kbetr ) / 10.
+                ls_bset-hwste = ls_bset-hwste  * ( -1 ).
+                ls_final-mwskz1 = ls_bset-mwskz.
+                MOVE ls_bset-hwste TO ls_final-sgst_amt.
+                CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+                  CHANGING
+                    value = ls_final-sgst_amt.
+              ELSEIF  ls_bset-kschl = lv_jcir.
+                ls_final-cess_rate =  ( ls_bset-kbetr ) / 10.
+                ls_bset-hwste = ls_bset-hwste  * ( -1 ).
+                ls_final-mwskz1 = ls_bset-mwskz.
+                MOVE ls_bset-hwste TO ls_final-cess_amt.
+                CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+                  CHANGING
+                    value = ls_final-cess_amt.
+              ENDIF.
+            ENDIF.
+          ENDIF.
+
+          IF ls_bset-kschl = lv_jiig OR ls_bset-kschl = lv_jicg  OR ls_bset-kschl = lv_jisg OR
+            ls_bset-kschl = lv_jiir OR ls_bset-kschl = lv_jicr  OR ls_bset-kschl = lv_jisr OR
+            ls_bset-kschl = lv_jcv1  OR  ls_bset-kschl = lv_jecv OR ls_bset-kschl = lv_j1cv OR ls_bset-kschl = lv_jcdb .
+            tax_amount =  tax_amount + ls_bset-hwste.
+          ENDIF.
+
+          IF ls_bset-mwskz = lv_gd OR
+          ls_bset-mwskz = lv_gn OR
+          ls_bset-mwskz = lv_gk OR
+          ls_bset-mwskz = lv_gj OR
+          ls_bset-mwskz = lv_v0 OR
+          ls_bset-mwskz = lv_g9.
+
+            CLEAR : ls_final-itc_igst, ls_final-itc_cgst, ls_final-itc_sgst, ls_final-itc_cess.
+          ENDIF.
+        ENDLOOP.
+************ to make zero rates as blank ********
+        IF ls_final-tot_gst EQ  0.
+          REPLACE ALL OCCURRENCES OF lv_zero IN ls_final-tot_gst WITH lv_blank.
+          REPLACE ALL OCCURRENCES OF lv_dot IN ls_final-tot_gst WITH lv_blank.
+        ENDIF.
+        IF ls_final-igst_rate EQ 0 .
+          REPLACE ALL OCCURRENCES OF lv_zero IN ls_final-igst_rate WITH lv_blank.
+          REPLACE ALL OCCURRENCES OF lv_dot IN ls_final-igst_rate WITH lv_blank.
+        ENDIF.
+
+        IF ls_final-cgst_rate EQ 0 .
+          REPLACE ALL OCCURRENCES OF lv_zero IN ls_final-cgst_rate WITH lv_blank.
+          REPLACE ALL OCCURRENCES OF lv_dot IN ls_final-cgst_rate WITH lv_blank.
+        ENDIF.
+        IF ls_final-sgst_rate EQ  0 .
+          REPLACE ALL OCCURRENCES OF lv_zero IN ls_final-sgst_rate WITH lv_blank.
+          REPLACE ALL OCCURRENCES OF lv_dot IN ls_final-sgst_rate WITH lv_blank.
+        ENDIF.
+        IF ls_final-cess_rate EQ  0 .
+          REPLACE ALL OCCURRENCES OF lv_zero IN ls_final-cess_rate WITH lv_blank.
+          REPLACE ALL OCCURRENCES OF lv_dot IN ls_final-cess_rate WITH lv_blank.
+        ENDIF.
+
+        IF ls_final-igst_rate EQ '' AND ls_final-cgst_rate EQ '' AND ls_final-sgst_rate EQ ''.
+          ls_final-tot_gst = ''.
+        ENDIF.
+
+        IF ls_bkpf-waers NE lv_inr .  "'INR'.
+          ls_final-taxability =  lv_import.  "'Import'.
+        ELSE.
+          IF ls_final-igst_rate IS INITIAL AND ls_final-cgst_rate IS INITIAL AND ls_final-sgst_rate IS INITIAL.
+            ls_final-taxability = lv_exempted. " 'Exempted'.
+          ELSE.
+            ls_final-taxability = lv_taxable.  "'Taxable'.
+          ENDIF.
+        ENDIF.
+        IF ls_bset-mwskz = 'GJ'." OR ls_bset-mwskz = 'GK'.
+          ls_final-taxability = lv_suply.
+        ENDIF.
+
+        CALL FUNCTION 'CONVERSION_EXIT_ALPHA_OUTPUT'
+          EXPORTING
+            input  = ls_rseg-matnr
+          IMPORTING
+            output = ls_rseg-matnr.
+
+        IF ls_rseg-matnr EQ lv_matnr.
+          ls_final-taxability = lv_nongst.
+          ls_final-rev_charge = ''."co_n.
+
+        ENDIF.
+
+
+        IF ls_final-taxable_val = 0.
+          CLEAR: ls_final-val_aft_disc,ls_final-val_bef_disc,
+                 ls_final-tot_gst,ls_final-sgst_amt,ls_final-cgst_amt,ls_final-igst_amt,ls_final-cgst_rate,ls_final-sgst_rate,ls_final-igst_rate.
+        ENDIF.
+
+        SORT lt_bseg_hk BY bukrs belnr gjahr .
+        lt_bseg_hk[] = lt_bseg_h[].
+        CLEAR ls_bseg_hk.
+        READ TABLE lt_bseg_hk INTO ls_bseg_hk WITH KEY bukrs = ls_bkpf-bukrs
+                                                       belnr = ls_bkpf-belnr
+                                                       gjahr = ls_bkpf-gjahr
+                                                       buzid = co_w.
+        IF sy-subrc EQ 0.
+          ls_final-saknr = ls_bseg_hk-hkont.
+        ENDIF.
+
+        IF ls_bseg_hk-pswsl NE lv_inr.
+          DELETE ta_bseg_gl WHERE  buzid EQ  lv_t.  "'T'
+          DELETE ta_bseg_gl WHERE  koart  NE lv_s.  " 'S'
+          DELETE ta_bseg_gl WHERE  qsskz IS NOT INITIAL.
+          READ TABLE ta_bseg_gl ASSIGNING <ls_bseg_gl> WITH KEY bukrs = ls_bkpf-bukrs
+                                                                              belnr = ls_bkpf-belnr
+                                                                              gjahr = ls_bkpf-gjahr.
+*
+          IF sy-subrc EQ 0.
+            ls_final-saknr = <ls_bseg_gl>-hkont.
+          ENDIF.
+        ENDIF.
+
+        IF ls_final-mwskz1 = lv_gd OR
+           ls_final-mwskz1 = lv_gn OR
+           ls_final-mwskz1 = lv_gk OR
+           ls_final-mwskz1 = lv_gj OR
+           ls_final-mwskz1 = lv_gh.
+          ls_final-elg_itc = lv_no.
+        ENDIF.
+
+        IF ls_final-taxability = lv_nongst.
+          ls_final-elg_itc = lv_no.
+        ENDIF.
+
+        IF ls_final-mwskz1 <> lv_gd AND
+           ls_final-mwskz1 <> lv_gn AND
+           ls_final-mwskz1 <> lv_gk AND
+           ls_final-mwskz1 <> lv_gj AND
+           ls_final-mwskz1 <> lv_gh.
+          ls_final-itc_igst = ls_final-igst_amt.
+          ls_final-itc_cgst = ls_final-cgst_amt.
+          ls_final-itc_sgst = ls_final-sgst_amt.
+          ls_final-itc_cess = ls_final-cess_amt.
+        ENDIF.
+
+        IF ls_final-elg_itc IS INITIAL.
+          IF ls_final-steuc+0(2) EQ co_99.
+            ls_final-elg_itc = co_is.
+          ENDIF.
+        ENDIF.
+
+        IF ls_final-elg_itc IS INITIAL.
+          CLEAR ls_ekko_itc.
+          READ TABLE lt_ekko_itc INTO ls_ekko_itc WITH KEY ebeln = ls_rseg-ebeln.
+          IF sy-subrc = 0.
+            CLEAR ls_zitc_po.
+            READ TABLE lt_zitc_po INTO ls_zitc_po WITH KEY bsart = ls_ekko_itc-bsart purch_group = ls_ekko_itc-ekgrp.
+            IF sy-subrc EQ 0.
+              IF ls_zitc_po-bsart EQ co_zcer AND ls_zitc_po-matkl EQ co_eng008.
+                IF ls_zitc_po-purch_group EQ co_134.
+                  ls_final-elg_itc = co_cp.
+                ELSEIF ls_zitc_po-purch_group EQ co_155.
+                  ls_final-elg_itc = co_cp.
+                ENDIF.
+              ENDIF.
+            ENDIF.
+          ENDIF.
+        ENDIF.
+
+        IF ls_final-elg_itc IS INITIAL.
+          ls_final-elg_itc = co_ip.
+        ENDIF.
+
+* Start of Change Inc 8000008444 | TR CRDK987042 | Prathamesh Parab | 15.05.2023
+*       IF ls_final-elg_itc = co_gd. " Change added by Inc 8000008444 | TR CRDK987155 | Prathamesh Parab | 30.05.2023
+* Start of Change Inc 8000008250 | TR CRDK987447 | Prathamesh Parab | 04.07.2023
+*       IF ls_final-mwskz1 = co_gd." Change added by Inc 8000008444 | TR CRDK987155 | Prathamesh Parab | 30.05.2023
+*         ls_final-nature_exp = 'Ineligible procurements u/s 17(5)'.
+*       ENDIF.
+* End of Change Inc 8000008250 | TR CRDK987447 | Prathamesh Parab | 04.07.2023
+* End of Change Inc 8000008444 | TR CRDK987042 | Prathamesh Parab | 15.05.2023
+
+
+        CLEAR ls_rbkp.
+        READ TABLE lt_rbkp INTO ls_rbkp WITH KEY  belnr = ls_rseg-belnr . "BINARY SEARCH
+        IF ls_rbkp-waers NE co_inr.
+          ls_final-netwr  = ls_rbkp-rmwwr * ls_rbkp-kursf.
+        ENDIF.
+
+
+        APPEND ls_final TO lt_final.
+        CLEAR : ls_final-itc_igst, ls_final-itc_cgst, ls_final-itc_sgst,ls_final-taxable_val,
+                ls_final-sgst_amt,ls_final-cgst_amt,ls_final-igst_amt,
+                ls_final-val_aft_disc,ls_final-val_bef_disc,ls_rseg_c,
+                ls_final-cgst_rate,ls_final-sgst_rate,ls_final-igst_rate,ls_final-mwskz1,
+                ls_final-vat,ls_final-taxability,ls_final-mwskz1,ls_final-saknr,
+                ls_final-elg_itc.
+      ENDLOOP.
+
+    ENDIF.
+    CLEAR: ls_final ,ls_rseg,  ls_bkpf, ls_rbkp, ls_bset, ls_bseg ,ls_bseg_c,ls_bseg_h  ,ls_t001,ls_adrc,ls_adrc_s
+           ,ls_gst,ls_makt,ls_t001w ,ls_zsd_region_gst1 ,ls_j_1bbranch, ls_lfa1,
+           ls_mara , ls_zmm_plant_invgst,tax_amount, lv_igsth, lv_cgsth, lv_sgsth, lv_cessrate, lv_netwr, lv_taxbale, lv_tot, lv_igst,
+           lv_cessrate, lv_sgst, lv_cgst, ls_rbkp_can, ls_bkpf_can, ls_final-cgst_amt, ls_final-sgst_amt, ls_bseg_p , ls_rseg_hsn, ls_zgst_inward_port,
+           ls_zitc_po, ls_ekko_itc, ls_bseg_uqc, ls_zmm_plant_invgst_new , ls_bseg_p , ls_bseg_plant,ls_final-taxability,ls_rseg_hsn.
+  ENDLOOP.
+
+
+  "modifying total gst field where igst/cgst/sgst rate is not blank.
+  LOOP AT lt_final ASSIGNING FIELD-SYMBOL(<fs_final>).
+    READ TABLE lt_mseg INTO ls_mseg WITH KEY ebeln = <fs_final>-ebeln.
+    IF sy-subrc EQ 0.
+      READ TABLE lt_grn INTO ls_grn WITH KEY mblnr = ls_mseg-mblnr.
+      IF sy-subrc EQ 0.
+        <fs_final>-way_bill_no =  ls_grn-zwbn.
+      ENDIF.
+    ENDIF.
+
+* Start of Change Inc 8000008444 | TR CRDK987042 | Prathamesh Parab | 15.05.2023
+    IF <fs_final>-way_bill_no IS INITIAL.
+      READ TABLE lt_grn2 INTO DATA(ls_grn2) WITH KEY mblnr = <fs_final>-lfbnr.
+      IF sy-subrc = 0.
+        <fs_final>-way_bill_no = ls_grn2-zwbn.
+      ENDIF.
+    ENDIF.
+* End of Change Inc 8000008444 | TR CRDK987042 | Prathamesh Parab | 15.05.2023
+
+
+    IF <fs_final>-tot_gst IS INITIAL.
+
+      IF <fs_final>-igst_rate IS NOT INITIAL OR <fs_final>-cgst_rate  IS NOT INITIAL OR <fs_final>-sgst_rate IS NOT INITIAL OR
+          <fs_final>-cess_rate IS NOT INITIAL .
+        <fs_final>-tot_gst = <fs_final>-igst_rate + <fs_final>-cgst_rate +
+                             <fs_final>-sgst_rate + <fs_final>-cess_rate.
+      ENDIF.
+    ENDIF.
+
+    CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+      CHANGING
+        value = <fs_final>-taxable_val.
+
+    CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+      CHANGING
+        value = ls_final-val_bef_disc.
+
+    CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+      CHANGING
+        value = ls_final-val_aft_disc.
+  ENDLOOP.
+  UNASSIGN:<fs_final>.
+
+  "modifying total gst field where igst/cgst/sgst rate is not blank.
+
+
+  IF lt_final IS NOT INITIAL.
+    DELETE lt_final WHERE belnr IS INITIAL.
+  ENDIF.
+
+
+  lt_final1[] = lt_final[].
+  DELETE ADJACENT DUPLICATES FROM lt_final1 COMPARING belnr.
+
+  LOOP AT lt_final1 INTO ls_final1.
+    l_cnt = 0.
+    LOOP AT lt_final INTO ls_final WHERE belnr = ls_final1-belnr AND flag = lv_blank.
+      l_cnt = l_cnt + 1.
+      ls_final-posnr = l_cnt.
+      ls_final-flag = lv_x .
+      READ TABLE lt_bkpf INTO ls_bkpf WITH KEY  bukrs = ls_final-bukrs
+                                                belnr = ls_final-belnr.
+      IF sy-subrc = 0.
+        IF ls_final-rev_charge = lv_y AND ls_final-nat_recpnt = lv_un-registered.
+          ls_final-vbeln = ls_bkpf-xblnr_alt.
+          ls_final-erdat = ls_bkpf-budat.
+        ENDIF.
+      ENDIF.
+      IF ls_final-kunrg = lv_vendor.
+        ls_final-fkart = lv_bill_of_entry.
+        ls_final-taxability = lv_import.
+      ENDIF.
+
+      IF ls_final-kunrg = lv_vendor  AND ls_final-table = lv_blank.
+        ls_final-igst_amt = ls_final-igst_amt / 100.
+        ls_final-igst_amt = round( val = ls_final-igst_amt dec = 2 ) .
+        ls_final-itc_igst = ls_final-itc_igst / 100.
+        ls_final-itc_igst = round( val = ls_final-itc_igst dec = 2 ) .
+        CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+          CHANGING
+            value = ls_final-igst_amt.
+
+      ENDIF.
+      MODIFY lt_final FROM ls_final TRANSPORTING posnr  flag igst_amt itc_igst  fkart taxability vbeln erdat .
+      CLEAR:ls_bkpf.
+    ENDLOOP.
+  ENDLOOP.
+
+  CLEAR lv_accessvalue.
+  lt_final_total[] = lt_final[].
+  LOOP AT lt_final_total INTO ls_final_total .
+    lv_accessvalue = lv_accessvalue + ls_final_total-assess_value.
+    IF ls_final_total-kunrg =  lv_vendor.
+      AT END OF belnr .
+        LOOP AT lt_final INTO ls_final WHERE belnr = ls_final_total-belnr .
+          IF ls_final-mis1 = lv_mr8m.
+            ls_final-netwr = ls_final-netwr * ( -1 ).
+          ENDIF.
+          ls_final-netwr =  ls_final-netwr + lv_accessvalue .
+          IF ls_final-mis1 = lv_mr8m.
+            ls_final-netwr =  ls_final-netwr * ( -1 ).
+            ls_final-val_bef_disc = ls_final-val_bef_disc * ( -1 ).
+            ls_final-val_aft_disc  =  ls_final-val_aft_disc * ( -1 ) .
+
+            CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+              CHANGING
+                value = ls_final-netwr.
+
+            CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+              CHANGING
+                value = ls_final-val_bef_disc.
+
+            CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+              CHANGING
+                value = ls_final-val_aft_disc.
+          ENDIF.
+          MODIFY lt_final FROM ls_final TRANSPORTING netwr val_bef_disc val_aft_disc .
+        ENDLOOP.
+        CLEAR lv_accessvalue. "lv_invoice_d.
+      ENDAT.
+    ENDIF.
+  ENDLOOP.
+
+  CONSTANTS : co_000001(6) TYPE c VALUE '000001'.
+  DATA : lv_count TYPE i.
+
+  TYPES :   BEGIN OF ty_data,
+              bukrs        TYPE  bukrs,
+              belnr	       TYPE belnr_d,
+              gjahr	       TYPE gjahr,
+              buzei	       TYPE buzei,
+              txgrp        TYPE bset-txgrp,
+              kschl        TYPE bset-kschl,
+              cg_rt        TYPE bset-kbetr,
+              sg_rt        TYPE bset-kbetr,
+              ig_rt        TYPE bset-kbetr,
+              cg_am        TYPE bset-hwste,
+              sg_am        TYPE bset-hwste,
+              ig_am        TYPE bset-hwste,
+              mwskz        TYPE bset-mwskz,
+              shkzg        TYPE bset-shkzg,
+              posnr        TYPE posnr_vf,
+              val_bef_disc TYPE string, "bset-hwste,
+              val_aft_disc TYPE string, "bset-hwste,
+              taxable_val  TYPE string, "bset-hwste,
+              itc_igst     TYPE string,
+              itc_cgst     TYPE string,
+              itc_sgst     TYPE string,
+              itc_cess     TYPE string,
+              ce_am        TYPE string,
+              ce_rt        TYPE string,
+              elg_itc(2)   TYPE c,
+            END OF ty_data.
+
+  DATA : lv_val1 TYPE string.
+  DATA : lv_val2 TYPE string.
+  DATA : lv_val3 TYPE string.
+  DATA : lv_val4 TYPE string.
+  DATA : lv_val5 TYPE string.
+  DATA : lv_val6 TYPE string.
+  DATA : lv_val7 TYPE string.
+
+  DATA : ta_data TYPE TABLE OF ty_data,
+         wa_data TYPE ty_data.
+
+  LOOP AT ta_bset_gst ASSIGNING FIELD-SYMBOL(<fs_gst>).
+    wa_data-bukrs = <fs_gst>-bukrs.
+    wa_data-belnr = <fs_gst>-belnr.
+    wa_data-gjahr = <fs_gst>-gjahr.
+    wa_data-txgrp = <fs_gst>-txgrp.
+    wa_data-shkzg = <fs_gst>-shkzg.
+    wa_data-mwskz = <fs_gst>-mwskz.
+    wa_data-posnr = <fs_gst>-txgrp.
+*    wa_data-kschl = <fs_gst>-kschl.
+
+    IF <fs_gst>-shkzg EQ lv_s.
+      MOVE <fs_gst>-hwbas TO wa_data-val_bef_disc.
+      MOVE <fs_gst>-hwbas TO wa_data-val_aft_disc.
+      IF  <fs_gst>-kschl = lv_jicn OR
+          <fs_gst>-kschl = lv_jisn OR
+          <fs_gst>-kschl = lv_jiin OR
+          <fs_gst>-kschl = lv_jiun.
+        wa_data-taxable_val = <fs_gst>-fwbas. " -
+      ELSE.
+        MOVE <fs_gst>-hwbas TO wa_data-taxable_val.
+      ENDIF.
+    ELSEIF <fs_gst>-shkzg EQ lv_h.
+      <fs_gst>-hwbas = <fs_gst>-hwbas * ( -1 ).
+      MOVE <fs_gst>-hwbas TO wa_data-val_bef_disc.
+      MOVE <fs_gst>-hwbas TO wa_data-val_aft_disc.
+      IF  <fs_gst>-kschl = lv_jicn OR
+          <fs_gst>-kschl = lv_jisn OR
+          <fs_gst>-kschl = lv_jiin OR
+          <fs_gst>-kschl = lv_jiun.
+        wa_data-taxable_val = <fs_gst>-fwbas * ( -1 ). " -
+      ELSE.
+        MOVE <fs_gst>-hwbas TO wa_data-taxable_val.
+      ENDIF.
+
+
+    ENDIF.
+
+    CASE <fs_gst>-kschl.
+      WHEN 'JICG'.
+        wa_data-cg_rt = <fs_gst>-kbetr / 10.
+        IF <fs_gst>-shkzg = lv_h.
+          wa_data-cg_am = <fs_gst>-hwste * ( -1 ).
+        ELSEIF <fs_gst>-shkzg = lv_s.
+          wa_data-cg_am = <fs_gst>-hwste.
+        ENDIF.
+
+      WHEN 'JISG'.
+        wa_data-sg_rt = <fs_gst>-kbetr / 10.
+        IF <fs_gst>-shkzg = lv_h.
+          wa_data-sg_am = <fs_gst>-hwste * ( -1 ).
+        ELSEIF <fs_gst>-shkzg = lv_s.
+          wa_data-sg_am = <fs_gst>-hwste.
+        ENDIF.
+      WHEN 'JIIG' OR 'JIMD'.
+        wa_data-ig_rt = <fs_gst>-kbetr / 10.
+        IF <fs_gst>-shkzg = lv_h.
+          wa_data-ig_am = <fs_gst>-hwste * ( -1 ).
+        ELSEIF <fs_gst>-shkzg = lv_s.
+          wa_data-ig_am = <fs_gst>-hwste.
+        ENDIF.
+    ENDCASE.
+
+    COLLECT wa_data INTO ta_data.
+    CLEAR : wa_data,lv_val1,lv_val2,lv_val3.
+  ENDLOOP.
+  UNASSIGN <fs_gst>.
+  DATA : wa_data2 TYPE ty_final,
+         wa_final TYPE ty_final.
+
+  SORT lt_final BY belnr bukrs gjahr.
+
+  LOOP AT ta_data INTO wa_data.
+    READ TABLE lt_final INTO ls_final WITH KEY belnr = wa_data-belnr
+                                               bukrs = wa_data-bukrs
+                                               gjahr = wa_data-gjahr.
+    IF sy-subrc EQ 0.
+      wa_data2 = ls_final.
+      wa_data2-posnr = wa_data-txgrp.
+      APPEND wa_data2 TO lt_final.
+      CLEAR : wa_data2,ls_final.
+    ENDIF.
+    READ TABLE ta_tab INTO DATA(wa_tab) WITH KEY belnr = wa_data-belnr
+                                                 bukrs = wa_data-bukrs
+                                                 gjahr = wa_data-gjahr.
+    IF  sy-subrc EQ 0.
+      DATA(lv_ind) = sy-tabix.
+      LOOP AT ta_tab ASSIGNING FIELD-SYMBOL(<ls_tab>) FROM lv_ind.
+        IF <ls_tab>-belnr NE wa_tab-belnr.
+          EXIT.
+        ELSE.
+          <ls_tab>-flag_gst = abap_true.
+        ENDIF.
+      ENDLOOP.
+      CLEAR lv_ind.
+    ENDIF.
+    CLEAR : wa_data.
+  ENDLOOP.
+
+  DELETE ta_tab WHERE flag_gst EQ abap_true.
+  CLEAR wa_tab.
+  LOOP AT ta_tab INTO wa_tab.
+    READ TABLE lt_final INTO ls_final WITH KEY belnr = wa_tab-belnr
+                                               bukrs = wa_tab-bukrs
+                                               gjahr = wa_tab-gjahr.
+    IF sy-subrc EQ 0.
+      MOVE-CORRESPONDING wa_tab TO wa_final.
+      wa_final-mwskz1 = wa_tab-mwskz.
+      wa_final-maktx1 = wa_tab-mat_desc. " Change added by Inc 8000008444 | TR CRDK987042 | Prathamesh Parab | 15.05.2023
+      wa_final-nature_exp = wa_tab-nature_exp. " Change added by Inc 8000008444 | TR CRDK987165 | Prathamesh Parab | 30.05.2023
+      TRANSLATE wa_final-maktx1 USING gv_name. " Change added by Inc 8000008444 | TR CRDK987042 | Prathamesh Parab | 15.05.2023
+* Start of Change Inc 8000008444 | TR CRDK987383 | Prathamesh Parab | 23.06.2023
+      REPLACE ALL OCCURENCES OF cl_abap_char_utilities=>horizontal_tab IN ls_final-maktx1 WITH ''.
+      REPLACE ALL OCCURENCES OF cl_abap_char_utilities=>cr_lf IN ls_final-maktx1 WITH ''.
+* Start of Change Inc 8000008444 | TR CRDK987415 | Prathamesh Parab | 29.06.2023
+      REPLACE ALL OCCURENCES OF cl_abap_char_utilities=>vertical_tab IN ls_final-maktx1 WITH ''.
+      REPLACE ALL OCCURENCES OF cl_abap_char_utilities=>newline IN ls_final-maktx1 WITH ''.
+      REPLACE ALL OCCURENCES OF cl_abap_char_utilities=>form_feed IN ls_final-maktx1 WITH ''.
+      REPLACE ALL OCCURENCES OF cl_abap_char_utilities=>backspace IN ls_final-maktx1 WITH ''.
+* End of Change Inc 8000008444 | TR CRDK987415 | Prathamesh Parab | 29.06.2023
+* End of Change Inc 8000008444 | TR CRDK987383 | Prathamesh Parab | 23.06.2023
+* Start of Change Inc 8000008444 | TR CRDK987505 | Prathamesh Parab | 10.07.2023
+*     REPLACE ALL OCCURRENCES OF REGEX '[^[:alnum:]]' IN ls_final-maktx1 WITH ''. " Change added by Inc 8000008444 | TR CRDK987497 | Prathamesh Parab | 07.07.2023
+      CLEAR: lv_temp_maktx1, lv_strlen.
+      lv_strlen = strlen( ls_final-maktx1 ).
+      lv_count1 = 0.
+      lv_count2 = 0.
+      WHILE lv_count1 < lv_strlen.
+        IF lc_abc CS ls_final-maktx1+lv_count1(1) OR
+           lc_123 CS ls_final-maktx1+lv_count1(1) OR " Change added by Inc 8000008444 | TR CRDK987522 | Prathamesh Parab | 11.07.2023
+           ls_final-maktx1+lv_count1(1) EQ lc_dot OR " Change added by Inc 8000008444 | TR CRDK987522 | Prathamesh Parab | 11.07.2023
+           ls_final-maktx1+lv_count1(1) EQ space.
+          lv_temp_maktx1+lv_count2(1) = ls_final-maktx1+lv_count1(1).
+          lv_count2 = lv_count2 + 1.
+        ENDIF.
+        lv_count1 = lv_count1 + 1.
+      ENDWHILE.
+      ls_final-maktx1 = lv_temp_maktx1.
+      CLEAR: lv_count1, lv_count2, lv_temp_maktx1, lv_strlen.
+* End of Change Inc 8000008444 | TR CRDK987505 | Prathamesh Parab | 10.07.2023
+
+      APPEND wa_final TO lt_final.
+      CLEAR wa_tab.
+    ENDIF.
+    CLEAR wa_final.
+  ENDLOOP.
+
+  SORT lt_final BY belnr bukrs gjahr posnr.
+
+  LOOP AT lt_final ASSIGNING <fs_final>.
+    READ TABLE ta_data INTO wa_data WITH KEY belnr = <fs_final>-belnr
+                                             bukrs = <fs_final>-bukrs
+                                             gjahr = <fs_final>-gjahr
+                                             txgrp = <fs_final>-posnr.
+    IF sy-subrc EQ 0.
+      <fs_final>-posnr     = wa_data-txgrp.
+      <fs_final>-mwskz1    = wa_data-mwskz.
+      <fs_final>-cgst_rate = wa_data-cg_rt.
+      <fs_final>-sgst_rate = wa_data-sg_rt.
+      <fs_final>-igst_rate = wa_data-ig_rt.
+      <fs_final>-cess_rate = wa_data-ce_rt.
+      <fs_final>-tot_gst =  <fs_final>-igst_rate + <fs_final>-cgst_rate  + <fs_final>-sgst_rate +  <fs_final>-cess_rate.
+      lv_val1 = wa_data-val_bef_disc.
+      lv_val2 = wa_data-val_aft_disc.
+      lv_val3 = wa_data-taxable_val.
+      lv_val4 = wa_data-cg_am.
+      lv_val5 = wa_data-sg_am.
+      lv_val6 = wa_data-ig_am.
+      lv_val7 = wa_data-ce_am.
+
+      CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+        CHANGING
+          value = lv_val1.
+
+      CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+        CHANGING
+          value = lv_val2.
+
+      CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+        CHANGING
+          value = lv_val3.
+
+      CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+        CHANGING
+          value = lv_val4.
+
+      CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+        CHANGING
+          value = lv_val5.
+
+      CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+        CHANGING
+          value = lv_val6.
+
+      CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+        CHANGING
+          value = lv_val7.
+
+      <fs_final>-val_bef_disc = lv_val1.
+      <fs_final>-val_aft_disc = lv_val2.
+      <fs_final>-taxable_val  = lv_val3.
+      <fs_final>-cgst_amt     = lv_val4.
+      <fs_final>-sgst_amt     = lv_val5.
+      <fs_final>-igst_amt     = lv_val6.
+      <fs_final>-cess_amt     = lv_val7.
+      <fs_final>-itc_igst = <fs_final>-igst_amt .
+      <fs_final>-itc_cgst = <fs_final>-cgst_amt .
+      <fs_final>-itc_sgst = <fs_final>-sgst_amt .
+      <fs_final>-itc_cess = <fs_final>-cess_amt .
+
+      IF <fs_final>-tot_gst EQ  0.
+        REPLACE ALL OCCURRENCES OF lv_zero IN <fs_final>-tot_gst WITH lv_blank.
+        REPLACE ALL OCCURRENCES OF lv_dot IN <fs_final>-tot_gst WITH lv_blank.
+      ENDIF.
+      IF <fs_final>-igst_rate EQ 0 .
+        REPLACE ALL OCCURRENCES OF lv_zero IN <fs_final>-igst_rate WITH lv_blank.
+        REPLACE ALL OCCURRENCES OF lv_dot IN <fs_final>-igst_rate WITH lv_blank.
+      ENDIF.
+
+      IF <fs_final>-cgst_rate EQ 0 .
+        REPLACE ALL OCCURRENCES OF lv_zero IN <fs_final>-cgst_rate WITH lv_blank.
+        REPLACE ALL OCCURRENCES OF lv_dot IN <fs_final>-cgst_rate WITH lv_blank.
+      ENDIF.
+      IF <fs_final>-sgst_rate EQ  0 .
+        REPLACE ALL OCCURRENCES OF lv_zero IN <fs_final>-sgst_rate WITH lv_blank.
+        REPLACE ALL OCCURRENCES OF lv_dot IN <fs_final>-sgst_rate WITH lv_blank.
+      ENDIF.
+      IF <fs_final>-cess_rate EQ  0 .
+        REPLACE ALL OCCURRENCES OF lv_zero IN <fs_final>-cess_rate WITH lv_blank.
+        REPLACE ALL OCCURRENCES OF lv_dot IN <fs_final>-cess_rate WITH lv_blank.
+      ENDIF.
+
+      IF <fs_final>-waers NE lv_inr .  "'INR'.
+        <fs_final>-taxability =  lv_import.  "'Import'.
+      ELSE.
+        IF <fs_final>-igst_rate IS INITIAL AND <fs_final>-cgst_rate IS INITIAL AND <fs_final>-sgst_rate IS INITIAL.
+          <fs_final>-taxability = lv_exempted. " 'Exempted'.
+        ELSE.
+          <fs_final>-taxability = lv_taxable.  "'Taxable'.
+        ENDIF.
+      ENDIF.
+      IF <fs_final>-kunrg = lv_vendor.
+        <fs_final>-fkart = lv_bill_of_entry.
+        <fs_final>-taxability = lv_import.
+      ENDIF.
+      IF <fs_final>-mwskz1 = lv_gj.
+        <fs_final>-taxability = lv_suply.
+      ENDIF.
+
+* Start of Change Inc 8000008444 | TR CRDK987155 | Prathamesh Parab | 30.05.2023
+      READ TABLE lt_lfa1 INTO DATA(ls_lfa1_temp) WITH KEY lifnr = <fs_final>-kunrg BINARY SEARCH.
+      IF sy-subrc = 0.
+        IF ls_lfa1_temp-land1 = 'INS'.
+          <fs_final>-fkart = 'Bill of Entry'.
+          <fs_final>-taxability = 'Supply from SEZ'.
+        ENDIF.
+        CLEAR: ls_lfa1_temp.
+      ENDIF.
+* End of Change Inc 8000008444 | TR CRDK987155 | Prathamesh Parab | 30.05.2023
+
+      CALL FUNCTION 'CONVERSION_EXIT_ALPHA_OUTPUT'
+        EXPORTING
+          input  = <fs_final>-matnr
+        IMPORTING
+          output = <fs_final>-matnr.
+
+      IF <fs_final>-matnr EQ lv_matnr.
+        <fs_final>-taxability = lv_nongst.
+      ENDIF.
+      "End of Addition
+      CLEAR <fs_final>-elg_itc.
+      IF <fs_final>-mwskz1 = lv_gd OR
+         <fs_final>-mwskz1 = lv_gn OR
+         <fs_final>-mwskz1 = lv_gk OR
+         <fs_final>-mwskz1 = lv_gj OR
+         <fs_final>-mwskz1 = lv_gh.
+        <fs_final>-elg_itc = lv_no.
+      ENDIF.
+
+      IF <fs_final>-taxability = lv_nongst.
+        <fs_final>-elg_itc = lv_no.
+      ENDIF.
+
+      IF <fs_final>-elg_itc IS INITIAL.
+        IF <fs_final>-steuc+0(2) EQ co_99.
+          <fs_final>-elg_itc = co_is.
+        ENDIF.
+      ENDIF.
+
+      IF <fs_final>-elg_itc IS INITIAL.
+        CLEAR ls_ekko_itc.
+        READ TABLE lt_ekko_itc INTO ls_ekko_itc WITH KEY ebeln = <fs_final>-ebeln.
+        IF sy-subrc = 0.
+          CLEAR ls_zitc_po.
+          READ TABLE lt_zitc_po INTO ls_zitc_po WITH KEY bsart = ls_ekko_itc-bsart purch_group = ls_ekko_itc-ekgrp.
+          IF sy-subrc EQ 0.
+            IF ls_zitc_po-bsart EQ co_zcer AND ls_zitc_po-matkl EQ co_eng008.
+              IF ls_zitc_po-purch_group EQ co_134.
+                <fs_final>-elg_itc = co_cp.
+              ELSEIF ls_zitc_po-purch_group EQ co_155.
+                <fs_final>-elg_itc = co_cp.
+              ENDIF.
+            ENDIF.
+          ENDIF.
+        ENDIF.
+      ENDIF.
+
+      IF <fs_final>-elg_itc IS INITIAL.
+        <fs_final>-elg_itc = co_ip.
+      ENDIF.
+
+    ENDIF.
+*    <fs_final>-gjahr =  s_budat-low+0(4). "LOC Added by Sushank suggested by devang on Date 08.03.2021 for Ticket No :8000006684
+    " Change added by Inc 8000008444 | TR CRDK987042 | Prathamesh Parab | 15.05.2023
+
+    CLEAR : wa_data,lv_val1,lv_val2,lv_val3,lv_val4,lv_val5,lv_val6.
+  ENDLOOP.
+  UNASSIGN <fs_final>.
+
+* Start of Change Inc 8000008444 | TR CRDK987171 | Prathamesh Parab | 31.05.2023
+  LOOP AT lt_final ASSIGNING <fs_final> WHERE mwskz1 = 'GD'.
+    <fs_final>-nature_exp = 'Ineligible procurements u/s 17(5)'.
+  ENDLOOP.
+  UNASSIGN <fs_final>.
+* End of Change Inc 8000008444 | TR CRDK987171 | Prathamesh Parab | 31.05.2023
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  DOWNLOAD_TO_SERVER
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM download_to_server .
+
+  DATA : lt_ddfields TYPE ddfields .
+
+  DATA :      time         TYPE string,
+              year         TYPE string,
+              month        TYPE string,
+              date         TYPE string,
+              line_item    TYPE string,
+              splitter_a   TYPE string,
+              splitter_a1  TYPE string,
+              c_constant_a TYPE i VALUE '50000',
+              no           TYPE string,
+              input        TYPE string,
+              lv_index_1   TYPE sy-tabix,
+              v_count_a    TYPE i.
+
+  DATA : lv_file(262143)   TYPE c,
+         lv_mess           TYPE string,
+         lv_buffer(262143) TYPE c.
+
+  CONSTANTS: lc_tab TYPE abap_char1 VALUE cl_abap_char_utilities=>horizontal_tab .
+
+  IF p_file IS INITIAL.
+    year = s_budat-low+0(4).
+    month = s_budat-low+4(2).
+    CONCATENATE sy-datum+6(2) sy-datum+4(2) sy-datum+0(4) INTO date SEPARATED BY '.'.
+    CONCATENATE sy-uzeit+0(2) sy-uzeit+2(2) sy-uzeit+4(2) INTO time SEPARATED BY '.'.
+    IF sy-sysid = 'CRD'.       "Development 220
+
+    ELSEIF sy-sysid = 'CRQ'.   "Quality 400
+
+    ELSEIF sy-sysid = 'CRP'.   "Production 500
+**      CONCATENATE 'D:\ASP_GST\Incoming\' 'FINANCIAL_PURCHASE_SAP_MIRO' s_bukrs-low '_' s_bupla-low '_'  year '_' month '_' date '_' time  '.txt' INTO lv_file.
+      CONCATENATE '\\INCSAPFS001\sapal11\ASP_GST\Incoming\' 'FINANCIAL_PURCHASE_SAP_MIRO_REGISTER_' s_bukrs-low '_'  s_bupla-low '_' year '_' month '_' date '_' time '_' no '.txt' INTO lv_file.
+    ENDIF.
+  ELSE.
+    lv_file = p_file.
+  ENDIF.
+  CALL METHOD cl_salv_ddic=>get_by_data
+    EXPORTING
+      data    = lt_final
+    RECEIVING
+      t_dfies = lt_ddfields.
+
+  OPEN DATASET lv_file FOR OUTPUT IN TEXT MODE ENCODING DEFAULT MESSAGE lv_mess .
+
+  CHECK sy-subrc EQ 0 .
+
+  PERFORM create_server_heading USING :  'COCD',
+                                         'CONm',
+                                         'State',
+                                         'GSTIN',
+                                         'Yr',
+                                         'Mth',
+                                         'ADocNo',
+                                         'ADocDt',
+                                         'TrCt',
+                                         'Curr',
+                                         'GLAC',
+                                         'DocTy',
+                                         'Taxblty',
+                                         'SupTy',
+                                         'SuppCd',
+                                         'Natsup',
+                                         'GSTINofsup',
+                                         'SupSt',
+                                         'NmSup',
+                                         'InNo.',
+                                         'InDt',
+                                         'InVal',
+                                         'RevCg',
+                                         'POS',
+                                         'LItem',
+                                         'ItCd',
+                                         'Cat',
+                                         'HSN',
+                                         'ProdDes',
+                                         'UQC',
+                                         'Qty',
+                                         'PPrice',
+                                         'Disct',
+                                         'NetPur',
+                                         'VAT',
+                                         'CExc',
+                                         'StExc',
+                                         'TaxVal',
+                                         'TotRt',
+                                         'IGSTRt',
+                                         'IGSTAmt',
+                                         'CGSTRt',
+                                         'CGSTAmt',
+                                         'SGSTRt',
+                                         'SGSTAmt',
+                                         'CESSRt',
+                                         'CESSAmt',
+                                         'ElgITC',
+                                         'ITCIGST',
+                                         'ITCCGST',
+                                         'ITCSGST',
+                                         'ITCCess',
+                                         'Natexp',
+                                         'ShFrSt',
+                                         'ShToSt',
+                                         'WBNo',
+                                         'TrNm',
+                                         'LRNo',
+                                         'LRDt',
+                                         'CNODocNo',
+                                         'CNODocDt',
+                                         'ReasCN',
+                                         'Bbcd',
+                                         'Cust',
+                                         'port',
+                                         'IfAdAdj',
+                                         'AdNo',
+                                         'AdInDt',
+                                         'IsAm',
+                                         'AYr',
+                                         'AMth',
+                                         'AGST',
+                                         'ADocNo',
+                                         'ADocDt',
+                                         'IsIsd',
+                                         'ISD',
+                                         'Tcode',          " MIS-1
+                                         'Miro',           " MIS-2
+                                         'prctr',          " MIS-3
+                                         'plt',            " MIS-4
+                                         'COri',           " MIS-5
+                                         'Ece',
+                                         'Hce',
+                                         'M8',
+                                         'M9',
+                                         'M10',
+                                         'Material/Product Desc.',          "Added by vaibhav
+                                         'Tax Code',                        "Added by vaibhav
+                                         'Migo Doc no',                     "Added by vaibhav
+                                         'batch no',                        "Added by vaibhav
+                                         'Migo posting date',
+                                         'PO Number',
+                                         'PO Date',
+                                         'MAT_GRP',
+                                         'MTGR_DESC'.
+
+  LOOP AT lt_ddfields ASSIGNING <lfs_ddfields> .
+    lv_index_1 = sy-tabix.
+
+    READ TABLE lt_ddfields_1 INTO lfs_ddfields_1 INDEX  lv_index_1 .
+    IF sy-subrc = 0.
+      <lfs_ddfields>-fieldtext = lfs_ddfields_1-fieldtext .
+    ENDIF.
+
+    TRANSFER <lfs_ddfields>-fieldtext TO lv_file NO END OF LINE .
+    TRANSFER lc_tab TO lv_file NO END OF LINE .
+
+  ENDLOOP.
+
+  TRANSFER space TO lv_file .
+
+  DESCRIBE TABLE lt_final LINES v_count_a.
+
+* Using it_ddfields we can make the output more excel friendly....
+  LOOP AT lt_final INTO ls_final .
+    splitter_a = splitter_a + 1.
+    splitter_a1 = splitter_a1 + 1.
+    LOOP AT lt_ddfields ASSIGNING <lfs_ddfields> .
+      ASSIGN COMPONENT <lfs_ddfields>-fieldname OF STRUCTURE ls_final TO <lfs_component> .
+      WRITE <lfs_component> TO lv_buffer LEFT-JUSTIFIED .
+      CASE <lfs_ddfields>-inttype .
+        WHEN 'I' OR 'P' .
+          IF <lfs_component> LT 0 .
+            WRITE <lfs_component> TO lv_buffer+1 NO-SIGN LEFT-JUSTIFIED .
+            WRITE '-' TO lv_buffer+0(1) .
+          ENDIF .
+        WHEN 'N' .
+          lv_buffer = <lfs_component> .
+        WHEN OTHERS .
+      ENDCASE .
+
+      IF <lfs_ddfields>-fieldname EQ 'MAKTX1'.
+        lv_buffer = lv_buffer+0(7).
+      ENDIF.
+
+
+      CONDENSE lv_buffer." NO-GAPS."Added by Nikita
+
+      TRANSFER lv_buffer TO lv_file NO END OF LINE .
+      TRANSFER lc_tab TO lv_file NO END OF LINE .
+
+    ENDLOOP.
+************************************************************
+* for segregate
+    IF splitter_a EQ c_constant_a." OR splitter_a1 EQ v_count_a  .
+      no = no + 1.
+      CLOSE DATASET lv_file.
+
+      IF p_file IS INITIAL.
+
+        CONCATENATE sy-datum+6(2) sy-datum+4(2) sy-datum+0(4) INTO input SEPARATED BY '.'.
+
+        CONCATENATE sy-uzeit+0(2) sy-uzeit+2(2) sy-uzeit+4(2) INTO time SEPARATED BY '.'.
+        IF sy-sysid = 'CRD'.       "Development 220
+
+        ELSEIF sy-sysid = 'CRQ'.   "Quality 400
+
+        ELSEIF sy-sysid = 'CRP'.   "Production 500
+**          CONCATENATE 'D:\ASP_GST\Incoming\' 'FINANCIAL_PURCHASE_SAP_MIRO' s_bukrs-low '_' s_bupla-low '_'  year '_' month '_' date '_' time '_' no '.txt' INTO lv_file. "CHANGES BY CICEL ON 06.11.2019
+          CONCATENATE '\\INCSAPFS001\sapal11\ASP_GST\Incoming\' 'FINANCIAL_PURCHASE_SAP_MIRO_REGISTER_' s_bukrs-low '_'  s_bupla-low '_' year '_' month '_' date '_' time '_' no '.txt' INTO lv_file.  "COMMENTED BY CICEL ON 06.11.2019
+        ENDIF.
+      ELSE.
+        lv_file = p_file.
+      ENDIF.
+      OPEN DATASET lv_file FOR OUTPUT IN TEXT MODE ENCODING DEFAULT MESSAGE lv_mess .
+      splitter_a  = 0 .
+    ENDIF.
+
+    TRANSFER space TO lv_file.
+
+  ENDLOOP.
+
+  CLOSE DATASET lv_file.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  DOWNLOAD_EXCEL
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM download_excel .
+  DATA: p_file1      TYPE string,
+        it_final2    TYPE TABLE OF ty_final,
+        wa_final2    TYPE ty_final,
+        splitter     TYPE string,
+        splitter1    TYPE i,
+        v_count      TYPE i,
+        v_file_count TYPE string,
+        c_constant   TYPE i VALUE '500000'.
+
+  DESCRIBE TABLE lt_final LINES  v_count.
+
+  REFRESH : lt_heading.
+  PERFORM create_header USING :           'Company Code',
+                                          'Company Name',
+                                          'State',
+                                          'GSTIN',
+                                          'Year',
+                                          'Month',
+                                          'Accounting Document No',
+                                          'Accounting Document Date',
+                                          'Transaction Count',
+                                          'Currency',
+                                          'GL Account',
+                                          'Document Type',
+                                          'Taxability',
+                                          'Supply Type',
+                                          'Supplier Code',
+                                          'Nature of Supplier',
+                                          'GSTIN/UIN of Supplier',
+                                          'Supplier State',
+                                          'Name of Supplier',
+                                          'Invoice No.',
+                                          'Invoice Date',
+                                          'Invoice Value',
+                                          'Supply attract Reverse Charge',
+                                          'POS (State)',
+                                          'Line Item',
+                                          'Item Code',
+                                          'Category',
+                                          'HSN/SAC',
+                                          'Product/Service Description',
+                                          'UQC',
+                                          'Quantity',
+                                          'Purchase Price (before discount)',
+                                          'Discount',
+                                          'Net Purchase Price (after discount)',
+                                          'VAT',
+                                          'Central Excise',
+                                          'State Excise',
+                                          'Taxable Value',
+                                          'Total GST Rate',
+                                          'IGST Rate',
+                                          'IGST Amount',
+                                         'CGST Rate',
+                                          'CGST Amount',
+                                          'SGST Rate',
+                                          'SGST Amount',
+                                          'CESS Rate',
+                                          'CESS Amount',
+                                          'Eligibility of ITC',
+                                          'ITC IGST (Amt)',
+                                          'ITC CGST (Amt)',
+                                          'ITC SGST (Amt)',
+                                          'ITC Cess (Amt)',
+                                         'Nature of expense',
+                                          'Ship From State',
+                                          'Ship To State',
+                                          'Way Bill No',
+                                          'Transporter Name',
+                                          'Lorry Receipt No',
+                                          'Lorry Receipt Date',
+                                          'Credit/Debit Note (Original Doc No)',
+                                          'Credit/Debit Note (Original Doc Date)',
+                                          'Reason for Credit/Debit Note',
+                                          'Assessable value before BCD',
+                                          'Basic Custom Duty',
+                                          'Port Code',
+                                          'If Advance Adjustment',
+                                          'Advance Adjustment (Invoice No)',
+                                          'Advance Adjustment (Invoice Date)',
+                                          'Is Amendment',
+                                          'Amendment (Original Year)',
+                                          'Amendment (Original Month)',
+                                          'Amendment (Original Recepient GSTIN)',
+                                          'Amendment (Original Doc No)',
+                                          'Amendment (Original Doc Date)',
+                                          'Is ISD',
+                                          'ISD (Location Details)',
+                                          'Tcode',
+                                          'Miro Doc. No',
+                                          'Profit Centre',
+                                          'Plant Code',
+                                          'Cancelled Original',
+                                          'E Cess',
+                                          'Higher E Cess',
+                                          'MIS-8',
+                                          'MIS-9',
+                                          'MIS-10',
+                                          'Material/Product Desc.',
+                                          'Tax Code',
+                                          'Migo Doc No',
+                                          'batch no',
+                                          'Migo posting date',
+                                          'PO Number',
+                                          'PO Date',
+                                          'MAT_GRP',
+                                          'MTGR_DESC',
+* Start of Change Inc 8000008444 | TR CRDK987042 | Prathamesh Parab | 15.05.2023
+                                          'IRN No',
+                                          'IRN Date'.
+* End of Change Inc 8000008444 | TR CRDK987042 | Prathamesh Parab | 15.05.2023
+  LOOP AT lt_final INTO  ls_final.
+    splitter = splitter + 1.
+    splitter1 = splitter1 + 1.
+    MOVE-CORRESPONDING  ls_final TO wa_final2.
+    wa_final2-flag = ''.
+    wa_final2-table = ''.
+    APPEND wa_final2 TO it_final2.
+
+    IF splitter EQ c_constant OR splitter1 EQ v_count .
+      v_file_count = v_file_count + 1.
+
+
+      p_file1 = p_file.
+      CONCATENATE p_file1 '_' v_file_count  INTO p_file1.
+
+
+
+*  p_file1 = p_file.
+      CALL FUNCTION 'GUI_DOWNLOAD'
+        EXPORTING
+          filename                = p_file1
+          filetype                = 'ASC'
+          write_field_separator   = 'X'
+        TABLES
+          data_tab                = it_final2
+          fieldnames              = lt_heading
+        EXCEPTIONS
+          file_write_error        = 1
+          no_batch                = 2
+          gui_refuse_filetransfer = 3
+          invalid_type            = 4
+          no_authority            = 5
+          unknown_error           = 6
+          header_not_allowed      = 7
+          separator_not_allowed   = 8
+          filesize_not_allowed    = 9
+          header_too_long         = 10
+          dp_error_create         = 11
+          dp_error_send           = 12
+          dp_error_write          = 13
+          unknown_dp_error        = 14
+          access_denied           = 15
+          dp_out_of_memory        = 16
+          disk_full               = 17
+          dp_timeout              = 18
+          file_not_found          = 19
+          dataprovider_exception  = 20
+          control_flush_error     = 21
+          OTHERS                  = 22.
+
+      CLEAR splitter.
+      REFRESH it_final2.
+    ENDIF.
+  ENDLOOP.
+
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form  DEFAULT_FILE
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM default_file .
+  IF r2 = lv_x."'X'.
+    DATA : lv_file TYPE string.
+*IF p_file IS INITIAL.
+    CONCATENATE 'C:\Users\divakar.kavali\Desktop\cipla\OUTWARD' sy-datum  '.txt'  INTO lv_file.
+    p_file = lv_file.
+*  ENDIF.
+  ENDIF.
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form  FILE_F4
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM file_f4 .
+
+  CALL FUNCTION 'F4_FILENAME'
+    EXPORTING
+      program_name  = syst-cprog
+      dynpro_number = syst-dynnr
+      field_name    = 'P_FILE'
+    IMPORTING
+      file_name     = p_file.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  CREATE_HEADER
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_1205   text
+*----------------------------------------------------------------------*
+FORM create_header  USING p_1205.
+
+  lw_heading-text = p_1205.
+  APPEND lw_heading TO lt_heading.
+  CLEAR lw_heading.
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form  MODIFY_SCREEN
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM modify_screen .
+
+  IF r1 =  lv_x ."'X'.
+    LOOP AT SCREEN.
+      IF screen-group1 = 'DAT'.
+        screen-active = 0.
+        MODIFY SCREEN.
+      ENDIF.
+    ENDLOOP.
+  ELSEIF r2 = lv_x.  "'X'.
+    LOOP AT SCREEN.
+      IF screen-group1 = 'DAT'.
+        screen-active = 1.
+        MODIFY SCREEN.
+      ENDIF.
+    ENDLOOP.
+  ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  F4_BUPLA
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM f4_bupla .
+  TYPES : BEGIN OF typ_j_1bbranch_f4,
+            bukrs  TYPE j_1bbranch-bukrs,
+            name   TYPE j_1bbranch-name,
+            branch TYPE j_1bbranch-branch,
+          END OF typ_j_1bbranch_f4.
+
+
+  DATA : lt_j_1bbranch_f4 TYPE TABLE OF typ_j_1bbranch_f4,
+         lt_return        TYPE TABLE OF ddshretval,
+         lt_dynpread      TYPE TABLE OF dynpread,
+         ls_dynpread      TYPE dynpread,
+         ls_j_1bbranch_f4 TYPE typ_j_1bbranch_f4,
+         ls_return        TYPE  ddshretval.
+
+
+*PARAMETERS  P_BUKRS TYPE VBRK-BUKRS.
+  ls_dynpread-fieldname = 'S_BUKRS-LOW'. "s_bukrs
+  APPEND ls_dynpread TO lt_dynpread.
+*D020S-PROG
+*D020S-DNUM
+
+  CALL FUNCTION 'DYNP_VALUES_READ'
+    EXPORTING
+      dyname               = sy-cprog
+      dynumb               = sy-dynnr
+      translate_to_upper   = 'X'
+    TABLES
+      dynpfields           = lt_dynpread
+    EXCEPTIONS
+      invalid_abapworkarea = 1
+      invalid_dynprofield  = 2
+      invalid_dynproname   = 3
+      invalid_dynpronummer = 4
+      invalid_request      = 5
+      no_fielddescription  = 6
+      invalid_parameter    = 7
+      undefind_error       = 8
+      double_conversion    = 9
+      stepl_not_found      = 10
+      OTHERS               = 11.
+  IF sy-subrc <> 0.
+* Implement suitable error handling here
+  ENDIF.
+
+  LOOP AT lt_dynpread INTO ls_dynpread.
+    s_bukrs-sign = 'I'.
+    s_bukrs-option =  'EQ'.
+    s_bukrs-low =  ls_dynpread-fieldvalue.
+    APPEND s_bukrs TO s_bukrs[] .
+  ENDLOOP.
+
+  SELECT bukrs name branch
+    FROM j_1bbranch
+    INTO TABLE  lt_j_1bbranch_f4
+    WHERE bukrs IN s_bukrs[].
+  CLEAR s_bukrs[].
+*
+*
+  CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+    EXPORTING
+      retfield        = 'BUPLA'
+      dynpprog        = sy-cprog
+      dynpnr          = sy-dynnr
+      dynprofield     = 'S_BUPLA'
+      value_org       = 'S'
+      multiple_choice = 'X'
+    TABLES
+      value_tab       = lt_j_1bbranch_f4
+      return_tab      = lt_return
+    EXCEPTIONS
+      parameter_error = 1
+      no_values_found = 2
+      OTHERS          = 3.
+  IF sy-subrc <> 0.
+* Implement suitable error handling here
+  ENDIF.
+
+
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  CREATE_SERVER_HEADING
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_7606   text
+*----------------------------------------------------------------------*
+FORM create_server_heading  USING p_descrption   .
+  lfs_ddfields_1-fieldtext = p_descrption.
+  APPEND lfs_ddfields_1 TO  lt_ddfields_1  .
+  CLEAR lfs_ddfields_1.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  MIRO_TAB_DATA
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM miro_tab_data .
+
+  DATA : gv_memid_tab TYPE char25 VALUE 'ZFI_MIRO',
+         lv_flg_tab   TYPE flag.
+
+***Clear memory id
+  gv_memid_tab = |{ gv_memid_tab }{ sy-uname }|.
+  FREE MEMORY ID gv_memid_tab.
+
+  lv_flg_tab = abap_true.
+
+  EXPORT lv_flg_tab FROM abap_true TO MEMORY ID gv_memid_tab.
+***Submit Statement
+  SUBMIT zgst_miro_tab
+      WITH s_bukrs IN s_bukrs
+      WITH s_bupla IN s_bupla
+      WITH s_budat IN s_budat
+      WITH s_belnr IN s_belnr
+      WITH p_file  EQ p_file
+      WITH r1 EQ r1
+      WITH r2 EQ r2
+   AND RETURN.
+
+*** Import Statement
+  IMPORT ta_tab TO ta_tab FROM MEMORY ID gv_memid_tab.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  DISPLAY_ALV
+*&---------------------------------------------------------------------*
+*       Subroutine to display ALV
+*----------------------------------------------------------------------*
+FORM display_alv .
+
+  PERFORM build_fieldcatalog USING 'BUKRS' '' 'Company Code' '' '12' '' ''.
+  PERFORM build_fieldcatalog USING 'BUTXT' '' 'Company Name' '' '12' '' ''.
+  PERFORM build_fieldcatalog USING 'STATE' '' 'State' '' '5' '' ''.
+  PERFORM build_fieldcatalog USING 'GSTIN' '' 'GSTIN' '' '5' '' ''.
+  PERFORM build_fieldcatalog USING 'GJAHR' '' 'Year' '' '4' '' ''.
+  PERFORM build_fieldcatalog USING 'MONTH' '' 'Month' '' '5' '' ''.
+* Start of Change Inc 8000008444 | TR CRDK987552 | Prathamesh Parab | 13.07.2023
+* PERFORM build_fieldcatalog USING 'BELNR' '' 'Accounting Document No' '' '22' '' ''.
+  PERFORM build_fieldcatalog USING 'BELNR' '' '' 'Accounting Document No.' '22' '' ''.
+* PERFORM build_fieldcatalog USING 'BLDAT' '' 'Accounting Document Date' '' '24' '' ''.
+  PERFORM build_fieldcatalog USING 'BLDAT' '' '' 'Accounting Document Date' '24' '' ''.
+* End of Change Inc 8000008444 | TR CRDK987552 | Prathamesh Parab | 13.07.2023
+  PERFORM build_fieldcatalog USING 'TRANS_COUNT' '' 'Transaction Count' '' '17' '' ''.
+  PERFORM build_fieldcatalog USING 'WAERS' '' 'Currency' '' '8' '' ''.
+  PERFORM build_fieldcatalog USING 'SAKNR' '' 'GL Account' '' '10' '' ''.
+  PERFORM build_fieldcatalog USING 'FKART' '' 'Document Type' '' '13' '' ''.
+  PERFORM build_fieldcatalog USING 'TAXABILITY' '' 'Taxability' '' '10' '' ''.
+  PERFORM build_fieldcatalog USING 'SUPP_TYPE' '' 'Supply Type' '' '11' '' ''.
+  PERFORM build_fieldcatalog USING 'KUNRG' '' 'Supplier Code' '' '13' '' ''.
+  PERFORM build_fieldcatalog USING 'NAT_RECPNT' '' 'Nature of Supplier' '' '18' '' ''.
+* Start of Change Inc 8000008444 | TR CRDK987552 | Prathamesh Parab | 13.07.2023
+* PERFORM build_fieldcatalog USING 'STCD3' '' 'GSTIN/UIN of Supplier' '' '21' '' ''.
+  PERFORM build_fieldcatalog USING 'STCD3' '' '' 'GSTIN/UIN of Supplier' '25' '' ''.
+* End of Change Inc 8000008444 | TR CRDK987552 | Prathamesh Parab | 13.07.2023
+  PERFORM build_fieldcatalog USING 'REP_STATE' '' 'Supplier State' '' '14' '' ''.
+  PERFORM build_fieldcatalog USING 'NAME1' '' 'Name of Supplier' '' '16' '' ''.
+  PERFORM build_fieldcatalog USING 'VBELN' '' 'Invoice No.' '' '11' '' ''.
+  PERFORM build_fieldcatalog USING 'ERDAT' '' 'Invoice Date' '' '12' '' ''.
+  PERFORM build_fieldcatalog USING 'NETWR' '' 'Invoice Value' '' '13' '' ''.
+  PERFORM build_fieldcatalog USING 'REV_CHARGE' '' 'Supply attract Reverse Charge' '' '29' '' ''.
+  PERFORM build_fieldcatalog USING 'POS_STATE' '' 'POS (State)' '' '11' '' ''.
+  PERFORM build_fieldcatalog USING 'POSNR' '' 'Line Item' '' '9' '' ''.
+  PERFORM build_fieldcatalog USING 'MATNR' '' 'Item Code' '' '9' '' ''.
+  PERFORM build_fieldcatalog USING 'CATEGORY' '' 'Category' '' '8' '' ''.
+  PERFORM build_fieldcatalog USING 'STEUC' '' 'HSN/SAC' '' '7' '' ''.
+* Start of Change Inc 8000008444 | TR CRDK987552 | Prathamesh Parab | 13.07.2023
+* PERFORM build_fieldcatalog USING 'MAKTX' '' 'Product/Service Description' '' '27' '' ''.
+  PERFORM build_fieldcatalog USING 'MAKTX' '' '' 'Product/Service Description' '27' '' ''.
+* End of Change Inc 8000008444 | TR CRDK987552 | Prathamesh Parab | 13.07.2023
+  PERFORM build_fieldcatalog USING 'VRKME' '' 'UQC' '' '3' '' ''.
+  PERFORM build_fieldcatalog USING 'FKIMG' '' 'Quantity' '' '8' '' ''.
+* Start of Change Inc 8000008444 | TR CRDK987552 | Prathamesh Parab | 13.07.2023
+* PERFORM build_fieldcatalog USING 'VAL_BEF_DISC' '' 'Purchase Price (before discount)' '' '32' '' ''.
+  PERFORM build_fieldcatalog USING 'VAL_BEF_DISC' '' '' 'Purchase Price (before discount)' '32' '' ''.
+* End of Change Inc 8000008444 | TR CRDK987552 | Prathamesh Parab | 13.07.2023
+  PERFORM build_fieldcatalog USING 'DISCOUNT' '' 'Discount' '' '8' '' ''.
+* Start of Change Inc 8000008444 | TR CRDK987552 | Prathamesh Parab | 13.07.2023
+* PERFORM build_fieldcatalog USING 'VAL_AFT_DISC' '' 'Net Purchase Price (after discount)' '' '35' '' ''.
+  PERFORM build_fieldcatalog USING 'VAL_AFT_DISC' '' '' 'Net Purchase Price (after discount)' '35' '' ''.
+* End of Change Inc 8000008444 | TR CRDK987552 | Prathamesh Parab | 13.07.2023
+  PERFORM build_fieldcatalog USING 'VAT' '' 'VAT' '' '3' '' ''.
+  PERFORM build_fieldcatalog USING 'C_EXCISE' '' 'Central Excise' '' '14' '' ''.
+  PERFORM build_fieldcatalog USING 'S_EXCISE' '' 'State Excise' '' '12' '' ''.
+  PERFORM build_fieldcatalog USING 'TAXABLE_VAL' '' 'Taxable Value' '' '13' '' ''.
+  PERFORM build_fieldcatalog USING 'TOT_GST' '' 'Total GST Rate' '' '14' '' ''.
+  PERFORM build_fieldcatalog USING 'IGST_RATE' '' 'IGST Rate' '' '9' '' ''.
+  PERFORM build_fieldcatalog USING 'IGST_AMT' '' 'IGST Amount' '' '11' '' ''.
+  PERFORM build_fieldcatalog USING 'CGST_RATE' '' 'CGST Rate' '' '9' '' ''.
+  PERFORM build_fieldcatalog USING 'CGST_AMT' '' 'CGST Amount' '' '11' '' ''.
+  PERFORM build_fieldcatalog USING 'SGST_RATE' '' 'SGST Rate' '' '9' '' ''.
+  PERFORM build_fieldcatalog USING 'SGST_AMT' '' 'SGST Amount' '' '11' '' ''.
+  PERFORM build_fieldcatalog USING 'CESS_RATE' '' 'CESS Rate' '' '9' '' ''.
+  PERFORM build_fieldcatalog USING 'CESS_AMT' '' 'CESS Amount' '' '11' '' ''.
+  PERFORM build_fieldcatalog USING 'ELG_ITC' '' 'Eligibility of ITC' '' '18' '' ''.
+  PERFORM build_fieldcatalog USING 'ITC_IGST' '' 'ITC IGST (Amt)' '' '14' '' ''.
+  PERFORM build_fieldcatalog USING 'ITC_CGST' '' 'ITC CGST (Amt)' '' '14' '' ''.
+  PERFORM build_fieldcatalog USING 'ITC_SGST' '' 'ITC SGST (Amt)' '' '14' '' ''.
+  PERFORM build_fieldcatalog USING 'ITC_CESS' '' 'ITC Cess (Amt)' '' '14' '' ''.
+  PERFORM build_fieldcatalog USING 'NATURE_EXP' '' 'Nature of expense' '' '17' '' ''.
+  PERFORM build_fieldcatalog USING 'SHIP_FROM_STATE' '' 'Ship From State' '' '15' '' ''.
+  PERFORM build_fieldcatalog USING 'SHIP_TO_STATE' '' 'Ship To State' '' '13' '' ''.
+  PERFORM build_fieldcatalog USING 'WAY_BILL_NO' '' 'Way Bill No' '' '11' '' ''.
+  PERFORM build_fieldcatalog USING 'TRANSPORTER' '' 'Transporter Name' '' '16' '' ''.
+  PERFORM build_fieldcatalog USING 'LORRY_NO' '' 'Lorry Receipt No' '' '16' '' ''.
+  PERFORM build_fieldcatalog USING 'LORRY_DATE' '' 'Lorry Receipt Date' '' '18' '' ''.
+* Start of Change Inc 8000008444 | TR CRDK987552 | Prathamesh Parab | 13.07.2023
+* PERFORM build_fieldcatalog USING 'CDN_NO' '' 'Credit/Debit Note (Original Doc No)' '' '35' '' ''.
+  PERFORM build_fieldcatalog USING 'CDN_NO' '' '' 'Credit/Debit Note (Original Doc No)' '35' '' ''.
+* PERFORM build_fieldcatalog USING 'CDN_DATE' '' 'Credit/Debit Note (Original Doc Date)' '' '37' '' ''.
+  PERFORM build_fieldcatalog USING 'CDN_DATE' '' '' 'Credit/Debit Note (Original Doc Date)' '37' '' ''.
+* PERFORM build_fieldcatalog USING 'CDN_REASON' '' 'Reason for Credit/Debit Note' '' '28' '' ''.
+  PERFORM build_fieldcatalog USING 'CDN_REASON' '' '' 'Reason for Credit/Debit Note' '28' '' ''.
+* PERFORM build_fieldcatalog USING 'ASSESS_VALUE' '' 'Assessable value before BCD' '' '27' '' ''.
+  PERFORM build_fieldcatalog USING 'ASSESS_VALUE' '' '' 'Assessable value before BCD' '27' '' ''.
+* End of Change Inc 8000008444 | TR CRDK987552 | Prathamesh Parab | 13.07.2023
+  PERFORM build_fieldcatalog USING 'BASIC_CUST_DUTY' '' 'Basic Custom Duty' '' '17' '' ''.
+  PERFORM build_fieldcatalog USING 'PORT_CODE' '' 'Port Code' '' '9' '' ''.
+* Start of Change Inc 8000008444 | TR CRDK987552 | Prathamesh Parab | 13.07.2023
+* PERFORM build_fieldcatalog USING 'IS_ADV_ADJ' '' 'If Advance Adjustment' '' '21' '' ''.
+  PERFORM build_fieldcatalog USING 'IS_ADV_ADJ' '' '' 'If Advance Adjustment' '21' '' ''.
+* PERFORM build_fieldcatalog USING 'ADV_ADJ_NO' '' 'Advance Adjustment (Invoice No)' '' '31' '' ''.
+  PERFORM build_fieldcatalog USING 'ADV_ADJ_NO' '' '' 'Advance Adjustment (Invoice No)' '31' '' ''.
+* PERFORM build_fieldcatalog USING 'ADV_ADJ_DATE' '' 'Advance Adjustment (Invoice Date)' '' '33' '' ''.
+  PERFORM build_fieldcatalog USING 'ADV_ADJ_DATE' '' '' 'Advance Adjustment (Invoice Date)' '33' '' ''.
+* End of Change Inc 8000008444 | TR CRDK987552 | Prathamesh Parab | 13.07.2023
+  PERFORM build_fieldcatalog USING 'IS_AMD' '' 'Is Amendment' '' '12' '' ''.
+* Start of Change Inc 8000008444 | TR CRDK987552 | Prathamesh Parab | 13.07.2023
+* PERFORM build_fieldcatalog USING 'AMD_YEAR' '' 'Amendment (Original Year)' '' '25' '' ''.
+  PERFORM build_fieldcatalog USING 'AMD_YEAR' '' '' 'Amendment (Original Year)' '25' '' ''.
+* PERFORM build_fieldcatalog USING 'AMD_MONTH' '' 'Amendment (Original Month)' '' '26' '' ''.
+  PERFORM build_fieldcatalog USING 'AMD_MONTH' '' '' 'Amendment (Original Month)' '26' '' ''.
+* PERFORM build_fieldcatalog USING 'AMD_GSTIN' '' 'Amendment (Original Recepient GSTIN)' '' '36' '' ''.
+  PERFORM build_fieldcatalog USING 'AMD_GSTIN' '' '' 'Amendment (Original Recepient GSTIN)' '36' '' ''.
+* PERFORM build_fieldcatalog USING 'AMD_DOC_NO' '' 'Amendment (Original Doc No)' '' '27' '' ''.
+  PERFORM build_fieldcatalog USING 'AMD_DOC_NO' '' '' 'Amendment (Original Doc No)' '27' '' ''.
+* PERFORM build_fieldcatalog USING 'AMD_DOC_DATE' '' 'Amendment (Original Doc Date)' '' '29' '' ''.
+  PERFORM build_fieldcatalog USING 'AMD_DOC_DATE' '' '' 'Amendment (Original Doc Date)' '29' '' ''.
+* End of Change Inc 8000008444 | TR CRDK987552 | Prathamesh Parab | 13.07.2023
+  PERFORM build_fieldcatalog USING 'IS_ISD' '' 'Is ISD' '' '6' '' ''.
+* Start of Change Inc 8000008444 | TR CRDK987552 | Prathamesh Parab | 13.07.2023
+* PERFORM build_fieldcatalog USING 'ISD' '' 'ISD (Location Details)' '' '22' '' ''.
+  PERFORM build_fieldcatalog USING 'ISD' '' '' 'ISD (Location Details)' '22' '' ''.
+* End of Change Inc 8000008444 | TR CRDK987552 | Prathamesh Parab | 13.07.2023
+  PERFORM build_fieldcatalog USING 'MIS1' '' 'Tcode' '' '5' '' ''.
+  PERFORM build_fieldcatalog USING 'MIS2' '' 'Miro Doc. No' '' '12' '' ''.
+  PERFORM build_fieldcatalog USING 'MIS3' '' 'Profit Centre' '' '13' '' ''.
+  PERFORM build_fieldcatalog USING 'MIS4' '' 'Plant Code' '' '10' '' ''.
+  PERFORM build_fieldcatalog USING 'MIS5' '' 'Cancelled Original' '' '18' '' ''.
+  PERFORM build_fieldcatalog USING 'MIS6' '' 'E Cess' '' '6' '' ''.
+  PERFORM build_fieldcatalog USING 'MIS7' '' 'Higher E Cess' '' '13' '' ''.
+  PERFORM build_fieldcatalog USING 'MIS8' '' 'MIS-8' '' '5' '' ''.
+  PERFORM build_fieldcatalog USING 'MIS9' '' 'MIS-9' '' '5' '' ''.
+  PERFORM build_fieldcatalog USING 'MIS10' '' 'MIS-10' '' '6' '' ''.
+* Start of Change Inc 8000008444 | TR CRDK987552 | Prathamesh Parab | 13.07.2023
+* PERFORM build_fieldcatalog USING 'MAKTX1' '' 'Material/Product Desc.' '' '22' '' ''.
+  PERFORM build_fieldcatalog USING 'MAKTX1' '' '' 'Material/Product Desc.' '22' '' ''.
+* End of Change Inc 8000008444 | TR CRDK987552 | Prathamesh Parab | 13.07.2023
+  PERFORM build_fieldcatalog USING 'MWSKZ1' '' 'Tax Code' '' '8' '' ''.
+  PERFORM build_fieldcatalog USING 'LFBNR' '' 'Migo Doc No' '' '11' '' ''.
+  PERFORM build_fieldcatalog USING 'CHARG' '' 'Batch no' '' '8' '' ''.
+  PERFORM build_fieldcatalog USING 'BUDAT' '' 'Migo posting date' '' '17' '' ''.
+  PERFORM build_fieldcatalog USING 'EBELN' '' 'PO Number' '' '9' '' ''.
+  PERFORM build_fieldcatalog USING 'BUDAT1' '' 'PO Date' '' '7' '' ''.
+  PERFORM build_fieldcatalog USING 'MAT_GRP' '' 'Material Group ' '' '15' '' ''.
+* Start of Change Inc 8000008444 | TR CRDK987552 | Prathamesh Parab | 13.07.2023
+* PERFORM build_fieldcatalog USING 'MTGR_DESC' '' 'Material Group Description ' '' '27' '' ''.
+  PERFORM build_fieldcatalog USING 'MTGR_DESC' '' '' 'Material Group Description ' '27' '' ''.
+* End of Change Inc 8000008444 | TR CRDK987552 | Prathamesh Parab | 13.07.2023
+  PERFORM build_fieldcatalog USING 'IRN_NO' '' 'IRN No' '' '80' '' ''.
+  PERFORM build_fieldcatalog USING 'IRN_DATE' '' 'IRN Date' '' '10' '' ''.
+
+  DATA: wa_layout TYPE  slis_layout_alv.
+
+  wa_layout-colwidth_optimize = 'X'.
+
+  CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+    EXPORTING
+      i_callback_program = sy-repid
+      is_layout          = wa_layout
+      it_fieldcat        = lt_fieldcat
+    TABLES
+      t_outtab           = lt_final
+    EXCEPTIONS
+      program_error      = 1.
+
+  IF sy-subrc = 0.
+    "Do Nothing
+  ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  BUILD_FIELDCATALOG
+*&---------------------------------------------------------------------*
+*       Subroutine to build ALV fieldcatalog
+*----------------------------------------------------------------------*
+FORM build_fieldcatalog  USING u_fname
+                               u_seltext_s
+                               u_seltext_m
+                               u_seltext_l
+                               u_outputlen
+                               u_ref_field
+                               u_ref_table.
+
+  wa_fieldcat-fieldname     = u_fname.
+  wa_fieldcat-seltext_s     = u_seltext_s.
+  wa_fieldcat-seltext_m     = u_seltext_m.
+  wa_fieldcat-seltext_l     = u_seltext_l.
+  wa_fieldcat-outputlen     = u_outputlen.
+  wa_fieldcat-ref_tabname   = u_ref_table.
+  wa_fieldcat-ref_fieldname = u_ref_field.
+  APPEND wa_fieldcat TO lt_fieldcat.
+  CLEAR wa_fieldcat.
+
+ENDFORM.

@@ -1,0 +1,3579 @@
+*----------------------------------------------------------------------*
+***INCLUDE ZQM_V2_FORMS_ANN
+*----------------------------------------------------------------------*
+
+*&---------------------------------------------------------------------*
+*&      Form  CREATE_MERGED_MASTER_DOC
+*&---------------------------------------------------------------------*
+* Program         : Issuance of Annexture
+* Title           : Annexture Development
+* Author          : Sushil Pandey
+* Program Type    : Module Pool
+* Creation Date   : 18.12.2020
+* Transaction     : ZQM_ANNEXTURE
+* Functional design: QM_155
+* Technical design:
+* Change request :  <8000006529>
+* Transport number: <transport number>
+* Description     : Issuance of Annexture
+*----------------------------------------------------------------------*
+* Modification Information
+* Date            :
+* Author          :
+* Transport number:
+* Description     :
+*	*----------------------------------------------------------------------*
+FORM create_merged_master_doc .
+**  IF gv_file_path IS INITIAL.  "added for #8000003013 By Payal S on 06.09.2017 1.Same Template Name can be uploaded
+**    gv_file_path = p_static.
+**  ENDIF. "added for #8000003013 By Payal S on 06.09.2017
+***  g_time = sy-uzeit.  "comment timezone changes for 8000003697 by payal on 14.11.2017
+**  PERFORM create_obj_word USING gv_file_path. "p_static."change for #8000003013 By Payal S on 06.09.2017 1.Same Template Name can be uploaded
+**  PERFORM set_actview USING '9'.
+**  PERFORM set_font.
+**  PERFORM set_bold USING '1'.
+***  PERFORM fill_header.
+**  PERFORM update_batch_header.
+**  PERFORM divide_section.
+**  PERFORM dynamic_heading.
+**  PERFORM set_actview USING '0'.
+**  PERFORM set_text_alignment USING 0.
+**  PERFORM set_font.
+**  PERFORM set_bold USING '0'.
+**  FREE OBJECT: g_actwin, g_actpane, g_actview.
+**  PERFORM fetch_notes.
+**  IF doc_type = 'BMR'.
+**    SORT gt_mdoc_caution BY ds_code.
+**    PERFORM bmr_initial_section.
+**    PERFORM new_line.
+**    PERFORM bmr_stages_data1.
+**  ELSEIF doc_type = 'BPR'.
+******S.O.C Rahul Nishankar #8000004096 CRDK955491 14/06/2018
+**    " begin of changes #8000005794 21.05.2020
+***    IF gv_bukrs IS INITIAL.
+**    IF ( gv_bukrs IS INITIAL ) AND ( gv_bukrs_sa IS INITIAL ).
+**      " end of changes #8000005794
+**      PERFORM bpr_initial_section.
+**    ELSE.
+**      PERFORM f_bpr_initial_section_us.
+**    ENDIF.
+******E.O.C Rahul Nishankar #8000004096 CRDK955491 14/06/2018
+**
+**    PERFORM new_line.
+**    PERFORM bpr_stages_data1.
+**  ENDIF.
+
+  PERFORM save_temp_file.
+**  PERFORM close_word_instance.
+ENDFORM.                    " CREATE_MERGED_MASTER_DOC
+*&---------------------------------------------------------------------*
+*&      Form  FILL_HEADER
+*&---------------------------------------------------------------------*
+FORM fill_header .
+  DATA: l_printflag.
+  "Plant Code
+  PERFORM word_find USING c_hd_plant
+                    '0' '1' '1' '0' '0' 'True' '1' '0'
+                    p_plant '2'.
+  "Plant Name
+  PERFORM word_find USING c_hd_pdesc
+                  '0' '1' '1' '0' '0' 'True' '1' '0'
+                  p_wdesc '2'.
+
+**  "Department Name
+**  PERFORM fetch_department.
+**  PERFORM word_find USING c_hd_dept
+**                  '0' '1' '1' '0' '0' 'True' '1' '0'
+**                  gv_hd_dept '2'.
+
+  IF doc_type = 'ZAN'.
+    "Product Name
+    PERFORM word_find USING c_hd_prod
+                    '0' '1' '1' '0' '0' 'True' '1' '0'
+                    p_mdesc '2'.
+    "SFG code(in case of BMR), material entered on screen in SFG material itself "In case of BPR, idnrk with material type ZBFG
+    PERFORM idnrk_conversion_output USING p_mat CHANGING gv_hd_sfg.
+    PERFORM word_find USING c_hd_sfg
+                      '0' '1' '1' '0' '0' 'True' '1' '0'
+                      gv_hd_sfg '2'.
+  ELSEIF doc_type = 'BPR'.
+    "Brand Name
+    PERFORM word_find USING c_hd_brand
+                '0' '1' '1' '0' '0' 'True' '1' '0'
+                p_mdesc '2'.
+    "FG code
+    PERFORM idnrk_conversion_output USING p_mat CHANGING gv_hd_fg.
+    PERFORM word_find USING c_hd_fg
+                    '0' '1' '1' '0' '0' 'True' '1' '0'
+                    gv_hd_fg '2'.
+
+    "Pack Size
+    PERFORM fetch_packsize_custfg.
+    PERFORM word_find USING c_hd_pack
+        '0' '1' '1' '0' '0' 'True' '1' '0'
+        gv_hd_pack '2'.
+
+    "SFG code(in case of BPR) = idnrk with material type ZBFG "In case of BMR, material entered on screen is SFG material itself
+    PERFORM fetch_sfg_code_and_desc.
+    PERFORM word_find USING c_hd_sfg
+    '0' '1' '1' '0' '0' 'True' '1' '0'
+    gv_hd_sfg '2'.
+    PERFORM word_find USING c_hd_sfg_desc
+        '0' '1' '1' '0' '0' 'True' '1' '0'
+        gv_hd_sfg_desc '2'.
+  ENDIF.
+
+
+
+*  "Country
+*  PERFORM fetch_country_name.
+  "Customer Name
+*  PERFORM fetch_customer_name.
+*  PERFORM fetch_country_customer.   "added for combined fetch_country_name & fetch_customer_name
+*
+*  CLEAR zpp_bmr_cust.
+*  SELECT SINGLE * FROM  zpp_bmr_cust CLIENT SPECIFIED
+*         WHERE  mandt  = sy-mandt
+*         AND    land1  = gv_country
+*         AND    kunnr  = gv_cust.
+
+*  IF sy-subrc NE 0.
+*    CONCATENATE gv_hd_cust ',' gv_hd_country INTO gv_hd_cust SEPARATED BY space.
+*    c_hd_cust = 'Annexture Number'.
+  gv_hd_cust = ann_no.
+  PERFORM word_find USING c_hd_cust
+                      '0' '1' '1' '0' '0' 'True' '1' '0'
+                      gv_hd_cust '2'.
+*
+*    "Production Version
+*    PERFORM word_find USING c_hd_prd_vn
+*              '0' '1' '1' '0' '0' 'True' '1' '0'
+*              p_prd_vn '2'.
+*  ENDIF.
+  IF sy-subrc = 0.
+*  CLEAR  gv_hd_cust.
+    IF zpp_bmr_cust-land1print = 'X' AND zpp_bmr_cust-kunnrprint = 'X' .
+      CONCATENATE gv_hd_cust ',' gv_hd_country INTO gv_hd_cust SEPARATED BY space.
+*    l_printflag = 'X'.
+    ELSEIF zpp_bmr_cust-land1print = 'X'.
+      CONCATENATE gv_hd_country '' INTO gv_hd_cust SEPARATED BY space.
+*    l_printflag = 'X'.
+    ELSEIF zpp_bmr_cust-kunnrprint = 'X'.
+      CONCATENATE gv_hd_cust '' INTO gv_hd_cust SEPARATED BY space.
+*    l_printflag = 'X'.
+    ELSEIF zpp_bmr_cust-land1print IS INITIAL AND zpp_bmr_cust-kunnrprint IS INITIAL.
+      CLEAR gv_hd_cust.
+    ENDIF.
+  ELSE.
+**    soc by 25.06.2014
+    CONCATENATE gv_hd_cust ',' gv_hd_country INTO gv_hd_cust SEPARATED BY space.
+*    CLEAR gv_hd_cust.
+**    eoc by 25.06.2014
+  ENDIF.
+
+*    IF l_printflag = 'X'.
+  PERFORM word_find USING c_hd_cust
+                      '0' '1' '1' '0' '0' 'True' '1' '0'
+                      gv_hd_cust '2'.
+
+  "Production Version
+  PERFORM word_find USING c_hd_prd_vn
+            '0' '1' '1' '0' '0' 'True' '1' '0'
+            p_prd_vn '2'.
+*    ENDIF.
+*  ENDIF.
+ENDFORM.                    " FILL_HEADER
+*&---------------------------------------------------------------------*
+*&      Form  DYNAMIC_HEADING
+*&---------------------------------------------------------------------*
+FORM dynamic_heading .
+  CALL METHOD OF g_selection 'Expand' EXPORTING #1 = 6.
+  CALL METHOD OF g_selection 'EndKey' EXPORTING #1 = 5.
+  CALL METHOD OF g_selection 'MoveLeft'.
+  CALL METHOD OF g_selection 'InsertRows' EXPORTING #1 = 1.
+  CALL METHOD OF g_selection 'Collapse'.
+  CALL METHOD OF g_selection 'MoveRight' EXPORTING #1 = 1 #2 = 6 #3 = 1.
+  GET PROPERTY OF g_selection 'Cells' = g_cell.
+  CALL METHOD OF g_cell 'Merge'.
+  CALL METHOD OF g_selection 'MoveLeft'.
+  PERFORM set_font.
+  PERFORM set_bold USING 1.
+  IF doc_type = 'ZAN'.
+    PERFORM set_text_alignment USING 1.
+    PERFORM write_text USING c_hd_heading_bmr.
+  ELSEIF doc_type = 'BPR'.
+    PERFORM set_text_alignment USING 0.
+    PERFORM write_text USING c_hd_heading_bpr.
+  ENDIF.
+*  PERFORM new_line.
+ENDFORM.                    " DYNAMIC_HEADING
+*&---------------------------------------------------------------------*
+*&      Form  BMR_INITIAL_SECTION
+*&---------------------------------------------------------------------*
+FORM bmr_initial_section .
+  TYPES: BEGIN OF ty_section,
+           name  TYPE string,
+           value TYPE string,
+         END OF ty_section.
+  DATA: lv_count   TYPE i, lv_text TYPE string, lt_section TYPE TABLE OF ty_section WITH HEADER LINE.
+
+  PERFORM create_table USING 1 3.
+  PERFORM set_bold USING 0.
+  PERFORM set_table_border USING 0.
+  PERFORM set_row_height USING 20.
+  PERFORM set_column_width USING 1 125.
+  PERFORM set_column_width USING 2 17.
+  PERFORM set_column_width USING 3 392.
+  PERFORM write_cell_text USING 1 1 'BATCH SIZE' 1 0.
+  PERFORM write_cell_text USING 1 2 ':' 1 0.
+*  IF p_regu = 'X'. "Commented
+
+  IF p_inj = 'X'.
+    CONCATENATE '&' '0000' p_mat 'Q' '&' INTO gv_batchsize.
+    PERFORM write_cell_text USING 1 3 gv_batchsize 1 0.
+  ELSE.
+    PERFORM fetch_batchsize.
+    PERFORM write_cell_text USING 1 3 gv_batchsize 1 0.
+  ENDIF.
+
+
+*  ELSE.
+*    PERFORM write_cell_text USING 1 3 c_mview_batchsize 1 0.
+*  ENDIF.
+  PERFORM free_table.
+  PERFORM new_line.
+  PERFORM initialize_font.
+
+  PERFORM create_table USING 1 6.
+  PERFORM set_table_border USING 0.
+  PERFORM set_row_height USING 20.
+  PERFORM set_column_width USING 1 125.
+  PERFORM set_column_width USING 2 17.
+  PERFORM set_column_width USING 3 120.
+  PERFORM set_column_width USING 4 135.
+  PERFORM set_column_width USING 5 17.
+  PERFORM set_column_width USING 6 120.
+
+
+  PERFORM write_cell_text USING 1 1 'MANUFACTURING DATE' 1 0.
+  PERFORM write_cell_text USING 1 2 ':' 1 0.
+  " begin of changes #8000005794 21.05.2020
+  IF gv_bukrs_sa IS NOT INITIAL.
+  ELSE.
+    " end of changes
+    CONCATENATE '&' p_format ' &' INTO lv_text.
+    PERFORM write_cell_text USING 1 3 lv_text 1 0.
+  ENDIF. " added changes #8000005794 21.05.2020
+  IF p_expiry = 'X'.
+    PERFORM set_text_alignment USING 1.
+    PERFORM write_cell_text USING 1 4 'EXPIRY DATE' 1 0.
+  ELSE.
+    PERFORM write_cell_text USING 1 4 'PROVISIONAL EXPIRY DATE' '1' '0'.
+  ENDIF.
+  PERFORM write_cell_text USING 1 5 ':' 1 0.
+  CLEAR lv_text.
+  " begin of changes #8000005794 21.05.2020
+  IF gv_bukrs_sa IS NOT INITIAL.
+  ELSE.
+    " end of changes
+    CONCATENATE '&' p_format '&' INTO lv_text.
+    PERFORM write_cell_text USING 1 6 lv_text 1 0.
+  ENDIF. " added changes #8000005794 21.05.2020
+  PERFORM free_table.
+  PERFORM initialize_font.
+  PERFORM new_line.
+
+****S.O.C Rahul Nishankar #8000004096 CRDK955491 14/06/2018
+  IF gv_bukrs IS INITIAL.
+    PERFORM repeating_initial_section.
+  ELSE.
+    PERFORM f_repeating_initial_section_us.
+  ENDIF.
+****E.O.C Rahul Nishankar #8000004096 CRDK955491 14/06/2018
+
+
+  IF p_desc = 'X'.
+    PERFORM fetch_comp_comment USING 'IVER' p_mat CHANGING gv_mview_mfg_desc.
+    lt_section-name = 'DESCRIPTION'.
+    lt_section-value = gv_mview_mfg_desc.
+    APPEND lt_section.
+  ENDIF.
+  IF p_cat = 'X'.
+    PERFORM fetch_category USING p_mat.
+    lt_section-name = 'CATEGORY'.
+    lt_section-value = gv_mview_cat.
+    APPEND lt_section.
+  ENDIF.
+  IF p_lab = 'X'.
+    PERFORM fetch_comp_comment USING 'PRUE' p_mat CHANGING gv_mview_label.
+    lt_section-name = 'LABEL CLAIM'.
+    lt_section-value = gv_mview_label.
+    APPEND lt_section.
+  ENDIF.
+
+  DESCRIBE TABLE lt_section LINES lv_count.
+  PERFORM create_table USING lv_count 3.
+  PERFORM set_table_border USING 0.
+  PERFORM set_row_height USING 20.
+  PERFORM set_column_width USING 1 125.
+  PERFORM set_column_width USING 2 17.
+  PERFORM set_column_width USING 3 391.
+  LOOP AT lt_section.
+    lv_count = sy-tabix.
+    PERFORM write_cell_text USING lv_count 1 lt_section-name 0 0.
+    PERFORM write_cell_text USING lv_count 2 ':' 0 0.
+    PERFORM write_cell_text USING lv_count 3 lt_section-value 0 0.
+  ENDLOOP.
+
+  PERFORM free_table.
+  PERFORM initialize_font.
+ENDFORM.                    " BMR_INITIAL_SECTION
+
+*&---------------------------------------------------------------------*
+*&      Form  BPR_INITIAL_SECTION
+*&---------------------------------------------------------------------*
+FORM bpr_initial_section.
+  TYPES: BEGIN OF ty_section,
+           name  TYPE string,
+           value TYPE string,
+         END OF ty_section.
+  DATA: lv_count   TYPE i, lv_text TYPE string, lt_section TYPE TABLE OF ty_section WITH HEADER LINE.
+  PERFORM create_table USING 3 6.
+  PERFORM set_bold USING 0.
+  PERFORM set_table_border USING 1.
+  PERFORM set_row_height USING 20.
+  PERFORM set_column_width USING 1 125.
+  PERFORM set_column_width USING 2 17.
+  PERFORM set_column_width USING 3 120.
+  PERFORM set_column_width USING 4 135.
+  PERFORM set_column_width USING 5 17.
+  PERFORM set_column_width USING 6 120.
+
+  PERFORM write_cell_text USING 1 1 'MANUFACTURING DATE' 1 0.
+  PERFORM write_cell_text USING 1 2 ':' 1 0.
+  CONCATENATE '&' p_format ' &' INTO lv_text.
+  PERFORM write_cell_text USING 1 3 lv_text 1 0.
+  IF p_expiry = 'X'.
+    PERFORM write_cell_text USING 1 4 'EXPIRY DATE' 1 0.    "2
+  ELSE.
+    PERFORM write_cell_text USING 1 4 'PROVISIONAL EXPIRY DATE' 1 0.    "2
+  ENDIF.
+  PERFORM write_cell_text USING 1 5 ':' 1 0.
+  CLEAR lv_text.
+  CONCATENATE '&' p_format '&' INTO lv_text.
+  PERFORM write_cell_text USING 1 6 lv_text 1 0.
+  PERFORM write_cell_text USING 2 1 'Mother Batch Size' 1 0.
+  PERFORM write_cell_text USING 2 2 ':' 1 0.
+  IF gv_count > 1.
+    gv_mother_qty = 'NA'.
+    gv_mview_mfg_desc = 'NA'.
+    gv_mview_label = 'NA'.
+    gv_mview_cat = 'NA'.
+  ELSE.
+    "Earlier there was a place holder. Would be printed in Batch. But now they want it to be printed in master as well
+*   PERFORM write_cell_text USING 2 3 c_mview_motherbatch 1 0.
+    "Uncommented Again as the logic of mother batch does not work if SFG material contains more than 1 BOMs. The BOM will be determined from Batch. Hence a placeholder.
+    PERFORM write_cell_text USING 2 3 c_mview_motherbatch 1 0.
+    "Mother Batch size = Qty and UOM.
+*   PERFORM fetch_mother_batchsize USING gv_sfg_idnrk. "Commented as now placeholder
+    PERFORM fetch_comp_comment USING 'IVER' gv_sfg_idnrk CHANGING gv_mview_mfg_desc.
+    PERFORM fetch_comp_comment USING 'PRUE' gv_sfg_idnrk CHANGING gv_mview_label.
+    PERFORM fetch_category USING gv_sfg_idnrk.
+  ENDIF.
+
+**  soc as per req by pravin on 30.04.2014
+*  PERFORM write_cell_text USING 2 3 gv_mother_qty 1 0.
+  PERFORM write_cell_text USING 2 3 c_mview_motherbatch 1 0.
+**  eoc as per req by pravin on 30.04.2014
+
+  PERFORM write_cell_text USING 2 4 'Qty.to be Packed' 1 0.     "2
+  PERFORM write_cell_text USING 2 5 ':' 1 0.
+  PERFORM write_cell_text USING 2 6 c_mview_packqty 1 0.
+  PERFORM write_cell_text USING 3 1 'Avg. Weight/Volume' 1 0.
+  PERFORM write_cell_text USING 3 2 ':' 1 0.
+  PERFORM write_cell_text USING 3 3 c_line 1 0.
+  PERFORM write_cell_text USING 3 4 'Export Order No.' 1 0.     "2
+  PERFORM write_cell_text USING 3 5 ':' 1 0.
+  PERFORM write_cell_text USING 3 6 c_mview_expo 1 0.
+  PERFORM free_table.
+*  PERFORM new_line.
+  PERFORM initialize_font.
+
+  IF p_pack = 'X'.
+    lt_section-name = 'Pack Before'.
+    lt_section-value = c_mview_pack.
+    APPEND lt_section.
+  ENDIF.
+  IF p_custb = 'X'.
+    lt_section-name = 'Customer Batch No.'.
+    lt_section-value = c_mview_custb.
+    APPEND lt_section.
+  ENDIF.
+  IF p_markt = 'X'.
+    PERFORM fetch_mrkt_auth.
+    lt_section-name = 'Marketing Authorization No.'.
+    lt_section-value = gv_mview_mauth.
+    APPEND lt_section.
+  ENDIF.
+  IF p_cntry = 'X'.
+    PERFORM fetch_mview_country.
+    lt_section-name = 'Country'.
+    lt_section-value = gv_mview_cntry.
+    APPEND lt_section.
+  ENDIF.
+  IF p_cust = 'X'.
+    lt_section-name = 'Customer FG Code'.
+    lt_section-value = gv_mview_custfg.
+    APPEND lt_section.
+  ENDIF.
+  IF p_shelf = 'X'.
+    PERFORM fetch_shelf_life.
+    lt_section-name = 'Shelf Life'.
+    lt_section-value = gv_mview_shelf.
+    APPEND lt_section.
+  ENDIF.
+  IF p_desc = 'X'.
+    lt_section-name = 'Manufacturing Description'.
+    lt_section-value = gv_mview_mfg_desc.
+    APPEND lt_section.
+  ENDIF.
+  IF p_lab = 'X'.
+    lt_section-name = 'Label Claim'.
+    lt_section-value = gv_mview_label.
+    APPEND lt_section.
+  ENDIF.
+  IF p_cat = 'X'.
+    lt_section-name = 'Category'.
+    lt_section-value = gv_mview_cat.
+    APPEND lt_section.
+  ENDIF.
+
+  DESCRIBE TABLE lt_section LINES lv_count.
+  PERFORM create_table USING lv_count 3.
+  PERFORM set_table_border USING 1.
+  PERFORM no_vertical_border.
+  PERFORM set_row_height USING 20.
+  LOOP AT lt_section.
+    lv_count = sy-tabix + 3.
+    PERFORM set_cell_width USING lv_count 1 125.
+    PERFORM write_cell_text USING lv_count 1 lt_section-name 1 0.
+    PERFORM set_cell_width USING lv_count 2 17.
+    PERFORM write_cell_text USING lv_count 2 ':' 1 0.
+    PERFORM set_cell_width USING lv_count 3 392.
+    PERFORM write_cell_text USING lv_count 3 lt_section-value 1 0.
+  ENDLOOP.
+
+  PERFORM set_cell_right_border USING 1 3 1.
+  PERFORM set_cell_right_border USING 2 3 1.
+  PERFORM set_cell_right_border USING 3 3 1.
+
+  PERFORM free_table.
+  PERFORM new_line.
+  PERFORM initialize_font.
+
+  PERFORM create_table USING 3 6.
+  PERFORM set_table_border USING 0.
+  PERFORM set_row_height USING 20.
+  PERFORM set_column_width USING 1 75.
+  PERFORM set_column_width USING 2 17.
+  PERFORM set_column_width USING 3 175.
+  PERFORM set_column_width USING 4 115.
+  PERFORM set_column_width USING 5 17.
+  PERFORM set_column_width USING 6 135.
+
+  PERFORM write_cell_text USING 1 1 'ISSUED BY' 1 0.
+  PERFORM write_cell_text USING 1 2 ':' 1 0.
+  PERFORM write_cell_text USING 1 3 c_line 1 0.
+  PERFORM write_cell_text USING 1 4 'AUTHORIZED BY' 1 0.
+  PERFORM write_cell_text USING 1 5 ':' 1 0.
+  PERFORM write_cell_text USING 1 6 c_line 1 0.
+  PERFORM write_cell_text USING 2 3 '(QUALITY ASSURANCE)' 1 0.
+  PERFORM write_cell_text USING 2 6 '(DEPARTMENT HEAD)' 1 0.
+  PERFORM write_cell_text USING 3 1 'DATE' 1 0.
+  PERFORM write_cell_text USING 3 2 ':' 1 0.
+  PERFORM write_cell_text USING 3 3 c_line 1 0.
+  PERFORM write_cell_text USING 3 4 'DATE' 1 0.
+  PERFORM write_cell_text USING 3 5 ':' 1 0.
+  PERFORM write_cell_text USING 3 6 c_line 1 0.
+
+  PERFORM free_table.
+  PERFORM initialize_font.
+ENDFORM.                    " BPR_INITIAL_SECTION
+
+
+*&---------------------------------------------------------------------*
+*&      Form  F_BPR_INITIAL_SECTION_US
+*&---------------------------------------------------------------------*
+FORM f_bpr_initial_section_us.
+  TYPES: BEGIN OF ty_section,
+           name  TYPE string,
+           value TYPE string,
+         END OF ty_section.
+  DATA: lv_count   TYPE i, lv_text TYPE string, lt_section TYPE TABLE OF ty_section WITH HEADER LINE.
+  PERFORM create_table USING 3 6.
+  PERFORM set_bold USING 0.
+  PERFORM set_table_border USING 1.
+  PERFORM set_row_height USING 20.
+  PERFORM set_column_width USING 1 125.
+  PERFORM set_column_width USING 2 17.
+  PERFORM set_column_width USING 3 120.
+  PERFORM set_column_width USING 4 135.
+  PERFORM set_column_width USING 5 17.
+  PERFORM set_column_width USING 6 120.
+
+  PERFORM write_cell_text USING 1 1 'MANUFACTURING DATE' 1 0.
+  PERFORM write_cell_text USING 1 2 ':' 1 0.
+  CONCATENATE '&' p_format ' &' INTO lv_text.
+  PERFORM write_cell_text USING 1 3 lv_text 1 0.
+  IF p_expiry = 'X'.
+    PERFORM write_cell_text USING 1 4 'EXPIRY DATE' 1 0.    "2
+  ELSE.
+    PERFORM write_cell_text USING 1 4 'PROVISIONAL EXPIRY DATE' 1 0.    "2
+  ENDIF.
+  PERFORM write_cell_text USING 1 5 ':' 1 0.
+  CLEAR lv_text.
+  CONCATENATE '&' p_format '&' INTO lv_text.
+  PERFORM write_cell_text USING 1 6 lv_text 1 0.
+  PERFORM write_cell_text USING 2 1 'Mother Batch Size' 1 0.
+  PERFORM write_cell_text USING 2 2 ':' 1 0.
+  IF gv_count > 1.
+    gv_mother_qty = 'NA'.
+    gv_mview_mfg_desc = 'NA'.
+    gv_mview_label = 'NA'.
+    gv_mview_cat = 'NA'.
+  ELSE.
+    "Earlier there was a place holder. Would be printed in Batch. But now they want it to be printed in master as well
+*   PERFORM write_cell_text USING 2 3 c_mview_motherbatch 1 0.
+    "Uncommented Again as the logic of mother batch does not work if SFG material contains more than 1 BOMs. The BOM will be determined from Batch. Hence a placeholder.
+    PERFORM write_cell_text USING 2 3 c_mview_motherbatch 1 0.
+    "Mother Batch size = Qty and UOM.
+*   PERFORM fetch_mother_batchsize USING gv_sfg_idnrk. "Commented as now placeholder
+    PERFORM fetch_comp_comment USING 'IVER' gv_sfg_idnrk CHANGING gv_mview_mfg_desc.
+    PERFORM fetch_comp_comment USING 'PRUE' gv_sfg_idnrk CHANGING gv_mview_label.
+    PERFORM fetch_category USING gv_sfg_idnrk.
+  ENDIF.
+
+**  soc as per req by pravin on 30.04.2014
+*  PERFORM write_cell_text USING 2 3 gv_mother_qty 1 0.
+  PERFORM write_cell_text USING 2 3 c_mview_motherbatch 1 0.
+**  eoc as per req by pravin on 30.04.2014
+
+  PERFORM write_cell_text USING 2 4 'Qty.to be Packed' 1 0.     "2
+  PERFORM write_cell_text USING 2 5 ':' 1 0.
+  PERFORM write_cell_text USING 2 6 c_mview_packqty 1 0.
+  PERFORM write_cell_text USING 3 1 'Avg. Weight/Volume' 1 0.
+  PERFORM write_cell_text USING 3 2 ':' 1 0.
+  PERFORM write_cell_text USING 3 3 c_line 1 0.
+  PERFORM write_cell_text USING 3 4 'Export Order No.' 1 0.     "2
+  PERFORM write_cell_text USING 3 5 ':' 1 0.
+  PERFORM write_cell_text USING 3 6 c_mview_expo 1 0.
+  PERFORM free_table.
+*  PERFORM new_line.
+  PERFORM initialize_font.
+
+  IF p_pack = 'X'.
+    lt_section-name = 'Pack Before'.
+    lt_section-value = c_mview_pack.
+    APPEND lt_section.
+  ENDIF.
+  IF p_custb = 'X'.
+    lt_section-name = 'Customer Batch No.'.
+    lt_section-value = c_mview_custb.
+    APPEND lt_section.
+  ENDIF.
+  IF p_markt = 'X'.
+    PERFORM fetch_mrkt_auth.
+    lt_section-name = 'Marketing Authorization No.'.
+    lt_section-value = gv_mview_mauth.
+    APPEND lt_section.
+  ENDIF.
+  IF p_cntry = 'X'.
+    PERFORM fetch_mview_country.
+    lt_section-name = 'Country'.
+    lt_section-value = gv_mview_cntry.
+    APPEND lt_section.
+  ENDIF.
+  IF p_cust = 'X'.
+    lt_section-name = 'Customer FG Code'.
+    lt_section-value = gv_mview_custfg.
+    APPEND lt_section.
+  ENDIF.
+  IF p_shelf = 'X'.
+    PERFORM fetch_shelf_life.
+    lt_section-name = 'Shelf Life'.
+    lt_section-value = gv_mview_shelf.
+    APPEND lt_section.
+  ENDIF.
+  IF p_desc = 'X'.
+    lt_section-name = 'Manufacturing Description'.
+    lt_section-value = gv_mview_mfg_desc.
+    APPEND lt_section.
+  ENDIF.
+  IF p_lab = 'X'.
+    lt_section-name = 'Label Claim'.
+    lt_section-value = gv_mview_label.
+    APPEND lt_section.
+  ENDIF.
+  IF p_cat = 'X'.
+    lt_section-name = 'Category'.
+    lt_section-value = gv_mview_cat.
+    APPEND lt_section.
+  ENDIF.
+
+  DESCRIBE TABLE lt_section LINES lv_count.
+  PERFORM create_table USING lv_count 3.
+  PERFORM set_table_border USING 1.
+  PERFORM no_vertical_border.
+  PERFORM set_row_height USING 20.
+  LOOP AT lt_section.
+    lv_count = sy-tabix + 3.
+    PERFORM set_cell_width USING lv_count 1 125.
+    PERFORM write_cell_text USING lv_count 1 lt_section-name 1 0.
+    PERFORM set_cell_width USING lv_count 2 17.
+    PERFORM write_cell_text USING lv_count 2 ':' 1 0.
+    PERFORM set_cell_width USING lv_count 3 392.
+    PERFORM write_cell_text USING lv_count 3 lt_section-value 1 0.
+  ENDLOOP.
+
+  PERFORM set_cell_right_border USING 1 3 1.
+  PERFORM set_cell_right_border USING 2 3 1.
+  PERFORM set_cell_right_border USING 3 3 1.
+
+  PERFORM free_table.
+  PERFORM new_line.
+  PERFORM initialize_font.
+
+  PERFORM create_table USING 3 6.
+  PERFORM set_table_border USING 0.
+  PERFORM set_row_height USING 20.
+  PERFORM set_column_width USING 1 75.
+  PERFORM set_column_width USING 2 17.
+  PERFORM set_column_width USING 3 175.
+  PERFORM set_column_width USING 4 115.
+  PERFORM set_column_width USING 5 17.
+  PERFORM set_column_width USING 6 135.
+
+  PERFORM write_cell_text USING 1 1 'ISSUED BY' 1 0.
+  PERFORM write_cell_text USING 1 2 ':' 1 0.
+  PERFORM write_cell_text USING 1 3 c_line 1 0.
+  PERFORM write_cell_text USING 1 4 'AUTHORIZED BY' 1 0.
+  PERFORM write_cell_text USING 1 5 ':' 1 0.
+  PERFORM write_cell_text USING 1 6 c_line 1 0.
+  PERFORM write_cell_text USING 2 3 '(QUALITY ASSURANCE)' 1 0.
+  " begin of changes #8000005794 21.05.2020
+  IF gv_bukrs_sa IS INITIAL.
+    " end of changes #8000005794
+    PERFORM write_cell_text USING 2 6 '(MFG. / PACKAGING)' 1 0.
+    " begin of changes #8000005794 21.05.2020
+  ELSE.
+    PERFORM write_cell_text USING 2 6 '(QUALITY ASSURANCE)' 1 0.
+  ENDIF.
+  " end of changes  #8000005794
+  PERFORM write_cell_text USING 3 1 'DATE' 1 0.
+  PERFORM write_cell_text USING 3 2 ':' 1 0.
+  PERFORM write_cell_text USING 3 3 c_line 1 0.
+  PERFORM write_cell_text USING 3 4 'DATE' 1 0.
+  PERFORM write_cell_text USING 3 5 ':' 1 0.
+  PERFORM write_cell_text USING 3 6 c_line 1 0.
+
+  PERFORM free_table.
+  PERFORM initialize_font.
+ENDFORM.                    " F_BPR_INITIAL_SECTION_US
+
+
+
+*&---------------------------------------------------------------------*
+*&      Form  FILL_GT_BOM_BMR
+*&---------------------------------------------------------------------*
+FORM fill_gt_bom_bmr.
+  DATA: lwa_tchw2 TYPE tchw2.
+
+  FIELD-SYMBOLS: <ls_bom> TYPE ty_bom_final.      "ty_bom.
+  DATA: prev_alpgr TYPE cs_alpgr, lv_idnrk TYPE idnrk.
+
+  SORT gt_stb BY alpgr alprf ASCENDING.
+
+  LOOP AT gt_stb INTO gs_stb.
+    PERFORM progress_bar USING 'Fetching BOM data...'.
+    CLEAR: lv_idnrk.
+    "Irrespective of alpgr, save it in an internal table because all components have to be printed in word file
+    MOVE-CORRESPONDING: gs_stb TO gs_final.
+    PERFORM idnrk_conversion_output USING gs_stb-idnrk CHANGING lv_idnrk.
+    gs_final-idnrk = lv_idnrk.
+    PERFORM fetch_comp_text USING gs_stb-idnrk gs_stb-ojtxp CHANGING gs_final-desc. "To fetch long text
+    APPEND gs_final TO gt_final.
+
+    CLEAR gs_bom.
+
+    IF gs_stb-alpgr IS INITIAL OR gs_stb-alpgr <> prev_alpgr.
+      MOVE-CORRESPONDING: gs_stb TO gs_bom.
+      prev_alpgr = gs_stb-alpgr.
+
+***      soc  on 05.11.2014 uom princhanges
+*      IF ( gs_stb-meins = 'AKG' OR gs_stb-meins =  'AL' OR gs_stb-meins = 'AGM' OR gs_stb-meins = 'AVG' OR gs_stb-meins = 'BKG' OR gs_stb-meins = 'ZKG'
+*          OR gs_stb-meins = 'ZLT' OR gs_stb-meins = 'AV1' ) AND gs_stb-mmein IS NOT INITIAL.
+*        gs_bom-meins = gs_stb-mmein.
+*        gs_final-meins = gs_stb-mmein.
+*      ELSE.
+*        gs_bom-meins = gs_stb-meins.
+*      ENDIF.
+      SELECT SINGLE        * FROM  tchw2 CLIENT SPECIFIED
+        INTO lwa_tchw2
+             WHERE  mandt  = sy-mandt
+             AND    msehi  = gs_stb-meins.
+      IF sy-subrc = 0.
+        gs_bom-meins = lwa_tchw2-meins.
+        gs_final-meins = lwa_tchw2-meins.
+      ELSE.
+        gs_bom-meins = gs_stb-meins.
+        gs_final-meins = gs_stb-meins.
+      ENDIF.
+
+***      eoc  on 05.11.2014 uom princhanges
+      gs_bom-idnrk = lv_idnrk.
+      gs_bom-desc = gs_final-desc.
+      APPEND gs_bom TO gt_bom.
+      prev_alpgr = gs_stb-alpgr.
+    ENDIF.
+  ENDLOOP.
+
+  SORT gt_bom BY posnr idnrk ASCENDING.
+
+  IF p_dms IS NOT INITIAL AND mdoc_item_filled IS INITIAL.
+    PERFORM select_mdoc_items. "fetch existing values from zpp_mdoc_item
+    PERFORM select_mdoc_stages.     "added on 11.04.2014 to fetch header data for sequencing
+    "Fetch dispensing stage description
+    LOOP AT gt_bom ASSIGNING <ls_bom>.
+      PERFORM progress_bar USING 'Fetching BOM data...'.
+      READ TABLE gt_disp_stage WITH KEY ds_code = <ls_bom>-ds_code.
+      IF sy-subrc = 0.
+        <ls_bom>-ds_desc = gt_disp_stage-ds_description.
+      ENDIF.
+**start added on 11.04.2014 to fetch header data for sequencing
+      READ TABLE gt_mdoc_stages INTO gs_mdoc_stages WITH KEY ds_code = <ls_bom>-ds_code.
+      IF sy-subrc = 0.
+        <ls_bom>-ds_seq = gs_mdoc_stages-ds_seq.
+      ENDIF.
+      CLEAR gs_mdoc_stages.
+      READ TABLE gt_mdoc_item INTO gs_mdoc_item WITH KEY ds_code = <ls_bom>-ds_code.
+      IF sy-subrc = 0.
+        <ls_bom>-ps_code = gs_mdoc_item-ps_code.
+        <ls_bom>-ps_seq = gs_mdoc_item-ps_seq.
+      ENDIF.
+      CLEAR gs_mdoc_item.
+**end added on 11.04.2014 to fetch header data for sequencing
+    ENDLOOP.
+  ENDIF.
+ENDFORM.                    " FILL_GT_BOM_BMR
+*&---------------------------------------------------------------------*
+*&      Form  FILL_GT_BOM_BPR
+*&---------------------------------------------------------------------*
+FORM fill_gt_bom_bpr .
+  FIELD-SYMBOLS: <ls_bom> TYPE ty_bom_final.    "ty_bom.
+  DATA: prev_alpgr TYPE cs_alpgr, lv_idnrk TYPE idnrk.
+
+**SOC By nilesh 26.04.2019 8000005265
+  CONSTANTS : lc_x(1)    TYPE c VALUE 'X',
+              lc_1(1)    TYPE c VALUE '1',
+              lc_zpbm(5) TYPE c VALUE 'ZPBM'.
+
+  SELECT mandt,
+         matnr,
+         werks,
+         name1,
+         maktx,
+         loekz,
+         ernam,
+         erdat,
+         erzeit
+    FROM zpp_excl_poclub
+    INTO TABLE @DATA(ta_poclub)
+    WHERE matnr = @p_mat
+     AND werks = @p_plant.
+  IF sy-subrc  = 0.
+    SORT ta_poclub BY matnr werks.
+  ENDIF.
+**EOC By nilesh 26.04.2019 8000005265
+
+  SORT gt_stb BY alpgr alprf ASCENDING.
+  LOOP AT gt_stb INTO gs_stb WHERE mtart NE 'ZPBM' AND stufe = 1 .  " OR vwegx = 1 and TTIDX = 1 and VWEGX = 0 and ( mtart = 'ZPBM' or mtart = 'ZBFG' or mtart = 'ZPMO').
+    "Irrespective of alpgr, save it in an internal table because all components have to be printed in word file
+    MOVE-CORRESPONDING: gs_stb TO gs_final.
+    CLEAR: lv_idnrk.
+    PERFORM idnrk_conversion_output USING gs_stb-idnrk CHANGING lv_idnrk.
+    gs_final-idnrk = lv_idnrk.
+
+    PERFORM fetch_comp_text USING gs_stb-idnrk gs_stb-ojtxp CHANGING gs_final-desc. "To fetch long text
+
+
+    APPEND gs_final TO gt_final.
+
+    CLEAR gs_bom.
+    IF gs_stb-alpgr IS INITIAL OR gs_stb-alpgr <> prev_alpgr.
+      MOVE-CORRESPONDING: gs_stb TO gs_bom.
+      gs_bom-idnrk = lv_idnrk.
+      gs_bom-desc = gs_final-desc.
+      APPEND gs_bom TO gt_bom.
+    ENDIF.
+    prev_alpgr = gs_stb-alpgr.
+  ENDLOOP.
+
+  READ TABLE gt_stb INTO gs_stb WITH KEY mtart = lc_zpbm
+                                         stufe = lc_1. " Added By Nilesh 20.08.2019 8000005265
+  IF sy-subrc = 0.                                                "added on 07.01.2015
+    PERFORM idnrk_conversion_input USING gs_stb-idnrk lv_idnrk.
+
+    CALL FUNCTION 'CS_BOM_EXPL_MAT_V2'
+      EXPORTING
+        capid                 = 'PI01'      "'PP01'   changed on 10.12.2014
+*       mehrs                 = 'X'    "commented on 23.07.2015  "uncommented as this changes are not moved  commented on 30.11.2015
+        datuv                 = g_date "sy-datum "timezone changes for 8000003697 by payal on 14.11.2017
+        mtnrv                 = lv_idnrk
+        werks                 = p_plant
+        emeng                 = wa_stko-bmeng                        "1  chnged on 10.12.2014
+        stlan                 = '1'
+        stlal                 = wa_stko-stlal           "added on 08.01.2015
+        verid                 = p_prd_vn                       "added on 10.12.2014
+      TABLES
+        stb                   = gt_stb2
+      EXCEPTIONS
+        alt_not_found         = 1
+        call_invalid          = 2
+        material_not_found    = 3
+        missing_authorization = 4
+        no_bom_found          = 5
+        no_plant_data         = 6
+        no_suitable_bom_found = 7
+        OTHERS                = 8.
+
+    DATA: lv_index  TYPE sy-index,
+          gs_stb_n  TYPE stpox,
+          gs_stb_n1 TYPE stpox.
+
+    REFRESH : gta_stb_tmp1.
+
+*delete  gt_stb2 WHERE stufe ge 3.  "added on 17.11.2015
+    gta_stb_tmp1[] = gt_stb2[].
+    SORT gta_stb_tmp1 BY stufe wegxx.
+
+*  LOOP AT gt_stb2 INTO gs_stb WHERE fmeng = 'X'.
+    LOOP AT gta_stb_tmp1 INTO gs_stb WHERE fmeng = 'X'.
+      lv_index = sy-tabix.
+      CLEAR gs_stb_n.
+*    READ TABLE gt_stb2 INTO gs_stb_n INDEX lv_index - 1.
+*    IF  gs_stb_n-idnrk = gs_stb-idnrk .
+*      gs_stb_n-menge = gs_stb_n-menge + gs_stb-menge.
+*      MODIFY TABLE gt_stb2 FROM gs_stb_n TRANSPORTING menge.
+*    ENDIF.
+
+*    READ TABLE gt_stb2 INTO gs_stb_n INDEX lv_index - 1.
+
+
+***    start of comment  on 13.08.2014 for changes in fixed & variable qty logic
+*    READ TABLE gta_stb_tmp1 INTO gs_stb_n INDEX lv_index - 1.
+*    IF sy-subrc = 0.
+*      IF gs_stb-idnrk = gs_stb_n-idnrk AND gs_stb_n-alpgr IS INITIAL.
+*        gs_stb_n-menge = gs_stb_n-menge + gs_stb-menge.
+**        MODIFY TABLE gt_stb2 FROM gs_stb_n TRANSPORTING menge. " index lv_index - 1.
+*        MODIFY TABLE gta_stb_tmp1 FROM gs_stb_n TRANSPORTING menge. " index lv_index - 1.
+*      ELSE.
+**        LOOP AT gt_stb2 INTO gs_stb_n1 WHERE alpgr = gs_stb_n-alpgr.
+*          LOOP AT gta_stb_tmp1 INTO gs_stb_n1 WHERE alpgr = gs_stb_n-alpgr.
+*            gs_stb_n1-menge = gs_stb_n1-menge + gs_stb-menge.
+**          MODIFY TABLE gt_stb2 FROM gs_stb_n1 TRANSPORTING menge. " index lv_index - 1.
+*            MODIFY TABLE gta_stb_tmp1 FROM gs_stb_n1 TRANSPORTING menge. " index lv_index - 1.
+*          ENDLOOP.
+*      ENDIF.
+*    ENDIF.
+***    end of comment  on 13.08.2014 for changes in fixed & variable qty logic
+
+***SOC By nilesh 24.04.2019 8000005265
+      READ TABLE ta_poclub INTO DATA(wa_poclub) WITH KEY matnr = p_mat werks = p_plant loekz = ' '.
+      IF sy-subrc NE 0.
+***EOC By nilesh 24.04.2019 8000005265
+***    start of addition  on 13.08.2014 for changes in fixed & variable qty logic
+        READ TABLE gta_stb_tmp1 INTO gs_stb_n INDEX lv_index - 1.
+        IF sy-subrc = 0 AND gs_stb_n-fmeng = ''.
+          IF gs_stb-idnrk = gs_stb_n-idnrk AND gs_stb_n-alpgr IS INITIAL.
+***        soc on 10.12.2014
+*        gs_stb_n-menge = gs_stb_n-menge + gs_stb-menge.
+*        MODIFY TABLE gta_stb_tmp1 FROM gs_stb_n TRANSPORTING menge. " index lv_index - 1.
+            gs_stb_n-mngko = gs_stb_n-mngko + gs_stb-mngko.
+            MODIFY TABLE gta_stb_tmp1 FROM gs_stb_n TRANSPORTING mngko.
+***        eoc on 10.12.2014
+
+          ELSE.
+            IF gs_stb_n-alpgr IS NOT INITIAL.
+              LOOP AT gta_stb_tmp1 INTO gs_stb_n1 WHERE alpgr = gs_stb_n-alpgr.
+***        soc on 10.12.2014
+*            gs_stb_n1-menge = gs_stb_n1-menge + gs_stb-menge.
+*            MODIFY TABLE gta_stb_tmp1 FROM gs_stb_n1 TRANSPORTING menge. " index lv_index - 1.
+                gs_stb_n1-mngko = gs_stb_n1-mngko + gs_stb-mngko.
+                MODIFY TABLE gta_stb_tmp1 FROM gs_stb_n1 TRANSPORTING mngko.
+***        eoc on 10.12.2014
+
+                CLEAR gs_stb_n1.
+              ENDLOOP.
+            ENDIF.
+          ENDIF.
+        ENDIF.
+***SOC By nilesh 24.04.2019 8000005265
+      ENDIF.  "EOC By Nilesh  8000005265 24.04.2019
+***    end of addition  on 13.08.2014 for changes in fixed & variable qty logic
+    ENDLOOP.
+
+*SOC By Nilesh 800005265 24.04.2019
+    READ TABLE ta_poclub INTO DATA(wa_poclub1) WITH KEY matnr = p_mat werks = p_plant loekz = ' '.
+    IF sy-subrc NE 0.
+      DELETE gt_stb2 WHERE fmeng = lc_x.
+    ENDIF.
+*EOC By Nilesh 800005265 24.04.2019
+
+****  SOA by sneha for getting proper cal of fixed & variable qty.
+    LOOP AT gt_stb2 INTO gs_stb WHERE fmeng = ''.
+
+      READ TABLE gta_stb_tmp1 INTO gs_stb_n1 WITH KEY idnrk = gs_stb-idnrk
+                                                       posnr = gs_stb-posnr
+                                                       fmeng = ''.
+*                                                       stufe = gs_stb-stufe.  "added on 17.11.2015
+      IF sy-subrc = 0.
+
+        MOVE-CORRESPONDING gs_stb_n1 TO gs_stb.
+
+        MODIFY gt_stb2 FROM gs_stb.
+
+      ENDIF.
+
+    ENDLOOP.
+****  SOA by sneha for getting proper cal of fixed & variable qty.
+    CLEAR prev_alpgr.
+    LOOP AT gt_stb2 INTO gs_stb WHERE stufe = 1." and TTIDX = 1 and WEGXX = 1." and ( mtart = 'ZPBM' or mtart = 'ZBFG' or mtart = 'ZPMO').
+      CLEAR: lv_idnrk.
+      "Irrespective of alpgr, save it in an internal table because all components have to be printed in word file
+      MOVE-CORRESPONDING: gs_stb TO gs_final.
+      PERFORM idnrk_conversion_output USING gs_stb-idnrk CHANGING lv_idnrk.
+      gs_final-idnrk = lv_idnrk.
+      PERFORM fetch_comp_text USING gs_stb-idnrk gs_stb-ojtxp CHANGING gs_final-desc. "To fetch long text
+      APPEND gs_final TO gt_final.
+
+      CLEAR gs_bom.
+
+      IF gs_stb-alpgr IS INITIAL OR gs_stb-alpgr <> prev_alpgr.
+        MOVE-CORRESPONDING: gs_stb TO gs_bom.
+*      IF gs_bom-desc IS NOT INITIAL AND gs_bom-ds_code IS NOT INITIAL.      "added on 18.04.2014 for issue disp code for stage Issuance of bulk not dislaying
+        gs_bom-idnrk = lv_idnrk.
+        gs_bom-desc = gs_final-desc.
+        APPEND gs_bom TO gt_bom.
+        prev_alpgr = gs_stb-alpgr.
+        prev_alpgr = gs_stb-alpgr.
+      ENDIF.
+*    ENDIF.
+    ENDLOOP.
+  ENDIF.        "end added on 07.01.2015
+  " SORT gt_bom BY posnr idnrk ASCENDING.
+
+  IF p_dms IS NOT INITIAL AND mdoc_item_filled IS INITIAL.
+    PERFORM select_mdoc_items. "fetch existing values from zpp_mdoc_item
+    "Fetch dispensing stage description
+    LOOP AT gt_bom ASSIGNING <ls_bom>.
+      READ TABLE gt_disp_stage WITH KEY ds_code = <ls_bom>-ds_code.
+      IF sy-subrc = 0.
+        <ls_bom>-ds_desc = gt_disp_stage-ds_description.
+      ENDIF.
+    ENDLOOP.
+  ENDIF.
+
+  SORT gt_bom BY posnr.
+ENDFORM.                    " FILL_GT_BOM_BPR
+*&---------------------------------------------------------------------*
+*&      Form  GET_BMR_ITEM_TABLE_CONTENT
+*&---------------------------------------------------------------------*
+*       -->P_PREV_PROCESS     text
+*       -->P_IDNRK            text
+*       <--P_SUPERSCRIPT_FLAG text
+*----------------------------------------------------------------------*
+FORM get_bmr_item_table_content USING p_prev_process
+                               CHANGING p_superscript_flag
+                                        ls_final TYPE ty_bom_final.
+  DATA: p_idnrk TYPE idnrk.
+  DATA: lv_idnrk       TYPE idnrk,
+        lv_lots(2)     TYPE c,
+        lv_uom         TYPE tchw2,
+        ls_spare_ind   TYPE zpp_spare_ind,
+        ls_bmr_remarks LIKE LINE OF gt_bmr_remarks.
+
+  CLEAR gt_bmr_remarks.
+
+  p_idnrk = ls_final-idnrk.
+  lv_idnrk = p_idnrk.
+  IF p_prev_process <> ls_final-ps_code.
+    READ TABLE gt_process WITH KEY ps_code = ls_final-ps_code.
+    gv_mview_process = gt_process-ps_desc.
+    IF ls_final-lots IS NOT INITIAL AND ls_final-lots NE '0'.
+      lv_lots = ls_final-lots.
+      CONCATENATE gv_mview_process ' ( NO. OF LOTS ' lv_lots ')' INTO gv_mview_process SEPARATED BY space.
+    ENDIF.
+    PERFORM write_process_description.
+  ENDIF.
+
+  "Logic for UOM "It should not be hardcoded
+*  IF gs_final-meins = 'AKG' OR gs_final-meins = 'AL' OR gs_final-meins = 'AGM'
+*  OR gs_final-meins = 'AVG' OR gs_final-meins = 'BKG' OR gs_final-meins = 'ZKG'
+*  OR gs_final-meins = 'ZLT' OR gs_final-meins = 'AV1'.
+*    gs_final-meins =  gs_final-mmein.
+*  ENDIF.
+  SELECT SINGLE * FROM tchw2 INTO lv_uom WHERE refme = ls_final-meins. "If entry found, then replace with mmein
+  IF sy-subrc = 0.
+    ls_final-meins = lv_uom-meins.      "gs_final-mmein.
+  ENDIF.
+
+
+***soa on 30.11.2015 for bom data
+  PERFORM output_unit USING ls_final-meins.
+***eoa on 30.11.2015
+
+  gv_mview_uom = ls_final-meins.
+
+  CLEAR ls_spare_ind.
+  SELECT SINGLE * FROM zpp_spare_ind INTO ls_spare_ind WHERE sp_indicator = ls_final-erskz.
+
+  IF sy-subrc = 0. "zpp_spare_ind table is maintained
+    "Logic for API remark
+    IF ls_spare_ind-api_remarks IS NOT INITIAL.
+      gt_bmr_remarks-type = 1. "Type 1 implies a superscript has to be printed before it
+      "gt_bmr_remarks-id = gs_final-erskz. "A remark to print at the end of table.
+      gt_bmr_remarks-id = 'A'. "As of now, hardcoding it to A as if there are components with A and also components with B, the same remark will get printed more than once
+      gt_bmr_remarks-remark = ls_spare_ind-api_remarks.
+      APPEND gt_bmr_remarks.
+      p_superscript_flag = 'X'.
+    ENDIF.
+    "Logic for quantity
+    IF ls_spare_ind-qty_status IS INITIAL OR ls_spare_ind-qty_status = '0'.
+      gt_bmr_remarks-type = 2. "No Superscript
+      CONCATENATE p_idnrk ls_final-erskz INTO gt_bmr_remarks-id.
+**    soc on 11.04.2014 for placeholder of remarks quantity
+      IF p_inj = 'X'.
+        CONCATENATE '&' ls_final-posnr p_idnrk 'Q&' INTO gv_mview_qty.
+      ELSE.
+**    eoc on 11.04.2014 for placeholder of remarks quantity
+***        soc on 27.06.2014 for EA NOS NO qty
+*        gv_mview_qty = ls_final-menge.
+***        soc on 10.12.2014
+*        PERFORM convert_qty USING ls_final-menge ls_final-meins CHANGING gv_mview_qty.
+        PERFORM convert_qty USING ls_final-mngko ls_final-meins CHANGING gv_mview_qty.
+***        eoc on 10.12.2014
+***        eoc on 27.06.2014 for EA NOS NO qty
+      ENDIF.      "added on 11.04.2014 for placeholder of quantity
+
+      READ TABLE gt_bmr_remarks INTO ls_bmr_remarks WITH KEY type = gt_bmr_remarks-type
+                                                             id = gt_bmr_remarks-id
+                                                             qty = gt_bmr_remarks-qty
+                                                             meins = gt_bmr_remarks-meins.
+      IF sy-subrc NE 0.
+
+        IF ls_final-lots LE '1'.    "added on 21.04.2014
+          CONCATENATE ls_spare_ind-stdqty_remarks ls_final-desc 'IS' gv_mview_qty ls_final-meins INTO gt_bmr_remarks-remark SEPARATED BY space.
+          gt_bmr_remarks-qty = gv_mview_qty.    "added on 16.09.2015 by payal
+          gt_bmr_remarks-meins = ls_final-meins.    "added on 16.09.2015 by payal
+        ELSE.
+          CONCATENATE ls_spare_ind-stdqty_remarks ls_final-desc 'IS' gv_mview_qty ls_final-meins 'PER LOT' INTO gt_bmr_remarks-remark SEPARATED BY space.
+          gt_bmr_remarks-qty = gv_mview_qty.    "added on 16.09.2015 by payal
+          gt_bmr_remarks-meins = ls_final-meins.    "added on 16.09.2015 by payal
+        ENDIF.
+
+
+        APPEND gt_bmr_remarks.
+      ENDIF.
+      gv_mview_qty = ' '.
+    ELSEIF ls_spare_ind-qty_prefix IS NOT INITIAL.
+      IF p_inj = 'X'. "Put place holder for quantity only in case of Injectables
+        CONCATENATE 'QS' '&' ls_final-posnr p_idnrk 'Q&' INTO gv_mview_qty.
+      ELSE.
+***        soc on 27.06.2014 for EA NOS NO qty
+*        gv_mview_qty = ls_final-menge.
+***soc on 10.12.2014
+*        PERFORM convert_qty USING ls_final-menge ls_final-meins CHANGING gv_mview_qty.
+        PERFORM convert_qty USING ls_final-mngko ls_final-meins CHANGING gv_mview_qty.
+***eoc on 10.12.2014
+***        eoc on 27.06.2014 for EA NOS NO qty
+
+        CONCATENATE 'QS' gv_mview_qty INTO gv_mview_qty SEPARATED BY space .
+      ENDIF.
+    ELSE.
+      IF p_inj = 'X'. "Put place holder for quantity only in case of Injectables
+        CONCATENATE '&' ls_final-posnr p_idnrk 'Q&' INTO gv_mview_qty.
+      ELSE.
+***        soc on 27.06.2014 for EA NOS NO qty
+*        gv_mview_qty = ls_final-menge.
+***        soc on 10.12.2014
+*        PERFORM convert_qty USING ls_final-menge ls_final-meins CHANGING gv_mview_qty.
+        PERFORM convert_qty USING ls_final-mngko ls_final-meins CHANGING gv_mview_qty.
+***        eoc on 10.12.2014
+***        eoc on 27.06.2014 for EA NOS NO qty
+      ENDIF.
+    ENDIF.
+
+  ELSE. "No entries yet maintained in zpp_spare_ind table. Once maintained, Please remove this else part.
+*    gv_mview_qty = ls_final-menge.
+    IF p_inj = 'X'. "Put place holder for quantity only in case of Injectables
+      CONCATENATE '&' ls_final-posnr p_idnrk 'Q&' INTO gv_mview_qty.
+    ELSE.
+***        soc on 27.06.2014 for EA NOS NO qty
+*        gv_mview_qty = ls_final-menge.
+***      soc on 10.12.2014
+*      PERFORM convert_qty USING ls_final-menge ls_final-meins CHANGING gv_mview_qty.
+      PERFORM convert_qty USING ls_final-mngko ls_final-meins CHANGING gv_mview_qty.
+***      eoc on 10.12.2014
+***        eoc on 27.06.2014 for EA NOS NO qty
+    ENDIF.
+
+*    "Logic for API Remark
+*    IF gs_final-erskz = 'A' OR gs_final-erskz = 'B'. "Add superscript 1 before the component code
+*      gt_bmr_remarks-type = 1. "Type 1 implies a superscript has to be printed before it
+*      "gt_bmr_remarks-id = gs_final-erskz. "A remark to print at the end of table.
+*      gt_bmr_remarks-id = 'A'. "As of now, hardcoding it to A as if there are components with A and also components with B, the same remark will get printed more than once
+*      gt_bmr_remarks-remark = 'Active Pharmaceutical Ingredients'.
+*      APPEND gt_bmr_remarks.
+*      p_superscript_flag = 'X'.
+**     CONCATENATE '1' lv_idnrk INTO lv_idnrk SEPARATED BY space.
+*    ENDIF.
+*
+*    "Logic for Quantity
+*    IF gs_final-erskz EQ 'A' OR gs_final-erskz EQ 'C'.
+*      gt_bmr_remarks-type = 2. "No Superscript
+*      CONCATENATE p_idnrk gs_final-erskz INTO gt_bmr_remarks-id.
+*
+***    soc on 11.04.2014 for placeholder of remarks quantity
+*      IF p_inj = 'X'.
+*        CONCATENATE '&' gs_final-posnr p_idnrk 'Q&' INTO gv_mview_qty.
+*      ELSE.
+***    eoc on 11.04.2014 for placeholder of remarks quantity
+*        gv_mview_qty = gs_final-menge.
+*      ENDIF.      "added on 11.04.2014 for placeholder of quantity
+*
+*      IF gs_final-lots LE '1'.
+*        CONCATENATE 'STANDARD QTY. OF' gs_final-desc 'IS' gv_mview_qty gs_final-meins INTO gt_bmr_remarks-remark SEPARATED BY space.
+*      ELSE.
+*        CONCATENATE 'STANDARD QTY. OF' gs_final-desc 'IS' gv_mview_qty gs_final-meins 'PER LOT' INTO gt_bmr_remarks-remark SEPARATED BY space.
+*      ENDIF.
+*
+*      APPEND gt_bmr_remarks.
+*      gv_mview_qty = ' '.
+*    ELSEIF gs_final-erskz EQ 'F' OR gs_final-erskz EQ 'G'.
+*      IF p_inj = 'X'. "Put place holder for quantity only in case of Injectables
+*        CONCATENATE 'QS' '&' gs_final-posnr p_idnrk 'Q&' INTO gv_mview_qty.
+*      ELSE.
+*        gv_mview_qty = gs_final-menge.
+*        CONCATENATE 'QS' gv_mview_qty INTO gv_mview_qty SEPARATED BY space .
+*      ENDIF.
+*    ELSE.
+*      IF p_inj = 'X'. "Put place holder for quantity only in case of Injectables
+*        CONCATENATE '&' gs_final-posnr p_idnrk 'Q&' INTO gv_mview_qty.
+*      ELSE.
+*        gv_mview_qty = gs_final-menge.
+*      ENDIF.
+*    ENDIF.
+  ENDIF.
+
+  CONDENSE gv_mview_qty.
+
+  CONCATENATE lv_idnrk ' / ' ls_final-desc INTO gv_mview_comp_text.
+  IF ls_final-sortf IS NOT INITIAL.
+    CONCATENATE gv_mview_comp_text ' (' ls_final-sortf ') ' INTO gv_mview_comp_text.
+  ENDIF.
+
+  CONCATENATE '&' ls_final-posnr p_idnrk 'B&' INTO gv_mview_batch.
+  gv_mview_lines = ls_final-lines.
+ENDFORM.                    " GET_BMR_ITEM_TABLE_CONTENT
+*&---------------------------------------------------------------------*
+*&      Form  GET_BPR_ITEM_TABLE_CONTENT
+*&---------------------------------------------------------------------*
+*      -->P_IDNRK  text
+*----------------------------------------------------------------------*
+FORM get_bpr_item_table_content  USING ls_final TYPE ty_bom_final.    "p_idnrk.
+*  CONCATENATE p_idnrk ' / ' gs_final-desc INTO gv_mview_comp_text.
+  CONCATENATE ls_final-idnrk ' / ' ls_final-desc INTO gv_mview_comp_text.
+  CONCATENATE '&' ls_final-posnr ls_final-idnrk 'Q&' INTO gv_mview_qty.
+* SOC by Swati 09.07.2014
+* Defect by Ajay: Please check that in the BOM the UOM is EA but in the print its NOS
+*  IF gs_final-meins = 'EA'.
+*    gv_mview_uom = 'NOS'.
+*  ELSE.
+
+
+***soa on 30.11.2015 for bom data
+  PERFORM output_unit USING ls_final-meins.
+***eoa on 30.11.2015
+
+  gv_mview_uom = ls_final-meins.
+
+
+
+*  ENDIF.
+* EOC by Swati "Commented lines 813-815, 817
+  CONCATENATE '&' ls_final-posnr ls_final-idnrk 'B&' INTO gv_mview_batch.
+  gv_mview_lines = ls_final-lines.
+ENDFORM.                    " GET_BPR_ITEM_TABLE_CONTENT
+*&---------------------------------------------------------------------*
+*&      Form  DISPENSING_STAGE_HEADING
+*&---------------------------------------------------------------------*
+FORM dispensing_stage_heading.
+  PERFORM create_table USING 1 1.
+  PERFORM set_column_width USING 1 534.
+  PERFORM set_row_height USING 20.
+  PERFORM set_specific_border USING 1 0 1 0.
+  PERFORM set_bold USING 1.
+  PERFORM write_cell_text USING 1 1 gv_mview_stage 1 1.
+  PERFORM free_table.
+  PERFORM initialize_font.
+  PERFORM set_bold USING 0.
+ENDFORM.                    " DISPENSING_STAGE_HEADING
+*&---------------------------------------------------------------------*
+*&      Form  DISPLAY_NOTE
+*&---------------------------------------------------------------------*
+FORM display_note .
+  DATA: lv_no     TYPE i, lv_num(2) TYPE c.
+  CLEAR lv_no.
+  DESCRIBE TABLE gt_note LINES lv_no.
+  PERFORM new_line.
+  PERFORM create_table USING lv_no 3.
+  PERFORM set_column_width USING 1 55.
+  PERFORM set_column_width USING 2 20.
+  PERFORM set_column_width USING 3 460.
+  PERFORM set_row_height USING 20.
+  PERFORM set_table_border USING 0.
+  PERFORM write_cell_text USING 1 1 'NOTE   :' 0 0.
+  LOOP AT gt_note.
+    lv_num = lv_no = sy-tabix.
+    CONCATENATE lv_num '.' INTO lv_num.
+    PERFORM write_cell_text USING lv_no 2 lv_num 0 0.
+    PERFORM write_cell_text USING lv_no 3 gt_note-line 0 0.
+  ENDLOOP.
+  PERFORM free_table.
+  PERFORM new_line.
+  PERFORM initialize_font.
+ENDFORM.                    " DISPLAY_NOTE
+*&---------------------------------------------------------------------*
+*&      Form  DISPLAY_CAUTION
+*&---------------------------------------------------------------------*
+FORM display_caution.
+  DATA: lt_caution TYPE TABLE OF ty_caution WITH HEADER LINE, lv_no TYPE i.
+  READ TABLE gt_mdoc_caution WITH KEY ds_code = gs_final-ds_code BINARY SEARCH TRANSPORTING NO FIELDS.
+  IF sy-subrc = 0.
+    LOOP AT gt_mdoc_caution INTO gs_mdoc_caution FROM sy-tabix.
+      IF gs_mdoc_caution-ds_code <> gs_final-ds_code.
+        EXIT.
+      ELSE.
+        READ TABLE gt_caution INTO gs_caution WITH KEY caution_code = gs_mdoc_caution-caution_code.
+        IF sy-subrc = 0.
+          lt_caution-caution_desc = gs_caution-caution_desc.
+          APPEND lt_caution.
+        ENDIF.
+      ENDIF.
+    ENDLOOP.
+
+    DESCRIBE TABLE lt_caution LINES lv_no.
+    PERFORM create_table USING lv_no 2.
+    PERFORM set_column_width USING 1 55.
+    PERFORM set_column_width USING 2 480.
+    PERFORM set_table_border USING 0.
+    PERFORM write_cell_text USING 1 1 'CAUTION:' 0 0.
+    LOOP AT lt_caution.
+      lv_no = sy-tabix.
+      PERFORM write_cell_text USING lv_no 2 lt_caution-caution_desc 0 0.
+    ENDLOOP.
+    PERFORM free_table.
+    PERFORM new_line.
+    PERFORM initialize_font.
+  ENDIF.
+ENDFORM.                    " DISPLAY_CAUTION
+*&---------------------------------------------------------------------*
+*&      Form  DISPLAY_TOPBOTTOM_REMARK
+*&---------------------------------------------------------------------*
+FORM display_topbottom_remark USING p_remark.
+  DATA: lv_string_temp TYPE string, lv_string TYPE string.
+
+  lv_string = p_remark.
+  DO.
+    SPLIT lv_string AT c_split INTO lv_string_temp lv_string.
+*    IF lv_string_temp IS INITIAL.
+    IF lv_string_temp IS INITIAL AND lv_string IS INITIAL.
+      EXIT.
+    ELSE.
+      PERFORM initialize_font.
+      PERFORM set_font.
+      PERFORM write_text USING lv_string_temp.
+      PERFORM new_line.
+    ENDIF.
+  ENDDO.
+  PERFORM new_line.
+ENDFORM.                    " DISPLAY_TOPBOTTOM_REMARK
+*&---------------------------------------------------------------------*
+*&      Form  DISPLAY_SPARE_PART_REMARKS
+*&---------------------------------------------------------------------*
+FORM display_spare_part_remarks .
+***  socomment by payal on 16.09.2015
+*  SORT gt_bmr_remarks BY type id.
+*  DELETE ADJACENT DUPLICATES FROM gt_bmr_remarks COMPARING type id.
+***  eocommnet by payal on 16.09.2015
+***  soadd by payal on 16.09.2015
+
+  SORT gt_bmr_remarks BY type id qty remark.
+  DELETE ADJACENT DUPLICATES FROM gt_bmr_remarks COMPARING type id qty meins.
+***  eoadd by payal on 16.09.2015
+  LOOP AT gt_bmr_remarks.
+    IF gt_bmr_remarks-type = 1.
+      PERFORM set_superscript_font USING 1.
+      PERFORM write_text USING '1'.
+      PERFORM set_superscript_font USING 0.
+    ENDIF.
+    PERFORM write_text USING gt_bmr_remarks-remark.
+    PERFORM new_line.
+  ENDLOOP.
+  CLEAR: gt_bmr_remarks, gt_bmr_remarks[].
+ENDFORM.                    " DISPLAY_SPARE_PART_REMARKS
+*&---------------------------------------------------------------------*
+*&      Form  BPR_STAGE_INITIAL_SECTION
+*&---------------------------------------------------------------------*
+FORM bpr_stage_initial_section .
+  PERFORM new_line.
+  PERFORM initialize_font.
+  PERFORM set_font.
+  PERFORM write_text USING 'Weighing balance code No.: ________________________'.
+  PERFORM new_line.
+  PERFORM new_line.
+ENDFORM.                    " BPR_STAGE_INITIAL_SECTION
+*&---------------------------------------------------------------------*
+*&      Form  DISPLAY_REMARKS
+*&---------------------------------------------------------------------*
+FORM display_remarks.
+  DATA: lv_string_temp TYPE string,
+        lv_string      TYPE string.
+
+  IF doc_type = 'ZAN'.
+**    changed on 12.06.2014 for issue in enter key
+*    PERFORM create_table USING 1 1.
+*    PERFORM set_column_width USING 1 535.
+*    PERFORM set_row_height USING 20.
+*    PERFORM set_table_border USING 0.
+*    PERFORM write_cell_text USING 1 1 gv_mview_remark 0 0."changed on 11.04.2014  for removing remarks:
+    CLEAR: lv_string, lv_string_temp.
+    lv_string = gv_mview_remark.
+    DO.
+      SPLIT lv_string AT c_split INTO lv_string_temp lv_string.
+      IF lv_string_temp IS INITIAL AND lv_string IS INITIAL.
+        EXIT.
+      ELSE.
+        PERFORM initialize_font.
+        PERFORM set_font.
+        PERFORM write_text USING lv_string_temp.
+        PERFORM new_line.
+      ENDIF.
+    ENDDO.
+**   end changed on 12.06.2014 for issue in enter key
+  ELSEIF doc_type = 'BPR'.
+    PERFORM create_table USING 1 2.
+    PERFORM set_column_width USING 1 55.
+    PERFORM set_column_width USING 2 480.
+    PERFORM set_row_height USING 20.
+    PERFORM set_table_border USING 0.
+    PERFORM write_cell_text USING 1 1 'Remarks :' 0 0."commented on 11.04.2014  for removing remarks:
+    PERFORM write_cell_text USING 1 2 gv_mview_remark 0 0.
+  ENDIF.
+  PERFORM free_table.
+  PERFORM new_line.
+  PERFORM initialize_font.
+  CLEAR gv_mview_remark.
+ENDFORM.                    " DISPLAY_REMARKS
+*&---------------------------------------------------------------------*
+*&      Form  BMR1_ITEM_TABLE_HEADING
+*&---------------------------------------------------------------------*
+FORM bmr1_item_table_heading .
+  CLEAR: g_row_count.
+  PERFORM set_bold USING 1.
+  PERFORM create_table USING 1 10.
+  PERFORM set_table_border USING 1.
+  PERFORM set_row_height USING 20.
+  PERFORM set_row_as_header.
+  PERFORM set_row_break USING 0.
+
+  PERFORM set_cell_width USING 1 1 70.
+  PERFORM write_cell_text USING 1 1 'Material Code / Description' 1 1.
+
+  PERFORM set_cell_width USING 1 2 58.
+  PERFORM write_cell_text USING 1 2 'Std. Qty.' 1 1.
+
+  PERFORM set_cell_width USING 1 3 35.
+  PERFORM write_cell_text USING 1 3 'UOM' 1 1.
+
+  PERFORM set_cell_width USING 1 4 80.
+  PERFORM write_cell_text USING 1 4 'Material Batch No.' 1 1.
+
+  PERFORM set_cell_width USING 1 5 50.
+  PERFORM write_cell_text USING 1 5 'Balance Code No.' 1 1.
+
+  PERFORM set_cell_width USING 1 6 37.
+  PERFORM write_cell_text USING 1 6 'Gross Wt.' 1 1.
+
+  PERFORM set_cell_width USING 1 7 37.
+  PERFORM write_cell_text USING 1 7 'Tare Wt.' 1 1.
+
+  PERFORM set_cell_width USING 1 8 37.
+  PERFORM write_cell_text USING 1 8 'Net Wt.' 1 1.
+
+  PERFORM set_cell_width USING 1 9 65.
+  PERFORM write_cell_text USING 1 9 'Issued By/Date (Stores Officer)' 1 1.
+
+  PERFORM set_cell_width USING 1 10 65.
+  PERFORM write_cell_text USING 1 10 'Ckd. By/Date (Prod. Officer)' 1 1.
+
+  PERFORM free_table.
+  PERFORM initialize_font.
+  PERFORM set_bold USING 0.
+  g_row_count = 2.
+ENDFORM.                    " BMR1_ITEM_TABLE_HEADING
+
+****S.O.C Rahul Nishankar #8000004096 CRDK955491 14/06/2018
+*&---------------------------------------------------------------------*
+*&      Form  F_BMR3_ITEM_TABLE_HEADING
+*&---------------------------------------------------------------------*
+FORM f_bmr3_item_table_heading .
+  CLEAR: g_row_count.
+  PERFORM set_bold USING 1.
+  PERFORM create_table USING 1 10.
+  PERFORM set_table_border USING 1.
+  PERFORM set_row_height USING 20.
+  PERFORM set_row_as_header.
+  PERFORM set_row_break USING 0.
+
+  PERFORM set_cell_width USING 1 1 70.
+  PERFORM write_cell_text USING 1 1 'Material Code / Description' 1 1.
+
+  PERFORM set_cell_width USING 1 2 58.
+  PERFORM write_cell_text USING 1 2 'Std. Qty.' 1 1.
+
+  PERFORM set_cell_width USING 1 3 35.
+  PERFORM write_cell_text USING 1 3 'UOM' 1 1.
+
+  PERFORM set_cell_width USING 1 4 80.
+  PERFORM write_cell_text USING 1 4 'Material Batch No.' 1 1.
+
+  PERFORM set_cell_width USING 1 5 50.
+  PERFORM write_cell_text USING 1 5 'Balance Code No.' 1 1.
+
+  PERFORM set_cell_width USING 1 6 37.
+  PERFORM write_cell_text USING 1 6 'Gross Wt.' 1 1.
+
+  PERFORM set_cell_width USING 1 7 37.
+  PERFORM write_cell_text USING 1 7 'Tare Wt.' 1 1.
+
+  PERFORM set_cell_width USING 1 8 37.
+  PERFORM write_cell_text USING 1 8 'Net Wt.' 1 1.
+
+  PERFORM set_cell_width USING 1 9 65.
+  PERFORM write_cell_text USING 1 9 'Issued By/Date (Ware-house)' 1 1.
+
+  PERFORM set_cell_width USING 1 10 65.
+  PERFORM write_cell_text USING 1 10 'Ckd. By/Date (Mfg. / Packaging)' 1 1.
+
+  PERFORM free_table.
+  PERFORM initialize_font.
+  PERFORM set_bold USING 0.
+  g_row_count = 2.
+ENDFORM.                    " F_BMR3_ITEM_TABLE_HEADING
+****E.O.C Rahul Nishankar #8000004096 CRDK955491 14/06/2018
+
+*&---------------------------------------------------------------------*
+*&      Form  BMR2_ITEM_TABLE_HEADING
+*&---------------------------------------------------------------------*
+FORM bmr2_item_table_heading .
+  CLEAR: g_row_count.
+  PERFORM set_bold USING 1.
+  PERFORM create_table USING 1 8.
+  PERFORM set_table_border USING 1.
+  PERFORM set_row_height USING 20.
+  PERFORM set_row_as_header.
+  PERFORM set_row_break USING 0.
+
+  PERFORM set_cell_width USING 1 1 75.
+  PERFORM write_cell_text USING 1 1 'Material Code / Description' 1 1.
+
+  PERFORM set_cell_width USING 1 2 69.
+  PERFORM write_cell_text USING 1 2 'Std. Qty.' 1 1.
+
+  PERFORM set_cell_width USING 1 3 35.
+  PERFORM write_cell_text USING 1 3 'UOM' 1 1.
+
+  PERFORM set_cell_width USING 1 4 90.
+  PERFORM write_cell_text USING 1 4 'Material Batch No.' 1 1.
+
+  PERFORM set_cell_width USING 1 5 70.
+  PERFORM write_cell_text USING 1 5 'Balance Code No.' 1 1.
+
+  PERFORM set_cell_width USING 1 6 55.
+  PERFORM write_cell_text USING 1 6 'Qty. Issued' 1 1.
+
+  PERFORM set_cell_width USING 1 7 70.
+  PERFORM write_cell_text USING 1 7 'Issued By/Date (Stores Officer)' 1 1.
+
+  PERFORM set_cell_width USING 1 8 70.
+  PERFORM write_cell_text USING 1 8 'Ckd. By/Date (Prod. Officer)' 1 1.
+
+  PERFORM free_table.
+  PERFORM initialize_font.
+  PERFORM set_bold USING 0.
+  g_row_count = 2.
+ENDFORM.                    " BMR2_ITEM_TABLE_HEADING
+
+****S.O.C Rahul Nishankar #8000004096 CRDK955491 14/06/2018
+*&---------------------------------------------------------------------*
+*&      Form  F_BMR4_ITEM_TABLE_HEADING
+*&---------------------------------------------------------------------*
+FORM f_bmr4_item_table_heading .
+  CLEAR: g_row_count.
+  PERFORM set_bold USING 1.
+  PERFORM create_table USING 1 8.
+  PERFORM set_table_border USING 1.
+  PERFORM set_row_height USING 20.
+  PERFORM set_row_as_header.
+  PERFORM set_row_break USING 0.
+
+  PERFORM set_cell_width USING 1 1 75.
+  PERFORM write_cell_text USING 1 1 'Material Code / Description' 1 1.
+
+  PERFORM set_cell_width USING 1 2 69.
+  PERFORM write_cell_text USING 1 2 'Std. Qty.' 1 1.
+
+  PERFORM set_cell_width USING 1 3 35.
+  PERFORM write_cell_text USING 1 3 'UOM' 1 1.
+
+  PERFORM set_cell_width USING 1 4 90.
+  PERFORM write_cell_text USING 1 4 'Material Batch No.' 1 1.
+
+  PERFORM set_cell_width USING 1 5 70.
+  PERFORM write_cell_text USING 1 5 'Balance Code No.' 1 1.
+
+  PERFORM set_cell_width USING 1 6 55.
+  PERFORM write_cell_text USING 1 6 'Qty. Issued' 1 1.
+
+  PERFORM set_cell_width USING 1 7 70.
+  PERFORM write_cell_text USING 1 7 'Issued By/Date (Warehouse)' 1 1.
+
+  PERFORM set_cell_width USING 1 8 70.
+  PERFORM write_cell_text USING 1 8 'Ckd. By/Date (Mfg. / Packaging)' 1 1.
+
+  PERFORM free_table.
+  PERFORM initialize_font.
+  PERFORM set_bold USING 0.
+  g_row_count = 2.
+ENDFORM.                    " F_BMR4_ITEM_TABLE_HEADING
+****E.O.C Rahul Nishankar #8000004096 CRDK955491 14/06/2018
+
+****S.O.C Rahul Nishankar #8000004096 CRDK955491 14/06/2018
+*&---------------------------------------------------------------------*
+*&      Form  F_BMR5_ITEM_TABLE_HEADING
+*&---------------------------------------------------------------------*
+FORM f_bmr5_item_table_heading .
+  CLEAR: g_row_count.
+  PERFORM set_bold USING 1.
+  PERFORM create_table USING 1 8.
+  PERFORM set_table_border USING 1.
+  PERFORM set_row_height USING 20.
+  PERFORM set_row_as_header.
+  PERFORM set_row_break USING 0.
+
+  PERFORM set_cell_width USING 1 1 75.
+  PERFORM write_cell_text USING 1 1 'Material Code / Description' 1 1.
+
+  PERFORM set_cell_width USING 1 2 69.
+  PERFORM write_cell_text USING 1 2 'Std. Qty.' 1 1.
+
+  PERFORM set_cell_width USING 1 3 35.
+  PERFORM write_cell_text USING 1 3 'UOM' 1 1.
+
+  PERFORM set_cell_width USING 1 4 90.
+  PERFORM write_cell_text USING 1 4 'Material Batch No.' 1 1.
+
+  PERFORM set_cell_width USING 1 5 70.
+  PERFORM write_cell_text USING 1 5 'Balance Code No.' 1 1.
+
+  PERFORM set_cell_width USING 1 6 55.
+  PERFORM write_cell_text USING 1 6 'Qty. Issued' 1 1.
+
+  PERFORM set_cell_width USING 1 7 70.
+  PERFORM write_cell_text USING 1 7 'Issued By. By/Date (Mfg. / Packaging)' 1 1.
+
+  PERFORM set_cell_width USING 1 8 70.
+  PERFORM write_cell_text USING 1 8 'Ckd. By/Date (Mfg. / Packaging)' 1 1.
+
+  PERFORM free_table.
+  PERFORM initialize_font.
+  PERFORM set_bold USING 0.
+  g_row_count = 2.
+ENDFORM.                    " F_BMR5_ITEM_TABLE_HEADING
+****E.O.C Rahul Nishankar #8000004096 CRDK955491 14/06/2018
+
+*&---------------------------------------------------------------------*
+*&      Form  BPR_ITEM_TABLE_HEADING
+*&---------------------------------------------------------------------*
+FORM bpr_item_table_heading .
+  CLEAR: g_row_count.
+  PERFORM set_bold USING 1.
+  PERFORM create_table USING 1 7.
+  PERFORM set_table_border USING 1.
+  PERFORM set_row_height USING 20.
+  PERFORM set_row_as_header.
+  PERFORM set_row_break USING 0.
+
+  PERFORM set_cell_width USING 1 1 90.
+  PERFORM write_cell_text USING 1 1 'Material Code / Description' 1 1.
+
+  PERFORM set_cell_width USING 1 2 70.
+  PERFORM write_cell_text USING 1 2 'Std. Qty.' 1 1.
+
+  PERFORM set_cell_width USING 1 3 40.
+  PERFORM write_cell_text USING 1 3 'UOM' 1 1.
+
+  PERFORM set_cell_width USING 1 4 94.
+  PERFORM write_cell_text USING 1 4 'Material Batch No.' 1 1.
+
+  PERFORM set_cell_width USING 1 5 70.
+  PERFORM write_cell_text USING 1 5 'Qty. Issued' 1 1.
+
+  PERFORM set_cell_width USING 1 6 85.
+  IF gs_final-ds_code = 'P001'.
+    PERFORM write_cell_text USING 1 6 'Issued By/Date (Prod. Officer)' 1 1.
+  ELSE.
+    PERFORM write_cell_text USING 1 6 'Issued By/Date (Stores Officer)' 1 1.
+  ENDIF.
+
+  PERFORM set_cell_width USING 1 7 85.
+  PERFORM write_cell_text USING 1 7 'Ckd. By/Date (Prod. Officer)' 1 1.
+
+  PERFORM free_table.
+  PERFORM initialize_font.
+  PERFORM set_bold USING 0.
+  g_row_count = 2.
+ENDFORM.                    " BPR_ITEM_TABLE_HEADING
+
+****S.O.C Rahul Nishankar #8000004096 CRDK955491 14/06/2018
+*&---------------------------------------------------------------------*
+*&      Form  F_BPR_ITEM_TABLE_HEADING_US
+*&---------------------------------------------------------------------*
+FORM f_bpr_item_table_heading_us.
+  CLEAR: g_row_count.
+  PERFORM set_bold USING 1.
+  PERFORM create_table USING 1 7.
+  PERFORM set_table_border USING 1.
+  PERFORM set_row_height USING 20.
+  PERFORM set_row_as_header.
+  PERFORM set_row_break USING 0.
+
+  PERFORM set_cell_width USING 1 1 90.
+  PERFORM write_cell_text USING 1 1 'Material Code / Description' 1 1.
+
+  PERFORM set_cell_width USING 1 2 70.
+  PERFORM write_cell_text USING 1 2 'Std. Qty.' 1 1.
+
+  PERFORM set_cell_width USING 1 3 40.
+  PERFORM write_cell_text USING 1 3 'UOM' 1 1.
+
+  PERFORM set_cell_width USING 1 4 94.
+  PERFORM write_cell_text USING 1 4 'Material Batch No.' 1 1.
+
+  PERFORM set_cell_width USING 1 5 70.
+  PERFORM write_cell_text USING 1 5 'Qty. Issued' 1 1.
+
+  PERFORM set_cell_width USING 1 6 85.
+  IF gs_final-ds_code = 'P001'.
+*  begin of changes  #8000005794 25 may 2020
+*    IF gv_bukrs IS INITIAL.
+    IF ( gv_bukrs IS INITIAL ) AND ( gv_bukrs_sa IS INITIAL ).
+      " end of changes   #8000005794 25 may 2020
+      PERFORM write_cell_text USING 1 6 'Issued By/Date (Mfg. / Packaging)' 1 1.
+    ELSE.
+      PERFORM write_cell_text USING 1 6 'Issued By/Date' 1 1.
+    ENDIF.
+  ELSE.
+****S.O.C Rahul Nishankar #8 CRDK958203 16/10/2018 urgent changes for US
+***    PERFORM write_cell_text USING 1 6 'Issued By/Date (Warehouse)' 1 1.
+    PERFORM write_cell_text USING 1 6 'Issued By/Date' 1 1.
+****E.O.C Rahul Nishankar #8 CRDK958203 16/10/2018 urgent changes for US
+  ENDIF.
+*  begin of changes  #8000005794 25 may 2020
+*  IF gv_bukrs IS INITIAL.
+  IF ( gv_bukrs IS INITIAL ) AND ( gv_bukrs_sa IS INITIAL ).
+    " end of changes   #8000005794 25 may 2020
+    PERFORM set_cell_width USING 1 7 85.
+    PERFORM write_cell_text USING 1 7 'Ckd. By/Date (Prod. Officer)' 1 1.
+  ELSE.
+    PERFORM set_cell_width USING 1 7 85.
+****S.O.C Rahul Nishankar #8 CRDK958203 urgent changes for US
+***    PERFORM write_cell_text USING 1 7 'Ckd. By/Date (Mfg. / Packaging)' 1 1.
+    PERFORM write_cell_text USING 1 7 'Ckd. By/Date' 1 1.
+****E.O.C Rahul Nishankar #8 CRDK958203 urgent changes for US
+
+  ENDIF.
+
+
+  PERFORM free_table.
+  PERFORM initialize_font.
+  PERFORM set_bold USING 0.
+  g_row_count = 2.
+ENDFORM.                    " F_BPR_ITEM_TABLE_HEADING_US
+****E.O.C Rahul Nishankar #8000004096 CRDK955491 14/06/2018
+
+*&---------------------------------------------------------------------*
+*&      Form  WRITE_PROCESS_DESCRIPTION
+*&---------------------------------------------------------------------*
+FORM write_process_description .
+  PERFORM set_bold USING 1.
+  PERFORM create_table USING 1 1.
+  PERFORM set_table_border USING 1.
+  PERFORM set_row_height USING 20.
+  PERFORM set_row_break USING 0.
+  PERFORM set_cell_width USING g_row_count 1 534.
+  PERFORM write_cell_text USING g_row_count 1 gv_mview_process 1 0.
+  PERFORM free_table.
+  PERFORM initialize_font.
+  PERFORM set_bold USING 0.
+  g_row_count = g_row_count + 1.
+ENDFORM.                    " WRITE_PROCESS_DESCRIPTION
+*&---------------------------------------------------------------------*
+*&      Form  BMR1_ITEM_TABLE_CONTENT
+*&---------------------------------------------------------------------*
+FORM bmr1_item_table_content.
+  DATA: lv_lines TYPE i.
+  PERFORM create_table USING 1 1.
+  PERFORM set_table_border USING 1.
+  PERFORM set_row_height USING 20.
+  PERFORM set_row_break USING 0.
+  PERFORM set_cell_width USING g_row_count 1 534.
+
+  IF gv_superscript_flag = 'X'.
+    PERFORM write_superscript_cell_text USING g_row_count 1 gv_mview_comp_text 1 0.
+    CLEAR gv_superscript_flag.
+  ELSE.
+    PERFORM write_cell_text USING g_row_count 1 gv_mview_comp_text 1 0.
+  ENDIF.
+  PERFORM free_table.
+  PERFORM initialize_font.
+
+  g_row_count = g_row_count + 1.
+
+  PERFORM create_table USING 1 10.
+  PERFORM set_table_border USING 1.
+  PERFORM set_row_height USING 20.
+  PERFORM set_row_break USING 0.
+  PERFORM set_cell_width USING g_row_count 1 70.
+  PERFORM set_cell_width USING g_row_count 2 58.
+  PERFORM write_cell_text USING g_row_count 2 gv_mview_qty 1 1.
+  PERFORM set_cell_width USING g_row_count 3 35.
+
+  PERFORM write_cell_text USING g_row_count 3 gv_mview_uom 1 1.
+  PERFORM set_cell_width USING g_row_count 4 80.
+  PERFORM write_cell_text USING g_row_count 4 gv_mview_batch 1 1.
+  PERFORM set_cell_width USING g_row_count 5 50.
+  PERFORM set_cell_width USING g_row_count 6 37.
+  PERFORM set_cell_width USING g_row_count 7 37.
+  PERFORM set_cell_width USING g_row_count 8 37.
+  PERFORM set_cell_width USING g_row_count 9 65.
+  PERFORM set_cell_width USING g_row_count 10 65.
+  PERFORM free_table.
+  PERFORM initialize_font.
+  g_row_count = g_row_count + 1.
+
+  lv_lines = gv_mview_lines - 1.
+  IF lv_lines > 0.
+    PERFORM create_table USING lv_lines 10.
+    PERFORM set_table_border USING 1.
+    PERFORM set_row_height USING 20.
+    PERFORM set_row_break USING 0.
+    DO lv_lines TIMES.
+      PERFORM set_cell_width USING g_row_count 1 70.
+      PERFORM set_cell_width USING g_row_count 2 58.
+      PERFORM set_cell_width USING g_row_count 3 35.
+      PERFORM set_cell_width USING g_row_count 4 80.
+      PERFORM set_cell_width USING g_row_count 5 50.
+      PERFORM set_cell_width USING g_row_count 6 37.
+      PERFORM set_cell_width USING g_row_count 7 37.
+      PERFORM set_cell_width USING g_row_count 8 37.
+      PERFORM set_cell_width USING g_row_count 9 65.
+      PERFORM set_cell_width USING g_row_count 10 65.
+      g_row_count = g_row_count + 1.
+    ENDDO.
+    PERFORM free_table.
+    PERFORM initialize_font.
+  ENDIF.
+ENDFORM.                    " BMR1_ITEM_TABLE_CONTENT
+*&---------------------------------------------------------------------*
+*&      Form  BMR2_ITEM_TABLE_CONTENT
+*&---------------------------------------------------------------------*
+FORM bmr2_item_table_content.
+  DATA: lv_lines TYPE i.
+  PERFORM create_table USING 1 1.
+  PERFORM set_table_border USING 1.
+  PERFORM set_row_height USING 20.
+  PERFORM set_row_break USING 0.
+  PERFORM set_cell_width USING g_row_count 1 534.
+  IF gv_superscript_flag = 'X'.
+    PERFORM write_superscript_cell_text USING g_row_count 1 gv_mview_comp_text 1 0.
+    CLEAR gv_superscript_flag.
+  ELSE.
+    PERFORM write_cell_text USING g_row_count 1 gv_mview_comp_text 1 0.
+  ENDIF.
+  PERFORM free_table.
+  PERFORM initialize_font.
+  g_row_count = g_row_count + 1.
+
+  PERFORM create_table USING 1 8.
+  PERFORM set_table_border USING 1.
+  PERFORM set_row_height USING 20.
+  PERFORM set_row_break USING 0.
+  PERFORM set_cell_width USING g_row_count 1 75.
+  PERFORM set_cell_width USING g_row_count 2 69.
+  PERFORM write_cell_text USING g_row_count 2 gv_mview_qty 1 1.
+  PERFORM set_cell_width USING g_row_count 3 35.
+  PERFORM write_cell_text USING g_row_count 3 gv_mview_uom 1 1.
+  PERFORM set_cell_width USING g_row_count 4 90.
+  PERFORM write_cell_text USING g_row_count 4 gv_mview_batch 1 1.
+  PERFORM set_cell_width USING g_row_count 5 70.
+  PERFORM set_cell_width USING g_row_count 6 55.
+  PERFORM set_cell_width USING g_row_count 7 70.
+  PERFORM set_cell_width USING g_row_count 8 70.
+  PERFORM free_table.
+  PERFORM initialize_font.
+  g_row_count = g_row_count + 1.
+
+  lv_lines = gv_mview_lines - 1.
+  IF lv_lines > 0.
+    PERFORM create_table USING lv_lines 8.
+    PERFORM set_table_border USING 1.
+    PERFORM set_row_height USING 20.
+    PERFORM set_row_break USING 0.
+    DO lv_lines TIMES.
+      PERFORM set_cell_width USING g_row_count 1 75.
+      PERFORM set_cell_width USING g_row_count 2 69.
+      PERFORM set_cell_width USING g_row_count 3 35.
+      PERFORM set_cell_width USING g_row_count 4 90.
+      PERFORM set_cell_width USING g_row_count 5 70.
+      PERFORM set_cell_width USING g_row_count 6 55.
+      PERFORM set_cell_width USING g_row_count 7 70.
+      PERFORM set_cell_width USING g_row_count 8 70.
+      g_row_count = g_row_count + 1.
+    ENDDO.
+    PERFORM free_table.
+    PERFORM initialize_font.
+  ENDIF.
+
+ENDFORM.                    " BMR2_ITEM_TABLE_CONTENT
+*&---------------------------------------------------------------------*
+*&      Form  BPR_ITEM_TABLE_CONTENT
+*&---------------------------------------------------------------------*
+FORM bpr_item_table_content.
+  DATA: lv_lines TYPE i.
+  PERFORM create_table USING 1 1.
+  PERFORM set_table_border USING 1.
+  PERFORM set_row_height USING 20.
+  PERFORM set_row_break USING 0.
+  PERFORM set_cell_width USING g_row_count 1 534.
+  PERFORM write_cell_text USING g_row_count 1 gv_mview_comp_text 1 0.
+  PERFORM free_table.
+  PERFORM initialize_font.
+  g_row_count = g_row_count + 1.
+
+  PERFORM create_table USING 1 7.
+  PERFORM set_table_border USING 1.
+  PERFORM set_row_height USING 20.
+  PERFORM set_row_break USING 0.
+  PERFORM set_cell_width USING g_row_count 1 90.
+  PERFORM set_cell_width USING g_row_count 2 70.
+  PERFORM write_cell_text USING g_row_count 2 gv_mview_qty 1 1.
+  PERFORM set_cell_width USING g_row_count 3 40.
+  PERFORM write_cell_text USING g_row_count 3 gv_mview_uom 1 1.
+  PERFORM set_cell_width USING g_row_count 4 94.
+  PERFORM write_cell_text USING g_row_count 4 gv_mview_batch 1 1.
+  PERFORM set_cell_width USING g_row_count 5 70.
+  PERFORM set_cell_width USING g_row_count 6 85.
+  PERFORM set_cell_width USING g_row_count 7 85.
+  PERFORM free_table.
+  PERFORM initialize_font.
+  g_row_count = g_row_count + 1.
+
+  lv_lines = gv_mview_lines - 1.
+  IF lv_lines > 0.
+    PERFORM create_table USING lv_lines 7.
+    PERFORM set_table_border USING 1.
+    PERFORM set_row_height USING 20.
+    PERFORM set_row_break USING 0.
+    DO lv_lines TIMES.
+      PERFORM set_cell_width USING g_row_count 1 90.
+      PERFORM set_cell_width USING g_row_count 2 70.
+      PERFORM set_cell_width USING g_row_count 3 40.
+      PERFORM set_cell_width USING g_row_count 4 94.
+      PERFORM set_cell_width USING g_row_count 5 70.
+      PERFORM set_cell_width USING g_row_count 6 85.
+      PERFORM set_cell_width USING g_row_count 7 85.
+      g_row_count = g_row_count + 1.
+    ENDDO.
+    PERFORM free_table.
+    PERFORM initialize_font.
+  ENDIF.
+ENDFORM.                    " BPR_ITEM_TABLE_CONTENT
+*&---------------------------------------------------------------------*
+*&      Form  BMR_STAGE_LAST_SECTION
+*&---------------------------------------------------------------------*
+FORM bmr_stage_last_section.
+
+  "The last section data has to be in one page and should not split. So we will create a table inside a table
+  PERFORM create_table_1 USING 1 1.
+  PERFORM set_table_border USING 0.
+  PERFORM set_column_width USING 1 534.
+  PERFORM set_row_break USING 0.
+
+  PERFORM create_table USING 5 6.
+*  PERFORM create_table USING 6 6.
+
+  PERFORM set_table_border USING 0.
+  PERFORM set_row_height USING 20.
+  PERFORM set_column_width USING 1 110.
+  PERFORM set_column_width USING 2 16.
+  PERFORM set_column_width USING 3 112.
+  PERFORM set_column_width USING 4 140.
+  PERFORM set_column_width USING 5 16.
+  PERFORM set_column_width USING 6 140.
+  PERFORM write_cell_text USING 1 4 'NO. OF PACKS/CONTAINERS' 1 0.
+  PERFORM write_cell_text USING 1 5 ':' 1 0.
+  PERFORM write_cell_text USING 1 6 c_line 1 0.
+
+  PERFORM write_cell_text USING 2 1 'MATERIAL ISSUED BY' 1 0.
+  PERFORM write_cell_text USING 2 2 ':' 1 0.
+  PERFORM write_cell_text USING 2 3 c_line 1 0.
+
+  PERFORM write_cell_text USING 2 4 'MATERIAL RECEIVED BY' 1 0.
+  PERFORM write_cell_text USING 2 5 ':' 1 0.
+  PERFORM write_cell_text USING 2 6 c_line 1 0.
+
+  PERFORM write_cell_text USING 3 3 '(STORES OFFICER)' 0 0.
+  PERFORM write_cell_text USING 3 6 '(PRODUCTION OFFICER)' 0 0.
+
+  PERFORM write_cell_text USING 4 1 'DATE' 0 0.
+  PERFORM write_cell_text USING 4 2 ':' 0 0.
+  PERFORM write_cell_text USING 4 3 c_line 0 0.
+
+  PERFORM write_cell_text USING 4 4 'DATE' 0 0.
+  PERFORM write_cell_text USING 4 5 ':' 0 0.
+  PERFORM write_cell_text USING 4 6 c_line 0 0.
+
+  PERFORM free_table.
+  PERFORM initialize_font.
+*  PERFORM new_line.
+
+  PERFORM create_table USING 3 2.
+  PERFORM set_row_height USING 20.
+  PERFORM set_table_border USING 0.
+
+  PERFORM set_cell_width USING 5 1 225.
+  PERFORM set_cell_width USING 5 2 220.
+  PERFORM set_cell_width USING 6 1 225.
+  PERFORM set_cell_width USING 6 2 220.
+  PERFORM set_cell_width USING 7 1 225.
+  PERFORM set_cell_width USING 7 2 220.
+
+  PERFORM write_cell_text USING 5 1 'ANNEXURE ATTACHED   :' 1 0.
+
+  PERFORM write_cell_text USING 6 1 'MATERIAL VERIFIED BY PRODUCTION OFFICER :' 1 0.
+  PERFORM write_cell_text USING 6 2 c_line 1 0.
+
+  PERFORM write_cell_text USING 7 2 c_line 1 0.
+  PERFORM write_cell_text USING 7 1 'DATE :' 1 2.
+
+  PERFORM free_table.
+  PERFORM initialize_font.
+
+  PERFORM free_table_1.
+ENDFORM.                    " BMR_STAGE_LAST_SECTION
+
+*&---------------------------------------------------------------------*
+*&      Form  f_bmr3_bmr4_stage_last_section
+*&---------------------------------------------------------------------*
+FORM f_bmr3_bmr4_stage_last_section.
+
+  "The last section data has to be in one page and should not split. So we will create a table inside a table
+  PERFORM create_table_1 USING 1 1.
+  PERFORM set_table_border USING 0.
+  PERFORM set_column_width USING 1 534.
+  PERFORM set_row_break USING 0.
+
+  PERFORM create_table USING 5 6.
+*  PERFORM create_table USING 6 6.
+
+  PERFORM set_table_border USING 0.
+  PERFORM set_row_height USING 20.
+  PERFORM set_column_width USING 1 110.
+  PERFORM set_column_width USING 2 16.
+  PERFORM set_column_width USING 3 112.
+  PERFORM set_column_width USING 4 140.
+  PERFORM set_column_width USING 5 16.
+  PERFORM set_column_width USING 6 140.
+  PERFORM write_cell_text USING 1 4 'NO. OF PACKS/CONTAINERS' 1 0.
+  PERFORM write_cell_text USING 1 5 ':' 1 0.
+  PERFORM write_cell_text USING 1 6 c_line 1 0.
+
+  PERFORM write_cell_text USING 2 1 'MATERIAL ISSUED BY' 1 0.
+  PERFORM write_cell_text USING 2 2 ':' 1 0.
+  PERFORM write_cell_text USING 2 3 c_line 1 0.
+
+  PERFORM write_cell_text USING 2 4 'MATERIAL RECEIVED BY' 1 0.
+  PERFORM write_cell_text USING 2 5 ':' 1 0.
+  PERFORM write_cell_text USING 2 6 c_line 1 0.
+
+****S.O.C Rahul Nishankar #8 CRDK958203 16/10/2018 urgent changes for US
+  IF gv_bukrs IS INITIAL.
+    PERFORM write_cell_text USING 3 3 '(WAREHOUSE)' 0 0.
+    PERFORM write_cell_text USING 3 6 '(MFG. / PACKAGING)' 0 0.
+  ELSE.
+***    PERFORM write_cell_text USING 3 3 '(WAREHOUSE)' 0 0.
+***    PERFORM write_cell_text USING 3 6 '(MFG. / PACKAGING)' 0 0.
+  ENDIF.
+****E.O.C Rahul Nishankar #8 CRDK958203 16/10/2018 urgent changes for US
+
+
+  PERFORM write_cell_text USING 4 1 'DATE' 0 0.
+  PERFORM write_cell_text USING 4 2 ':' 0 0.
+  PERFORM write_cell_text USING 4 3 c_line 0 0.
+
+  PERFORM write_cell_text USING 4 4 'DATE' 0 0.
+  PERFORM write_cell_text USING 4 5 ':' 0 0.
+  PERFORM write_cell_text USING 4 6 c_line 0 0.
+
+  PERFORM free_table.
+  PERFORM initialize_font.
+*  PERFORM new_line.
+
+  PERFORM create_table USING 3 2.
+  PERFORM set_row_height USING 20.
+  PERFORM set_table_border USING 0.
+
+  PERFORM set_cell_width USING 5 1 225.
+  PERFORM set_cell_width USING 5 2 220.
+  PERFORM set_cell_width USING 6 1 225.
+  PERFORM set_cell_width USING 6 2 220.
+  PERFORM set_cell_width USING 7 1 225.
+  PERFORM set_cell_width USING 7 2 220.
+
+  PERFORM write_cell_text USING 5 1 'ANNEXURE ATTACHED   :' 1 0.
+
+  PERFORM write_cell_text USING 6 1 'MATERIAL VERIFIED BY MANUFACTURING / PACKAGING :' 1 0.
+  PERFORM write_cell_text USING 6 2 c_line 1 0.
+
+  PERFORM write_cell_text USING 7 2 c_line 1 0.
+  PERFORM write_cell_text USING 7 1 'DATE :' 1 2.
+
+  PERFORM free_table.
+  PERFORM initialize_font.
+
+  PERFORM free_table_1.
+ENDFORM.                    " f_bmr3_bmr4_stage_last_section
+
+*&---------------------------------------------------------------------*
+*&      Form  f_bmr5_stage_last_section
+*&---------------------------------------------------------------------*
+FORM f_bmr5_stage_last_section.
+
+  "The last section data has to be in one page and should not split. So we will create a table inside a table
+  PERFORM create_table_1 USING 1 1.
+  PERFORM set_table_border USING 0.
+  PERFORM set_column_width USING 1 534.
+  PERFORM set_row_break USING 0.
+
+  PERFORM create_table USING 5 6.
+*  PERFORM create_table USING 6 6.
+
+  PERFORM set_table_border USING 0.
+  PERFORM set_row_height USING 20.
+  PERFORM set_column_width USING 1 110.
+  PERFORM set_column_width USING 2 16.
+  PERFORM set_column_width USING 3 112.
+  PERFORM set_column_width USING 4 140.
+  PERFORM set_column_width USING 5 16.
+  PERFORM set_column_width USING 6 140.
+
+***  PERFORM write_cell_text USING 1 4 'NO. OF PACKS/CONTAINERS' 1 0.
+***  PERFORM write_cell_text USING 1 5 ':' 1 0.
+***  PERFORM write_cell_text USING 1 6 c_line 1 0.
+
+  PERFORM write_cell_text USING 2 1 'MATERIAL ISSUED BY' 1 0.
+  PERFORM write_cell_text USING 2 2 ':' 1 0.
+  PERFORM write_cell_text USING 2 3 c_line 1 0.
+
+  PERFORM write_cell_text USING 2 4 'MATERIAL CHECKED BY' 1 0.
+  PERFORM write_cell_text USING 2 5 ':' 1 0.
+  PERFORM write_cell_text USING 2 6 c_line 1 0.
+
+  PERFORM write_cell_text USING 3 3 '(MFG. / PACKAGING)' 0 0.
+  PERFORM write_cell_text USING 3 6 '(MFG. / PACKAGING)' 0 0.
+
+  PERFORM write_cell_text USING 4 1 'DATE' 0 0.
+  PERFORM write_cell_text USING 4 2 ':' 0 0.
+  PERFORM write_cell_text USING 4 3 c_line 0 0.
+
+  PERFORM write_cell_text USING 4 4 'DATE' 0 0.
+  PERFORM write_cell_text USING 4 5 ':' 0 0.
+  PERFORM write_cell_text USING 4 6 c_line 0 0.
+
+  PERFORM free_table.
+  PERFORM initialize_font.
+  PERFORM new_line.
+
+***  PERFORM create_table USING 3 2.
+***  PERFORM set_row_height USING 20.
+***  PERFORM set_table_border USING 0.
+***
+***  PERFORM set_cell_width USING 5 1 225.
+***  PERFORM set_cell_width USING 5 2 220.
+***  PERFORM set_cell_width USING 6 1 225.
+***  PERFORM set_cell_width USING 6 2 220.
+***  PERFORM set_cell_width USING 7 1 225.
+***  PERFORM set_cell_width USING 7 2 220.
+
+***  PERFORM write_cell_text USING 5 1 'ANNEXURE ATTACHED   :' 1 0.
+
+***  PERFORM write_cell_text USING 6 1 'MATERIAL VERIFIED BY PRODUCTION OFFICER :' 1 0.
+***  PERFORM write_cell_text USING 6 2 c_line 1 0.
+
+***  PERFORM write_cell_text USING 7 2 c_line 1 0.
+***  PERFORM write_cell_text USING 7 1 'DATE :' 1 2.
+
+***  PERFORM free_table.
+***  PERFORM initialize_font.
+***
+  PERFORM free_table_1.
+ENDFORM.                    " f_bmr5_stage_last_section
+
+*&---------------------------------------------------------------------*
+*&      Form  BPR_STAGE_LAST_SECTION
+*&---------------------------------------------------------------------*
+FORM bpr_stage_last_section.
+  "The last section data has to be in one page and should not split. So we will create a table inside a table
+  PERFORM create_table_1 USING 1 1.
+  PERFORM set_table_border USING 0.
+  PERFORM set_column_width USING 1 534.
+  PERFORM set_row_break USING 0.
+
+  PERFORM create_table USING 2 1.
+  PERFORM set_column_width USING 1 534.
+  PERFORM set_row_height USING 20.
+  PERFORM set_table_border USING 0.
+  PERFORM write_cell_text USING 1 1 'DETAILS OF QTY. DISPENSED TO BE RECORDED IN ANNEXURE.' 1 0.
+  PERFORM write_cell_text USING 2 1 'ANNEXURE ATTACHED:' 1 0.
+  PERFORM free_table.
+  PERFORM initialize_font.
+  PERFORM new_line.
+  PERFORM create_table USING 3 6.
+  PERFORM set_table_border USING 0.
+  PERFORM set_row_height USING 20.
+  PERFORM set_column_width USING 1 110.
+  PERFORM set_column_width USING 2 16.
+  PERFORM set_column_width USING 3 122.
+  PERFORM set_column_width USING 4 130.
+  PERFORM set_column_width USING 5 16.
+  PERFORM set_column_width USING 6 140.
+  PERFORM write_cell_text USING 1 1 'MATERIAL ISSUED BY' 1 0.
+  PERFORM write_cell_text USING 1 2 ':' 1 0.
+  PERFORM write_cell_text USING 1 3 c_line 1 0.
+  PERFORM write_cell_text USING 1 4 'MATERIAL RECEIVED BY' 1 0.
+  PERFORM write_cell_text USING 1 5 ':' 1 0.
+  PERFORM write_cell_text USING 1 6 c_line 1 0.
+  PERFORM write_cell_text USING 2 3 '(STORES OFFICER)' 1 0.
+  PERFORM write_cell_text USING 2 6 '(PRODUCTION OFFICER)' 1 0.
+  PERFORM write_cell_text USING 3 1 'DATE' 1 0.
+  PERFORM write_cell_text USING 3 2 ':' 1 0.
+  PERFORM write_cell_text USING 3 3 c_line 1 0.
+  PERFORM write_cell_text USING 3 4 'DATE' 1 0.
+  PERFORM write_cell_text USING 3 5 ':' 1 0.
+  PERFORM write_cell_text USING 3 6 c_line 1 0.
+  PERFORM free_table.
+  PERFORM initialize_font.
+
+  PERFORM free_table_1.
+ENDFORM.                    " BPR_STAGE_LAST_SECTION
+
+****S.O.C Rahul Nishankar #8000004096 CRDK955491 14/06/2018
+*&---------------------------------------------------------------------*
+*&      Form  BPR_STAGE_LAST_SECTION
+*&---------------------------------------------------------------------*
+FORM f_bpr_stage_last_section_us.
+  "The last section data has to be in one page and should not split. So we will create a table inside a table
+  PERFORM create_table_1 USING 1 1.
+  PERFORM set_table_border USING 0.
+  PERFORM set_column_width USING 1 534.
+  PERFORM set_row_break USING 0.
+
+  PERFORM create_table USING 2 1.
+  PERFORM set_column_width USING 1 534.
+  PERFORM set_row_height USING 20.
+  PERFORM set_table_border USING 0.
+  PERFORM write_cell_text USING 1 1 'DETAILS OF QTY. DISPENSED TO BE RECORDED IN ANNEXURE.' 1 0.
+  PERFORM write_cell_text USING 2 1 'ANNEXURE ATTACHED:' 1 0.
+  PERFORM free_table.
+  PERFORM initialize_font.
+  PERFORM new_line.
+  PERFORM create_table USING 3 6.
+  PERFORM set_table_border USING 0.
+  PERFORM set_row_height USING 20.
+  PERFORM set_column_width USING 1 110.
+  PERFORM set_column_width USING 2 16.
+  PERFORM set_column_width USING 3 122.
+  PERFORM set_column_width USING 4 130.
+  PERFORM set_column_width USING 5 16.
+  PERFORM set_column_width USING 6 140.
+  PERFORM write_cell_text USING 1 1 'MATERIAL ISSUED BY' 1 0.
+  PERFORM write_cell_text USING 1 2 ':' 1 0.
+  PERFORM write_cell_text USING 1 3 c_line 1 0.
+  PERFORM write_cell_text USING 1 4 'MATERIAL RECEIVED BY' 1 0.
+  PERFORM write_cell_text USING 1 5 ':' 1 0.
+  PERFORM write_cell_text USING 1 6 c_line 1 0.
+****S.O.C Rahul Nishankar #8 CRDK958203 16/10/2018 urgent changes for US
+***  PERFORM write_cell_text USING 2 3 '(WAREHOUSE)' 1 0.
+***  PERFORM write_cell_text USING 2 6 '(MFG. / PACKAGING)' 1 0.
+****E.O.C Rahul Nishankar #8 CRDK958203 16/10/2018 urgent changes for US
+  PERFORM write_cell_text USING 3 1 'DATE' 1 0.
+  PERFORM write_cell_text USING 3 2 ':' 1 0.
+  PERFORM write_cell_text USING 3 3 c_line 1 0.
+  PERFORM write_cell_text USING 3 4 'DATE' 1 0.
+  PERFORM write_cell_text USING 3 5 ':' 1 0.
+  PERFORM write_cell_text USING 3 6 c_line 1 0.
+  PERFORM free_table.
+  PERFORM initialize_font.
+
+  PERFORM free_table_1.
+ENDFORM.                    " F_BPR_STAGE_LAST_SECTION_US
+****S.O.C Rahul Nishankar #8000004096 CRDK955491 14/06/2018
+
+*&---------------------------------------------------------------------*
+*&      Form  REPEATING_INITIAL_SECTION
+*&---------------------------------------------------------------------*
+FORM repeating_initial_section .
+  PERFORM create_table USING 3 6.
+  PERFORM set_table_border USING 0.
+  PERFORM set_row_height USING 20.
+  PERFORM set_column_width USING 1 125.
+  PERFORM set_column_width USING 2 17.
+  PERFORM set_column_width USING 3 120.
+  PERFORM set_column_width USING 4 135.
+  PERFORM set_column_width USING 5 17.
+  PERFORM set_column_width USING 6 120.
+
+  PERFORM write_cell_text USING 1 1 'ISSUED BY' 1 0.
+  PERFORM write_cell_text USING 1 2 ':' 1 0.
+  PERFORM write_cell_text USING 1 3 c_line 1 0.
+  PERFORM write_cell_text USING 1 4 'AUTHORIZED BY' 1 0.
+  PERFORM write_cell_text USING 1 5 ':' 1 0.
+  PERFORM write_cell_text USING 1 6 c_line 1 0.
+  PERFORM write_cell_text USING 2 3 '(QUALITY ASSURANCE)' 0 0.
+  " begin of changes #8000005794 21.05.2020
+  IF gv_bukrs_sa IS NOT INITIAL.
+    PERFORM write_cell_text USING 2 6 '(QUALITY ASSURANCE)' 0 0.
+  ELSE.
+    " end of changes #8000005794
+    PERFORM write_cell_text USING 2 6 '(DEPARTMENT HEAD)' 0 0.
+  ENDIF. " added changes #8000005794
+  PERFORM write_cell_text USING 3 1 'DATE' 0 0.
+  PERFORM write_cell_text USING 3 2 ':' 0 0.
+  PERFORM write_cell_text USING 3 3 c_line 0 0.
+  PERFORM write_cell_text USING 3 4 'DATE' 0 0.
+  PERFORM write_cell_text USING 3 5 ':' 0 0.
+  PERFORM write_cell_text USING 3 6 c_line 0 0.
+  PERFORM free_table.
+  PERFORM new_line.
+  PERFORM initialize_font.
+ENDFORM.                    " REPEATING_INITIAL_SECTION
+
+****S.O.C Rahul Nishankar #8000004096 CRDK955491 14/06/2018
+
+
+*&---------------------------------------------------------------------*
+*&      Form  F_REPEATING_INITIAL_SECTION_US
+*&---------------------------------------------------------------------*
+FORM f_repeating_initial_section_us.
+  PERFORM create_table USING 3 6.
+  PERFORM set_table_border USING 0.
+  PERFORM set_row_height USING 20.
+  PERFORM set_column_width USING 1 125.
+  PERFORM set_column_width USING 2 17.
+  PERFORM set_column_width USING 3 120.
+  PERFORM set_column_width USING 4 135.
+  PERFORM set_column_width USING 5 17.
+  PERFORM set_column_width USING 6 120.
+
+  PERFORM write_cell_text USING 1 1 'ISSUED BY' 1 0.
+  PERFORM write_cell_text USING 1 2 ':' 1 0.
+  PERFORM write_cell_text USING 1 3 c_line 1 0.
+  PERFORM write_cell_text USING 1 4 'AUTHORIZED BY' 1 0.
+  PERFORM write_cell_text USING 1 5 ':' 1 0.
+  PERFORM write_cell_text USING 1 6 c_line 1 0.
+  PERFORM write_cell_text USING 2 3 '(QUALITY ASSURANCE)' 0 0.
+  PERFORM write_cell_text USING 2 6 '(MFG. / PACKAGING)' 0 0.
+  PERFORM write_cell_text USING 3 1 'DATE' 0 0.
+  PERFORM write_cell_text USING 3 2 ':' 0 0.
+  PERFORM write_cell_text USING 3 3 c_line 0 0.
+  PERFORM write_cell_text USING 3 4 'DATE' 0 0.
+  PERFORM write_cell_text USING 3 5 ':' 0 0.
+  PERFORM write_cell_text USING 3 6 c_line 0 0.
+  PERFORM free_table.
+  PERFORM new_line.
+  PERFORM initialize_font.
+ENDFORM.                    " F_REPEATING_INITIAL_SECTION_US
+
+
+*&---------------------------------------------------------------------*
+*&      Form  LOCK_MDOC
+*&---------------------------------------------------------------------*
+FORM lock_mdoc . "added on 08.04.2014
+  DATA: l_user TYPE syst-uname,
+        l_pv   TYPE verid.
+  IF gv_lock NE 'X'.     "As this FM called 2 times i.e. at selection screen & on execution 2 times it is locked
+    CALL FUNCTION 'ENQUEUE_EZ_MASTER_DOC'
+      EXPORTING
+        mode_zpp_master_doc = 'E'
+        mandt               = sy-mandt
+        matnr               = p_mat
+        werks               = p_plant
+        verid               = p_prd_vn
+*       DOKAR               =
+*       DOKVR               =
+*       X_MATNR             = ' '
+*       X_WERKS             = ' '
+*       X_VERID             = ' '
+*       X_DOKAR             = ' '
+*       X_DOKVR             = ' '
+*       _SCOPE              = '2'
+*       _WAIT               = ' '
+*       _COLLECT            = ''
+      EXCEPTIONS
+        foreign_lock        = 1
+        system_failure      = 2
+        OTHERS              = 3.
+    IF sy-subrc <> 0.
+      l_user = sy-msgv1 .
+*      CLEAR : p_dms, p_stat_desc, p_stat. "added by Vrushali on 04.07.2017 for ticket : 8000003393
+
+      l_pv = p_prd_vn. "added on 05.07.2017
+
+      CLEAR: p_mdesc, p_wdesc, p_stat, p_stat_desc, p_dms, p_static, p_desc, p_cat, p_lab
+      ,p_date, p_format, gs_mdoc_header,p_prd_vn, gv_file_path.  "added by Payal on 04.07.2017 for ticket : 8000003393
+      "gv_file_path added for #8000003013 By Payal S on 06.09.2017
+
+
+*      MESSAGE E060(zppr_formu) WITH p_mat p_plant p_prd_vn l_user.
+*--SOC--- # 8000004311:CRDK953359  Status not displayed in print log SamdaniShareef Shaik 23.03.2018--------------*
+*      MESSAGE e060(zppr_formu) WITH p_mat p_plant l_pv l_user.
+      MESSAGE s060(zppr_formu) WITH p_mat p_plant l_pv l_user DISPLAY LIKE 'E'.
+****S.O.C Rahul Nishankar #8000004311 CRDK954755 15/05/2018 changes for Lock entry
+      gv_flag = abap_true.                                  "CRDK954755
+      CLEAR fcode.
+***      CALL TRANSACTION SY-TCODE."'ZPP_BMR04'.
+****E.O.C Rahul Nishankar #8000004311 CRDK954755 15/05/2018 changes for Lock entry
+
+
+
+*--EOC--- # 8000004311:CRDK953359  Status not displayed in print log SamdaniShareef Shaik 23.03.2018--------------*
+*   Entry is locked for material & plant & verison &.
+* Implement suitable error handling here
+    ELSE.
+****S.O.C Rahul Nishankar #8000004311 CRDK954755 15/05/2018 changes for Lock entry
+      gv_flag = abap_false.                                 "CRDK954755
+****E.O.C Rahul Nishankar #8000004311 CRDK954755 15/05/2018 changes for Lock entry
+      gv_lock = 'X'.
+    ENDIF.
+  ENDIF.
+ENDFORM.                    " LOCK_MDOC
+*&---------------------------------------------------------------------*
+*&      Form  UNLOCK_MDOC
+*&---------------------------------------------------------------------*
+FORM unlock_mdoc . "added on 08.04.2014
+
+  CALL FUNCTION 'DEQUEUE_EZ_ZQM_ANN_PREP'
+    EXPORTING
+      mode_zqm_ann_prepare = 'E'
+      mandt                = sy-mandt
+      matnr                = p_mat
+      werks                = p_plant
+      verid                = p_prd_vn
+      ann_no               = ann_no
+      _scope               = '3'.
+
+
+  CLEAR gv_lock.
+  CLEAR: p_mdesc, p_wdesc, p_stat, p_stat_desc, p_dms, p_static,
+        p_date, p_format, p_desc, p_cat, p_lab, gs_mdoc_header, gv_file_path, lta_zqm_ann_addprint[].
+
+ENDFORM.                    " UNLOCK_MDOC
+*&---------------------------------------------------------------------*
+*&      Form  PROGRESS_BAR
+*&---------------------------------------------------------------------*
+*      -->P_TEXT  text
+*----------------------------------------------------------------------*
+FORM progress_bar USING p_text TYPE string.   "added on 08.04.2014
+  CALL FUNCTION 'SAPGUI_PROGRESS_INDICATOR'
+    EXPORTING
+      percentage = 0
+      text       = p_text.
+ENDFORM.                    " PROGRESS_BAR
+*&---------------------------------------------------------------------*
+*&      Form  FETCH_REMARK
+*&---------------------------------------------------------------------*
+*      <--P_MVIEW_REMARK  text
+*----------------------------------------------------------------------*
+*FORM fetch_remark USING lv_idnrk CHANGING p_mview_remark.
+FORM fetch_remark USING ls_final TYPE ty_bom_final
+      CHANGING p_mview_remark.
+  DATA: lv_bomno  TYPE tdobname,
+        it_bomtxt TYPE TABLE OF tline,
+        wa_bomtxt LIKE LINE OF it_bomtxt.
+
+  DATA: lv_mview_remark LIKE gv_mview_remark.
+
+  CONCATENATE sy-mandt ls_final-stlty ls_final-stlnr ls_final-stlkn ls_final-stpoz INTO lv_bomno.
+
+  CALL FUNCTION 'READ_TEXT'
+    EXPORTING
+      client                  = sy-mandt
+      id                      = 'MPO'
+      language                = 'E'
+      name                    = lv_bomno
+      object                  = 'BOM'
+    TABLES
+      lines                   = it_bomtxt
+    EXCEPTIONS
+      id                      = 1
+      language                = 2
+      name                    = 3
+      not_found               = 4
+      object                  = 5
+      reference_check         = 6
+      wrong_access_to_archive = 7
+      OTHERS                  = 8.
+  IF sy-subrc <> 0.
+* Implement suitable error handling here
+  ENDIF.
+
+  IF NOT it_bomtxt IS INITIAL.
+    CLEAR lv_mview_remark.
+
+*    CONCATENATE lv_idnrk ':' INTO lv_mview_remark SEPARATED BY space.    "to remove mat no
+    LOOP AT it_bomtxt INTO wa_bomtxt.
+      IF sy-tabix <> 1 AND wa_bomtxt-tdformat = '*'.
+*        CONCATENATE lv_mview_remark c_split INTO lv_mview_remark SEPARATED BY space.
+        ""commented by sneha dt 21.7.14
+***        soa by sneha dt 21.7.14
+        CONCATENATE lv_mview_remark cl_abap_char_utilities=>cr_lf INTO lv_mview_remark SEPARATED BY space.
+***        eoa by sneha dt 21.7.14
+      ENDIF.
+      CONCATENATE lv_mview_remark wa_bomtxt-tdline INTO lv_mview_remark SEPARATED BY space.
+    ENDLOOP.
+
+    CONDENSE lv_mview_remark.
+
+*    DATA: l_pos TYPE n VALUE 0,
+*          l_len TYPE n VALUE 40.
+*
+*    LOOP AT it_bomtxt INTO wa_bomtxt.
+*      IF sy-tabix <> 1 AND wa_bomtxt-tdformat = '*'.
+*        CONCATENATE lv_mview_remark c_split INTO lv_mview_remark.
+*        lv_mview_remark+0(40) = lv_mview_remark.
+*        lv_mview_remark+40(2) = lv_mview_remark.
+*      ENDIF.
+*      CONCATENATE lv_mview_remark wa_bomtxt-tdline INTO lv_mview_remark.
+*      lv_mview_remark
+*    endloop.
+
+    IF p_mview_remark IS INITIAL.
+      p_mview_remark = lv_mview_remark.
+    ELSE.
+*      CONCATENATE p_mview_remark cl_abap_char_utilities=>newline lv_idnrk ':' lv_mview_remark INTO p_mview_remark.
+      CONCATENATE p_mview_remark lv_mview_remark INTO p_mview_remark SEPARATED BY cl_abap_char_utilities=>newline."to remove mat no
+    ENDIF.
+
+  ELSE.
+    "Item Text line 1 & line 2
+    IF ls_final-potx1 IS NOT INITIAL.
+      IF p_mview_remark IS INITIAL.
+        p_mview_remark = ls_final-potx1.
+*        CONCATENATE lv_idnrk ':' INTO p_mview_remark.  ""to remove mat no
+      ELSE.
+*        CONCATENATE p_mview_remark cl_abap_char_utilities=>newline lv_idnrk ':' gs_final-potx1 INTO p_mview_remark.
+        CONCATENATE p_mview_remark ls_final-potx1 INTO p_mview_remark SEPARATED BY cl_abap_char_utilities=>newline. "to remove mat no
+      ENDIF.
+    ENDIF.
+    IF ls_final-potx2 IS NOT INITIAL.
+      IF p_mview_remark IS INITIAL.
+        p_mview_remark = ls_final-potx2.
+*        CONCATENATE lv_idnrk ':' INTO p_mview_remark.  "to remove mat no
+      ELSE.
+        IF ls_final-potx1 IS NOT INITIAL. "Do not print lv_idnrk: again if already remark is present in line1
+          CONCATENATE p_mview_remark ls_final-potx2 INTO p_mview_remark SEPARATED BY space.
+        ELSE.
+*          CONCATENATE p_mview_remark cl_abap_char_utilities=>newline lv_idnrk ':' gs_final-potx2 INTO p_mview_remark.
+          CONCATENATE p_mview_remark ls_final-potx2 INTO p_mview_remark SEPARATED BY cl_abap_char_utilities=>newline.  "to remove mat no
+        ENDIF.
+      ENDIF.
+    ENDIF.
+  ENDIF.
+ENDFORM.                    " FETCH_REMARK
+*&---------------------------------------------------------------------*
+*&      Form  CALL_MM03
+*&---------------------------------------------------------------------*
+*      -->P_MAT  text
+*----------------------------------------------------------------------*
+FORM call_mm03  USING p_mat.
+  SET PARAMETER ID 'MAT' FIELD p_mat.
+  SET PARAMETER ID 'MXX' FIELD 'K'.
+  CALL TRANSACTION 'MM03' AND SKIP FIRST SCREEN.
+ENDFORM.                    " CALL_MM03
+*&---------------------------------------------------------------------*
+*&      Form  CALL_COR3
+*&---------------------------------------------------------------------*
+*      -->P_PO  text
+*----------------------------------------------------------------------*
+FORM call_cor3  USING p_po.
+  SET PARAMETER ID 'ANR' FIELD p_po.
+  CALL TRANSACTION 'COR3' AND SKIP FIRST SCREEN.
+ENDFORM.                    " CALL_COR3
+*&---------------------------------------------------------------------*
+*&      Form  CALL_MSC3N
+*&---------------------------------------------------------------------*
+*      -->P_BATCH  text
+*----------------------------------------------------------------------*
+FORM call_msc3n  USING p_batch.
+  SET PARAMETER ID 'CHA' FIELD p_batch.
+  SET PARAMETER ID 'MAT' FIELD p_mat.
+  SET PARAMETER ID 'WRK' FIELD p_plant.
+  CALL TRANSACTION 'MSC3N' AND SKIP FIRST SCREEN.
+ENDFORM.                    " CALL_MSC3N
+*&---------------------------------------------------------------------*
+*&      Form  BMR_STAGES_DATA1
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM bmr_stages_data1 .
+  DATA: lv_idnrk     TYPE idnrk,
+        lv_index     TYPE sy-index,
+        lv_prev_pg   TYPE i VALUE 1,
+        lv_pg        TYPE i VALUE 1,
+        prev_process TYPE zps_code.
+  DATA: ls_final TYPE ty_bom_final.
+
+  DATA: l_pg_b4_pb TYPE i VALUE 1,
+        l_pg_af_pb TYPE i VALUE 1.
+
+  PERFORM fetch_sop_data.
+  PERFORM fetch_sparepart_ind_text.
+
+
+  LOOP AT gt_final INTO gs_final.
+    PERFORM progress_bar USING 'Generating stages...'.
+    lv_index = sy-tabix.
+    READ TABLE gt_bom INTO gs_bom WITH KEY posnr = gs_final-posnr idnrk = gs_final-idnrk BINARY SEARCH.
+    "No sy-subrc check or clearing of gs_bom work area as we want to retain the ds_code & lines values for lower priority items under each alternative group.
+    "PLEASE DO NOT USE SY-SUBRC CHECK HERE. SKIPPED INTENTIONALLY
+
+    "soa by payal on 01.07.2017 if priority changed in bom after master creation
+    IF sy-subrc <> 0.
+      READ TABLE gt_bom INTO gs_bom WITH KEY alpgr = gs_final-alpgr.
+    ENDIF.
+    "eoa by payal on 01.07.2017 if priority changed in bom after master creation
+
+    gs_final-ds_code = gs_bom-ds_code.
+    gs_final-ds_desc = gs_bom-ds_desc.
+    gs_final-ps_code = gs_bom-ps_code.
+    gs_final-lines = gs_bom-lines.
+    gs_final-lots = gs_bom-lots.
+
+***    soa on 11.04.2014 for sequencing
+    IF gs_bom-ds_seq IS INITIAL.
+      gs_final-ds_seq = 1.
+      gs_bom-ds_seq = 1.
+    ELSE.
+      gs_final-ds_seq = gs_bom-ds_seq.
+    ENDIF.
+
+    IF gs_bom-ps_seq IS INITIAL.
+      gs_final-ps_seq = 1.
+      gs_bom-ps_seq = 1.
+    ELSE.
+      gs_final-ps_seq = gs_bom-ps_seq.
+    ENDIF.
+***    eoa on 11.04.2014 for sequencing
+
+    MODIFY gt_final FROM gs_final INDEX lv_index.
+***    soc on 01.07.2014 for sequencing
+    MODIFY gt_bom FROM gs_bom TRANSPORTING ds_code ps_code
+*    MODIFY gt_bom FROM gs_bom TRANSPORTING ds_code ps_code ps_seq ds_seq
+***    eoc on 01.07.2014 for sequencing
+    WHERE ds_code = gs_final-ds_code AND ps_code = gs_final-ps_code.
+  ENDLOOP.
+
+**changed on 09.04.2014 for sequencing
+*  SORT gt_final BY ds_code ps_code alpgr alprf.
+*  SORT gt_final BY ds_seq ds_code ps_seq alpgr alprf posnr.
+
+  gt_final_tmp[] = gt_final[].
+
+*  DELETE gt_final WHERE alprf GT 1.
+  gt_final[] = gt_bom[].
+
+  SORT gt_final BY ds_seq ds_code ps_seq ps_code posnr.   "SEQ CHANGE"
+  SORT gt_final_tmp BY ds_seq ds_code ps_seq ps_code alpgr alprf posnr.
+
+**changed on 09.04.2014 for sequencing
+
+  SORT gt_mdoc_stages BY ds_code.
+
+  lv_index = 1.
+  LOOP AT gt_final INTO ls_final WHERE flag IS INITIAL.
+    gs_final = ls_final.
+    PERFORM progress_bar USING 'Generating stages...'.
+    lv_idnrk = gs_final-idnrk.
+
+***soc on 09.04.2014 for sequencing
+    ON CHANGE OF gs_final-ds_code. "Uncommented by Swati
+*    ON CHANGE OF gs_final-ds_seq.
+***eoc on 09.04.2014 for sequencing
+      CLEAR: prev_process, gs_mdoc_stages, gt_sop.
+      READ TABLE gt_mdoc_stages INTO gs_mdoc_stages WITH KEY ds_code = gs_final-ds_code BINARY SEARCH.
+      IF gs_mdoc_stages-nw_pg = 'X'.
+        PERFORM get_current_page_no CHANGING l_pg_b4_pb.
+        PERFORM page_break.
+        PERFORM get_current_page_no CHANGING l_pg_af_pb.
+        IF  l_pg_af_pb - l_pg_b4_pb GE 1.
+          CALL METHOD OF g_selection 'TypeBackspace'.
+        ENDIF.
+        IF lv_index <> 1.
+****S.O.C Rahul Nishankar #8000004096 CRDK955491 14/06/2018
+          IF gv_bukrs IS INITIAL.
+            PERFORM repeating_initial_section.
+          ELSE.
+            PERFORM f_repeating_initial_section_us.
+          ENDIF.
+****E.O.C Rahul Nishankar #8000004096 CRDK955491 14/06/2018
+        ENDIF.
+      ELSE.
+        PERFORM get_current_page_no CHANGING lv_prev_pg.
+        PERFORM new_line.
+        PERFORM new_line.
+        PERFORM get_current_page_no CHANGING lv_pg.
+        IF lv_pg <> lv_prev_pg AND lv_index <> 1. "Do not insert repeating initial section first time. Also if dispensing stage is not on fresh page, do not print initial section
+****S.O.C Rahul Nishankar #8000004096 CRDK955491 14/06/2018
+          IF gv_bukrs IS INITIAL.
+            PERFORM repeating_initial_section.
+          ELSE.
+            PERFORM f_repeating_initial_section_us.
+          ENDIF.
+****E.O.C Rahul Nishankar #8000004096 CRDK955491 14/06/2018
+        ENDIF.
+        CLEAR: lv_pg.
+      ENDIF.
+      CLEAR: lv_index.
+
+      READ TABLE gt_sop WITH KEY ds_code = gs_final-ds_code.
+      IF gs_final-ds_desc IS INITIAL.
+        IF gt_disp_stage IS INITIAL.
+          PERFORM fetch_disp_stages.
+        ENDIF.
+        READ TABLE gt_disp_stage WITH KEY ds_code = gs_final-ds_code.
+        gs_final-ds_desc = gt_disp_stage-ds_description.
+      ENDIF.
+      IF gt_sop-ds_sopno IS INITIAL.
+        CONCATENATE 'DISPENSING OF' gs_final-ds_desc INTO gv_mview_stage SEPARATED BY space.
+      ELSE.
+*        CONCATENATE 'DISPENSING OF' gs_final-ds_desc '(' gt_sop-ds_sopno ')' INTO gv_mview_stage SEPARATED BY space.
+        CONCATENATE 'DISPENSING OF' gs_final-ds_desc gt_sop-ds_sopno  INTO gv_mview_stage SEPARATED BY space.
+      ENDIF.
+      PERFORM dispensing_stage_heading.
+      PERFORM display_note.
+      PERFORM display_caution.
+      PERFORM display_topbottom_remark USING gs_mdoc_stages-top_remark.
+      IF gs_mdoc_stages-tabformat = 'BMR1'.
+        PERFORM bmr1_item_table_heading.
+      ELSEIF gs_mdoc_stages-tabformat = 'BMR2'.
+        PERFORM bmr2_item_table_heading.
+****S.O.C Rahul Nishankar #8000004096 CRDK955491 14/06/2018
+      ELSEIF gs_mdoc_stages-tabformat = 'BMR3'.
+        PERFORM f_bmr3_item_table_heading.
+      ELSEIF gs_mdoc_stages-tabformat = 'BMR4'.
+        PERFORM f_bmr4_item_table_heading.
+      ELSEIF gs_mdoc_stages-tabformat = 'BMR5'.
+        PERFORM f_bmr5_item_table_heading.
+****E.O.C Rahul Nishankar #8000004096 CRDK955491 14/06/2018
+        " begin of changes #8000005794 25 may 2020
+      ELSEIF gs_mdoc_stages-tabformat = 'BMR7'.
+        PERFORM f_bmr7_item_table_heading.
+      ELSEIF gs_mdoc_stages-tabformat = 'BMR6'.
+        PERFORM f_bmr6_item_table_heading.
+        " end of changes #8000005794
+
+      ENDIF.
+    ENDON.
+
+**"SEQ ISSUE" on 27.05.2014
+*    AT NEW alpgr.
+*      PERFORM fetch_remark USING lv_idnrk CHANGING gv_mview_remark .        "shifted at end of alpgr to fetch item remark for group only 1 time
+*    ENDAT.
+*
+*    ON CHANGE OF gs_final-alpgr.
+*      PERFORM get_bmr_item_table_content USING prev_process lv_idnrk CHANGING gv_superscript_flag.
+*      IF gs_final-alpgr IS INITIAL. "This condition may occur in BMR. Suppose Process P1 ends with alpgr Z1. New process comes with alpgr = blank.
+*        IF gs_mdoc_stages-tabformat = 'BMR1'.
+*          PERFORM bmr1_item_table_content.
+*        ELSEIF gs_mdoc_stages-tabformat = 'BMR2'.
+*          PERFORM bmr2_item_table_content.
+*        ENDIF.
+*        CLEAR: gv_mview_process, gv_mview_comp_text, gv_mview_qty, gv_mview_uom, gv_mview_batch, gv_mview_lines.
+*      ENDIF.
+*    ELSEIF gs_final-alpgr IS INITIAL.
+*      PERFORM get_bmr_item_table_content USING prev_process lv_idnrk CHANGING gv_superscript_flag.
+*      IF gs_mdoc_stages-tabformat = 'BMR1'.
+*        PERFORM bmr1_item_table_content.
+*      ELSEIF gs_mdoc_stages-tabformat = 'BMR2'.
+*        PERFORM bmr2_item_table_content.
+*      ENDIF.
+*      CLEAR: gv_mview_process, gv_mview_comp_text, gv_mview_qty, gv_mview_uom, gv_mview_batch, gv_mview_lines.
+*    ELSE.
+*      CONCATENATE gv_mview_comp_text cl_abap_char_utilities=>newline `         ` lv_idnrk '/' gs_final-desc INTO gv_mview_comp_text.
+*    ENDON.
+*
+*    AT END OF alpgr.
+*      IF gs_final-alpgr IS NOT INITIAL.
+*        IF gs_mdoc_stages-tabformat = 'BMR1'.
+*          PERFORM bmr1_item_table_content.
+*        ELSEIF gs_mdoc_stages-tabformat = 'BMR2'.
+*          PERFORM bmr2_item_table_content.
+*        ENDIF.
+*        CLEAR: gv_mview_process, gv_superscript_flag, gv_mview_comp_text, gv_mview_qty, gv_mview_uom, gv_mview_batch, gv_mview_lines.
+*      ENDIF.
+*    ENDAT.
+
+    IF gs_final-alpgr IS INITIAL.
+*      PERFORM get_bmr_item_table_content USING prev_process lv_idnrk CHANGING gv_superscript_flag.
+      PERFORM get_bmr_item_table_content USING prev_process CHANGING gv_superscript_flag gs_final.
+****S.O.C Rahul Nishankar #8000004096 CRDK955491 14/06/2018
+      IF gs_mdoc_stages-tabformat = 'BMR1' OR gs_mdoc_stages-tabformat = 'BMR3'.
+****E.O.C Rahul Nishankar #8000004096 CRDK955491 14/06/2018
+        PERFORM bmr1_item_table_content.
+****S.O.C Rahul Nishankar #8000004096 CRDK955491 14/06/2018
+      ELSEIF gs_mdoc_stages-tabformat = 'BMR2' OR gs_mdoc_stages-tabformat = 'BMR4' OR
+             gs_mdoc_stages-tabformat = 'BMR5'.
+****E.O.C Rahul Nishankar #8000004096 CRDK955491 14/06/2018
+        PERFORM bmr2_item_table_content.
+        " begin of changes  #8000005794 25 may 2020
+      ELSEIF gs_mdoc_stages-tabformat = 'BMR6'.
+        PERFORM bmr7_item_table_content.
+      ELSEIF gs_mdoc_stages-tabformat = 'BMR7'.
+        PERFORM bmr2_item_table_content.
+        " end of changes #8000005794 25 may 2020
+      ENDIF.
+
+      PERFORM fetch_remark USING gs_final CHANGING gv_mview_remark .        "shifted at end of alpgr to fetch item remark for group only 1 time
+
+      CLEAR: gv_mview_process, gv_mview_comp_text, gv_mview_qty, gv_mview_uom, gv_mview_batch, gv_mview_lines.
+    ELSE.
+      PERFORM alt_group_print USING prev_process.
+    ENDIF.
+**"SEQ ISSUE" on 27.05.2014
+
+
+**start changed on 11.04.2014 for fetching remarks long text
+*PERFORM fetch_remark USING lv_idnrk CHANGING gv_mview_remark .
+*    IF gs_final-potx2 IS NOT INITIAL.
+*      CONCATENATE gv_mview_remark cl_abap_char_utilities=>newline lv_idnrk ':' gs_final-potx2 INTO gv_mview_remark .
+*    ENDIF.
+**end changed on 11.04.2014 for fetching remarks long text
+
+**soc on 09.04.2014 for sequencing "Commented the changes by Swati
+    AT END OF ds_code. "Uncommented by Swati
+*    AT END OF ds_seq.
+**eoc on 09.04.2014 for sequencing
+      PERFORM table_auto_fit.
+      PERFORM new_line.
+      IF gt_bmr_remarks[] IS NOT INITIAL. "added on 06.10.2015
+        PERFORM display_spare_part_remarks.
+      ENDIF.
+      IF gv_mview_remark IS NOT INITIAL.
+        PERFORM display_remarks.
+      ENDIF.
+      PERFORM display_topbottom_remark USING gs_mdoc_stages-bottom_remark.
+      " begin of changes #8000005794 21.05.2020
+      IF gv_bukrs_sa IS NOT INITIAL.
+      ELSE.
+        " end of changes #8000005794
+****S.O.C Rahul Nishankar #8000004096 CRDK955491 14/06/2018
+        DATA(lv_format) = gs_mdoc_stages-tabformat.
+        IF lv_format = 'BMR1' OR lv_format = 'BMR2'.
+          PERFORM bmr_stage_last_section.
+        ENDIF.
+
+        IF lv_format = 'BMR3' OR lv_format = 'BMR4'.
+          PERFORM f_bmr3_bmr4_stage_last_section.
+        ENDIF.
+        IF lv_format = 'BMR5'.
+          PERFORM f_bmr5_stage_last_section.
+        ENDIF.
+****E.O.C Rahul Nishankar #8000004096 CRDK955491 14/06/2018
+      ENDIF. " added changes #8000005794 21.05.2020
+    ENDAT.
+
+    prev_process = gs_final-ps_code.
+  ENDLOOP.
+ENDFORM.                    " BMR_STAGES_DATA1
+*&---------------------------------------------------------------------*
+*&      Form  ALT_GROUP_PRINT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM alt_group_print USING prev_process.
+  DATA: ls_final_tmp TYPE ty_bom_final.
+  LOOP AT gt_final_tmp INTO ls_final_tmp WHERE ds_seq = gs_final-ds_seq AND ds_code = gs_final-ds_code
+                                           AND ps_seq = gs_final-ps_seq AND alpgr = gs_final-alpgr.
+    gs_final_tmp = ls_final_tmp.
+
+    AT NEW alpgr.
+*      PERFORM fetch_remark USING lv_idnrk CHANGING gv_mview_remark .        "shifted at end of alpgr to fetch item remark for group only 1 time
+      PERFORM fetch_remark USING gs_final_tmp CHANGING gv_mview_remark .        "shifted at end of alpgr to fetch item remark for group only 1 time
+    ENDAT.
+
+    ON CHANGE OF gs_final_tmp-alpgr.
+*    PERFORM get_bmr_item_table_content USING prev_process lv_idnrk CHANGING gv_superscript_flag.
+      PERFORM get_bmr_item_table_content USING prev_process  CHANGING gv_superscript_flag gs_final_tmp.
+    ELSE.
+*      CONCATENATE gv_mview_comp_text cl_abap_char_utilities=>newline `         ` lv_idnrk '/' gs_final-desc INTO gv_mview_comp_text.
+      CONCATENATE gv_mview_comp_text cl_abap_char_utilities=>newline `         ` gs_final_tmp-idnrk '/' gs_final_tmp-desc INTO gv_mview_comp_text.
+    ENDON.
+
+    AT END OF alpgr.
+      IF gs_final_tmp-alpgr IS NOT INITIAL.
+****S.O.C Rahul Nishankar #8000004096 CRDK955491 14/06/2018
+        IF gs_mdoc_stages-tabformat = 'BMR1' OR gs_mdoc_stages-tabformat = 'BMR3'.
+****E.O.C Rahul Nishankar #8000004096 CRDK955491 14/06/2018
+          PERFORM bmr1_item_table_content.
+****S.O.C Rahul Nishankar #8000004096 CRDK955491 14/06/2018
+        ELSEIF gs_mdoc_stages-tabformat = 'BMR2' OR gs_mdoc_stages-tabformat = 'BMR4' OR
+               gs_mdoc_stages-tabformat = 'BMR5'.
+****E.O.C Rahul Nishankar #8000004096 CRDK955491 14/06/2018
+          PERFORM bmr2_item_table_content.
+        ENDIF.
+        CLEAR: gv_mview_process, gv_superscript_flag, gv_mview_comp_text, gv_mview_qty, gv_mview_uom, gv_mview_batch, gv_mview_lines.
+      ENDIF.
+    ENDAT.
+
+    "update main looping table with flag to not repeat grpup components from main loop
+    gs_final_tmp-flag = 'X'.
+    MODIFY gt_final FROM gs_final_tmp TRANSPORTING flag WHERE posnr = gs_final_tmp-posnr.
+  ENDLOOP.
+ENDFORM.                    " ALT_GROUP_PRINT
+*&---------------------------------------------------------------------*
+*&      Form  BPR_STAGES_DATA1
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM bpr_stages_data1 .
+  DATA: lv_idnrk TYPE idnrk,
+        lv_index TYPE sy-index.
+
+  DATA: ls_final TYPE ty_bom_final.
+
+  PERFORM fetch_sop_data.
+
+
+  SORT gt_final BY alpgr alprf.
+  LOOP AT gt_final INTO gs_final.
+    PERFORM progress_bar USING 'Generating stages...'.
+    lv_index = sy-tabix.
+    READ TABLE gt_bom INTO gs_bom WITH KEY posnr = gs_final-posnr idnrk = gs_final-idnrk." BINARY SEARCH cant be used in case of BPR as Phantom Assembly explosion is there
+    "No sy-subrc check or clearing of gs_bom work area as we want to retain the ds_code & lines values for lower priority items under each alternative group.
+    "PLEASE DO NOT USE SY-SUBRC CHECK HERE. SKIPPED INTENTIONALLY
+
+    "soa by payal on 01.07.2017 if priority changed in bom after master creation
+    IF sy-subrc <> 0.
+      READ TABLE gt_bom INTO gs_bom WITH KEY alpgr = gs_final-alpgr.
+    ENDIF.
+    "eoa by payal on 01.07.2017 if priority changed in bom after master creation
+
+    gs_final-ds_code = gs_bom-ds_code.
+    gs_final-ds_desc = gs_bom-ds_desc.
+    gs_final-lines = gs_bom-lines.
+
+**  added code below smita here to remove 1 loop on 11.04.2014.
+    READ TABLE gt_disp INTO gs_disp WITH KEY ds_code = gs_final-ds_code.
+    IF sy-subrc = 0.
+      gs_final-ds_seq = gs_disp-ds_seq.
+      gs_bom-ds_seq = gs_disp-ds_seq.
+    ENDIF.
+**  end added code below smita here to remove 1 loop on 11.04.2014
+    MODIFY gt_final FROM gs_final INDEX lv_index.
+    MODIFY gt_bom FROM gs_bom TRANSPORTING ds_seq WHERE ds_code = gs_final-ds_code.
+  ENDLOOP.
+
+  "sort sequence changes for SEQ CHANGE"
+*  SORT gt_final BY ds_seq ds_code alpgr alprf.
+
+  gt_final_tmp[] = gt_final[].
+
+*  DELETE gt_final WHERE alprf GT 1.
+  gt_final[] = gt_bom[].
+  SORT gt_final BY ds_seq ds_code posnr.
+  SORT gt_final_tmp BY ds_seq ds_code alpgr alprf posnr.
+  "end SEQ CHANGE"
+
+  LOOP AT gt_final INTO ls_final WHERE flag = space.
+    gs_final = ls_final.
+    PERFORM progress_bar USING 'Generating stages...'.
+    lv_idnrk = gs_final-idnrk.
+
+    ON CHANGE OF gs_final-ds_code. "Uncommented by Swati
+*    ON CHANGE OF gs_final-ds_seq. "Commented by Swati
+      PERFORM page_break.
+      CLEAR: gt_sop.
+      READ TABLE gt_sop WITH KEY ds_code = gs_final-ds_code.
+      IF gs_final-ds_desc IS INITIAL.
+        IF gt_disp_stage IS INITIAL.
+          PERFORM fetch_disp_stages.
+        ENDIF.
+        READ TABLE gt_disp_stage WITH KEY ds_code = gs_final-ds_code.
+        gs_final-ds_desc = gt_disp_stage-ds_description.
+      ENDIF.
+*      CONCATENATE gs_final-ds_desc '(' gt_sop-ds_sopno ')' INTO gv_mview_stage.
+      CONCATENATE gs_final-ds_desc  gt_sop-ds_sopno  INTO gv_mview_stage.
+      PERFORM dispensing_stage_heading.
+      IF gs_final-ds_code NE 'P001'.
+        PERFORM display_note.
+      ENDIF.
+      PERFORM bpr_stage_initial_section.
+****S.O.C Rahul Nishankar #8000004096 CRDK955491 14/06/2018
+*      Begin of changes #8000005794 25 may 2020
+*      IF gv_bukrs IS INITIAL.
+      IF ( gv_bukrs IS INITIAL ) AND ( gv_bukrs_sa IS INITIAL ).
+        " end of changes #8000005794 25 may 2020
+        PERFORM bpr_item_table_heading.
+      ELSE.
+        PERFORM f_bpr_item_table_heading_us.
+      ENDIF.
+****E.O.C Rahul Nishankar #8000004096 CRDK955491 14/06/2018
+
+    ENDON.
+
+    "SEQ CHANGE"
+*    ON CHANGE OF gs_final-alpgr.
+*      PERFORM get_bpr_item_table_content USING lv_idnrk.
+*    ELSEIF gs_final-alpgr IS INITIAL.
+*      PERFORM get_bpr_item_table_content USING lv_idnrk.
+*      PERFORM bpr_item_table_content.
+*      CLEAR: gv_mview_comp_text, gv_mview_qty, gv_mview_uom, gv_mview_batch, gv_mview_lines.
+*    ELSE.
+*      CONCATENATE gv_mview_comp_text cl_abap_char_utilities=>newline `        ` lv_idnrk '/' gs_final-desc INTO gv_mview_comp_text.
+*    ENDON.
+*
+*    AT END OF alpgr.
+*      IF gs_final-alpgr IS NOT INITIAL.
+*        PERFORM bpr_item_table_content.
+*        CLEAR: gv_mview_comp_text, gv_mview_qty, gv_mview_uom, gv_mview_batch, gv_mview_lines.
+*      ENDIF.
+*    ENDAT.
+
+    IF gs_final-alpgr IS INITIAL.
+      PERFORM get_bpr_item_table_content USING gs_final.  "lv_idnrk.
+      PERFORM bpr_item_table_content.
+      CLEAR: gv_mview_comp_text, gv_mview_qty, gv_mview_uom, gv_mview_batch, gv_mview_lines.
+    ELSE.
+      PERFORM alt_group_print_bpr.
+    ENDIF.
+    "SEQ CHANGE"
+
+    "PERFORM fetch_remark USING lv_idnrk CHANGING gv_mview_remark .
+
+    AT END OF ds_code."Uncommented by Swati
+*    AT END OF ds_seq. "Added by smita 08-04-14 : Dispensing stage sequencing."Commented by Swati
+      PERFORM new_line.
+      IF gv_mview_remark IS NOT INITIAL.
+        PERFORM display_remarks.
+      ENDIF.
+      IF gs_final-ds_code NE 'P001'.
+        " begin of changes #8000005794 25 may 2020
+*        IF gv_bukrs IS INITIAL.
+        IF ( gv_bukrs IS INITIAL ) AND ( gv_bukrs_sa IS INITIAL ).
+          " end of changes #8000005794 25 may 2020
+          PERFORM bpr_stage_last_section.
+        ELSE.
+          PERFORM f_bpr_stage_last_section_us.
+        ENDIF.
+
+        WAIT UP TO 1 SECONDS.  "added on 10.02.2016
+      ENDIF.
+    ENDAT.
+  ENDLOOP.
+ENDFORM.                    " BPR_STAGES_DATA1
+*&---------------------------------------------------------------------*
+*&      Form  ALT_GROUP_PRINT_BPR
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM alt_group_print_bpr .
+  DATA: ls_final_tmp TYPE ty_bom_final.
+  LOOP AT gt_final_tmp INTO ls_final_tmp WHERE ds_seq = gs_final-ds_seq AND ds_code = gs_final-ds_code
+                                           AND ps_seq = gs_final-ps_seq AND alpgr = gs_final-alpgr.
+    gs_final_tmp = ls_final_tmp.
+
+    ON CHANGE OF gs_final_tmp-alpgr.
+      PERFORM get_bpr_item_table_content USING gs_final_tmp.  "-idnrk.
+    ELSE.
+      CONCATENATE gv_mview_comp_text
+                  cl_abap_char_utilities=>newline `        `
+                  gs_final_tmp-idnrk '/'
+                  gs_final_tmp-desc INTO gv_mview_comp_text.
+    ENDON.
+
+    AT END OF alpgr.
+      IF gs_final_tmp-alpgr IS NOT INITIAL.
+        PERFORM bpr_item_table_content.
+        CLEAR: gv_mview_comp_text, gv_mview_qty, gv_mview_uom, gv_mview_batch, gv_mview_lines.
+      ENDIF.
+    ENDAT.
+
+
+    gs_final_tmp-flag = 'X'.
+    "SOC by Swati on 01.08.2014
+    "Issue details: Bulk Issuance Table not getting printed if sequence <> 1 for  BPR material 32000462/1041/0001
+    "TR: CRDK910904
+    "MODIFY gt_final FROM gs_final_tmp TRANSPORTING flag WHERE posnr = gs_final_tmp-posnr.
+    MODIFY gt_final FROM gs_final_tmp TRANSPORTING flag WHERE posnr = gs_final_tmp-posnr AND idnrk = gs_final_tmp-idnrk.
+    "EOC by Swati on 01.08.2014
+  ENDLOOP.
+ENDFORM.                    " ALT_GROUP_PRINT_BPR
+*&---------------------------------------------------------------------*
+*&      Form  FILL_FOOTER
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM fill_footer .
+  DATA: g_inlineshapes TYPE ole2_object,
+        g_logo         TYPE ole2_object.
+
+  DATA: l_sv(2)    TYPE c VALUE '10',
+        l_userinfo TYPE string.
+
+  DATA : l_height TYPE i,
+         l_width  TYPE i.
+
+  DATA lv_counter TYPE i VALUE 1.
+
+  PERFORM get_footer_image.
+
+  PERFORM set_actview USING '10'.
+  PERFORM set_font.
+  PERFORM set_bold USING '1'.
+
+  SET PROPERTY OF g_actview 'SeekView' = l_sv. "HeaderView
+
+  SET PROPERTY OF g_font 'Bold' = '1'.
+
+  GET PROPERTY OF g_selection 'InlineShapes' = g_inlineshapes.
+
+  CALL METHOD OF g_inlineshapes 'AddPicture' = g_logo
+  EXPORTING #1 = g_logo_path     "'C:\temp\123.bmp'
+  #2 = 0 #3 = 1.
+
+****** SOC by Vrushali on 28.05.2015 for fixed image size in BPR and BMR.
+  l_height = 18.
+  l_width  = 18.
+*  SET PROPERTY OF g_logo 'Height' = l_height. "commented by Vrushali on 07.07.2016
+*  SET PROPERTY OF g_logo 'Width' = l_width. "commented by Vrushali on 07.07.2016
+****** EOC by Vrushali on 28.05.2015
+
+***SOA by Vrushali on 07.07.2016 insted of above commented code
+  lv_counter = 1.
+  DO 20 TIMES.  "changed from 5 to 20 for #8000003013 By Payal S on 06.09.2017 3. Extra blank page
+    SET PROPERTY OF g_logo 'Height' = l_height.
+    IF sy-subrc <> 0.
+      lv_counter = lv_counter + 1.
+    ELSE.
+      EXIT.
+    ENDIF.
+
+    IF lv_counter GE 20. "changed from 5 to 20 for #8000003013 By Payal S on 06.09.2017
+      EXIT.
+    ENDIF.
+  ENDDO.
+
+
+  lv_counter = 1.
+  DO 20 TIMES.  ""changed from 5 to 20 for #8000003013 By Payal S on 06.09.2017 3. Extra blank page
+    SET PROPERTY OF g_logo 'Width' = l_width.
+    IF sy-subrc <> 0.
+      lv_counter = lv_counter + 1.
+    ELSE.
+      EXIT.
+    ENDIF.
+
+    IF lv_counter GE 20. "changed from 5 to 20 for #8000003013 By Payal S on 06.09.2017
+      EXIT.
+    ENDIF.
+  ENDDO.
+
+  lv_counter = 1.
+  DO 3 TIMES.   "Set to 5 as not required for #8000003013 By Payal S on 06.09.2017 3. Extra blank page
+    SET PROPERTY OF g_logo 'Left' = 100.
+    IF sy-subrc <> 0.
+      lv_counter = lv_counter + 1.
+    ELSE.
+      EXIT.
+    ENDIF.
+
+    IF lv_counter GE 3. "changed from 5 to 3 for #8000003013 By Payal S on 06.09.2017
+      EXIT.
+    ENDIF.
+  ENDDO.
+
+  PERFORM set_text_alignment USING 0.  "added for #8000003013 By Payal S on 06.09.2017 3. Extra blank page/logo shift
+
+***EOA by Vrushali on 07.07.2016
+
+
+
+*** change date format to DD.MM.YYYY by vrushali on 07-05-2015
+***  soa on 31.07.2015
+*  IF g_time IS INITIAL.
+*    g_time = sy-uzeit.
+*  ENDIF.
+***  eoa on 31.07.2015
+***  CONCATENATE '&&' 'User :' sy-uname cl_abap_char_utilities=>horizontal_tab
+***  cl_abap_char_utilities=>horizontal_tab
+****  'Date/Time :' sy-datum+6(2) '.' sy-datum+4(2) '.' sy-datum+0(4) '/' sy-uzeit+0(2) ':' sy-uzeit+2(2) ':' sy-uzeit+4(2)  "31.07.2015  "commented on 14.11.2017
+****'Date/Time :' sy-datum+6(2) '.' sy-datum+4(2) '.' sy-datum+0(4) '/' g_time+0(2) ':' g_time+2(2) ':' g_time+4(2) "31.07.2015
+***'Date/Time :' g_date+6(2) '.' g_date+4(2) '.' g_date+0(4) '/' g_time+0(2) ':' g_time+2(2) ':' g_time+4(2)  ""timezone changes for 8000003697 by payal on 14.11.2017
+***   INTO l_userinfo .
+
+****S.O.C Rahul Nishankar #80000004096 CRDK955663 22/06/2018 date format as per maintained in User settings
+
+*  DATA lv_date TYPE string.                     "start of comment for S4 implementation |saket |06.04.2026  |CRSK900029
+*  lv_date = sy-datum."g_date.
+*  CALL FUNCTION '/SAPDII/SPP05_CONVERT_DATE'
+*    EXPORTING
+*      if_date = lv_date
+*    IMPORTING
+*      ef_date = lv_date.            " end of of comment for S4 implementation |saket |06.04.2026  |CRSK900029
+
+  "AOC BY SAKET FOR S4 IMPLEMENTATION   |06.04.2026  |CRSK900029
+   DATA: lv_date TYPE string.
+   DATA: lv_date_int TYPE syst-datlo.
+
+  lv_date_int = sy-datum.
+  CALL FUNCTION 'CONVERT_DATE_TO_EXTERNAL'
+   EXPORTING
+     DATE_INTERNAL                  = lv_date_int   "LV_DATE
+   IMPORTING
+     DATE_EXTERNAL                  = LV_DATE
+   EXCEPTIONS
+     DATE_INTERNAL_IS_INVALID       = 1
+     OTHERS                         = 2
+            .
+  "EOC BY SAKET FOR S4 IMPLEMENTATION   |06.04.2026  |CRSK900029
+
+  g_time = sy-uzeit.
+
+  CONCATENATE '&&' 'User :' sy-uname cl_abap_char_utilities=>horizontal_tab
+    cl_abap_char_utilities=>horizontal_tab
+*  'Date/Time :' sy-datum+6(2) '.' sy-datum+4(2) '.' sy-datum+0(4) '/' sy-uzeit+0(2) ':' sy-uzeit+2(2) ':' sy-uzeit+4(2)  "31.07.2015  "commented on 14.11.2017
+*'Date/Time :' sy-datum+6(2) '.' sy-datum+4(2) '.' sy-datum+0(4) '/' g_time+0(2) ':' g_time+2(2) ':' g_time+4(2) "31.07.2015
+  'Date/Time :' lv_date '/' g_time+0(2) ':' g_time+2(2) ':' g_time+4(2) ""timezone changes for 8000003697 by payal on 14.11.2017
+     INTO l_userinfo .
+****E.O.C Rahul Nishankar #80000004096 CRDK955663 22/06/2018 date format as per maintained in User settings
+
+  REPLACE '&&' WITH space INTO l_userinfo.
+
+  CALL METHOD OF g_selection 'TypeText' NO FLUSH
+    EXPORTING
+      #1 = l_userinfo.
+
+  CALL METHOD OF g_selection 'FIND' = g_find.
+
+  PERFORM word_find USING c_ann_no
+                        '0' '1' '1' '0' '0' 'True' '1' '0'
+                        gv_ann_no '2'.
+*  IF ann_no IS NOT INITIAL.
+*    PERFORM word_find USING c_ann_no
+*                        '0' '1' '1' '0' '0' 'True' '1' '0'
+*                        ann_no '2'.
+*
+*  ELSE.
+*    PERFORM word_find USING c_ann_no
+*                      '0' '1' '1' '0' '0' 'True' '1' '0'
+*                      lwa_zqm_ann_prepare-ann_no '2'.
+*  ENDIF.
+
+ENDFORM.                    " FILL_FOOTER
+*&---------------------------------------------------------------------*
+*&      Form  GET_FOOTER_IMAGE
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM get_footer_image .
+  DATA : l_bytecount TYPE i,
+         l_tdbtype   LIKE stxbitmaps-tdbtype,
+         l_content   TYPE STANDARD TABLE OF bapiconten INITIAL SIZE 0.
+
+  DATA: graphic_size TYPE i,
+        wa_bmr_logo  TYPE zpp_bmr_logo,
+        wa_ann_logo  TYPE zpp_ann_logo.
+
+
+  DATA: BEGIN OF graphic_table OCCURS 0,
+          line(255) TYPE x,
+        END OF graphic_table.
+
+  DATA : ta_dd07v TYPE TABLE OF dd07v,
+         wa_dd07v TYPE dd07v.
+
+  SELECT SINGLE * FROM zpp_form_plant INTO @DATA(wa_zpp_form_plant)
+    WHERE werks_ass = @p_plant.
+*COmmented by Gajanan - 07.07.2025 - CR#8000003007
+*  CALL FUNCTION 'GET_DOMAIN_VALUES'
+*    EXPORTING
+*      domname         = 'Z_PLT_TYP'
+*      text            = 'X'
+*    TABLES
+*      values_tab      = ta_dd07v
+*    EXCEPTIONS
+*      no_values_found = 1
+*      OTHERS          = 2.
+*  IF sy-subrc EQ 0.
+*    CLEAR wa_dd07v.
+*    READ TABLE ta_dd07v INTO wa_dd07v WITH KEY domvalue_l = wa_zpp_form_plant-z_plt_typ.
+*    IF sy-subrc = 0.
+*      SELECT SINGLE * FROM  zpp_bmr_logo CLIENT SPECIFIED
+*        INTO wa_bmr_logo
+*             WHERE  mandt   = sy-mandt
+*             AND    bmrtyp  = wa_dd07v-ddtext.
+*    ENDIF.
+*  ENDIF.
+  IF sy-subrc = 0.
+    SELECT SINGLE * FROM  zpp_ann_logo CLIENT SPECIFIED
+      INTO wa_ann_logo
+           WHERE  mandt   = sy-mandt
+             AND anntyp = 'ANN'
+             AND z_plt_typ  = wa_zpp_form_plant-z_plt_typ.
+  ENDIF.
+
+  CALL FUNCTION 'SAPSCRIPT_GET_GRAPHIC_BDS'
+    EXPORTING
+      i_object       = 'GRAPHICS'
+      i_name         = wa_ann_logo-logo_nm
+      i_id           = 'BMAP'
+      i_btype        = 'BMON'
+    IMPORTING
+      e_bytecount    = l_bytecount
+    TABLES
+      content        = l_content
+    EXCEPTIONS
+      not_found      = 1
+      bds_get_failed = 2
+      bds_no_content = 3
+      OTHERS         = 4.
+
+  CALL FUNCTION 'SAPSCRIPT_CONVERT_BITMAP'
+    EXPORTING
+      old_format               = 'BDS'
+      new_format               = 'BMP'
+      bitmap_file_bytecount_in = l_bytecount
+    IMPORTING
+      bitmap_file_bytecount    = graphic_size
+    TABLES
+      bds_bitmap_file          = l_content
+      bitmap_file              = graphic_table
+    EXCEPTIONS
+      OTHERS                   = 1.
+
+
+  CONCATENATE 'C:\temp\' doc_type wa_ann_logo-logo_nm '.bmp' INTO g_logo_path.
+  CALL FUNCTION 'WS_DOWNLOAD'
+    EXPORTING
+      bin_filesize            = graphic_size
+      filename                = g_logo_path      "'C:\temp\123.bmp'
+      filetype                = 'BIN'
+    TABLES
+      data_tab                = graphic_table
+    EXCEPTIONS
+      invalid_filesize        = 1
+      invalid_table_width     = 2
+      invalid_type            = 3
+      no_batch                = 4
+      unknown_error           = 5
+      gui_refuse_filetransfer = 6.
+
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+            WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ENDIF.
+ENDFORM.                    " GET_FOOTER_IMAGE
+*&---------------------------------------------------------------------*
+*&      Form  SET_DATE_TIME
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM set_date_time .
+  g_date = sy-datlo.
+  g_time = sy-timlo.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  F_BMR6_ITEM_TABLE_HEADING
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM f_bmr6_item_table_heading .
+  CLEAR: g_row_count.
+  PERFORM set_bold USING 1.
+  PERFORM create_table USING 1 9.
+  PERFORM set_table_border USING 1.
+  PERFORM set_row_height USING 20.
+  PERFORM set_row_as_header.
+  PERFORM set_row_break USING 0.
+
+  PERFORM set_cell_width USING 1 1 70.
+  PERFORM write_cell_text USING 1 1 'Material Code / Description' 1 1.
+
+  PERFORM set_cell_width USING 1 2 58.
+  PERFORM write_cell_text USING 1 2 'Std. Qty.' 1 1.
+
+  PERFORM set_cell_width USING 1 3 35.
+  PERFORM write_cell_text USING 1 3 'UOM' 1 1.
+
+  PERFORM set_cell_width USING 1 4 80.
+  PERFORM write_cell_text USING 1 4 'Material Batch No.' 1 1.
+
+*  PERFORM set_cell_width USING 1 5 50.
+  PERFORM set_cell_width USING 1 5 59.
+  PERFORM write_cell_text USING 1 5 'Actual Qty.' 1 1.
+
+  PERFORM set_cell_width USING 1 6 37.
+  PERFORM write_cell_text USING 1 6 'Scale No.' 1 1.
+
+*  PERFORM set_cell_width USING 1 7 37.
+  PERFORM set_cell_width USING 1 7 65.
+  PERFORM write_cell_text USING 1 7 'Done by Op.' 1 1.
+
+*  PERFORM set_cell_width USING 1 8 37.
+  PERFORM set_cell_width USING 1 8 65.
+  PERFORM write_cell_text USING 1 8 'Verified by Ph./PA' 1 1.
+
+  PERFORM set_cell_width USING 1 9 65.
+  PERFORM write_cell_text USING 1 9 'Checked by QA' 1 1.
+
+*  PERFORM set_cell_width USING 1 10 65.
+*  PERFORM write_cell_text USING 1 10 'Ckd. By/Date (Mfg. / Packaging)' 1 1.
+
+  PERFORM free_table.
+  PERFORM initialize_font.
+  PERFORM set_bold USING 0.
+  g_row_count = 2.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  F_BMR7_ITEM_TABLE_HEADING
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM f_bmr7_item_table_heading .
+
+  CLEAR: g_row_count.
+  PERFORM set_bold USING 1.
+  PERFORM create_table USING 1 8.
+  PERFORM set_table_border USING 1.
+  PERFORM set_row_height USING 20.
+  PERFORM set_row_as_header.
+  PERFORM set_row_break USING 0.
+
+  PERFORM set_cell_width USING 1 1 75.
+  PERFORM write_cell_text USING 1 1 'Material Code / Description' 1 1.
+
+  PERFORM set_cell_width USING 1 2 69.
+  PERFORM write_cell_text USING 1 2 'Std. Qty.' 1 1.
+
+  PERFORM set_cell_width USING 1 3 35.
+  PERFORM write_cell_text USING 1 3 'UOM' 1 1.
+
+  PERFORM set_cell_width USING 1 4 90.
+  PERFORM write_cell_text USING 1 4 'Material Batch No.' 1 1.
+
+  PERFORM set_cell_width USING 1 5 70.
+  PERFORM write_cell_text USING 1 5 'Actual Quantity' 1 1.
+
+  PERFORM set_cell_width USING 1 6 55.
+  PERFORM write_cell_text USING 1 6 'Scale No.' 1 1.
+
+  PERFORM set_cell_width USING 1 7 70.
+  PERFORM write_cell_text USING 1 7 'Done by Op.' 1 1.
+
+  PERFORM set_cell_width USING 1 8 70.
+  PERFORM write_cell_text USING 1 8 'Verified by Ph./PA ' 1 1.
+
+  PERFORM free_table.
+  PERFORM initialize_font.
+  PERFORM set_bold USING 0.
+  g_row_count = 2.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  BMR7_ITEM_TABLE_CONTENT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM bmr7_item_table_content .
+
+  DATA: lv_lines TYPE i.
+  PERFORM create_table USING 1 1.
+  PERFORM set_table_border USING 1.
+  PERFORM set_row_height USING 20.
+  PERFORM set_row_break USING 0.
+  PERFORM set_cell_width USING g_row_count 1 534.
+
+  IF gv_superscript_flag = 'X'.
+    PERFORM write_superscript_cell_text USING g_row_count 1 gv_mview_comp_text 1 0.
+    CLEAR gv_superscript_flag.
+  ELSE.
+    PERFORM write_cell_text USING g_row_count 1 gv_mview_comp_text 1 0.
+  ENDIF.
+  PERFORM free_table.
+  PERFORM initialize_font.
+
+  g_row_count = g_row_count + 1.
+
+  PERFORM create_table USING 1 9.
+  PERFORM set_table_border USING 1.
+  PERFORM set_row_height USING 20.
+  PERFORM set_row_break USING 0.
+  PERFORM set_cell_width USING g_row_count 1 70.
+  PERFORM set_cell_width USING g_row_count 2 58.
+  PERFORM write_cell_text USING g_row_count 2 gv_mview_qty 1 1.
+  PERFORM set_cell_width USING g_row_count 3 35.
+
+  PERFORM write_cell_text USING g_row_count 3 gv_mview_uom 1 1.
+  PERFORM set_cell_width USING g_row_count 4 80.
+  PERFORM write_cell_text USING g_row_count 4 gv_mview_batch 1 1.
+*  PERFORM set_cell_width USING g_row_count 5 50.
+  PERFORM set_cell_width USING g_row_count 5 59.
+  PERFORM set_cell_width USING g_row_count 6 37.
+*  PERFORM set_cell_width USING g_row_count 7 37.
+*  PERFORM set_cell_width USING g_row_count 8 37.
+  PERFORM set_cell_width USING g_row_count 7 65.
+  PERFORM set_cell_width USING g_row_count 8 65.
+  PERFORM set_cell_width USING g_row_count 9 65.
+*  PERFORM set_cell_width USING g_row_count 10 65.
+  PERFORM free_table.
+  PERFORM initialize_font.
+  g_row_count = g_row_count + 1.
+
+  lv_lines = gv_mview_lines - 1.
+  IF lv_lines > 0.
+*    PERFORM create_table USING lv_lines 10.
+    PERFORM create_table USING lv_lines 9.
+    PERFORM set_table_border USING 1.
+    PERFORM set_row_height USING 20.
+    PERFORM set_row_break USING 0.
+    DO lv_lines TIMES.
+      PERFORM set_cell_width USING g_row_count 1 70.
+      PERFORM set_cell_width USING g_row_count 2 58.
+      PERFORM set_cell_width USING g_row_count 3 35.
+      PERFORM set_cell_width USING g_row_count 4 80.
+*      PERFORM set_cell_width USING g_row_count 5 50.
+      PERFORM set_cell_width USING g_row_count 5 59.
+      PERFORM set_cell_width USING g_row_count 6 37.
+*      PERFORM set_cell_width USING g_row_count 7 37.
+*      PERFORM set_cell_width USING g_row_count 8 37.
+      PERFORM set_cell_width USING g_row_count 7 65.
+      PERFORM set_cell_width USING g_row_count 8 65.
+      PERFORM set_cell_width USING g_row_count 9 65.
+*      PERFORM set_cell_width USING g_row_count 10 65.
+      g_row_count = g_row_count + 1.
+    ENDDO.
+    PERFORM free_table.
+    PERFORM initialize_font.
+  ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  LOCK_MDOC1
+*&---------------------------------------------------------------------*
+FORM lock_mdoc1 .
+  DATA: l_user TYPE syst-uname,
+        l_pv   TYPE verid.
+  IF gv_lock NE 'X'.     "As this FM called 2 times i.e. at selection screen & on execution 2 times it is locked
+
+
+    CALL FUNCTION 'ENQUEUE_EZ_ZQM_ANN_PREP'
+      EXPORTING
+        mode_zqm_ann_prepare = 'E'
+        mandt                = sy-mandt
+        matnr                = p_mat
+        werks                = p_plant
+        verid                = p_prd_vn
+*       DOKAR                =
+*       DOKVR                =
+*       X_MATNR              = ' '
+*       X_WERKS              = ' '
+*       X_VERID              = ' '
+*       X_DOKAR              = ' '
+*       X_DOKVR              = ' '
+*       _SCOPE               = '2'
+*       _WAIT                = ' '
+*       _COLLECT             = ''
+      EXCEPTIONS
+        foreign_lock         = 1
+        system_failure       = 2
+        OTHERS               = 3.
+    IF sy-subrc <> 0.
+      l_user = sy-msgv1 .
+*      CLEAR : p_dms, p_stat_desc, p_stat. "added by Vrushali on 04.07.2017 for ticket : 8000003393
+
+      l_pv = p_prd_vn. "added on 05.07.2017
+
+      CLEAR: p_mdesc, p_wdesc, p_stat, p_stat_desc, p_dms, p_static, p_desc, p_cat, p_lab
+      ,p_date, p_format, gs_mdoc_header,p_prd_vn, gv_file_path.  "added by Payal on 04.07.2017 for ticket : 8000003393
+      MESSAGE s060(zppr_formu) WITH p_mat p_plant l_pv l_user DISPLAY LIKE 'E'.
+      gv_flag = abap_true.                                  "CRDK954755
+      CLEAR fcode.
+    ELSE.
+      gv_flag = abap_false.                                 "
+      gv_lock = 'X'.
+    ENDIF.
+  ENDIF.
+ENDFORM.                    " LOCK_MDOC

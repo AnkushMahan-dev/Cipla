@@ -1,0 +1,105 @@
+*----------------------------------------------------------------------*
+***INCLUDE ZPPR_BMR_6001_MODULES_V2.
+*----------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*&      Module  STATUS_6001  OUTPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE status_6001 OUTPUT.
+*  REFRESH lt_exclude.
+*  APPEND 'BOM' TO lt_exclude.
+*  APPEND 'SAVE' TO lt_exclude.
+*  APPEND 'EXECUTE' TO lt_exclude.
+*  SET PF-STATUS 'S6000' EXCLUDING lt_exclude.
+*  SET TITLEBAR 'T1001'.
+
+ENDMODULE.                 " STATUS_6001  OUTPUT
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_6001  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE user_command_6001 INPUT.
+***  CASE fcode.
+***    WHEN 'EXIT'.
+***      LEAVE PROGRAM.
+***    WHEN 'BACK'.
+***      "Fetch dispensing stage description
+***      LOOP AT gt_bom ASSIGNING <ls_bom>.
+***        READ TABLE gt_disp_stage WITH KEY ds_code = <ls_bom>-ds_code.
+***        IF sy-subrc = 0.
+***          <ls_bom>-ds_desc = gt_disp_stage-ds_description.
+***        ENDIF.
+***      ENDLOOP.
+***      CLEAR fcode.
+***      CALL SCREEN 6000.
+***    WHEN 'DISP'. "Added by smita 07-04-2014 Dispensing stage sequencing.
+***      CALL SCREEN 6003.
+***    WHEN 'F2CHOOSE'.
+***      CLEAR fcode.
+***      GET CURSOR LINE lv_tc_line.
+***      lv_tc_line = lv_tc_line + tc_bom-top_line - 1.      "added on 09.10.2014
+***      CLEAR gv_field.
+***      GET CURSOR FIELD gv_field.
+***      IF gv_field = 'GS_BOM-IDNRK' .
+***        READ TABLE gt_bom INTO gs_bom INDEX lv_tc_line.
+***        IF sy-subrc = 0.
+***          PERFORM call_mm03 USING gs_bom-idnrk.
+***        ENDIF.
+***      ENDIF.
+***  ENDCASE.
+ENDMODULE.                 " USER_COMMAND_6001  INPUT
+*&---------------------------------------------------------------------*
+*&      Module  MODIFY_DISP  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE modify_disp INPUT.
+  "Module : Added by Smita dated : 10-04-2014 for displaying/ Enter dispensing stage sequence against the DS stages.
+***  IF doc_type = 'BPR'.
+***    DATA : lt_disp TYPE STANDARD TABLE OF ty_disp.
+***    DATA : ls_disp TYPE ty_disp.
+***
+***    "Fetch dispensing stage description against the BOM components
+***    LOOP AT gt_bom ASSIGNING <ls_bom>.
+***      READ TABLE gt_disp_stage WITH KEY ds_code = <ls_bom>-ds_code.
+***      IF sy-subrc = 0.
+***        <ls_bom>-ds_desc = gt_disp_stage-ds_description.
+***      ENDIF.
+***    ENDLOOP.
+***
+***    IF gt_disp IS INITIAL.
+***      SELECT * FROM zpp_mdoc_stages CLIENT SPECIFIED
+***        INTO TABLE gt_mdoc_stages
+***      WHERE mandt = sy-mandt
+***        and dokar = gs_mdoc-dokar
+***        AND doknr = gs_mdoc-DMS_DOC
+***        AND dokvr = gs_mdoc-dokvr.
+***
+***      LOOP AT gt_bom INTO gs_bom.
+***        gs_disp-ds_code = gs_bom-ds_code.
+***        gs_disp-ds_desc = gs_bom-ds_desc.
+***        READ TABLE gt_mdoc_stages INTO gs_mdoc_stages WITH KEY ds_code = gs_bom-ds_code.
+***        gs_disp-ds_seq = gs_mdoc_stages-ds_seq.
+***        APPEND gs_disp TO gt_disp.
+***      ENDLOOP.
+***    ELSE.
+***      lt_disp = gt_disp.
+***      REFRESH gt_disp.
+***
+***      CLEAR gs_disp.
+***      LOOP AT gt_bom INTO gs_bom.
+***        READ TABLE lt_disp INTO ls_disp WITH KEY ds_code = gs_bom-ds_code.
+***        gs_disp-ds_code = gs_bom-ds_code.
+***        gs_disp-ds_desc = gs_bom-ds_desc.
+***        gs_disp-ds_seq = ls_disp-ds_seq.
+***        APPEND gs_disp TO gt_disp.
+***        CLEAR : gs_bom ,gs_disp,ls_disp.
+***      ENDLOOP.
+***    ENDIF.
+***
+***    SORT gt_disp BY ds_code.
+***    DELETE ADJACENT DUPLICATES FROM gt_disp COMPARING ds_code.
+***  ENDIF.
+ENDMODULE.                 " MODIFY_DISP  INPUT

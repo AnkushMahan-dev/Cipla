@@ -1,0 +1,409 @@
+*&---------------------------------------------------------------------*
+*& Report  ZWM_INVC_PUTAWAY
+*&
+*&---------------------------------------------------------------------*
+*&
+*&
+*&---------------------------------------------------------------------*
+REPORT zwm_invc_putaway.
+TABLES : vbrk.
+
+TYPES: BEGIN OF ty_final,
+         chk_box    TYPE char1,
+         lgnum      TYPE lagp-lgnum,
+         likp_vbeln TYPE likp-vbeln,
+         vbeln      TYPE vbrk-vbeln,
+         erdat      TYPE vbrk-erdat,
+         kunrg      TYPE vbrk-kunrg,
+         name1      TYPE kna1-name1,
+       END OF ty_final.
+
+
+DATA : gt_final TYPE TABLE OF ty_final,
+       ls_final TYPE ty_final.
+
+DATA : gt_zwm_invc_put TYPE TABLE OF zwm_invc_put,
+       gt_fieldcat     TYPE slis_t_fieldcat_alv.
+
+SELECTION-SCREEN : BEGIN OF BLOCK b1 WITH FRAME .
+PARAMETERS : p_lgnum TYPE lgnum OBLIGATORY.
+SELECT-OPTIONS : s_fkart FOR vbrk-fkart OBLIGATORY,
+                 s_erdat FOR vbrk-erdat OBLIGATORY,
+                 s_vbeln FOR vbrk-vbeln.
+PARAMETERS : p_werks TYPE werks_d OBLIGATORY.
+SELECTION-SCREEN : END OF BLOCK b1.
+
+
+AT SELECTION-SCREEN.
+  "Plant Authority check
+  AUTHORITY-CHECK OBJECT 'ZSD_WERKS'
+         ID 'WERKS' FIELD  p_werks.
+  IF sy-subrc <> 0.
+    MESSAGE e084(zsd) WITH  p_werks.
+  ENDIF.
+
+  SELECT SINGLE * FROM t320
+  INTO @DATA(ls_t320)
+  WHERE werks = @p_werks.
+
+  IF p_lgnum IS NOT INITIAL.
+    IF sy-subrc = 0.
+      IF ls_t320-lgnum NE p_lgnum.
+        MESSAGE 'Invalid Warehouse' TYPE 'E'.
+      ENDIF.
+    ENDIF.
+  ENDIF.
+
+START-OF-SELECTION.
+
+  SELECT *
+  FROM vbrk
+  INTO TABLE @DATA(lt_vbrk)
+  WHERE erdat IN @s_erdat
+  AND vbeln IN @s_vbeln
+  AND fkart IN @s_fkart "NE 'S1'
+  AND fksto NE 'X'.
+*
+*  DATA(lt_cancel) = lt_vbrk.
+*  DELETE lt_cancel WHERE fkart NE 'S1'.
+
+  IF lt_vbrk IS NOT INITIAL.
+
+    SELECT *
+    FROM vbrp
+    INTO TABLE @DATA(lt_vbrp)
+    FOR ALL ENTRIES IN @lt_vbrk
+    WHERE vbeln EQ @lt_vbrk-vbeln.
+
+    IF lt_vbrp IS NOT INITIAL.
+
+      SELECT *
+      FROM kna1
+      INTO TABLE @DATA(lt_kna1)
+      FOR ALL ENTRIES IN @lt_vbrk
+      WHERE kunnr = @lt_vbrk-kunrg.
+
+      SELECT *
+      FROM zwm_invc_put
+      INTO TABLE gt_zwm_invc_put
+      FOR ALL ENTRIES IN lt_vbrp
+      WHERE lgnum EQ p_lgnum
+      AND delivery_no EQ lt_vbrp-vgbel
+      AND chk_box NE 'X'.
+
+      SELECT * FROM vbuk
+      INTO TABLE @DATA(lt_vbuk)
+      FOR ALL ENTRIES IN @lt_vbrp
+      WHERE vbeln = @lt_vbrp-vgbel
+      AND fkstk = 'C'.
+
+    ENDIF.
+
+  ENDIF.
+
+
+*  LOOP AT lt_vbrk INTO DATA(ls_vbrk).
+*
+*    READ TABLE  lt_vbrp INTO DATA(ls_vbrp) WITH KEY vbeln = ls_vbrk-vbeln.
+*    IF sy-subrc = 0.
+*
+*      READ TABLE gt_zwm_invc_put INTO DATA(ls_invc_put) WITH KEY delivery_no = ls_vbrp-vgbel.
+*      IF sy-subrc = 0.
+*
+*        READ TABLE lt_vbuk INTO DATA(ls_vbuk) WITH KEY vbeln = ls_vbrp-vgbel.
+*        IF sy-subrc = 0.
+*
+*          ls_final-chk_box = 'X'.
+*          ls_final-lgnum = ls_invc_put-lgnum.
+*          ls_final-likp_vbeln  = ls_invc_put-delivery_no.
+*          ls_final-vbeln = ls_vbrp-vbeln.
+*          ls_final-erdat = ls_vbrk-erdat.
+*          ls_final-kunrg = ls_vbrk-kunrg.
+*
+*          READ TABLE lt_kna1 INTO DATA(ls_kna1) WITH KEY kunnr = ls_vbrk-kunrg.
+*          IF sy-subrc = 0.
+*            ls_final-name1 = ls_kna1-name1.
+*          ENDIF.
+*
+*
+*          APPEND ls_final TO gt_final.
+*          CLEAR : ls_final.
+*
+*        ENDIF.
+*      ENDIF.
+*    ENDIF.
+*
+*    CLEAR :ls_vbrk.
+*  ENDLOOP.
+
+
+  LOOP AT  gt_zwm_invc_put INTO DATA(ls_invc_put).
+
+    ls_final-chk_box = 'X'.
+    ls_final-lgnum = ls_invc_put-lgnum.
+    ls_final-likp_vbeln  = ls_invc_put-delivery_no.
+
+    READ TABLE lt_vbrp INTO DATA(ls_vbrp) WITH KEY vgbel = ls_invc_put-delivery_no
+                                                   vgpos = ls_invc_put-posnr.
+
+    IF sy-subrc = 0.
+      ls_final-vbeln = ls_vbrp-vbeln.
+
+      READ TABLE lt_vbrk INTO DATA(ls_vbrk) WITH KEY vbeln = ls_vbrp-vbeln.
+      IF sy-subrc = 0.
+        ls_final-erdat = ls_vbrk-erdat.
+        ls_final-kunrg = ls_vbrk-kunrg.
+
+        READ TABLE lt_kna1 INTO DATA(ls_kna1) WITH KEY kunnr = ls_vbrk-kunrg.
+        IF sy-subrc = 0.
+          ls_final-name1 = ls_kna1-name1.
+
+          CALL FUNCTION 'CONVERSION_EXIT_ALPHA_OUTPUT'
+            EXPORTING
+              input  = ls_final-kunrg
+            IMPORTING
+              output = ls_final-kunrg.
+        ENDIF.
+      ENDIF.
+      APPEND ls_final TO gt_final.
+      CLEAR : ls_final.
+    ENDIF.
+
+    CLEAR: ls_invc_put,ls_final.
+  ENDLOOP.
+
+  DELETE ADJACENT DUPLICATES FROM gt_final COMPARING ALL FIELDS .
+
+
+*    LOOP AT lt_vbrk INTO ls_vbrk.
+*
+*  ENDLOOP.
+
+  DATA : lv_index    TYPE i,
+         ls_fieldcat TYPE slis_fieldcat_alv.
+
+  CLEAR : ls_fieldcat.
+  lv_index = lv_index + 1.
+  ls_fieldcat-fieldname = 'CHK_BOX'.
+  ls_fieldcat-seltext_m = 'Select'.
+  ls_fieldcat-checkbox  = 'X'.
+  ls_fieldcat-edit  = 'X'.
+  ls_fieldcat-col_pos = lv_index.
+  APPEND ls_fieldcat TO gt_fieldcat.
+
+  CLEAR : ls_fieldcat.
+  lv_index = lv_index + 1.
+  ls_fieldcat-fieldname = 'LGNUM'.
+  ls_fieldcat-seltext_m = 'WareHouse No'.
+  ls_fieldcat-col_pos = lv_index.
+  APPEND ls_fieldcat TO gt_fieldcat.
+
+  CLEAR : ls_fieldcat.
+  lv_index = lv_index + 1.
+  ls_fieldcat-fieldname = 'VBELN'.
+  ls_fieldcat-seltext_m = 'Invoice Number'.
+  ls_fieldcat-col_pos = lv_index.
+  APPEND ls_fieldcat TO gt_fieldcat.
+
+  CLEAR : ls_fieldcat.
+  lv_index = lv_index + 1.
+  ls_fieldcat-fieldname = 'LIKP_VBELN'.
+  ls_fieldcat-seltext_m = 'Delivery Number'.
+  ls_fieldcat-col_pos = lv_index.
+  APPEND ls_fieldcat TO gt_fieldcat.
+
+  CLEAR : ls_fieldcat.
+  lv_index = lv_index + 1.
+  ls_fieldcat-fieldname = 'ERDAT'.
+  ls_fieldcat-seltext_m = 'Invoice Date'.
+  ls_fieldcat-col_pos = lv_index.
+  APPEND ls_fieldcat TO gt_fieldcat.
+
+  CLEAR : ls_fieldcat.
+  lv_index = lv_index + 1.
+  ls_fieldcat-fieldname = 'KUNRG'.
+  ls_fieldcat-seltext_m = 'Payer'.
+  ls_fieldcat-col_pos = lv_index.
+  APPEND ls_fieldcat TO gt_fieldcat.
+
+  CLEAR : ls_fieldcat.
+  lv_index = lv_index + 1.
+  ls_fieldcat-fieldname = 'NAME1'.
+  ls_fieldcat-seltext_m = 'Payer Name'.
+  ls_fieldcat-col_pos = lv_index.
+  APPEND ls_fieldcat TO gt_fieldcat.
+
+
+
+  PERFORM display_alv.
+
+
+
+FORM status USING pfstat TYPE slis_t_extab.
+  SET PF-STATUS 'ZWM_INVC'.
+ENDFORM.
+
+FORM usercommand USING r_ucomm     LIKE sy-ucomm
+                       rs_selfield TYPE slis_selfield.
+
+  FIELD-SYMBOLS: <fs_final> TYPE zwm_invc_put ."ty_final.
+  rs_selfield-exit = 'X'.
+
+  DATA: ref_grid TYPE REF TO cl_gui_alv_grid.
+  IF ref_grid IS INITIAL.
+    CALL FUNCTION 'GET_GLOBALS_FROM_SLVC_FULLSCR'
+      IMPORTING
+        e_grid = ref_grid.
+  ENDIF.
+
+  IF NOT ref_grid IS INITIAL.
+    CALL METHOD ref_grid->check_changed_data.
+  ENDIF.
+
+
+  CASE r_ucomm.
+    WHEN 'BACK'.
+      LEAVE TO SCREEN 0.
+    WHEN 'EXIT'.
+      LEAVE TO SCREEN 0.
+    WHEN 'CANCEL'.
+      LEAVE TO SCREEN 0.
+    WHEN 'SALL'.
+*      BREAK-POINT.
+      LOOP AT gt_final ASSIGNING FIELD-SYMBOL(<fs_final1>).
+        <fs_final1>-chk_box = 'X'.
+      ENDLOOP.
+
+      PERFORM display_alv.
+
+    WHEN 'DALL'.
+*      BREAK-POINT.
+      LOOP AT gt_final ASSIGNING <fs_final1>.
+        CLEAR <fs_final1>-chk_box .
+      ENDLOOP.
+
+      PERFORM display_alv.
+
+    WHEN 'CLEAR'.
+      PERFORM save.
+    WHEN OTHERS.
+  ENDCASE.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  SAVE
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM save .
+*  BREAK-POINT.
+
+  DATA :ls_zwm_invc_put1 TYPE zwm_invc_put,
+        lt_zwm_invc_put1 TYPE TABLE OF zwm_invc_put,
+        lt_final         TYPE TABLE OF ty_final.
+
+  lt_final =  gt_final.
+
+  SELECT * FROM vbrp INTO TABLE @DATA(lt_vbrp)
+  FOR ALL ENTRIES IN @gt_final
+  WHERE vbeln = @gt_final-vbeln.
+
+
+  LOOP AT gt_final INTO DATA(ls_final) WHERE chk_box = 'X'.
+
+    LOOP AT lt_vbrp INTO DATA(ls_vbrp) WHERE vbeln = ls_final-vbeln
+                                         AND vgbel = ls_final-likp_vbeln
+                                         AND fkimg GT '0.000'.
+      ls_zwm_invc_put1-lgnum = ls_final-lgnum.
+      ls_zwm_invc_put1-delivery_no = ls_final-likp_vbeln.
+      ls_zwm_invc_put1-posnr = ls_vbrp-vgpos.
+*      ls_zwm_invc_put1-chk_box = 'X'.
+      DELETE zwm_invc_put FROM  ls_zwm_invc_put1.
+*      APPEND ls_zwm_invc_put1 TO lt_zwm_invc_put1.
+      CLEAR : ls_vbrp,ls_zwm_invc_put1.
+    ENDLOOP.
+
+    CLEAR : ls_final.
+  ENDLOOP.
+
+*  IF lt_zwm_invc_put1 IS NOT INITIAL.
+*    DELETE zwm_invc_put FROM TABLE lt_zwm_invc_put1.
+*    IF sy-subrc = 0.
+*      COMMIT WORK.
+*    ELSE.
+*      ROLLBACK WORK.
+*    ENDIF.
+*  ENDIF.
+
+  MESSAGE 'Physically Bins cleared' TYPE 'I'.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  DISPLAY_ALV
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM display_alv .
+
+  DATA: ls_layout TYPE slis_layout_alv.
+  ls_layout-colwidth_optimize = 'X'.
+
+  CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+    EXPORTING
+*     I_INTERFACE_CHECK        = ' '
+*     I_BYPASSING_BUFFER       = ' '
+*     I_BUFFER_ACTIVE          = ' '
+      i_callback_program       = sy-repid
+      i_callback_pf_status_set = 'STATUS'
+      i_callback_user_command  = 'USERCOMMAND'
+*     I_CALLBACK_TOP_OF_PAGE   = ' '
+*     I_CALLBACK_HTML_TOP_OF_PAGE       = ' '
+*     I_CALLBACK_HTML_END_OF_LIST       = ' '
+*     I_STRUCTURE_NAME         =
+*     I_BACKGROUND_ID          = ' '
+*     I_GRID_TITLE             =
+*     I_GRID_SETTINGS          =
+      is_layout                = ls_layout
+      it_fieldcat              = gt_fieldcat
+*     IT_EXCLUDING             =
+*     IT_SPECIAL_GROUPS        =
+*     IT_SORT                  =
+*     IT_FILTER                =
+*     IS_SEL_HIDE              =
+*     I_DEFAULT                = 'X'
+*     I_SAVE                   = ' '
+*     IS_VARIANT               =
+*     IT_EVENTS                =
+*     IT_EVENT_EXIT            =
+*     IS_PRINT                 =
+*     IS_REPREP_ID             =
+*     I_SCREEN_START_COLUMN    = 0
+*     I_SCREEN_START_LINE      = 0
+*     I_SCREEN_END_COLUMN      = 0
+*     I_SCREEN_END_LINE        = 0
+*     I_HTML_HEIGHT_TOP        = 0
+*     I_HTML_HEIGHT_END        = 0
+*     IT_ALV_GRAPHICS          =
+*     IT_HYPERLINK             =
+*     IT_ADD_FIELDCAT          =
+*     IT_EXCEPT_QINFO          =
+*     IR_SALV_FULLSCREEN_ADAPTER        =
+* IMPORTING
+*     E_EXIT_CAUSED_BY_CALLER  =
+*     ES_EXIT_CAUSED_BY_USER   =
+    TABLES
+      t_outtab                 = gt_final
+    EXCEPTIONS
+      program_error            = 1
+      OTHERS                   = 2.
+  IF sy-subrc <> 0.
+* Implement suitable error handling here
+  ENDIF.
+
+ENDFORM.

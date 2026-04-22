@@ -1,0 +1,189 @@
+*&---------------------------------------------------------------------*
+*&  Include           ZQM_STAT_COMM_FORMS_V2_ANN
+*&---------------------------------------------------------------------*
+* Program         : Issuance of Annexture
+* Title           : Annexture Development
+* Author          : Sushil Pandey
+* Program Type    : Module Pool
+* Creation Date   : 18.12.2020
+* Transaction     : ZQM_ANNEXTURE
+* Functional design: QM_155
+* Technical design:
+* Change request :  <8000006529>
+* Transport number: <transport number>
+* Description     : Issuance of Annexture
+*----------------------------------------------------------------------*
+* Modification Information
+* Date            :
+* Author          :
+* Transport number:
+* Description     :
+*	*----------------------------------------------------------------------*
+
+
+*&---------------------------------------------------------------------*
+*&      Form  VALIDATION_PRINTLOG
+*&---------------------------------------------------------------------*
+FORM validation_printlog .
+  break abap4.
+
+  IF p_stat EQ 'RL' AND p_new_stat EQ 'AV'.
+    CLEAR gs_mprint_log.
+    SELECT SINGLE * FROM zqm_ann_mprntlog INTO gs_mprint_log
+                    WHERE doknr = gs_mdoc-dms_doc AND dokvr = gs_mdoc-dokvr
+                    AND dokar = doc_type AND printtype = 'MP'.
+    IF sy-subrc IS NOT INITIAL.
+      MESSAGE e031(zppr_formu).
+    ENDIF.
+  ELSEIF p_stat EQ 'DR' AND p_new_stat EQ 'IP'.
+    CLEAR gs_mprint_log.
+    SELECT SINGLE * FROM zqm_ann_mprntlog INTO gs_mprint_log
+                WHERE doknr = gs_mdoc-dms_doc AND dokvr = gs_mdoc-dokvr
+                AND dokar = doc_type AND printtype = 'DP'.
+    IF sy-subrc IS NOT INITIAL.
+      MESSAGE e042(zppr_formu).
+    ENDIF.
+  ENDIF.
+
+ENDFORM.                    " VALIDATION_PRINTLOG
+*&---------------------------------------------------------------------*
+*&      Form  MAKE_PREV_VERSION_OBSOLETE
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM make_prev_version_obsolete .
+  DATA: ls_docstatus_temp LIKE gs_mdoc.
+
+  LOOP AT gt_mdoc INTO ls_docstatus_temp.
+    IF ls_docstatus_temp-dokvr <> gs_mdoc-dokvr.
+      CALL FUNCTION 'BAPI_DOCUMENT_SETSTATUS' "Set Document Status
+        EXPORTING
+          documenttype    = ls_docstatus_temp-dokar
+          documentnumber  = ls_docstatus_temp-dms_doc
+          documentpart    = ls_docstatus_temp-doktl
+          documentversion = ls_docstatus_temp-dokvr
+          statusextern    = 'OB'
+          statusintern    = 'OB'
+*         statuslog       = SPACE           " bapi_doc_draw-statuslog  Status Log Entry
+        IMPORTING
+          return          = gs_dms_return.
+      IF gs_dms_return-type CA 'EA'.
+        ROLLBACK WORK.
+        MESSAGE e048(zppr_api).
+      ELSE.
+        COMMIT WORK AND WAIT.
+      ENDIF.
+    ENDIF.
+  ENDLOOP.
+ENDFORM.                    " MAKE_PREV_VERSION_OBSOLETE
+*&---------------------------------------------------------------------*
+*&      Form  OVERWRITE_STATIC_TEMPLATE
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM overwrite_static_template .
+  DATA: lv_no_of_static_files TYPE i.
+
+  CALL FUNCTION 'BAPI_DOCUMENT_GETDETAIL2'
+    EXPORTING
+      documenttype    = gs_mdoc-dokar
+      documentnumber  = gs_mdoc-dms_doc
+      documentpart    = '000'
+      documentversion = '00'
+    IMPORTING
+      documentdata    = gs_documentdata
+      return          = gs_dms_return
+    TABLES
+*     objectlinks     =               " bapi_doc_drad  Object Links
+*     documentdescriptions =      " bapi_doc_drat  Language-Dependent Short Texts
+*     longtexts       =                 " bapi_doc_text  Long Texts
+*     statuslog       =                 " bapi_doc_drap  Status Logs
+      documentfiles   = gt_files.    " bapi_doc_files2  Originals
+
+  DESCRIBE TABLE gt_files LINES lv_no_of_static_files.
+  IF lv_no_of_static_files = 2.
+    READ TABLE gt_files INTO gs_files INDEX 1.
+
+    CALL FUNCTION 'BAPI_DOCUMENT_CHECKOUTSET2'
+      EXPORTING
+        documenttype    = gs_documentdata-documenttype
+        documentnumber  = gs_documentdata-documentnumber
+        documentpart    = gs_documentdata-documentpart
+        documentversion = gs_documentdata-documentversion
+        documentfile    = gs_files
+        hostname        = space
+        statusintern    = gs_documentdata-statusintern
+        statusextern    = gs_documentdata-statusextern
+*       statuslog       =
+*       revlevel        =
+*       aennr           =
+      IMPORTING
+        return          = gs_dms_return
+        checkedoutfile  = gs_files.
+    IF gs_dms_return-type CA 'EA'.
+      gv_commit = ' '.
+      ROLLBACK WORK.
+      PERFORM unlock_mdoc.
+      MESSAGE ID '26' TYPE 'E' NUMBER '000'
+              WITH gs_dms_return-message.
+    ELSE.
+      COMMIT WORK AND WAIT.
+    ENDIF.
+
+    READ TABLE gt_files INTO gs_files INDEX 1.
+    gs_files-deletevalue = 'X'.
+    CLEAR gt_files[].
+    INSERT gs_files INTO TABLE gt_files.
+    gs_documentdatax-docfile1 = 'X'.
+
+    CALL FUNCTION 'BAPI_DOCUMENT_CHANGE2'
+      EXPORTING
+        documentdata    = gs_documentdata
+        documenttype    = gs_documentdata-documenttype
+        documentnumber  = gs_documentdata-documentnumber
+        documentpart    = '000'
+        documentversion = gs_documentdata-documentversion
+        documentdatax   = gs_documentdatax
+      IMPORTING
+        return          = gs_dms_return
+      TABLES
+        documentfiles   = gt_files.
+    IF gs_dms_return-type CA 'EA'.
+      ROLLBACK WORK.
+      PERFORM unlock_mdoc.
+      MESSAGE ID '26' TYPE 'E' NUMBER '000'
+              WITH gs_dms_return-message.
+    ELSE.
+      COMMIT WORK AND WAIT.
+    ENDIF.
+  ENDIF.
+ENDFORM.                    " OVERWRITE_STATIC_TEMPLATE
+*&---------------------------------------------------------------------*
+*&      Form  POPUP_CONFIM
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM popup_confim .
+  CLEAR gv_popup_ans.
+  CALL FUNCTION 'POPUP_TO_CONFIRM'
+    EXPORTING
+      titlebar       = 'Obsolete'
+      text_question  = 'Are you sure you want to make status Obsolete?'
+    IMPORTING
+      answer         = gv_popup_ans
+    EXCEPTIONS
+      text_not_found = 1
+      OTHERS         = 2.
+  IF sy-subrc <> 0.
+* Implement suitable error handling here
+  ENDIF.
+ENDFORM.                    " POPUP_CONFIM

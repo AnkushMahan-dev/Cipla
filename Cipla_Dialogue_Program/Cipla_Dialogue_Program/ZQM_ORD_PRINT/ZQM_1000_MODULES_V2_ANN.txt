@@ -1,0 +1,259 @@
+*----------------------------------------------------------------------*
+***INCLUDE ZPPR_BMR_1000_MODULES_V2.
+*----------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*&      Module  STATUS_1000  OUTPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE status_1000 OUTPUT.
+  DATA: lt_exclude1 TYPE slis_t_extab.
+  doc_type = 'ZAN'.
+  REFRESH lt_exclude1.
+  APPEND 'SAVE' TO lt_exclude1.
+  APPEND 'DISP' TO lt_exclude1.
+  SET PF-STATUS 'S1000' EXCLUDING lt_exclude1.
+  SET TITLEBAR 'T1000'.
+ENDMODULE.                 " STATUS_1000  OUTPUT
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_1000  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE user_command_1000 INPUT.
+  PERFORM set_date_time.  "timezone changes
+  PERFORM f_get_comp_code.
+
+
+  DATA: lv_err_flag TYPE c.
+  CASE fcode.
+
+    WHEN 'BACK'.
+      PERFORM unlock_mdoc.
+      CALL SCREEN 7000.
+
+    WHEN 'EXIT'.
+      PERFORM unlock_mdoc.
+      LEAVE PROGRAM.
+
+    WHEN 'CANCEL'.
+      PERFORM unlock_mdoc.
+      RETURN.
+
+    WHEN 'EXECUTE'.
+
+****PS Start OF Comment
+**      DATA:   l_file_path      TYPE filep,
+**              ls_documentdata  TYPE bapi_doc_draw2,
+**              lt_files         TYPE TABLE OF bapi_doc_files2,
+**              ls_files         LIKE LINE OF lt_files,
+**              lv_docty         TYPE dokar,
+**              lv_docnr         TYPE doknr,
+**              lv_docnr1        TYPE doknr,
+**              lv_docpr         TYPE doktl_d,
+**              lv_docvr         TYPE dokvr,
+**              ls_ret           TYPE bapiret2,
+**              lwa_zqm_ann_data TYPE zqm_ann_data,
+**              lta_zqm_ann_data TYPE TABLE OF zqm_ann_data,
+**              lt_objecttype    TYPE TABLE OF bapi_doc_drad,
+**              ls_objecttype    LIKE LINE OF lt_objecttype.
+**
+**      l_file_path = p_static.
+**
+**      CLEAR ls_documentdata.
+***    ls_statdocdata-documenttype = .
+**      ls_documentdata-documenttype   = 'ZAN'.
+**      ls_documentdata-description    = 'Anexture document'."'IPromo Docs in DMS - Z33'.
+**      ls_documentdata-username = sy-uname.
+**      ls_documentdata-statusextern = 'DR'.
+**      ls_documentdata-statusintern = 'DR'.
+**      ls_documentdata-docfile1 = l_file_path. "'C:\Users\I064864\Desktop\MBMR.doc'.
+**      ls_documentdata-wsapplication1 = 'DOC'.
+**
+**      SELECT SINGLE * FROM zpp_dms_scat INTO @DATA(lwa_dms_scat) WHERE sysid = @sy-sysid.
+***  ls_files-originaltype = '1'.
+**      IF sy-subrc IS INITIAL.
+**        ls_files-storagecategory = lwa_dms_scat-dms_scat. "'Z_DMS_DEV'.
+**      ENDIF.
+**
+***  ls_files-docpath = wa_param-param_name.
+**      ls_files-docfile = l_file_path ."wa_promo-file_name.      "'ACN.PDF'.             " Read from the Z table - Promo to SAP
+**      ls_files-wsapplication = 'DOC'.
+**      APPEND ls_files TO lt_files.
+**
+**
+**
+**      DATA: lta_ret2          TYPE TABLE OF bapiret2.
+**
+**      SELECT SINGLE * FROM zqm_ann_data INTO lwa_zqm_ann_data
+**        WHERE werks = p_plant AND ann_no = ann_no.
+**
+**      SELECT werks_ass,
+**             werks_main
+**                       FROM zpp_form_plant
+**                       INTO TABLE @DATA(lta_zpp_form_plant)
+**                         WHERE werks_main EQ @p_plant.
+**      IF sy-subrc = 0.
+**        SORT lta_zpp_form_plant BY werks_ass.
+**      ENDIF.
+**
+**      IF sy-subrc IS INITIAL.
+**        ls_documentdata-documentnumber = lwa_zqm_ann_data-dms_doc.
+**        ls_documentdata-documentpart   = lwa_zqm_ann_data-doktl.
+**
+**        gv_flag = abap_true.
+**      ENDIF.
+**
+**      CALL FUNCTION 'BAPI_DOCUMENT_CREATE2'
+**        EXPORTING
+**          documentdata    = ls_documentdata
+***         hostname        = w_hostname  "R/3 SERVER
+***         pf_ftp_dest     = 'SAPFTPA'
+***         pf_http_dest    = 'SAPHTTPA'
+**        IMPORTING
+**          documenttype    = lv_docty
+**          documentnumber  = lv_docnr
+**          documentpart    = lv_docpr
+**          documentversion = lv_docvr
+**          return          = ls_ret
+**        TABLES
+**          documentfiles   = lt_files
+***         DOCUMENTSTRUCTURE = LT_DOCUMENTSTRU
+**          objectlinks     = lt_objecttype.
+**
+**      IF sy-subrc IS INITIAL.
+**        lwa_zqm_ann_data-werks    = p_plant.
+**        lwa_zqm_ann_data-ann_no   = ann_no.
+**        lwa_zqm_ann_data-dms_doc  = lv_docnr.
+**        lwa_zqm_ann_data-doktl    = lv_docpr.
+**        lwa_zqm_ann_data-dokar    = lv_docty.
+**        lwa_zqm_ann_data-dokvr    = lv_docvr.
+**        lwa_zqm_ann_data-stabk    = ls_documentdata-statusintern.
+**        lwa_zqm_ann_data-e_user   = sy-uname.
+**        lwa_zqm_ann_data-e_date   = sy-datlo.
+**        lwa_zqm_ann_data-e_time   = sy-timlo.
+**
+****        APPEND lwa_zqm_ann_data TO lta_zqm_ann_data.
+****        LOOP AT lta_zpp_form_plant ASSIGNING FIELD-SYMBOL(<fs_form_plant>).
+****          lwa_zqm_ann_data-werks = <fs_form_plant>-werks_ass.
+****          APPEND lwa_zqm_ann_data TO lta_zqm_ann_data.
+****        ENDLOOP.
+****        UNASSIGN <fs_form_plant>.
+**
+**        MODIFY zqm_ann_data FROM lwa_zqm_ann_data.
+****        MODIFY zqm_ann_data FROM TABLE lta_zqm_ann_data.
+**        CLEAR lwa_zqm_ann_data.
+**
+**        CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'.
+**
+**        MESSAGE s302(zqm).
+**        CALL SCREEN 7000.
+**      ELSE.
+**        CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'
+***   IMPORTING
+***     RETURN        =
+**          .
+**
+**      ENDIF.
+****PS End OF Comment
+
+
+
+*      IF gt_stb IS INITIAL.
+*        PERFORM fetch_bom_components.
+*      ENDIF.
+*      IF gt_bom IS INITIAL.
+*        PERFORM fill_gt_bom_bmr.
+*      ENDIF.
+*      IF gt_mdoc_stages IS INITIAL.
+*        PERFORM select_mdoc_stages.
+*      ENDIF.
+*      IF gt_mdoc_caution IS INITIAL.
+*        PERFORM fetch_caution.          "added on 16.03.2015
+*        PERFORM select_mdoc_caution.
+*      ENDIF.
+*      IF gt_process IS INITIAL.
+*        PERFORM fetch_processes.
+*      ENDIF.
+
+**      PERFORM check_required_fields CHANGING lv_err_flag.
+**
+**      IF lv_err_flag = 'X'.
+**        CLEAR: fcode, lv_err_flag.
+**        RETURN.
+**      ENDIF.
+
+      PERFORM check_document_status.
+
+*      "PERFORM lock_mdoc."They want lock to be maintained as soon as screen is openend and values are entered
+
+**PS
+**      PERFORM create_merged_master_doc.
+      gv_file_path = p_static.
+      PERFORM update_dms.
+      PERFORM save_zpp_master_doc.
+**PS
+
+**      PERFORM save_ztables. "zpp_master_doc, zpp_mdoc_header, zpp_mdoc_item, zpp_mdoc_stages, zpp_mdoc_caution
+*
+      IF gv_commit = 'X'.
+        COMMIT WORK AND WAIT.
+        IF gv_no_static = 'X'. "If no static template is uploaded and it is retrieved from DMS, a temp file gets created
+          "commneted for #8000003013 By Payal S on 06.09.2017 as template file generated in both path given n non given caes
+          PERFORM delete_temp_file_from_disk USING gv_file_path.
+        ENDIF.
+**        PERFORM delete_temp_file_from_disk USING gv_mdoc_path.
+**        PERFORM unlock_mdoc.
+        MESSAGE i014(zppr_formu).
+      ELSE.
+        ROLLBACK WORK.
+        PERFORM unlock_mdoc.
+      ENDIF.
+      CLEAR: p_mat, p_mdesc, p_plant, p_wdesc, p_prd_vn, p_stat, p_stat_desc, p_dms,
+      p_static, p_date, p_format, p_desc, p_cat, p_lab, gv_file_path.    "gv_file_path added for #8000003013 By Payal S on 06.09.2017
+      CALL SCREEN 7000.
+
+    WHEN 'BOM'.
+      "Fetch all dispensing stages
+      IF gt_disp_stage IS INITIAL.
+        PERFORM fetch_disp_stages.
+      ENDIF.
+      "Fetch all process codes
+      IF gt_process IS INITIAL.
+        PERFORM fetch_processes.
+      ENDIF.
+      IF gt_stb IS INITIAL.
+        PERFORM fetch_bom_components.
+      ENDIF.
+**
+      LOOP AT gt_stb INTO gs_stb WHERE alpgr IS NOT INITIAL AND alprf IS INITIAL.
+        MESSAGE e074(zppr_formu) WITH gs_stb-posnr.
+        EXIT.
+*   Please maintain priority in BOM for item &
+      ENDLOOP.
+**
+      IF gt_bom IS INITIAL. "Table gt_bom contains only priority 1 items of each Alternative group
+        PERFORM fill_gt_bom_bmr.
+      ENDIF.
+
+      CALL SCREEN 1001." STARTING AT 40 5 ENDING AT 265 30.
+
+    WHEN 'DISP'.
+      LOOP AT gt_bom INTO gs_bom WHERE ds_code IS INITIAL."To check if dispensing stages are selected
+        MESSAGE e022(zppr_formu).
+      ENDLOOP.
+      IF gt_disp_stage IS INITIAL.
+        PERFORM fetch_disp_stages.
+      ENDIF.
+      CALL SCREEN 1002." STARTING AT 40 5 ENDING AT 265 30.
+
+    WHEN 'F2CHOOSE'.
+      CLEAR fcode.
+      CLEAR gv_field.
+      GET CURSOR FIELD gv_field.
+      IF gv_field = 'P_MAT' AND p_mat IS NOT INITIAL.
+        PERFORM call_mm03 USING p_mat.
+      ENDIF.
+  ENDCASE.
+
+ENDMODULE.                 " USER_COMMAND_1000  INPUT

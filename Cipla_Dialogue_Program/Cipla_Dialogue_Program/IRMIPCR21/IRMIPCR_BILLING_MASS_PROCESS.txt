@@ -1,0 +1,1241 @@
+REPORT /irm/ipcr_billing_mass_process MESSAGE-ID /irm/ipcr.      "#VX_AUTH_CHK_FLOW
+
+****Logical Database Tables
+TABLES: vbrk, vbrp, vbpa.
+****Release 60D_SP2 - Document Index Changes
+TYPE-POOLS : rsds.
+****
+TABLES: /irm/ipcrhdr.
+****Release 60E_SP2 - Mass Processing overview
+TABLES:  sscrfields.
+
+TYPE-POOLS icon.
+****
+
+INCLUDE:
+****Release 40C - Parallel Processing
+        /irm/global_constants,
+****
+        /irm/ipg_constants,
+****Added on 06/30/2005
+         /irm/global_macros,
+****Release 40C - Parallel Processing
+         /irm/gprolog_macros.
+****
+
+****Release 40C - Parallel Processing
+****CLASS
+CLASS lcl_log_handler DEFINITION.
+  PUBLIC SECTION.
+    METHODS: on_log_display_profile
+             FOR EVENT log_display_profile
+             OF /irm/cl_process_log_manager
+             IMPORTING eref_event_data.
+ENDCLASS.                    "lcl_log_handler DEFINITION
+****
+****
+
+DATA: gt_billing_docs TYPE /irm/t_ipsdindx WITH HEADER LINE,
+****Release 60D_SP3 - ECIP# 3288 - IP Docs from cancelled invoices to be processed separately
+      gt_cancelled_billing_docs TYPE /irm/t_ipsdindx,
+      gwa_billing_doc TYPE /irm/s_ipsdindx,
+****
+****Release 40C - Parallel Processing
+      ref_log_handler TYPE REF TO lcl_log_handler.
+****
+
+****Release 40C - ECIP# 813 - Performance problem when doc. index involved
+RANGES: gr_vbeln FOR vbrk-vbeln,
+        gr_vbtyp FOR vbrk-vbtyp.
+****
+***Release 60D_SP2 Document Index Changes
+DATA : gt_range TYPE rsds_trange.
+
+DATA : BEGIN OF gwa_range OCCURS 0,
+         tablename LIKE rsdstabs-prim_tab,
+         frange_t TYPE rsds_frange_t,
+       END OF gwa_range.
+
+DATA : BEGIN OF gwa_fieldname OCCURS 0,
+         fieldname LIKE rsdstabs-prim_fname,
+         selopt_t TYPE rsds_selopt_t,
+       END OF gwa_fieldname.
+
+DATA: rsdsselopt LIKE rsdsselopt.
+
+DATA : gv_repid TYPE sy-repid,
+       gv_skip_ldb TYPE c,
+       gv_dynamic_sel TYPE c VALUE c_true,
+       gv_lines TYPE i,
+       gv_skip_check TYPE c.
+****
+****Release 60E_SP2 - Mass Processing overview
+DATA : ls_functxt TYPE smp_dyntxt.
+****
+
+****Selections
+SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE text-001.
+****Changed on 07/26/2005
+*PARAMETERS: p_prselc RADIOBUTTON GROUP rad1,
+*            p_prdidx RADIOBUTTON GROUP rad1.
+****Added on 07/26/2005
+PARAMETERS: p_prdidx AS CHECKBOX.
+SELECTION-SCREEN END OF BLOCK b1.
+
+SELECTION-SCREEN BEGIN OF BLOCK b2 WITH FRAME TITLE text-002.
+****Changed on 05/27/2005
+PARAMETERS: p_create RADIOBUTTON GROUP rad2 USER-COMMAND entr,
+            p_recrea RADIOBUTTON GROUP rad2,
+            p_repric RADIOBUTTON GROUP rad2,
+****Release 60D_SP3 - Mass deletion
+            p_delete RADIOBUTTON GROUP rad2,
+****
+****Release 60D_SP3 - Cancellation Document
+            p_cancel RADIOBUTTON GROUP rad2,
+****
+****Added on 05/27/2005
+            p_revpst AS CHECKBOX,
+            p_accrue AS CHECKBOX,
+****Release 60D_SP3 - IP Creation during reprice
+            p_crrpr AS CHECKBOX.
+****
+****ESP6 Task#31457 - ATC checks
+*****SP6 - Performance Changes for Note 1044630
+*PARAMETER:  p_paradr AS CHECKBOX DEFAULT 'X'.
+PARAMETERS:  p_paradr AS CHECKBOX DEFAULT 'X'.
+****
+SELECTION-SCREEN END OF BLOCK b2.
+
+****Release 40C - EPIP #801 PQ Changes
+*SELECTION-SCREEN BEGIN OF BLOCK b3 WITH FRAME.
+SELECTION-SCREEN BEGIN OF BLOCK b3 WITH FRAME TITLE text-005.
+SELECT-OPTIONS: so_iptyp FOR /irm/ipcrhdr-iptyp NO INTERVALS
+                         MEMORY ID /irm/iptyp_cr.
+SELECTION-SCREEN END OF BLOCK b3.
+
+****Release 40C - EPIP #801 PQ Changes
+*SELECTION-SCREEN BEGIN OF BLOCK b4 WITH FRAME.
+SELECTION-SCREEN BEGIN OF BLOCK b4 WITH FRAME TITLE text-006.
+PARAMETERS: p_cmtfrq TYPE int4 OBLIGATORY DEFAULT 100.
+SELECTION-SCREEN END OF BLOCK b4.
+****ESP6 Task #43657 - synchronous and asynchronous update
+SELECTION-SCREEN BEGIN OF BLOCK bup WITH FRAME TITLE text-012.
+PARAMETERS: p_updmod AS LISTBOX VISIBLE LENGTH 25 MEMORY ID /irm/gupdmode.
+SELECTION-SCREEN END OF BLOCK bup.
+****
+****Added on 06/29/2005 - Background Processing - Messages to Capture
+SELECTION-SCREEN BEGIN OF BLOCK bm WITH FRAME TITLE text-003.
+PARAMETERS: p_mcrule TYPE /irm/gplcrule VISIBLE LENGTH 25 AS LISTBOX.
+SELECTION-SCREEN END OF BLOCK bm.
+
+****Release 40C - Parallel Processing
+****Parallel procesisng options
+SELECTION-SCREEN BEGIN OF BLOCK bpp WITH FRAME TITLE text-004.
+PARAMETERS: p_go_ppr AS CHECKBOX USER-COMMAND sele,
+            p_dialog RADIOBUTTON GROUP pgrp USER-COMMAND entr DEFAULT 'X' MODIF ID par,
+            p_bkgjob RADIOBUTTON GROUP pgrp MODIF ID par,
+            p_psize TYPE /irm/s_g_parallel_pro_ctrl-psize DEFAULT '100' MODIF ID par,
+            p_maxsn TYPE /irm/s_g_parallel_pro_ctrl-maxsn DEFAULT '5' MODIF ID par,
+****Release 60E_SP2 - ECIP# 7208 - Maximum wait
+            p_mwait TYPE /irm/s_g_parallel_pro_ctrl-mwait DEFAULT '25' MODIF ID par,
+****
+            p_srgrp TYPE /irm/s_g_parallel_pro_ctrl-srgrp MODIF ID par,
+            p_jobpfx TYPE /irm/s_g_parallel_pro_ctrl-jobpf MODIF ID par DEFAULT sy-repid.
+SELECTION-SCREEN END OF BLOCK bpp.
+****
+****Release 60E_SP2 - Mass Processing overview
+SELECTION-SCREEN FUNCTION KEY 1. " Preview Button
+PARAMETERS: p_overvw DEFAULT ' ' NO-DISPLAY.
+
+
+INITIALIZATION.
+  ls_functxt-icon_id   = icon_overview.
+  ls_functxt-quickinfo = 'Preview'.
+  sscrfields-functxt_01 = ls_functxt.
+****
+
+AT SELECTION-SCREEN OUTPUT.
+****ESP6 Task #43657 - synchronous and asynchronous update
+  PERFORM update_mode_dropdown_prepare.
+****
+  IF p_recrea EQ space
+****Release 60D_SP3 - Mass deletion
+    AND p_delete EQ space
+****
+****Release 60D_SP3 - Cancellation Document
+    AND p_cancel EQ space.
+****
+    CLEAR: p_revpst.
+  ENDIF.
+  LOOP AT SCREEN.
+
+    IF screen-name EQ 'P_REVPST' AND
+****Release 60D_SP3 - Mass deletion
+*       p_recrea EQ space.
+      ( p_recrea EQ space
+    AND p_delete EQ space
+****
+****Release 60D_SP3 - Cancellation Document
+    AND p_cancel EQ space ).
+****
+      screen-input = 0.
+      MODIFY SCREEN.
+    ENDIF.
+
+****Release 40C - Parallel Processing
+    IF p_go_ppr IS INITIAL.
+
+      IF screen-group1 EQ 'PAR'.
+        screen-input = 0.
+        MODIFY SCREEN.
+      ENDIF.
+
+    ELSE.
+
+****Job prefix only in case of 'Background Job'
+      IF p_bkgjob IS INITIAL.
+
+        IF screen-name EQ 'P_JOBPFX'.
+
+          screen-input = 0.
+          MODIFY SCREEN.
+
+        ENDIF.
+
+      ENDIF.
+****
+    ENDIF.
+****
+****Release 60D_SP3 - Mass deletion
+    IF screen-name EQ 'P_ACCRUE'
+      AND ( p_delete EQ c_true
+        OR p_cancel EQ c_true ).
+      CLEAR p_accrue.
+      screen-input = 0.
+      MODIFY SCREEN.
+    ENDIF.
+****
+****Release 60D_SP3 - IP Creation during reprice
+    IF screen-name EQ 'P_CRRPR'
+      AND p_repric EQ space.
+      CLEAR p_crrpr.
+      screen-input = 0.
+      MODIFY SCREEN.
+    ENDIF.
+****
+  ENDLOOP.
+
+****Release 40C - Parallel Processing
+****AT SELECTION SCREEN ON p_psize
+AT SELECTION-SCREEN ON p_psize.
+  IF NOT p_go_ppr IS INITIAL.
+
+    IF p_psize IS INITIAL.
+
+****Message: Enter packet size
+      MESSAGE ID '/IRM/GLOBAL' TYPE c_msg_type-error NUMBER '601'
+      INTO sy-msgli.
+      message_simple space.
+
+    ENDIF.
+
+  ENDIF.
+****
+
+****
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_srgrp.
+  PERFORM server_group_value_request.
+****
+
+****AT SELECTION SCREEN ON p_maxsn
+AT SELECTION-SCREEN ON p_maxsn.
+  IF NOT p_go_ppr IS INITIAL.
+
+    IF p_maxsn IS INITIAL.
+
+****Message: Enter maximum number of sessions
+      MESSAGE ID '/IRM/GLOBAL' TYPE c_msg_type-error NUMBER '602'
+      INTO sy-msgli.
+      message_simple space.
+
+    ENDIF.
+
+  ENDIF.
+****
+
+****AT SELECTION-SCREEN ON p_jobpfx
+AT SELECTION-SCREEN ON p_jobpfx.
+  IF NOT p_go_ppr IS INITIAL.
+
+    IF NOT p_bkgjob IS INITIAL.
+
+      IF p_jobpfx IS INITIAL.
+
+        p_jobpfx = sy-repid.
+
+      ENDIF.
+
+    ENDIF.
+
+  ENDIF.
+****
+****Release 60E_SP2 - Mass Processing overview
+AT SELECTION-SCREEN .
+
+  IF sscrfields-ucomm EQ 'FC01'.
+    sscrfields-ucomm = 'ONLI'.
+    p_overvw = 'X'.
+  ELSE.
+    p_overvw = ' '.
+  ENDIF.
+****
+
+START-OF-SELECTION.
+
+  IF p_prdidx EQ 'X'.
+****Changed on 07/26/2005
+****Uncommented on 11/05/2005
+****Release 60D_SP2 - Document Index Changes
+*****Release 40C - ECIP# 813 - Performance problem when doc. index involved
+*    gr_vbeln[] = so_vbeln[].
+    gr_vbtyp-sign = 'I'.
+    gr_vbtyp-option = 'EQ'.
+    IF NOT p_vbtypm IS INITIAL.
+      gr_vbtyp-low = 'M'.
+      APPEND gr_vbtyp.
+    ENDIF.
+
+    IF NOT p_vbtypn IS INITIAL.
+      gr_vbtyp-low = 'N'.
+      APPEND gr_vbtyp.
+    ENDIF.
+
+    IF NOT p_vbtypo IS INITIAL.
+      gr_vbtyp-low = 'O'.
+      APPEND gr_vbtyp.
+    ENDIF.
+
+    IF NOT p_vbtypp IS INITIAL.
+      gr_vbtyp-low = 'P'.
+      APPEND gr_vbtyp.
+    ENDIF.
+
+    IF NOT p_vbtyps IS INITIAL.
+      gr_vbtyp-low = 'S'.
+      APPEND gr_vbtyp.
+    ENDIF.
+
+    IF NOT p_vbtypu IS INITIAL.
+      gr_vbtyp-low = 'U'.
+      APPEND gr_vbtyp.
+    ENDIF.
+
+    IF NOT p_vbtyp5 IS INITIAL.
+      gr_vbtyp-low = '5'.
+      APPEND gr_vbtyp.
+    ENDIF.
+
+    IF NOT p_vbtyp6 IS INITIAL.
+      gr_vbtyp-low = '6'.
+      APPEND gr_vbtyp.
+    ENDIF.
+****
+****Release 60D_SP2 - Document Index Changes
+*    REFRESH so_vbeln.
+*****Release 60D - ECIP# 1802 - Update terminated during background-parallel-processing
+*    CLEAR so_vbeln.
+*****
+*    so_vbeln-sign = 'I'.
+*    so_vbeln-option = 'EQ'.
+*    APPEND so_vbeln.
+
+****Added on 06/30/2005
+    gv_repid = sy-repid.
+    CALL FUNCTION 'RS_REFRESH_FROM_DYNAMICAL_SEL'
+      EXPORTING
+        curr_report        = gv_repid
+        mode_write_or_move = 'M'
+      IMPORTING
+        p_trange           = gt_range
+      EXCEPTIONS
+        not_found          = 1
+        wrong_type         = 2
+        OTHERS             = 3.
+
+    IF sy-subrc NE 0.
+      CLEAR gv_dynamic_sel.
+    ELSE.
+      READ TABLE gt_range
+      INTO gwa_range
+      WITH KEY tablename = 'VBRK'.
+      IF sy-subrc EQ 0.
+        CLEAR gv_lines.
+        DESCRIBE TABLE gwa_range-frange_t LINES gv_lines.
+        IF gv_lines LE 2.
+          IF gv_lines EQ 2.
+            LOOP AT gwa_range-frange_t INTO gwa_fieldname.
+              IF gwa_fieldname-fieldname NE 'VBELN'
+              AND gwa_fieldname-fieldname NE 'VBTYP'.
+                gv_skip_check = c_true.
+                EXIT.
+              ENDIF.
+            ENDLOOP.
+          ENDIF.
+
+          IF gv_skip_check IS INITIAL.
+
+            CLEAR gwa_fieldname.
+
+            READ TABLE gwa_range-frange_t
+            INTO gwa_fieldname
+            WITH KEY fieldname = 'VBELN'.
+            IF sy-subrc EQ 0.
+              LOOP AT gwa_fieldname-selopt_t
+              INTO rsdsselopt.
+                APPEND rsdsselopt TO so_vbeln[].
+              ENDLOOP.
+              CLEAR gv_dynamic_sel.
+            ENDIF.
+            READ TABLE gwa_range-frange_t
+            INTO gwa_fieldname
+            WITH KEY fieldname = 'VBTYP'.
+            IF sy-subrc EQ 0.
+              LOOP AT gwa_fieldname-selopt_t
+              INTO rsdsselopt.
+                APPEND rsdsselopt TO gr_vbtyp[].
+              ENDLOOP.
+              CLEAR gv_dynamic_sel.
+            ENDIF.
+          ENDIF.
+        ENDIF.
+      ENDIF.
+    ENDIF.
+
+    IF gv_dynamic_sel IS INITIAL
+    AND so_vkorg IS INITIAL
+    AND so_kunag IS INITIAL
+    AND so_kunrg IS INITIAL
+    AND so_fkdat IS INITIAL
+    AND so_ernam IS INITIAL
+    AND so_erdat IS INITIAL.
+      gv_skip_ldb = c_true.
+      STOP.
+    ENDIF.
+****
+  ELSE.
+    MESSAGE ID '/IRM/IPG' TYPE 'I' NUMBER '191' INTO sy-msgli.
+    process_progress_publish 1.
+  ENDIF.
+
+GET vbrk FIELDS vbeln vbtyp.
+****Release 60D_SP3 - ECIP# 3288 - IP Docs from cancelled invoices to be processed separately
+*  MOVE-CORRESPONDING vbrk TO gt_billing_docs.
+*  COLLECT gt_billing_docs.
+  gwa_billing_doc-vbeln = vbrk-vbeln.
+  gwa_billing_doc-vbtyp = vbrk-vbtyp.
+  IF p_create NE c_true
+    AND p_recrea NE c_true.
+    COLLECT gwa_billing_doc INTO gt_billing_docs.
+  ELSE.
+    IF vbrk-vbtyp CA 'NS'.
+      COLLECT gwa_billing_doc INTO gt_cancelled_billing_docs[].
+    ELSE.
+      COLLECT gwa_billing_doc INTO gt_billing_docs.
+    ENDIF.
+  ENDIF.
+****
+
+END-OF-SELECTION.
+
+  PERFORM subsequent_functions_execute.
+
+*&---------------------------------------------------------------------*
+*&      Form  subsequent_functions_execute
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM subsequent_functions_execute.
+
+****Release 40C - Parallel Processing
+*  DATA: lt_iptypes TYPE /irm/t_iptype.
+*
+*  IF NOT so_iptyp[] IS INITIAL.
+*    SELECT iptyp FROM /irm/tiptyp
+*    INTO CORRESPONDING FIELDS OF TABLE lt_iptypes
+*    WHERE iptyp IN so_iptyp.
+*  ENDIF.
+*
+*****SP6 - Performance Changes for Note 1044630
+*  EXPORT tcode = '/IRM/IPCR21' read_addresses = p_paradr
+*      TO MEMORY ID 'XXIP_KUPAV_CALL'.
+*
+*  IF p_create EQ 'X'.
+*    CALL FUNCTION '/IRM/IPCR_BILLING_CREATE_MASS'
+*         EXPORTING
+*              i_plcrule               = p_mcrule
+*              i_process_docindex      = p_prdidx
+*              i_accrue                = p_accrue
+*              i_commit_frequency      = p_cmtfrq
+*              it_iptypes              = lt_iptypes
+*              it_billing_docs         = gt_billing_docs[]
+*         EXCEPTIONS
+*              no_documents_to_process = 1
+*              no_iptypes_to_process   = 2
+*              OTHERS                  = 3.
+*  ELSEIF p_recrea EQ 'X'.
+*    CALL FUNCTION '/IRM/IPCR_RECREATE_MASS'
+*         EXPORTING
+*              i_plcrule               = p_mcrule
+*              i_process_docindex      = p_prdidx
+*              i_accrue                = p_accrue
+*              i_commit_frequency      = p_cmtfrq
+*              i_vbtyp                 = c_vbtyp-billing
+*              it_iptypes              = lt_iptypes
+*              it_source_docs          = gt_billing_docs[]
+*              i_reverse_postings      = p_revpst
+*         EXCEPTIONS
+*              no_documents_to_process = 1
+*              no_iptypes_to_process   = 2
+*              OTHERS                  = 3.
+*  ELSEIF p_repric EQ 'X'.
+*    CALL FUNCTION '/IRM/IPCR_REPRICE_MASS'
+*         EXPORTING
+*              i_plcrule               = p_mcrule
+*              i_process_docindex      = p_prdidx
+*              i_accrue                = p_accrue
+*              i_commit_frequency      = p_cmtfrq
+*              i_vbtyp                 = c_vbtyp-billing
+*              it_iptypes              = lt_iptypes
+*              it_source_docs          = gt_billing_docs[]
+*         EXCEPTIONS
+*              no_documents_to_process = 1
+*              no_iptypes_to_process   = 2
+*              OTHERS                  = 3.
+*****Added on 06/30/2005
+*  ELSE.
+*    MESSAGE ID '/IRM/IPG' TYPE 'I' NUMBER '001' INTO sy-msgli.
+*    process_progress_publish 100.
+*  ENDIF.
+*
+*****SP6 - Performance Changes for Note 1044630
+*  EXPORT tcode = space read_addresses = space
+*      TO MEMORY ID 'XXIP_KUPAV_CALL'.
+*
+*****Display the log if it is not sy-batch
+*  CHECK sy-batch IS INITIAL.
+*  CALL FUNCTION '/IRM/IPCR_MESSAGE_LOG_GET'
+*   EXPORTING
+*     i_display         = 'X'
+*     i_program         = '/IRM/IPCR_BILLING_MASS_PROCESS'
+*     i_title           = space
+** IMPORTING
+**   ET_MESSAGES       =
+
+  DATA: lt_iptypes TYPE /irm/t_iptype,
+        lt_messages TYPE /irm/t_gprolog,
+
+        lwa_message LIKE LINE OF lt_messages,
+
+        ls_parallel_pro_ctrl TYPE /irm/s_g_parallel_pro_ctrl,
+        ls_display_variant TYPE disvariant,
+
+        lv_initiator TYPE /irm/gdescr,
+        lv_bal_subobj TYPE balsubobj,
+        lv_error,
+        lv_action TYPE /irm/ip_action,
+****Release 60E_SP2 - Mass Processing Overview
+        lv_lines TYPE sy-tabix,
+        lv_psize TYPE int4,
+****
+****BUG 27137 (CIP - 15099) - cancellation billing doc. were not consider in overview of mass process
+        lv_canl_doc_lines TYPE i,
+****
+****Release 60D_SP2 - Document Index Changes
+        lt_billing_docs LIKE gt_billing_docs OCCURS 0.
+
+****Release 60D_SP3 - ECIP# 3288 - IP Docs from cancelled invoices to be processed separately
+  DATA: lwa_billing_doc TYPE /irm/s_ipsdindx,
+        lv_subsequent_call.
+****
+****ESP6 Task #43657 - synchronous and asynchronous update
+  DATA : lv_synchronous_update,
+         lv_set_update_task.
+****
+****Release 40C - ECIP# 813 - Performance problem when doc. index involved
+  IF NOT p_prdidx IS INITIAL.
+
+****Determining IPACTION
+    IF NOT p_create IS INITIAL.
+      lv_action = 'A'.
+    ELSEIF NOT p_recrea IS INITIAL.
+      lv_action = 'B'.
+    ELSEIF NOT p_repric IS INITIAL.
+      lv_action = 'C'.
+****Release 60D_SP3 - Mass deletion
+    ELSEIF NOT p_delete IS INITIAL.
+      lv_action = 'D'.
+****
+****Release 60D_SP3 - Cancellation Document
+    ELSEIF NOT p_cancel IS INITIAL.
+      lv_action = 'E'.
+****
+    ENDIF.
+****
+****Release 60E_SP2 - ECIP#6933 - SD Index processing issues
+*****Release 60D_SP2 - Document Index Changes
+*****Release 60D_SP3 - ECIP# 3288 - IP Docs from cancelled invoices to be processed separately
+**    IF gt_billing_docs[] IS INITIAL.
+*    IF gt_billing_docs[] IS INITIAL
+*      AND gt_cancelled_billing_docs[] IS INITIAL.
+*****
+*****
+    IF gt_billing_docs[] IS INITIAL
+      AND gt_cancelled_billing_docs[] IS INITIAL
+      AND gv_skip_ldb EQ c_true.
+****
+****Selection of data from doc. index
+      SELECT * FROM /irm/ipsdindx
+      INTO CORRESPONDING FIELDS OF TABLE gt_billing_docs  ##TOO_MANY_ITAB_FIELDS
+      WHERE iptyp IN so_iptyp[]
+****Release 60D_SP2 - Document Index Changes
+*      AND vbeln IN gr_vbeln[]
+          AND vbeln IN so_vbeln[]
+****
+        AND vbtyp IN gr_vbtyp[]
+        AND ipaction EQ lv_action.
+****
+****Release 60D_SP2 - Document Index Changes
+    ELSE.
+****Release 60D_SP3 - ECIP# 3288 - IP Docs from cancelled invoices to be processed separately
+****Release 60E_SP2 - ECIP 6614 - Incorrect selections
+*      IF NOT gt_billing_docs IS INITIAL.
+      IF NOT gt_billing_docs[] IS INITIAL.
+****
+****
+        SELECT * FROM /irm/ipsdindx
+        INTO CORRESPONDING FIELDS OF TABLE lt_billing_docs  ##TOO_MANY_ITAB_FIELDS
+        FOR ALL ENTRIES IN gt_billing_docs
+        WHERE iptyp IN so_iptyp[]
+          AND vbeln EQ gt_billing_docs-vbeln
+          AND vbtyp EQ gt_billing_docs-vbtyp
+          AND ipaction EQ lv_action.            "#EC CI_NO_TRANSFORM
+
+        gt_billing_docs[] = lt_billing_docs[].
+****Release 60D_SP3 - ECIP# 3288 - IP Docs from cancelled invoices to be processed separately
+      ENDIF.
+
+****Release 60E_SP2 - ECIP 6614 - Incorrect selections
+*      IF NOT gt_cancelled_billing_docs IS INITIAL.
+      IF NOT gt_cancelled_billing_docs[] IS INITIAL.
+****
+        SELECT * FROM /irm/ipsdindx
+        INTO CORRESPONDING FIELDS OF TABLE lt_billing_docs  ##TOO_MANY_ITAB_FIELDS
+        FOR ALL ENTRIES IN gt_cancelled_billing_docs
+        WHERE iptyp IN so_iptyp[]
+          AND vbeln EQ gt_cancelled_billing_docs-vbeln
+          AND vbtyp EQ gt_cancelled_billing_docs-vbtyp
+          AND ipaction EQ lv_action.
+
+        gt_cancelled_billing_docs[] = lt_billing_docs[].
+      ENDIF.
+*****
+*****
+    ENDIF.
+****
+  ENDIF.
+****
+
+  IF NOT so_iptyp[] IS INITIAL.
+    SELECT iptyp FROM /irm/tiptyp
+    INTO CORRESPONDING FIELDS OF TABLE lt_iptypes
+    WHERE iptyp IN so_iptyp
+****Release 60D_SP3 - Cancellation Document
+      AND class EQ c_class-customer_rebates.
+****
+  ENDIF.
+
+****Release 40C - ECIP# 813 -
+****Release 60D_SP3 - ECIP# 3288 - IP Docs from cancelled invoices to be processed separately
+*  IF gt_billing_docs[] IS INITIAL.
+  IF gt_billing_docs[] IS INITIAL
+    AND gt_cancelled_billing_docs[] IS INITIAL.
+****
+
+****Message: There are no documents to process; verify selection
+    MESSAGE ID '/IRM/IPG' TYPE 'I' NUMBER '001' INTO sy-msgli.
+    message_simple space.
+
+    EXIT.
+
+  ENDIF.
+****
+
+****SP6 - Performance Changes for Note 1044630
+  EXPORT tcode = '/IRM/IPCR21' read_addresses = p_paradr
+      TO MEMORY ID 'XXIP_KUPAV_CALL'.
+
+  CLEAR ls_parallel_pro_ctrl.
+  IF NOT p_go_ppr IS INITIAL.
+****Parallel Processing option has been selected
+    ls_parallel_pro_ctrl-psize = p_psize.
+    ls_parallel_pro_ctrl-maxsn = p_maxsn.
+    ls_parallel_pro_ctrl-srgrp = p_srgrp.
+****Release 60E_SP2 - ECIP# 7208 - Maximum wait
+    ls_parallel_pro_ctrl-mwait = p_mwait.
+****
+    IF NOT p_bkgjob IS INITIAL.
+
+      ls_parallel_pro_ctrl-bgjob = c_true.
+      ls_parallel_pro_ctrl-jobpf = p_jobpfx.
+
+    ENDIF.
+****
+  ENDIF.
+****ESP6 Task #43657 - synchronous and asynchronous update
+  IF p_updmod EQ c_update_mode-asynchronous.   "space
+    lv_set_update_task = c_true.
+    CLEAR lv_synchronous_update.
+  ELSEIF p_updmod EQ c_update_mode-synchronous. "X
+    lv_set_update_task = c_true.
+    lv_synchronous_update = c_true.
+  ELSEIF p_updmod EQ c_update_mode-synchronous_with_local_upd. "Y
+    CLEAR lv_set_update_task.
+    lv_synchronous_update = c_true.
+  ENDIF.
+****
+****Release 60E_SP2 - Mass Processing overview
+  IF p_overvw IS INITIAL.
+****
+****2022DC04 - Bug #145987 CIP #618035 - IP Document mass process does not validate IP type
+    IF lt_iptypes[] IS INITIAL.
+      MESSAGE ID '/IRM/IPCR' TYPE c_msg_type-info NUMBER '100'.
+      EXIT.
+    ENDIF.
+****
+    IF p_create EQ 'X'.
+
+      lv_initiator = c_log_initiator-create.
+      lv_bal_subobj = c_log_initiator-create.
+****Release 60D_SP3 - ECIP# 3288 - IP Docs from cancelled invoices to be processed separately
+      IF NOT gt_billing_docs[] IS INITIAL.
+****
+        CALL FUNCTION '/IRM/IPCR_BILLING_CREATE_MASS'
+         EXPORTING
+           i_plcrule                     = p_mcrule
+****ESP6 Task #43657 - synchronous and asynchronous update
+           i_synchronous_update          = lv_synchronous_update
+           i_set_update_task             = lv_set_update_task
+****
+           i_process_docindex            = p_prdidx
+           i_accrue                      = p_accrue
+*       I_SAVE                        = 'X'
+*       I_COMMIT_WORK                 = 'X'
+*       I_SET_UPDATE_TASK             = 'X'
+           i_commit_frequency            = p_cmtfrq
+           it_iptypes                    = lt_iptypes
+           it_billing_docs               = gt_billing_docs[]
+           is_parallel_pro_ctrl          = ls_parallel_pro_ctrl
+****Release 60E_SP1 - ECIP - 5113 - Issue with Parallel Processing
+            i_read_par_address      = p_paradr
+            i_tcode                 = sy-tcode
+****
+         IMPORTING
+*       ET_IPCR_DOC                   =
+*       E_LOG_HANDLE                  =
+           e_error                       = lv_error
+           et_messages                   = lt_messages[]
+         EXCEPTIONS ##FM_SUBRC_OK
+           no_documents_to_process       = 1
+           no_iptypes_to_process         = 2
+           OTHERS                        = 3.
+****Release 60D_SP3 - ECIP# 3288 - IP Docs from cancelled invoices to be processed separately
+        lv_subsequent_call = c_true.
+      ENDIF.
+****
+****Release 60D_SP3 - ECIP# 3288 - IP Docs from cancelled invoices to be processed separately
+      IF NOT gt_cancelled_billing_docs[] IS INITIAL.
+        CALL FUNCTION '/IRM/IPCR_BILLING_CREATE_MASS'
+         EXPORTING
+           i_plcrule                     = p_mcrule
+****ESP6 Task #43657 - synchronous and asynchronous update
+           i_synchronous_update          = lv_synchronous_update
+           i_set_update_task             = lv_set_update_task
+****
+           i_process_docindex            = p_prdidx
+           i_accrue                      = p_accrue
+*       I_SAVE                        = 'X'
+*       I_COMMIT_WORK                 = 'X'
+*       I_SET_UPDATE_TASK             = 'X'
+           i_commit_frequency            = p_cmtfrq
+           i_subsequent_call             = lv_subsequent_call
+           it_iptypes                    = lt_iptypes
+           it_billing_docs               = gt_cancelled_billing_docs[]
+           is_parallel_pro_ctrl          = ls_parallel_pro_ctrl
+****Release 60E_SP1 - ECIP - 5113 - Issue with Parallel Processing
+            i_read_par_address      = p_paradr
+            i_tcode                 = sy-tcode
+****
+         IMPORTING
+*       ET_IPCR_DOC                   =
+*       E_LOG_HANDLE                  =
+           e_error                       = lv_error
+           et_messages                   = lt_messages[]
+         EXCEPTIONS ##FM_SUBRC_OK
+           no_documents_to_process       = 1
+           no_iptypes_to_process         = 2
+           OTHERS                        = 3.
+
+        APPEND LINES OF gt_cancelled_billing_docs TO gt_billing_docs[].
+        REFRESH gt_cancelled_billing_docs[].
+      ENDIF.
+****
+    ELSEIF p_recrea EQ 'X'.
+
+      lv_initiator = c_log_initiator-recreate.
+      lv_bal_subobj = c_log_initiator-recreate.
+
+****Release 60D_SP3 - ECIP# 3288 - IP Docs from cancelled invoices to be processed separately
+      IF NOT gt_billing_docs[] IS INITIAL.
+****
+        CALL FUNCTION '/IRM/IPCR_RECREATE_MASS'
+         EXPORTING
+           i_plcrule                     = p_mcrule
+****ESP6 Task #43657 - synchronous and asynchronous update
+           i_synchronous_update          = lv_synchronous_update
+           i_set_update_task             = lv_set_update_task
+****
+           i_process_docindex            = p_prdidx
+           i_accrue                      = p_accrue
+*       I_COMMIT_WORK                 = 'X'
+*       I_SET_UPDATE_TASK             = 'X'
+           i_commit_frequency            = p_cmtfrq
+           it_iptypes                    = lt_iptypes
+           it_source_docs                = gt_billing_docs[]
+*       IT_CUSTOMER_REBATES           =
+           i_reverse_postings            = p_revpst
+           is_parallel_pro_ctrl          = ls_parallel_pro_ctrl
+         IMPORTING
+*       E_LOG_HANDLE                  =
+           e_error                       = lv_error
+           et_messages                   = lt_messages[]
+*     TABLES
+*       T_IPCR_DOC                    =
+         EXCEPTIONS ##FM_SUBRC_OK
+           no_documents_to_process       = 1
+           no_iptypes_to_process         = 2
+           OTHERS                        = 3.
+
+****Release 60D_SP3 - ECIP# 3288 - IP Docs from cancelled invoices to be processed separately
+        lv_subsequent_call = c_true.
+      ENDIF.
+****
+****Release 60D_SP3 - ECIP# 3288 - IP Docs from cancelled invoices to be processed separately
+      IF NOT gt_cancelled_billing_docs[] IS INITIAL.
+        CALL FUNCTION '/IRM/IPCR_RECREATE_MASS'
+          EXPORTING
+            i_plcrule               = p_mcrule
+****ESP6 Task #43657 - synchronous and asynchronous update
+            i_synchronous_update    = lv_synchronous_update
+            i_set_update_task       = lv_set_update_task
+****
+            i_process_docindex      = p_prdidx
+            i_accrue                = p_accrue
+*           I_COMMIT_WORK           = 'X'
+*           I_SET_UPDATE_TASK       = 'X'
+            i_commit_frequency      = p_cmtfrq
+            i_reverse_postings      = p_revpst
+            i_subsequent_call       = lv_subsequent_call
+            is_parallel_pro_ctrl    = ls_parallel_pro_ctrl
+            it_iptypes              = lt_iptypes
+            it_source_docs          = gt_cancelled_billing_docs[]
+*           IT_CUSTOMER_REBATES     =
+          IMPORTING
+*           E_LOG_HANDLE            =
+            e_error                 = lv_error
+            et_messages             = lt_messages[]
+          EXCEPTIONS ##FM_SUBRC_OK
+            no_documents_to_process = 1
+            no_iptypes_to_process   = 2
+            OTHERS                  = 3.
+
+        APPEND LINES OF gt_cancelled_billing_docs TO gt_billing_docs[].
+        REFRESH gt_cancelled_billing_docs[].
+      ENDIF.
+****
+
+    ELSEIF p_repric EQ 'X'.
+
+      lv_initiator = c_log_initiator-reprice.
+      lv_bal_subobj = c_log_initiator-reprice.
+
+      CALL FUNCTION '/IRM/IPCR_REPRICE_MASS'
+       EXPORTING
+         i_plcrule                     = p_mcrule
+****ESP6 Task #43657 - synchronous and asynchronous update
+         i_synchronous_update          = lv_synchronous_update
+         i_set_update_task             = lv_set_update_task
+****
+         i_process_docindex            = p_prdidx
+         i_accrue                      = p_accrue
+*       I_COMMIT_WORK                 = 'X'
+*       I_SET_UPDATE_TASK             = 'X'
+         i_commit_frequency            = p_cmtfrq
+****Release 60D_SP3 - IP Creation during reprice
+         i_create_ipdoc                = p_crrpr
+****
+         it_iptypes                    = lt_iptypes
+         it_source_docs                = gt_billing_docs[]
+*       IT_CUSTOMER_REBATES           =
+         is_parallel_pro_ctrl          = ls_parallel_pro_ctrl
+       IMPORTING
+*       ET_IPCR_DOC                   =
+*       E_LOG_HANDLE                  =
+         e_error                       = lv_error
+         et_messages                   = lt_messages[]
+       EXCEPTIONS ##FM_SUBRC_OK
+         no_documents_to_process       = 1
+         no_iptypes_to_process         = 2
+         OTHERS                        = 3.
+****Release 60D_SP3 - Mass deletion
+    ELSEIF p_delete EQ c_true.
+
+      lv_initiator = c_log_initiator-delete.
+      lv_bal_subobj = c_log_initiator-delete.
+
+      CALL FUNCTION '/IRM/IPCR_DELETE_MASS'
+        EXPORTING
+          i_plcrule               = p_mcrule
+****ESP6 Task #43657 - synchronous and asynchronous update
+          i_synchronous_update    = lv_synchronous_update
+          i_set_update_task       = lv_set_update_task
+****
+          i_process_docindex      = p_prdidx
+          i_commit_frequency      = p_cmtfrq
+          i_reverse_postings      = p_revpst
+          is_parallel_pro_ctrl    = ls_parallel_pro_ctrl
+          it_iptypes              = lt_iptypes
+          it_source_docs          = gt_billing_docs[]
+        IMPORTING
+          e_error                 = lv_error
+          et_messages             = lt_messages
+        EXCEPTIONS ##FM_SUBRC_OK
+          no_documents_to_process = 1
+          no_iptypes_to_process   = 2
+          OTHERS                  = 3.
+
+****
+****Release 60D_SP3 - Cancellation Document
+    ELSEIF p_cancel EQ c_true.
+
+      lv_initiator = c_log_initiator-cancel.
+      lv_bal_subobj = c_log_initiator-cancel.
+
+      CALL FUNCTION '/IRM/IPCR_CANCEL_MASS'
+        EXPORTING
+          i_plcrule               = p_mcrule
+****ESP6 Task #43657 - synchronous and asynchronous update
+          i_synchronous_update    = lv_synchronous_update
+          i_set_update_task       = lv_set_update_task
+****
+          i_process_docindex      = p_prdidx
+          i_commit_frequency      = p_cmtfrq
+          i_reverse_postings      = p_revpst
+          it_iptypes              = lt_iptypes
+          it_source_docs          = gt_billing_docs[]
+          is_parallel_pro_ctrl    = ls_parallel_pro_ctrl
+        IMPORTING
+          e_error                 = lv_error
+          et_messages             = lt_messages
+        EXCEPTIONS ##FM_SUBRC_OK
+          no_documents_to_process = 1
+          no_iptypes_to_process   = 2
+          OTHERS                  = 3.
+****
+****Added on 06/30/2005
+    ELSE.
+      MESSAGE ID '/IRM/IPG' TYPE 'I' NUMBER '001' INTO sy-msgli.
+*    process_progress_publish 100.
+    ENDIF.
+****Release 60E_SP2 - Mass Processing overview
+  ELSE.
+
+    DESCRIBE TABLE gt_billing_docs LINES lv_lines.
+    IF NOT p_go_ppr IS INITIAL.
+      MOVE p_psize TO lv_psize.
+    ELSE.
+      lv_psize = p_cmtfrq.
+    ENDIF.
+****BUG 27137 (CIP - 15099) - cancellation billing doc. were not consider in overview of mass process
+    DESCRIBE TABLE gt_cancelled_billing_docs LINES lv_canl_doc_lines.
+****
+
+    CALL FUNCTION '/IRM/IPG_PROCESS_OVERVIEW'
+      EXPORTING
+        i_total_documents = lv_lines
+        it_source_docs    = gt_billing_docs[]
+****BUG 27137 (CIP - 15099) - cancellation billing doc. were not consider in overview of mass process
+        i_total_cancel_docs = lv_canl_doc_lines
+        it_cancellation_src_docs = gt_cancelled_billing_docs[]
+****
+        i_vbtyp           = 'M'
+        i_vbtyp_a         = space
+        i_packet_size     = lv_psize
+        i_class           = c_class-customer_rebates.
+
+    CLEAR p_overvw.
+  ENDIF.
+****
+
+****SP6 - Performance Changes for Note 1044630
+  EXPORT tcode = space read_addresses = space
+      TO MEMORY ID 'XXIP_KUPAV_CALL'.
+  .
+  messages_init.
+  messages_collect_all.
+  messages_capture_rule_set p_mcrule.
+
+  messages_initiator_set lv_initiator
+                         '/IRM/IPCR'
+                         lv_bal_subobj.
+
+  CREATE OBJECT ref_log_handler.
+
+  message_log_event_handler_set ref_log_handler
+                                on_log_display_profile.
+
+  LOOP AT lt_messages INTO lwa_message.
+
+    CHECK NOT lwa_message-msgid IS INITIAL
+      AND NOT lwa_message-msgno IS INITIAL
+      AND NOT lwa_message-msgty IS INITIAL.
+
+    messages_context_data_set lwa_message-context-document
+                              space
+                              space
+                              lwa_message-context-context-tabname
+                              lwa_message-context-context-value.
+    MESSAGE ID lwa_message-msgid TYPE lwa_message-msgty
+    NUMBER lwa_message-msgno WITH lwa_message-msgv1
+      lwa_message-msgv2 lwa_message-msgv3 lwa_message-msgv4
+    INTO sy-msgli.
+    message_simple space.
+
+  ENDLOOP.
+
+  IF NOT ls_parallel_pro_ctrl-bgjob IS INITIAL
+    AND lv_error IS INITIAL.
+
+****Message: Background jobs have been triggered; check job logs
+    MESSAGE ID '/IRM/GLOBAL' TYPE c_msg_type-success NUMBER '604'
+    INTO sy-msgli.
+    message_simple space.
+
+  ENDIF.
+
+  ls_display_variant-report = sy-repid.
+  ls_display_variant-handle = lv_initiator.
+
+  messages_display lv_initiator
+                   space
+                   space
+                   space
+                   ls_display_variant.
+****            .
+
+ENDFORM.                    " subsequent_functions_execute
+
+****Release 40C - Parallel Processing
+*----------------------------------------------------------------------*
+*       CLASS lcl_log_handler IMPLEMENTATION
+*----------------------------------------------------------------------*
+*
+*----------------------------------------------------------------------*
+CLASS lcl_log_handler IMPLEMENTATION.
+
+  METHOD on_log_display_profile.
+
+    DATA: ls_fcat TYPE bal_s_fcat.
+
+****Changed on 12/14/2004 - Srikanth
+****To correct Message Log Field Catalog Issues
+    READ TABLE eref_event_data->ms_display_profile-mess_fcat
+    WITH KEY ref_field = 'VBELN' TRANSPORTING NO FIELDS.
+    IF sy-subrc NE 0.
+      ls_fcat-ref_table  = '/IRM/S_IPCR_CONTEXT'.
+      ls_fcat-ref_field  = 'VBELN'.
+      ls_fcat-outputlen  = 10.
+      ls_fcat-coltext = text-007.
+      ls_fcat-col_pos = 1.
+*    ls_fcat-hotspot = 'X'.
+      APPEND ls_fcat TO eref_event_data->ms_display_profile-mess_fcat.
+    ENDIF.
+
+    READ TABLE eref_event_data->ms_display_profile-mess_fcat
+    WITH KEY ref_field = c_fieldname-ipnum TRANSPORTING NO FIELDS.
+    IF sy-subrc NE 0.
+      READ TABLE eref_event_data->ms_display_profile-mess_fcat
+      INTO ls_fcat WITH KEY col_pos = 2.
+      IF sy-subrc EQ 0.
+        ls_fcat-col_pos = 3.
+        MODIFY eref_event_data->ms_display_profile-mess_fcat FROM ls_fcat
+                                      INDEX sy-tabix TRANSPORTING col_pos.
+      ENDIF.
+
+      CLEAR ls_fcat.
+      ls_fcat-ref_table  = '/IRM/S_IPCR_CONTEXT'.
+      ls_fcat-ref_field  = c_fieldname-ipnum.
+      ls_fcat-outputlen  = 10.
+      ls_fcat-coltext   = text-008.
+      ls_fcat-col_pos    = 2.
+      APPEND ls_fcat TO eref_event_data->ms_display_profile-mess_fcat.
+    ENDIF.
+
+    READ TABLE eref_event_data->ms_display_profile-mess_fcat
+    WITH KEY ref_field = c_fieldname-ipitm TRANSPORTING NO FIELDS.
+    IF sy-subrc NE 0.
+
+      READ TABLE eref_event_data->ms_display_profile-mess_fcat
+      INTO ls_fcat WITH KEY col_pos = 3.
+      IF sy-subrc EQ 0.
+        ls_fcat-col_pos = 4.
+        MODIFY eref_event_data->ms_display_profile-mess_fcat FROM ls_fcat
+                                      INDEX sy-tabix TRANSPORTING col_pos.
+      ENDIF.
+
+      CLEAR ls_fcat.
+      ls_fcat-ref_table  = '/IRM/S_IPCR_CONTEXT'.
+      ls_fcat-ref_field  = c_fieldname-ipitm.
+      ls_fcat-outputlen  = 6.
+      ls_fcat-coltext   = text-009.
+      ls_fcat-col_pos    = 3.
+      APPEND ls_fcat TO eref_event_data->ms_display_profile-mess_fcat.
+    ENDIF.
+****End of Change 12/14/2004 - Srikanth
+  ENDMETHOD.                    "on_log_display_profile
+
+ENDCLASS.                    "lcl_log_handler IMPLEMENTATION
+*&---------------------------------------------------------------------*
+*&      Form  server_group_value_request
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+****Release 40C - Parallel Processing
+FORM server_group_value_request.
+
+  DATA: lt_value TYPE TABLE OF rzllitab,
+        lt_field TYPE TABLE OF dfies,
+        lt_servers TYPE TABLE OF rzllitab,
+        lt_return TYPE TABLE OF ddshretval,
+
+        lwa_value LIKE LINE OF lt_value[],
+        lwa_field LIKE LINE OF lt_field,
+        lwa_server LIKE LINE OF lt_servers,
+        lwa_return LIKE LINE OF lt_return,
+
+        lv_display.
+
+****Preparation of lt_field[]
+  CALL FUNCTION 'DDIF_FIELDINFO_GET'
+    EXPORTING
+      tabname        = 'RZLLITAB'
+    TABLES
+      dfies_tab      = lt_field[]
+    EXCEPTIONS ##FM_SUBRC_OK
+      not_found      = 1
+      internal_error = 2
+      OTHERS         = 3.
+  DELETE lt_field WHERE fieldname NE 'CLASSNAME'.
+****
+
+****Preparation of lt_value[]
+  SELECT DISTINCT classname
+  FROM rzllitab         "#EC CI_BYPASS
+  INTO CORRESPONDING FIELDS OF TABLE lt_servers  ##TOO_MANY_ITAB_FIELDS
+  WHERE grouptype EQ 'S'."S: Server Group
+
+  LOOP AT lt_servers INTO lwa_server.
+
+    CLEAR lwa_value.
+    lwa_value-classname = lwa_server-classname.
+    APPEND lwa_value TO lt_value.
+
+  ENDLOOP.
+****
+
+****Only Display?
+  IF p_go_ppr IS INITIAL.
+***************    lv_display = c_true.
+  ENDIF.
+****
+
+  CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+    EXPORTING
+      retfield        = 'CLASSNAME'
+      display         = lv_display
+    TABLES
+      value_tab       = lt_value[]
+      field_tab       = lt_field[]
+      return_tab      = lt_return[]
+    EXCEPTIONS
+      parameter_error = 1
+      no_values_found = 2
+      OTHERS          = 3.
+  IF sy-subrc EQ 0.
+
+    CLEAR lwa_return.
+    READ TABLE lt_return
+    INTO lwa_return
+    WITH KEY fieldname = 'CLASSNAME'.
+
+    IF NOT lwa_return IS INITIAL.
+      p_srgrp = lwa_return-fieldval.
+    ENDIF.
+
+  ENDIF.
+
+ENDFORM.                    " server_group_value_request
+*&---------------------------------------------------------------------*
+*&      Form  UPDATE_MODE_DROPDOWN_PREPARE
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM update_mode_dropdown_prepare .
+****ESP6 Task #43657 - synchronous and asynchronous update
+  DATA: lt_vrm TYPE vrm_values,
+        lwa_vrm TYPE vrm_value,
+        lwa_tiptypad TYPE /irm/tiptypad,
+        lt_domain_value TYPE TABLE OF dd07v,
+        lwa_domain_value TYPE dd07v.
+
+  CALL FUNCTION 'DDIF_DOMA_GET'
+    EXPORTING
+      NAME                = '/IRM/GUPDMODE'
+      LANGU               = SY-LANGU
+    TABLES
+      dd07v_tab           = lt_domain_value
+    exceptions
+      illegal_input       = 1
+      others              = 2
+            .
+  LOOP AT lt_domain_value INTO lwa_domain_value.
+    lwa_vrm-key =  lwa_domain_value-domvalue_l.
+    lwa_vrm-text = lwa_domain_value-ddtext.
+    APPEND lwa_vrm To lt_vrm.
+  ENDLOOP.
+
+  CALL FUNCTION 'VRM_SET_VALUES'
+    EXPORTING
+      ID                    = 'P_UPDMOD'
+      VALUES                = lt_vrm.
+
+****
+ENDFORM.                    " UPDATE_MODE_DROPDOWN_PREPARE

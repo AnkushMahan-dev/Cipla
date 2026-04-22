@@ -1,0 +1,510 @@
+*----------------------------------------------------------------------*
+***INCLUDE ZPPR_MPRINT_COMMON_FORMS_V2.
+*----------------------------------------------------------------------*
+* Program         : Issuance of Annexture
+* Title           : Annexture Development
+* Author          : Sushil Pandey
+* Program Type    : Module Pool
+* Creation Date   : 18.12.2020
+* Transaction     : ZQM_ANNEXTURE
+* Functional design: QM_155
+* Technical design:
+* Change request :  <8000006529>
+* Transport number: <transport number>
+* Description     : Issuance of Annexture
+*----------------------------------------------------------------------*
+* Modification Information
+* Date            :
+* Author          :
+* Transport number:
+* Description     :
+*	*----------------------------------------------------------------------*
+
+*&---------------------------------------------------------------------*
+*&      Form  CHECK_REQ_FIELDS_PRINT
+*&---------------------------------------------------------------------*
+FORM check_req_fields_print .
+  IF p_plant IS INITIAL OR ann_no IS INITIAL.
+    MESSAGE e000(zppr_formu).
+  ENDIF.
+  IF p_reprint = 'X' AND p_reason IS INITIAL.
+    MESSAGE e027(zppr_formu).
+  ENDIF.
+  IF p_page_range IS NOT INITIAL AND ( p_from IS INITIAL OR p_to IS INITIAL ).
+    MESSAGE e076(zppr_formu).
+*   Please fill valid from and to range.
+  ELSEIF p_page_range IS NOT INITIAL.
+    IF p_from GT p_to.
+      MESSAGE e076(zppr_formu).
+*   Please fill valid from and to range.
+    ENDIF.
+    IF ( p_from IS INITIAL OR p_from = '000' ) AND ( p_to IS INITIAL OR p_to = '000' ).
+      MESSAGE e076(zppr_formu).
+*   Please fill valid from and to range.
+    ENDIF.
+  ENDIF.
+ENDFORM.                    " CHECK_REQ_FIELDS_PRINT
+*&---------------------------------------------------------------------*
+*&      Form  MPRINT_VALIDATION
+*&---------------------------------------------------------------------*
+FORM mprint_validation.
+  IF p_stat = 'OB'.
+    MESSAGE e069(zppr_formu).
+*   Master print already taken.
+  ELSEIF p_stat = 'IP' AND p_preview NE 'X' AND p_draft NE 'X'.
+    MESSAGE e010(zppr_formu).
+  ELSEIF p_draft EQ 'X' AND p_stat NE 'DR' AND p_stat NE'IP'.
+    MESSAGE e028(zppr_formu) WITH p_stat.
+  ELSEIF p_master EQ 'X' AND ( p_stat NE 'RL' AND p_stat NE 'AV' ) .
+    MESSAGE e029(zppr_formu).
+  ELSEIF p_master EQ 'X'.
+    CLEAR gs_mprint_log.
+    SELECT SINGLE * FROM zqm_ann_mprntlog INTO gs_mprint_log
+                    WHERE dokar = gs_mdoc-dokar AND doknr = gs_mdoc-dms_doc AND dokvr = gs_mdoc-dokvr AND printtype = 'MP'.
+    IF sy-subrc IS INITIAL.
+      MESSAGE e030(zppr_formu).
+    ENDIF.
+  ELSEIF p_reprint EQ 'X'.
+    CLEAR gs_mprint_log.
+    SELECT SINGLE * FROM zqm_ann_mprntlog INTO gs_mprint_log
+                    WHERE dokar = gs_mdoc-dokar AND doknr = gs_mdoc-dms_doc AND dokvr = gs_mdoc-dokvr AND printtype = 'MP'.
+    IF sy-subrc IS NOT INITIAL.
+      MESSAGE e031(zppr_formu).
+    ENDIF.
+  ELSEIF p_draft EQ 'X'.
+    CLEAR gs_mprint_log.
+    SELECT SINGLE * FROM zqm_ann_mprntlog INTO gs_mprint_log
+                    WHERE dokar = gs_mdoc-dokar AND doknr = gs_mdoc-dms_doc AND dokvr = gs_mdoc-dokvr AND printtype = 'DR'.
+*    IF sy-subrc IS NOT INITIAL.
+    IF sy-subrc IS INITIAL. "Added by Gajanan - 14.06.2024 - Annexure
+      MESSAGE e602(zppr_formu).
+    ENDIF.
+  ENDIF.
+ENDFORM.                    " MPRINT_VALIDATION
+*&---------------------------------------------------------------------*
+*&      Form  UPDATE_MASTER_DOCUMENT
+*&---------------------------------------------------------------------*
+FORM update_master_document .
+
+
+  PERFORM create_obj_word USING gv_file_path.
+*  PERFORM fill_header.
+*  PERFORM fill_footer.
+
+*  WAIT UP TO 25 SECONDS.
+  PERFORM get_total_no_of_pages CHANGING g_mast_pages.
+
+
+  IF p_preview <> 'X'.
+
+    PERFORM master_creation_detail.
+
+    DATA: ta_bmr_logodt TYPE TABLE OF zpp_bmr_logodt,
+          wa_bmr_logodt TYPE zpp_bmr_logodt.
+    SELECT        * FROM  zpp_bmr_logodt CLIENT SPECIFIED
+      INTO TABLE ta_bmr_logodt
+           WHERE  mandt  = sy-mandt.
+    IF sy-subrc = 0.
+      SORT ta_bmr_logodt BY frm DESCENDING.
+
+      CLEAR wa_bmr_logodt.
+      READ TABLE ta_bmr_logodt INTO wa_bmr_logodt INDEX 1.
+      IF wa_drap-datum >= wa_bmr_logodt-frm.  "change date by vrushali on 20-05-2015
+***soa by payal on 26.06.2015
+        PERFORM fill_footer.
+      ENDIF.
+    ENDIF.
+
+************SOC by prakash on 11.05.2015 to take date from DRAP table ******
+***** EOC BY VRUSHALI ON 08-05-2015
+  ENDIF.
+  PERFORM set_actview USING '9'. "Header(9) or Main(0)
+  PERFORM set_bold USING '1'.
+  PERFORM update_master_header.
+  PERFORM set_bold USING '0'.
+  PERFORM set_actview USING '0'.
+  PERFORM update_master_mainview.
+ENDFORM.                    " UPDATE_MASTER_DOCUMENT
+*&---------------------------------------------------------------------*
+*&      Form  FETCH_BATCHSIZE
+*&---------------------------------------------------------------------*
+FORM fetch_batchsize.
+  DATA: l_stlal     TYPE stlal,
+        l_stlnr     TYPE stnum,
+*        l_bmeng TYPE menge13,      commneted on 10.12.2014
+*        l_bmein TYPE meins,      commneted on 10.12.2014
+        l_menge(40) TYPE c.
+
+  SELECT SINGLE stlal FROM mkal
+    INTO l_stlal
+    WHERE matnr = p_mat
+    AND werks = p_plant
+    AND verid = p_prd_vn.
+
+  SELECT SINGLE stlnr FROM mast
+    INTO l_stlnr
+    WHERE matnr = p_mat
+    AND werks = p_plant
+    AND stlal = l_stlal
+    AND stlan = 1.
+
+***soc on 10.12.2014
+*  SELECT SINGLE bmeng bmein
+*    FROM stko
+*    INTO (l_bmeng,l_bmein)
+*    WHERE stlnr = l_stlnr
+*    AND stlal = l_stlal.
+  IF wa_stko IS NOT INITIAL.      "added on 10.12.2014
+    SELECT SINGLE *
+      FROM stko
+      INTO wa_stko
+      WHERE stlty = 'M' AND      "added on 13.04.2015
+      stlnr = l_stlnr
+      AND stlal = l_stlal.
+  ENDIF.
+
+
+***eoc on 10.12.2014
+
+***soa on 27.06.2014 for EA NOS qty
+**soc on 10.12.2014
+*  PERFORM convert_qty USING l_bmeng l_bmein CHANGING l_menge.
+  PERFORM convert_qty USING wa_stko-bmeng wa_stko-bmein CHANGING l_menge.
+**eoc on 10.12.2014
+***eoa on 27.06.2014 for EA NOS qty
+
+  IF doc_type = 'ZAN'.
+*    gv_batchsize = l_bmeng.
+**    soc to display qty with comma
+*    WRITE l_bmeng TO gv_batchsize.
+    WRITE l_menge TO gv_batchsize.
+**    eoc to display qty with comma
+
+    CONDENSE gv_batchsize NO-GAPS.
+**    soc on 10.12.2014
+*    CONCATENATE gv_batchsize l_bmein INTO gv_batchsize SEPARATED BY space.
+    CONCATENATE gv_batchsize wa_stko-bmein INTO gv_batchsize SEPARATED BY space.
+**    eoc on 10.12.2014
+  ELSEIF doc_type = 'BPR'.
+
+*    gv_mview_packqty = l_bmeng.
+**    soc to display qty with comma
+*    WRITE l_bmeng TO gv_mview_packqty.
+    WRITE l_menge TO gv_mview_packqty.
+**    eoc to display qty with comma
+
+    CONDENSE gv_mview_packqty NO-GAPS.
+**    soc on 10.12.2014
+*    CONCATENATE gv_mview_packqty l_bmein INTO gv_mview_packqty SEPARATED BY space.
+***soa on 30.11.2015
+    PERFORM output_unit USING wa_stko-bmein.
+***eoa on 30.11.2015
+    CONCATENATE gv_mview_packqty wa_stko-bmein INTO gv_mview_packqty SEPARATED BY space.
+**    eoc on 10.12.2014
+  ENDIF.
+***  soc on 10.12.2014
+*  IF l_bmein = 'EA' OR l_bmein = 'NOS' OR l_bmein = 'NO'. "Caclulate Alternative Quantity only in these cases
+
+  IF wa_stko-bmein = 'EA' OR wa_stko-bmein = 'NOS' OR wa_stko-bmein = 'NO'. "Caclulate Alternative Quantity only in these cases
+
+*    PERFORM calculate_alt_qty USING l_bmeng p_mat
+    PERFORM calculate_alt_qty USING wa_stko-bmeng p_mat p_prd_vn
+                              CHANGING gv_batchsize.
+***  eoc on 10.12.2014
+  ENDIF.
+
+ENDFORM.                    " FETCH_BATCHSIZE
+*&---------------------------------------------------------------------*
+*&      Form  CALCULATE_ALT_QTY
+*&---------------------------------------------------------------------*
+FORM calculate_alt_qty USING p_qty p_material p_verid
+                       CHANGING p_batchsize.
+
+  DATA: l_ntgew             TYPE mara-ntgew,      "Net Weight
+        l_gewei             TYPE mara-gewei,      "Weight Unit
+        l_volum             TYPE mara-volum,      "Volume
+        l_voleh             TYPE mara-voleh,      "Volum Unit
+        l_alt_qty           TYPE menge13,
+        l_alt_batchsize(30) TYPE c,        "string. for comma
+        wa_bmr_decimal      TYPE zpp_bmr_decimal.
+  "Calculation of Alternative UoM
+  SELECT SINGLE ntgew gewei volum voleh
+    FROM mara
+    INTO (l_ntgew, l_gewei, l_volum, l_voleh)
+    WHERE matnr = p_material.
+
+  IF l_ntgew IS NOT INITIAL.                  "Net weight is maintained. Convert in KG
+    l_alt_qty =  p_qty * l_ntgew.
+
+    "Miligram
+    IF l_gewei EQ 'MG' OR l_gewei EQ 'mg'.
+      l_alt_qty = l_alt_qty / 1000000.
+      "Gram
+    ELSEIF l_gewei EQ 'G' OR l_gewei EQ 'g'
+        OR l_gewei EQ 'GM' OR l_gewei EQ 'gm'.
+      l_alt_qty = l_alt_qty / 1000.
+    ENDIF.
+  ELSEIF l_volum IS NOT INITIAL.              "Net Volume is maintained. Convert in Litres
+    l_alt_qty =  p_qty * l_volum.
+    "Mililiter
+    IF l_voleh EQ 'ML' OR l_voleh EQ 'ml'.
+      l_alt_qty = l_alt_qty / 1000.
+    ENDIF.
+  ENDIF.
+
+  IF l_alt_qty IS NOT INITIAL.
+    l_alt_batchsize = l_alt_qty.
+
+    IF l_ntgew IS NOT INITIAL.
+      WRITE l_alt_qty TO l_alt_batchsize.
+      CONDENSE l_alt_batchsize NO-GAPS.
+      CONCATENATE l_alt_batchsize 'KG' INTO l_alt_batchsize SEPARATED BY space.
+    ELSEIF l_volum IS NOT INITIAL.
+***      soa on 16.12.2014
+      CLEAR wa_bmr_decimal.
+      SELECT SINGLE * FROM  zpp_bmr_decimal CLIENT SPECIFIED
+        INTO wa_bmr_decimal
+             WHERE  mandt  = sy-mandt
+             AND    matnr  = p_material
+             AND    werks  = p_plant
+             AND    verid  = p_verid.   "p_prd_vn.  changed by payal on 30.12.2016
+
+***      eoa on 16.12.2014
+*      WRITE l_alt_qty TO l_alt_batchsize. " ROUND 0 DECIMALS 0.   commented round off logic on 05.12.2014 for liter qty
+*      WRITE l_alt_qty TO l_alt_batchsize DECIMALS 2.          "changed to decimals 2 as req of business on 09.12.2014
+      WRITE l_alt_qty TO l_alt_batchsize DECIMALS wa_bmr_decimal-dec_places.          "changed to decimals Ztbal maint as req of business on 16.12.2014
+      CONDENSE l_alt_batchsize NO-GAPS.
+      CONCATENATE l_alt_batchsize 'L' INTO l_alt_batchsize SEPARATED BY space.
+    ENDIF.
+  ENDIF.
+
+  IF l_alt_batchsize IS NOT INITIAL.
+    CONCATENATE p_batchsize '/' l_alt_batchsize INTO p_batchsize SEPARATED BY space.
+  ENDIF.
+ENDFORM.                    " CALCULATE_ALT_QTY
+*&---------------------------------------------------------------------*
+*&      Form  FETCH_MOTHER_BATCHSIZE
+*&---------------------------------------------------------------------*
+*      -->P_IDNRK   text
+*---------------------------------------------------------------------*
+FORM fetch_mother_batchsize USING p_idnrk.
+  DATA: l_stlal TYPE stlal,
+        l_stlnr TYPE stnum,
+        l_bmeng TYPE menge13,
+        l_bmein TYPE meins.
+
+  SELECT SINGLE stlal FROM mkal
+    INTO l_stlal
+    WHERE matnr = p_idnrk
+    AND werks = p_plant
+    AND verid = p_prd_vn.
+  SELECT SINGLE stlnr FROM mast
+    INTO l_stlnr
+    WHERE matnr = p_idnrk
+    AND werks = p_plant
+    AND stlal = l_stlal
+    AND stlan = 1.
+
+  "soc on 16.12.2014
+  IF wa_stko IS NOT INITIAL.
+*  SELECT SINGLE bmeng bmein FROM stko
+*    INTO (l_bmeng,l_bmein)
+*    WHERE stlnr = l_stlnr
+*    AND stlal = l_stlal.
+
+    SELECT SINGLE * FROM stko
+    INTO wa_stko
+    WHERE stlty = 'M' AND      "added on 13.04.2015
+      stlnr = l_stlnr
+    AND stlal = l_stlal.
+  ENDIF.
+  "eoc on 16.12.2014
+
+**soc on 27.06.2014 for EA NOS NO uom
+*  gv_mother_qty = l_bmeng.
+*  PERFORM convert_qty USING l_bmeng l_bmein CHANGING gv_mother_qty.      "commented on 16.12.2014
+
+***soa on 30.11.2015
+  PERFORM output_unit USING wa_stko-bmein.
+***eoa on 30.11.2015
+  PERFORM convert_qty USING wa_stko-bmeng wa_stko-bmein CHANGING gv_mother_qty.   "added on 16.12.2014
+**eoc on 27.06.2014 for EA NOS NO uom
+
+  CONDENSE gv_mother_qty NO-GAPS.
+*  CONCATENATE gv_mother_qty l_bmein INTO gv_mother_qty SEPARATED BY space.       "commented on 16.12.2014
+  CONCATENATE gv_mother_qty wa_stko-bmein INTO gv_mother_qty SEPARATED BY space.   "added on 16.12.2014
+ENDFORM.                    " FETCH_MOTHER_BATCHSIZE
+*&---------------------------------------------------------------------*
+*&      Form  UPDATE_MASTER_HEADER
+*&---------------------------------------------------------------------*
+FORM update_master_header .
+  DATA: lv_ann_desc TYPE zqm_master_annex-ann_desc.
+  IF p_draft = 'X'.
+    gv_hd_printtype = 'DRAFT'.
+  ELSEIF p_master = 'X'.
+    gv_hd_printtype = 'MASTER PRINT'. "'MASTER PRINT'.
+  ELSEIF p_reprint = 'X'.
+    gv_hd_printtype = 'REPRINT'.
+  ELSE.
+    gv_hd_printtype = 'PREVIEW'.
+  ENDIF.
+
+**SOA by Gajanan - 07.07.2025 - CR#8000003007
+  IF NOT gv_ann_no IS INITIAL AND p_plant IS NOT INITIAL.
+    SELECT SINGLE ann_desc FROM zqm_master_annex INTO lv_ann_desc WHERE werks = p_plant AND ann_no = ann_no.
+    IF sy-subrc = 0.
+      "Do nothing
+    ENDIF.
+  ENDIF.
+**EOA by Gajanan - 07.07.2025 - CR#8000003007
+  PERFORM word_find USING c_hd_printtype
+                  '0' '1' '1' '0' '0' 'True' '1' '0'
+                  gv_hd_printtype '2'.
+
+  PERFORM word_find USING c_hd_plant
+                      '0' '1' '1' '0' '0' 'True' '1' '0'
+                      p_plant '2'.
+
+  PERFORM word_find USING c_hd_pdesc
+                      '0' '1' '1' '0' '0' 'True' '1' '0'
+                      p_wdesc '2'.
+
+  PERFORM word_find USING c_hd_dmsver
+                      '0' '1' '1' '0' '0' 'True' '1' '0'
+                      gs_mdoc-dokvr '2'.
+
+  PERFORM word_find USING c_ann_no
+                      '0' '1' '1' '0' '0' 'True' '1' '0'
+                      ann_no '2'.
+
+  PERFORM word_find USING c_ann_desc
+                      '0' '1' '1' '0' '0' 'True' '1' '0'
+                      lv_ann_desc '2'.
+
+  "Also update the header of static file as both are different now
+*  PERFORM next_header.
+*  PERFORM word_find USING c_hd_printtype
+*                  '0' '1' '1' '0' '0' 'True' '1' '0'
+*                  gv_hd_printtype '2'.
+*
+*  PERFORM word_find USING c_hd_dmsver
+*                      '0' '1' '1' '0' '0' 'True' '1' '0'
+*                      gs_mdoc-dokvr '2'.
+
+ENDFORM.                    " UPDATE_MASTER_HEADER
+*&---------------------------------------------------------------------*
+*&      Form  UPDATE_MASTER_MAINVIEW
+*&---------------------------------------------------------------------*
+FORM update_master_mainview.
+  DATA: ls_stb LIKE LINE OF gt_stb, l_flag TYPE c. "l_flag = 'X' for Regular & ' ' for Injectables
+
+**  PERFORM replace_batch_size.   "added on 11.04.2014 for batch size placeholder
+
+**  PERFORM fetch_bom_components.
+  IF doc_type = 'ZAN'.
+    SELECT SINGLE regular FROM zpp_mdoc_header INTO l_flag WHERE dokar = gs_mdoc-dokar AND doknr = gs_mdoc-dms_doc AND dokvr = gs_mdoc-dokvr.
+  ELSEIF doc_type = 'BPR'.
+    PERFORM fetch_batchsize.
+    PERFORM word_find USING c_mview_packqty
+                        '0' '1' '1' '0' '0' 'True' '1' '0'
+                        gv_mview_packqty '2'.
+    "Earlier there was a placeholder. It would be printed in Batch. Now they want it to be printed in master as well.
+    "Actually there should be a placeholder only and should be printed at the time of batch print only.
+    "But user wanted it to get printed at master also
+    READ TABLE gt_stb INTO ls_stb WITH KEY mtart = c_mtart.
+**
+*    PERFORM fetch_mother_batchsize USING ls_stb-idnrk.
+*    PERFORM word_find USING c_mview_motherbatch
+*                    '0' '1' '1' '0' '0' 'True' '1' '0'
+*                    gv_mother_qty '2'.
+  ENDIF.
+
+  SORT gt_stb BY alpgr alprf.
+  LOOP AT gt_stb INTO gs_stb.
+    PERFORM find_comp_placeholder USING gs_stb-posnr gs_stb-idnrk CHANGING gv_mview_qty gv_mview_batch.
+    IF l_flag IS INITIAL. "It will be 'X' in case of Regular, no need to replace Quantities
+*      PERFORM convert_qty USING gs_stb-menge CHANGING gv_bom_qty.
+***      soc on 10.12.2014
+*      PERFORM convert_qty_abs USING gs_stb-menge CHANGING gv_bom_qty.
+      PERFORM convert_qty_abs USING gs_stb-mngko CHANGING gv_bom_qty.
+***      eoc on 10.12.2014
+      PERFORM convert_qty USING gv_bom_qty  gs_stb-meins CHANGING gv_bom_qty.
+
+      PERFORM word_find USING gv_mview_qty
+                        '0' '1' '1' '0' '0' 'True' '1' '0'
+                        gv_bom_qty '2'.
+    ENDIF.
+    PERFORM word_find USING gv_mview_batch "Replace batch with blank string in master print
+                      '0' '1' '1' '0' '0' 'True' '1' '0'
+                      ' ' '2'.
+  ENDLOOP.
+ENDFORM.                    " UPDATE_MASTER_MAINVIEW
+*&---------------------------------------------------------------------*
+*&      Form  SET_PRINT_MODE
+*&---------------------------------------------------------------------*
+FORM set_print_mode .
+  DATA: l_pages TYPE string.
+  DATA: l_ipages(3) TYPE n,       "on 24.06.2014
+        l_ito(3)    TYPE n.
+
+  IF p_preview = 'X'.
+*    PERFORM delete_xps_file_if_exists.
+    IF ta_bmr_path[] IS INITIAL .
+      PERFORM fetch_seclorepath USING p_plant.
+    ENDIF.
+    PERFORM export_file USING doc_type.
+    PERFORM export_file_seclore USING doc_type.  "temp comt
+
+
+  ELSEIF p_all <> 'X'.
+    PERFORM get_total_no_of_pages CHANGING l_pages.
+    l_ipages = l_pages.
+    l_ito = p_to.
+
+    DATA: lv_counter TYPE n VALUE 1.
+    DO 5 TIMES.
+      WAIT UP TO 1 SECONDS.
+      PERFORM get_total_no_of_pages CHANGING l_pages.
+      l_ipages = l_pages.
+      IF l_ito GT l_ipages.
+        lv_counter = lv_counter + 1.
+      ELSE.
+        EXIT.
+      ENDIF.
+
+      IF lv_counter GE 5.
+        l_ipages = l_pages.
+        p_to = l_ipages.
+        EXIT.
+      ENDIF.
+    ENDDO.
+
+    PERFORM print_word_doc USING 0 0 '3' ' ' p_from p_to.
+  ELSE.
+
+    PERFORM get_total_no_of_pages CHANGING l_pages.
+
+    PERFORM print_word_doc USING 0 0 '3' ' ' '1' l_pages.
+
+
+
+
+  ENDIF.
+ENDFORM.                    " SET_PRINT_MODE
+*&---------------------------------------------------------------------*
+*&      Form  SET_MASTER_PRINTTYPE
+*&---------------------------------------------------------------------*
+FORM set_master_printtype CHANGING p_printtype.
+  IF p_draft EQ 'X'.
+    p_printtype = 'DP'.
+  ELSEIF p_master EQ 'X'.
+    p_printtype = 'MP'.
+  ELSEIF p_reprint EQ 'X'.
+    p_printtype = 'RP'.
+  ENDIF.
+ENDFORM.                    " SET_MASTER_PRINTTYPE
+
+FORM preview_screen .
+  CALL SCREEN 5000 STARTING AT 5 5.
+  FREE: viewer, my_container.
+ENDFORM.

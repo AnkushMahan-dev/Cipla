@@ -1,0 +1,74 @@
+*----------------------------------------------------------------------*
+***INCLUDE ZPPR_7001_MODULES_V2.
+*----------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_7001  INPUT
+*&---------------------------------------------------------------------*
+MODULE user_command_7001 INPUT.
+  CASE fcode.
+    WHEN 'BACK'.
+      IF doc_type = 'ZAN'.
+        CALL SCREEN 7000.
+      ELSEIF doc_type = 'BPR'.
+        CALL SCREEN 8000.
+      ENDIF.
+    WHEN 'EXECUTE'.
+      IF p_plant IS INITIAL OR ann_no IS INITIAL.
+        MESSAGE e000(zppr_formu).
+      ENDIF.
+      SELECT * FROM ZQM_ANN_DATA CLIENT SPECIFIED
+        INTO TABLE gt_mdoc
+        WHERE mandt = sy-mandt
+        AND werks = p_plant
+        AND ann_no = ann_no
+        AND dokar = doc_type.
+      SORT gt_mdoc BY dokvr DESCENDING.
+      CLEAR: p_stat, g_draft.
+***      soc on 15.04.2015
+      LOOP AT gt_mdoc INTO gs_mdoc.
+*      READ TABLE gt_mdoc INTO gs_mdoc INDEX 1.   " temp comt commented on 16.09.2015 #8000001103
+***      eoc on 15.04.2015
+
+        CALL FUNCTION 'BAPI_DOCUMENT_GETSTATUS' "Read Document Status
+          EXPORTING
+            documenttype      = gs_mdoc-dokar
+            documentnumber    = gs_mdoc-DMS_DOC
+            documentpart      = gs_mdoc-doktl
+            documentversion   = gs_mdoc-dokvr
+          IMPORTING
+            statusextern      = p_stat
+            statusintern      = g_old_status_int
+            statusdescription = p_stat_desc
+            return            = gs_dms_return.
+
+***      soc on 15.04.2015 uncommented on 16.09.2015 #8000001103
+        IF p_stat = 'AV'.  " temp uncomt
+          EXIT.
+        ELSE.
+          g_draft = 'X'.  "added for #8000003013 By Payal S on 06.09.2017 2. Latest file download
+        ENDIF.
+      ENDLOOP.
+      IF p_stat = 'AV'.
+*      IF p_stat IS NOT   INITIAL. " temp comt commented on 16.09.2015 #8000001103
+***      soc on 15.04.2015 uncommented on 16.09.2015 #8000001103
+*** SOC Added by vrushali on 29-04-2015 for maintain template log
+        PERFORM document_template_log.
+*** EOC
+        PERFORM checkout_dms_document_template.
+        PERFORM create_visible_obj_word USING gv_file_path.
+        MESSAGE s075(zppr_formu).
+*   Template Downloaded.
+
+      ELSE.
+        MESSAGE e049(zppr_formu).
+      ENDIF.
+    WHEN 'F2CHOOSE'.
+      CLEAR gv_field.
+      GET CURSOR FIELD gv_field.
+      IF gv_field = 'P_MAT' AND p_mat IS NOT INITIAL.
+        PERFORM call_mm03 USING p_mat.
+      ENDIF.
+    WHEN 'EXIT'.
+      LEAVE PROGRAM.
+  ENDCASE.
+ENDMODULE.                 " USER_COMMAND_7001  INPUT

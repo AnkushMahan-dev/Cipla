@@ -1,0 +1,54 @@
+*&---------------------------------------------------------------------*
+*& Report  ZFI_06_SELF_INV_UPLOAD_BDC
+*&
+*&---------------------------------------------------------------------*
+*& Module             : FI
+*& FUNCTIONAL         : Thozama Makiza
+*& Developer          : Anushree Jamkhedkar
+*& Functional Spec#   : FI/07
+*& Date Of Creation   : 27-11-2019
+*& Transport Request# : CRDK965923
+*& Ticket             : 8000005794
+*& Program NAME       : ZFI_06_SELF_INV_UPLOAD_BDC
+*& Transaction Code   : ZFI_SELF_INVOICE
+*& DEVELOPMENT CLASS  : ZFI
+*& DESCRIPTION        : AR Self Invoice upload - Upload program
+*&---------------------------------------------------------------------*
+
+REPORT zfi_06_self_inv_upload_bdc
+       NO STANDARD PAGE HEADING LINE-SIZE 255.
+
+INCLUDE zfi_06_self_inv_upload_bdc_top.
+INCLUDE zfi_06_self_inv_upd_bdc_data.
+
+
+START-OF-SELECTION.
+
+  IF rd_fore = 'X'.
+    PERFORM f_excel_upload.
+    PERFORM f_get_data.
+*    PERFORM f_foreground_bdc.      "Commented on 3.5.2020
+    PERFORM f_background_bdc.       "Added on 3.5.2020
+
+    IF rd_vend = 'X'.
+      PERFORM f_call_bdc.
+    ELSEIF rd_cust = 'X'.
+      PERFORM f_call_bdc.
+      PERFORM f_call_bdc_vend_cust.
+    ENDIF.
+
+    PERFORM f_submit_fi_04.
+  ELSEIF rd_back = 'X'.
+    PERFORM f_get_file_name.
+    PERFORM f_get_data.
+    PERFORM f_background_bdc.
+
+    IF rd_vend = 'X'.
+      PERFORM f_call_bdc.
+    ELSEIF rd_cust = 'X'.
+      PERFORM f_call_bdc.
+      PERFORM f_call_bdc_vend_cust.
+    ENDIF.
+
+    PERFORM f_submit_fi_04.
+  ENDIF.

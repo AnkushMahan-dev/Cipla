@@ -1,0 +1,91 @@
+REPORT RV80HGEN MESSAGE-ID VC.
+
+* Korrektureintraege
+INCLUDE MV12ATO2 .
+
+DATA: lv_zdm_running TYPE s_zdm_running.
+
+CALL FUNCTION 'UPGRUNT_CHECK_ZDM_RUNNING'
+  IMPORTING
+    ev_zdm_running = lv_zdm_running.
+
+IF lv_zdm_running NA 'PSB'.
+
+* Gesamtaktivierung aufrufen
+PERFORM AKTIVIEREN_ALLE(SAPMV80H) USING 'X'.
+
+ENHANCEMENT-POINT RV80HGEN_01 SPOTS ES_RV80HGEN.
+*$*$-Start: RV80HGEN_01-------------------------------------------------------------------------$*$*
+ENHANCEMENT 1  OIA_RV80HGEN.    "active version
+PERFORM AKTIVIEREN_ALLE(SAPMOIAJ) if found USING 'X'.    "SO3K127075
+ENDENHANCEMENT.
+ENHANCEMENT 1  OIC_RV80HGEN.    "active version
+PERFORM AKTIVIEREN_ALLE(SAPMOICJ) if found USING 'X'.    "SO3K127075
+ENDENHANCEMENT.
+*$*$-End:   RV80HGEN_01-------------------------------------------------------------------------$*$*
+
+
+* XPRA - Protokolleintrag
+  sprot_tab-level    = level_info.
+SPROT_TAB-SEVERITY = SEVERITY_INFO.
+SPROT_TAB-LANGU    = SY-LANGU.
+SPROT_TAB-AG       = 'VC'.
+SPROT_TAB-MSGNR    = '556'.
+  sprot_tab-var1     = space.
+  sprot_tab-var2     = space.
+  sprot_tab-var3     = space.
+  sprot_tab-var4     = space.
+  APPEND sprot_tab.
+
+  CALL FUNCTION 'TR_APPEND_LOG'
+    EXPORTING
+      accept_not_init = 'X'
+    TABLES
+      xmsg            = sprot_tab
+    EXCEPTIONS
+      OTHERS          = 3.
+  IF sy-subrc <> 0.
+* MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+*         WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+  ENDIF.
+
+ELSE.
+
+* XPRA - Protokolleintrag
+  sprot_tab-level    = level_info.
+* sprot_tab-severity filled below.
+  sprot_tab-langu    = sy-langu.
+  sprot_tab-ag       = 'GU'.
+* SPROT_TAB-MSGNR filled below.
+  sprot_tab-var1     = space.
+  sprot_tab-var2     = space.
+  sprot_tab-var3     = space.
+  sprot_tab-var4     = space.
+
+  IF lv_zdm_running EQ 'P'.
+    sprot_tab-severity = severity_warnung.
+    sprot_tab-msgnr    = '581'.
+  ELSEIF lv_zdm_running  EQ 'S'.
+    sprot_tab-severity = severity_warnung.
+    sprot_tab-msgnr    = '582'.
+  ELSEIF lv_zdm_running  EQ 'B'.
+    sprot_tab-severity = severity_fehler.
+    sprot_tab-msgnr    = '581'.
+  ENDIF.
+  APPEND sprot_tab.
+
+  CALL FUNCTION 'TR_APPEND_LOG'
+    EXPORTING
+      accept_not_init = 'X'
+    TABLES
+      xmsg            = sprot_tab
+    EXCEPTIONS
+      OTHERS          = 3.
+  IF sy-subrc <> 0.
+* MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+*         WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+  ENDIF.
+
+ENDIF.
+
+CALL FUNCTION 'TR_FLUSH_LOG'.

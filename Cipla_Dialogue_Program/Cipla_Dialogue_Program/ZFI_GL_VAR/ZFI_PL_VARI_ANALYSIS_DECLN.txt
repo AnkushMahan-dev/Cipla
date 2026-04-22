@@ -1,0 +1,247 @@
+*&---------------------------------------------------------------------*
+*&  Include           ZFI_PL_VARI_ANALYSIS_DECLN
+*&---------------------------------------------------------------------*
+*----------------------------------------------------------------------*
+* Program           : ZFI_PL_VARI_ANALYSIS_REPORT
+* Author            : Charitha / Nilesh Dabhekar
+* Program Type      : Executable
+* Creation Date     : 17.04.2020
+* Transaction       : ZFI_GL_VAR
+* Functional design : FS_FI_316_V1.0
+* Technical design  : TS_FI_316_V1.0
+* Change request    : 8000006230
+* Transport number  : CRDK969319 / CRDK970760
+* Description       : P&L/BS Variance Analysis- Dashboard
+*-----------------------------------------------------------------------*
+*--------------------------------------------------------------*
+*Modification Information
+* Date              : 29.06.2020
+* Author            : Nikita Khanekar
+* Change request    : 8000006230
+* Transport request : CRDK971393
+*--------------------------------------------------------------*
+*Modification Information
+* Date              : 11.08.2025
+* Author            : Amol Chavan
+* Change request    : 8000004441
+* functional        : Shashank Sharma
+* Transport request : CRDK997016
+*--------------------------------------------------------------*
+
+CLASS cl_variance DEFINITION.
+
+  PUBLIC SECTION.
+
+*************************************************************************
+*                       Method Declarations
+*************************************************************************
+
+    METHODS:
+
+      m_refresh_data,
+
+      m_get_fagll03_data,
+
+      m_filter_data,
+
+      m_get_data,
+
+      m_process_data,
+
+      m_update_table,
+
+      m_display_alv.
+
+*************************************************************************
+*                      Type Declarations
+*************************************************************************
+
+    TYPES: BEGIN OF ty_mara,
+             matnr TYPE mara-matnr,
+             matkl TYPE mara-matkl,
+           END OF ty_mara,
+
+           BEGIN OF ty_tab,
+             zuonr TYPE lfa1-lifnr,
+             xblnr TYPE lfa1-lifnr,
+             blart TYPE blart,                "Added by Amol Chavan CR - on 05.08.2025 15:17:33"
+           END OF ty_tab,
+
+           BEGIN OF ty_t023t,
+             spras TYPE t023t-spras,
+             matkl TYPE t023t-matkl,
+             wgbez TYPE t023t-wgbez,
+           END OF ty_t023t,
+
+           BEGIN OF ty_lfa1,
+             lifnr TYPE lfa1-lifnr,
+             name1 TYPE lfa1-name1,
+           END OF ty_lfa1,
+
+           BEGIN OF ty_kna1,
+             kunnr TYPE kna1-kunnr,
+             name1 TYPE kna1-name1,
+           END OF ty_kna1,
+
+           BEGIN OF ty_vbrk,
+             vbeln TYPE vbrk-vbeln,
+             kunag TYPE vbrk-kunag,
+           END OF ty_vbrk,
+
+           BEGIN OF ty_ska1,
+             ktopl TYPE ska1-ktopl,
+             saknr TYPE ska1-saknr,
+             xbilk TYPE ska1-xbilk,
+             gvtyp TYPE ska1-gvtyp,
+             ktoks TYPE ska1-ktoks,
+           END OF ty_ska1,
+
+           BEGIN OF ty_skat,
+             ktopl TYPE skat-ktopl,
+             spras TYPE skat-spras,
+             saknr TYPE skat-saknr,
+             txt50 TYPE skat-txt50,
+           END OF ty_skat,
+
+           BEGIN OF ty_t003t,
+             spras TYPE t003t-spras,
+             blart TYPE t003t-blart,
+             ltext TYPE t003t-ltext,
+           END OF ty_t003t,
+
+           BEGIN OF ty_t077z,
+             spras TYPE t077z-spras,
+             ktopl TYPE t077z-ktopl,
+             ktoks TYPE t077z-ktoks,
+             txt30 TYPE t077z-txt30,
+           END OF ty_t077z,
+
+*SOC By Nilesh 03.06.2020 8000006230
+           BEGIN OF ty_ekko,
+             ebeln TYPE ekko-ebeln,
+             lifnr TYPE ekko-lifnr,
+           END OF ty_ekko,
+
+           BEGIN OF ty_lfa1_p,
+             lifnr TYPE lfa1-lifnr,
+             name1 TYPE lfa1-name1,
+           END OF ty_lfa1_p,
+
+           BEGIN OF ty_cepct,
+             prctr TYPE cepct-prctr,
+             ktext TYPE cepct-ktext,
+           END OF ty_cepct,
+
+           BEGIN OF ty_cskt,
+             kostl TYPE cskt-kostl,
+             ktext TYPE cskt-ktext,
+           END OF ty_cskt,
+
+           BEGIN OF ty_addrp,
+             bname     TYPE user_addrp-bname,
+             name_text TYPE user_addrp-name_text,
+           END OF ty_addrp.
+
+*EOC By Nilesh 03.06.2020 8000006230
+
+****Start of Edition for #8000006230 By Nikita Khanekar date 25.06.2020
+    TYPES : BEGIN OF ty_ekpo,
+              ebeln TYPE ekpo-ebeln,
+              ebelp TYPE ekpo-ebelp,
+              matkl TYPE ekpo-matkl,
+            END OF ty_ekpo.
+****End of Edition for #8000006230 By Nikita Khanekar.
+*************************************************************************
+*                  Internal Table Declarations
+*************************************************************************
+
+    DATA: ta_faglposx TYPE TABLE OF faglposx,
+          ta_alv      TYPE TABLE OF zfi_pl_dashboard,
+          ta_t077z    TYPE TABLE OF ty_t077z,
+          ta_skat     TYPE TABLE OF ty_skat,
+          ta_mara     TYPE TABLE OF ty_mara,
+          ta_lfa1     TYPE TABLE OF ty_lfa1,
+          ta_vbrk     TYPE TABLE OF ty_vbrk,
+          ta_kna1     TYPE TABLE OF ty_kna1,
+          ta_t023t    TYPE TABLE OF ty_t023t,
+          ta_t003t    TYPE TABLE OF ty_t003t,
+          ta_ska1     TYPE TABLE OF ty_ska1,
+          ta_tab      TYPE TABLE OF ty_tab,
+          wa_tab      TYPE ty_tab,
+*SOC By Nilesh 03.06.2020 8000006230
+          ta_ekko     TYPE TABLE OF ty_ekko,
+          ta_lfa1_p   TYPE TABLE OF ty_lfa1_p,
+          ta_cepct    TYPE TABLE OF ty_cepct,
+          ta_cskt     TYPE TABLE OF ty_cskt,
+          ta_addrp    TYPE TABLE OF ty_addrp.
+*SOC By Nilesh 03.06.2020 8000006230
+    DATA : ta_ekko1 TYPE TABLE OF ty_ekko.                        "Added by Amol Chavan CR - on 05.08.2025 15:34:05"
+****Start of Edition for #8000006230 By Nikita Khanekar date 25.06.2020
+    DATA : ta_ekpo    TYPE TABLE OF ty_ekpo.
+    DATA : ta_t023t_ekpo TYPE TABLE OF ty_t023t.
+****End of Edition for #8000006230 By Nikita Khanekar.
+*************************************************************************
+*                      Data Declarations
+*************************************************************************
+
+    DATA: lo_alv  TYPE REF TO cl_salv_table,
+          pa_vari TYPE slis_vari.
+
+*************************************************************************
+*                      Constant Declarations
+*************************************************************************
+
+    CONSTANTS: co_01     TYPE faglposx-monat VALUE '01',
+               co_02     TYPE faglposx-monat VALUE '02',
+               co_03     TYPE faglposx-monat VALUE '03',
+               co_04     TYPE faglposx-monat VALUE '04',
+               co_05     TYPE faglposx-monat VALUE '05',
+               co_06     TYPE faglposx-monat VALUE '06',
+               co_07     TYPE faglposx-monat VALUE '07',
+               co_08     TYPE faglposx-monat VALUE '08',
+               co_09     TYPE faglposx-monat VALUE '09',
+               co_10     TYPE faglposx-monat VALUE '10',
+               co_11     TYPE faglposx-monat VALUE '11',
+               co_12     TYPE faglposx-monat VALUE '12',
+               co_layout TYPE slis_vari VALUE 'ZFI_VAR',
+               co_1      TYPE c VALUE '1',
+               co_2      TYPE c VALUE '2',
+               co_3      TYPE c VALUE '3',
+               co_4      TYPE c VALUE '4',
+*SOC By Nilesh 03.06.2020 8000006230
+               co_en     TYPE cskt-spras VALUE 'E',
+
+               co_a      TYPE bseg-koart VALUE 'A',
+               co_d      TYPE bseg-koart VALUE 'D',
+               co_k      TYPE bseg-koart VALUE 'K',
+               co_m      TYPE bseg-koart VALUE 'M',
+               co_s      TYPE bseg-koart VALUE 'S',
+
+               co_at(30) TYPE c VALUE 'Assets',
+               co_dt(30) TYPE c VALUE 'Customers',
+               co_kt(30) TYPE c VALUE 'Vendors',
+               co_mt(30) TYPE c VALUE 'Material',
+               co_st(30) TYPE c VALUE 'G/L accounts'.
+* EOC By Nilesh 03.06.2020 8000006230
+
+****Start of Edition for #8000006230 By Nikita Khanekar date 25.06.2020
+    CONSTANTS : co_00010 TYPE ekpo-ebelp VALUE '00010'.
+****End of Edition for #8000006230 By Nikita Khanekar.
+
+******** S.O.C by Amol Chavan CR - 8000004441 on 11.08.2025 14:07:58********
+    DATA : ta_accit TYPE TABLE OF accit,
+           e_awtyp  TYPE acchd-awtyp,
+           lv_belnr TYPE bseg-belnr,
+           lv_bukrs TYPE bseg-bukrs,
+           lv_gjahr TYPE bseg-gjahr,
+           ta_bkpf  TYPE TABLE OF bkpf,
+           ta_bseg1 TYPE TABLE OF bseg,
+           ta_accr  TYPE TABLE OF acccr,
+           ta_acchd TYPE TABLE OF acchd,
+           ta_abuz  TYPE TABLE OF abuz.
+
+    DATA : ls_lfa1 TYPE ty_lfa1_p.
+********E.O.C by Amol Chavan CR - 8000004441 on 11.08.2025 14:08:02********
+
+
+ENDCLASS.

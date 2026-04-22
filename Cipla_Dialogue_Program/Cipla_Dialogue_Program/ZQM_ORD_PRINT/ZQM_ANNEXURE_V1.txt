@@ -1,0 +1,51 @@
+*&---------------------------------------------------------------------*
+*& Module-Pool  ZQM_ANNEXTURE_V1
+*&---------------------------------------------------------------------*
+* Program         : Issuance of Annexture
+* Title           : Annexture Development
+* Author          : Sushil Pandey
+* Program Type    : Module Pool
+* Creation Date   : 18.12.2020
+* Transaction     : ZQM_ANNEXTURE
+* Functional design: QM_155
+* Technical design:
+* Change request :  <8000006529>
+* Transport number: <CRDK973996, CRDK980827>
+* Description     : Issuance of Annexture
+*----------------------------------------------------------------------*
+* Modification Information
+* Date            :
+* Author          :
+* Transport number:
+* Description     :
+*	*----------------------------------------------------------------------*
+
+PROGRAM zqm_annexture_v1.
+
+INCLUDE ole2incl.
+INCLUDE ZQM_COMMON_TOP_V2_ANN .           "zppr_common_top_v2.
+INCLUDE ZQM_COMMON_MODULES_V2_ANN.        "zppr_common_modules_v2.
+INCLUDE ZQM_COMMON_FORMS_V2_ANN.          "zppr_common_forms_v2.
+INCLUDE ZQM_DMS_COMMON_FORMS_V2_ANN.      "zppr_dms_common_forms_v2.
+INCLUDE ZQM_STAT_COMM_MODULES_V2_ANN.     "zppr_status_common_modules_v2.
+INCLUDE ZQM_STAT_COMM_FORMS_V2_ANN.       "zppr_status_common_forms_v2.
+INCLUDE ZQM_MPRINT_COMM_MODULES_V2_ANN.   "zppr_mprint_common_modules_v2.
+INCLUDE ZQM_MPRINT_COMM_FORMS_V2_ANN.     "zppr_mprint_common_forms_v2.
+INCLUDE ZQM_PRINT_COMM_MODULES_V2_ANN.    "zppr_bprint_common_modules_v2.
+INCLUDE ZQM_PRINT_COMM_FORMS_V2_ANN.      "zppr_bprint_common_forms_v2.
+INCLUDE ZQM_COMMON_OLE_FORMS_V2_ANN.      "zppr_common_ole_forms_v2.
+INCLUDE ZQM_V2_FORMS_ANN.                 "zppr_bmr_v2_forms.
+INCLUDE ZQM_1000_MODULES_V2_ANN.          " *INCLUDE zppr_bmr_1000_modules_v2.
+INCLUDE ZQM_1001_MODULES_V2_ANN.          "*INCLUDE zppr_bmr_1001_modules_v2.
+INCLUDE ZQM_1002_MODULES_V2_ANN.          " *INCLUDE zppr_bmr_1002_modules_v2.
+INCLUDE ZQM_6003_MODULES_V2_ANN.          " zppr_bmr_6003_modules_v2.
+INCLUDE ZQM_6000_MODULES_V2_ANN.          " *INCLUDE zppr_bmr_6000_modules_v2.
+INCLUDE ZQM_6001_MODULES_V2_ANN.          " *INCLUDE zppr_bmr_6001_modules_v2.
+INCLUDE ZQM_5000_FORMS_V2_ANN.            " *INCLUDE zppr_bmr_5000_forms_v2.
+INCLUDE ZQM_7000_MODULES_V2_ANN.          " INCLUDE zppr_7000_modules_v2.
+INCLUDE ZQM_7001_MODULES_V2_ANN.          " *INCLUDE zppr_7001_modules_v2.
+INCLUDE ZQM_8000_MODULES_V2_ANN.          " *INCLUDE zppr_8000_modules_v2.
+INCLUDE ZQM_8001_MODULES_V2_ANN.          "*INCLUDE zppr_8001_modules_v2.
+
+
+*INCLUDE zppr_9000_modules_v2.   "delete master record

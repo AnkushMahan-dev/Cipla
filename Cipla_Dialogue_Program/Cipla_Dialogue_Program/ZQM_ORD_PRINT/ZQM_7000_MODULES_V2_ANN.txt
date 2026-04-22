@@ -1,0 +1,169 @@
+*----------------------------------------------------------------------*
+***INCLUDE ZPPR_7000_MODULES_V2.
+*----------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*&      Module  STATUS_7000  OUTPUT
+*&---------------------------------------------------------------------*
+MODULE status_7000 OUTPUT.
+  DATA: lt_exclude2 TYPE slis_t_extab.
+  doc_type = 'ZAN'.
+  APPEND 'EXECUTE' TO lt_exclude2.
+  SET PF-STATUS 'S2000' EXCLUDING lt_exclude2.
+  SET TITLEBAR 'T7000'.
+ENDMODULE.                 " STATUS_7000  OUTPUT
+*&---------------------------------------------------------------------*
+*&      Module  STATUS_7001  OUTPUT
+*&---------------------------------------------------------------------*
+MODULE status_7001 OUTPUT.
+  doc_type = 'ZAN'.
+  SET PF-STATUS 'S2000'.
+  SET TITLEBAR 'T7001'.
+ENDMODULE.                 " STATUS_7001  OUTPUT
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_7000  INPUT
+*&---------------------------------------------------------------------*
+MODULE user_command_7000 INPUT.
+  fcode = sy-ucomm.
+  CASE fcode.
+    WHEN 'BACK' OR 'EXIT'.
+      LEAVE PROGRAM.
+    WHEN 'PLAN_AN'.
+      IF doc_type = 'ZAN'.
+        PERFORM chk_auth_tcode USING 'ZQM_MASTER_ANNEX' CHANGING gv_rtn.
+        IF sy-subrc = 1.
+          CALL TRANSACTION 'ZQM_MASTER_ANNEX'.
+        ELSE.
+          MESSAGE e065(zppr_formu).
+*   You are not authorized for this transaction.
+        ENDIF.
+      ENDIF.
+    WHEN 'BASE_T'.
+      IF doc_type = 'ZAN'.
+        PERFORM chk_auth_tcode USING 'ZQM_ANN_DOWNLOAD' CHANGING gv_rtn.
+        IF sy-subrc = 1.
+          CALL TRANSACTION 'ZQM_ANN_DOWNLOAD'.
+        ELSE.
+          MESSAGE e065(zppr_formu).
+*   You are not authorized for this transaction.
+        ENDIF.
+      ENDIF.
+    WHEN 'DISP_VANN'.
+      PERFORM chk_auth_tcode USING 'ZQM_ANN_DISPLAY' CHANGING gv_rtn.
+      IF sy-subrc = 1.
+        CALL TRANSACTION 'ZQM_ANN_DISPLAY'.
+      ELSE.
+        MESSAGE e065(zppr_formu).
+*   You are not authorized for this transaction.
+      ENDIF.
+
+    WHEN 'MASTER_T'.
+      PERFORM chk_auth_tcode USING 'ZPP_BMR05' CHANGING gv_rtn.
+      IF sy-subrc = 1.
+        CALL TRANSACTION 'ZPP_BMR05'.
+      ELSE.
+        MESSAGE e065(zppr_formu).
+*   You are not authorized for this transaction.
+      ENDIF.
+    WHEN 'MASTER_P'.
+      PERFORM chk_auth_tcode USING 'ZQM_ANNMASTER_PRINT' CHANGING gv_rtn.
+      IF sy-subrc = 1.
+        CALL TRANSACTION 'ZQM_ANNMASTER_PRINT'.
+      ENDIF.
+    WHEN 'PR_SANN'.
+      PERFORM chk_auth_tcode USING 'ZQM_ANN_PREPARE' CHANGING gv_rtn.
+      IF sy-subrc = 1.
+        CALL TRANSACTION 'ZQM_ANN_PREPARE'.
+
+      ENDIF.
+
+    WHEN 'V_SANN'.
+      PERFORM chk_auth_tcode USING 'ZQM_ANN_VERIFY' CHANGING gv_rtn.
+      IF sy-subrc = 1.
+        CALL TRANSACTION 'ZQM_ANN_VERIFY'.
+
+      ENDIF.
+    WHEN 'BATCH_P'.
+      PERFORM chk_auth_tcode USING 'ZQM_ORD_PRINT' CHANGING gv_rtn.
+      IF sy-subrc = 1.
+        CALL TRANSACTION 'ZQM_ORD_PRINT'.
+
+      ENDIF.
+    WHEN 'CREATE'.
+      PERFORM chk_auth_tcode USING 'ZQM_ANNMASTER_UPLOAD' CHANGING gv_rtn.
+      IF sy-subrc = 1.
+        CALL TRANSACTION 'ZQM_ANNMASTER_UPLOAD'.
+      ELSE.
+        MESSAGE e065(zppr_formu).
+*   You are not authorized for this transaction.
+      ENDIF.
+    WHEN 'STATUS'.
+      PERFORM chk_auth_tcode USING 'ZQM_ANN_STATUS' CHANGING gv_rtn.
+      IF sy-subrc = 1.
+        CALL TRANSACTION 'ZQM_ANN_STATUS'.
+      ELSE.
+        MESSAGE e065(zppr_formu).
+*   You are not authorized for this transaction.
+      ENDIF.
+
+    WHEN 'ADD_R'.
+      PERFORM chk_auth_tcode USING 'ZQM_ANN_ADDP' CHANGING gv_rtn.
+      IF sy-subrc = 1.
+        CALL TRANSACTION 'ZQM_ANN_ADDP'.
+      ELSE.
+        MESSAGE e065(zppr_formu).
+*   You are not authorized for this transaction.
+      ENDIF.
+
+    WHEN 'ADD_V'.
+      PERFORM chk_auth_tcode USING 'ZQM_ANN_ADDV' CHANGING gv_rtn.
+      IF sy-subrc = 1.
+        CALL TRANSACTION 'ZQM_ANN_ADDV'.
+      ELSE.
+        MESSAGE e065(zppr_formu).
+*   You are not authorized for this transaction.
+      ENDIF.
+
+    WHEN 'ADD_P'.
+      PERFORM chk_auth_tcode USING 'ZQM_ANN_ADDPR' CHANGING gv_rtn.
+      IF sy-subrc = 1.
+        CALL TRANSACTION 'ZQM_ANN_ADDPR'.
+      ELSE.
+        MESSAGE e065(zppr_formu).
+*   You are not authorized for this transaction.
+      ENDIF.
+***SOA by Gajanan - 28.10.2024 - CR#8000003007***
+    WHEN 'DISP_N'.
+      PERFORM chk_auth_tcode USING 'ZQM_APP_ANN_DISP' CHANGING gv_rtn.
+      IF sy-subrc = 1.
+        CALL TRANSACTION 'ZQM_APP_ANN_DISP'.
+      ELSE.
+        MESSAGE e065(zppr_formu).
+      ENDIF.
+
+    WHEN 'DISP_PL'.
+      PERFORM chk_auth_tcode USING 'ZQM_ANNEXURE_LOG' CHANGING gv_rtn.
+      IF sy-subrc = 1.
+        CALL TRANSACTION 'ZQM_ANNEXURE_LOG'.
+      ELSE.
+        MESSAGE e065(zppr_formu).
+      ENDIF.
+
+    WHEN 'DISP_MPL'.
+      PERFORM chk_auth_tcode USING 'ZQM_ANNEXURE_MLOG' CHANGING gv_rtn.
+      IF sy-subrc = 1.
+        CALL TRANSACTION 'ZQM_ANNEXURE_MLOG'.
+      ELSE.
+        MESSAGE e065(zppr_formu).
+      ENDIF.
+
+    WHEN 'RECON'.
+      PERFORM chk_auth_tcode USING 'ZQM_ANN_REPORT' CHANGING gv_rtn.
+      IF sy-subrc = 1.
+        CALL TRANSACTION 'ZQM_ANN_REPORT'.
+      ELSE.
+        MESSAGE e065(zppr_formu).
+      ENDIF.
+
+***EOA by Gajanan - 28.10.2024 - CR#8000003007***
+  ENDCASE.
+ENDMODULE.                 " USER_COMMAND_7000  INPUT

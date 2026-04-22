@@ -1,0 +1,592 @@
+*&---------------------------------------------------------------------*
+*&  Include           ZQM_DMS_COMMON_FORMS_V2_ANN
+*&---------------------------------------------------------------------*
+* Program         : Issuance of Annexture
+* Title           : Annexture Development
+* Author          : Sushil Pandey
+* Program Type    : Module Pool
+* Creation Date   : 18.12.2020
+* Transaction     : ZQM_ANNEXTURE
+* Functional design: QM_155
+* Technical design:
+* Change request :  <8000006529>
+* Transport number: <transport number>
+* Description     : Issuance of Annexture
+*----------------------------------------------------------------------*
+* Modification Information
+* Date            :
+* Author          :
+* Transport number:
+* Description     :
+*	*----------------------------------------------------------------------*
+
+FORM get_dmsdoc_details  USING p_version.
+  DATA: lv_no_stat_files TYPE i.
+  CLEAR: gs_documentdata, gs_files, gt_files.
+  CALL FUNCTION 'BAPI_DOCUMENT_GETDETAIL2'
+    EXPORTING
+      documenttype    = gs_mdoc-dokar
+      documentnumber  = gs_mdoc-dms_doc
+      documentpart    = gs_mdoc-doktl
+      documentversion = p_version
+    IMPORTING
+      documentdata    = gs_documentdata
+      return          = gs_dms_return
+    TABLES
+*     objectlinks     =               " bapi_doc_drad  Object Links
+*     documentdescriptions =      " bapi_doc_drat  Language-Dependent Short Texts
+*     longtexts       =                 " bapi_doc_text  Long Texts
+*     statuslog       =                 " bapi_doc_drap  Status Logs
+      documentfiles   = gt_files.    " bapi_doc_files2  Originals
+
+*  IF p_stat = 'DX'.
+*    PERFORM change_discard_status USING p_version.
+*  ENDIF.
+ENDFORM.                    " GET_DMSDOC_DETAILS
+*&---------------------------------------------------------------------*
+*&      Form  CHECKOUT_SET
+*&---------------------------------------------------------------------*
+FORM checkout_set.
+  DATA: lv_index TYPE i.
+  DESCRIBE TABLE gt_files LINES lv_index.
+  READ TABLE gt_files INTO gs_files INDEX lv_index.
+  CALL FUNCTION 'BAPI_DOCUMENT_CHECKOUTSET2'
+    EXPORTING
+      documenttype    = gs_documentdata-documenttype
+      documentnumber  = gs_documentdata-documentnumber
+      documentpart    = gs_documentdata-documentpart
+      documentversion = gs_documentdata-documentversion
+      documentfile    = gs_files
+      hostname        = space
+      statusintern    = gs_documentdata-statusintern
+      statusextern    = gs_documentdata-statusextern
+*     statuslog       =
+*     revlevel        =
+*     aennr           =
+    IMPORTING
+      return          = gs_dms_return
+      checkedoutfile  = gs_files.
+  IF gs_dms_return-type CA 'EA'.
+    gv_commit = ' '.
+    ROLLBACK WORK.
+    PERFORM unlock_mdoc.
+    PERFORM delete_temp_file_from_disk USING gv_mdoc_path.
+    MESSAGE ID '26' TYPE 'E' NUMBER '000'
+            WITH gs_dms_return-message.
+  ELSE.
+    COMMIT WORK AND WAIT.
+  ENDIF.
+ENDFORM.                    "CHECKOUT_SET
+*&---------------------------------------------------------------------*
+*&      Form  CHECKOUT_DMS_DOCUMENT
+*&---------------------------------------------------------------------*
+FORM checkout_dms_document .
+
+  REFRESH  gt_files[].
+  CLEAR gs_files.
+  CALL FUNCTION 'BAPI_DOCUMENT_CHECKOUTVIEW2'
+    EXPORTING
+      documenttype    = gs_mdoc-dokar
+      documentnumber  = gs_mdoc-dms_doc
+      documentpart    = gs_mdoc-doktl
+      documentversion = gs_mdoc-dokvr
+      documentfile    = gs_files
+      getstructure    = '1'
+      getcomponents   = 'X'
+      originalpath    = ' '
+      hostname        = ' '
+      getheader       = 'X'
+      pf_http_dest    = ' '
+      pf_ftp_dest     = ' '
+    IMPORTING
+      return          = gs_dms_return
+    TABLES
+      documentfiles   = gt_files.
+
+  IF gs_dms_return-type CA 'EA'.
+    ROLLBACK WORK.
+    PERFORM unlock_mdoc.
+    MESSAGE ID '26' TYPE 'E' NUMBER '000'
+            WITH gs_dms_return-message.
+  ELSE.
+    COMMIT WORK.
+  ENDIF.
+
+  LOOP AT gt_files INTO gs_files.
+    gv_file_path = gs_files-docfile.
+  ENDLOOP.
+
+
+***  copy file to remove the error ‘c:/temp/file_path cannot be create’.
+  PERFORM copy_file CHANGING gv_file_path.
+
+ENDFORM.                    " CHECKOUT_DMS_DOCUMENT
+*&---------------------------------------------------------------------*
+*&      Form  CHECKOUT_DMS_DOCUMENT_TEMPlATE
+*&---------------------------------------------------------------------*
+FORM checkout_dms_document_template .
+*  PERFORM delete_file_if_exists.
+
+
+*  SORT gt_mdoc BY dokvr DESCENDING.
+*  CLEAR p_stat.
+
+
+  CLEAR gs_files.    "added on 16.09.2015
+  CALL FUNCTION 'BAPI_DOCUMENT_CHECKOUTVIEW2'
+    EXPORTING
+      documenttype    = gs_mdoc-dokar
+      documentnumber  = gs_mdoc-dms_doc
+      documentpart    = gs_mdoc-doktl
+      documentversion = '00'
+      documentfile    = gs_files
+      getstructure    = '1'
+      getcomponents   = 'X'
+      originalpath    = ' '
+      hostname        = ' '
+      getheader       = 'X'
+      pf_http_dest    = ' '
+      pf_ftp_dest     = ' '
+    IMPORTING
+      return          = gs_dms_return
+    TABLES
+      documentfiles   = gt_files.
+
+  IF gs_dms_return-type CA 'EA'.
+    ROLLBACK WORK.
+    MESSAGE ID '26' TYPE 'E' NUMBER '000'
+            WITH gs_dms_return-message.
+  ENDIF.
+
+*so comment on 06.09.17 by payal
+****soc on 15.04.2015 for draft copy download "revreted for 1103
+*  CLEAR gs_files.
+*  READ TABLE gt_files INTO gs_files INDEX 1.  "commented to get approved template #8000001103
+**  LOOP AT gt_files INTO gs_files.            "uncommented for ticket 8000001103
+**
+***  ENDLOOP.
+*****eoc on 15.04.2015 for draft copy download "revreted for 1103
+*eo comment on 06.09.17 by payal
+
+***s added for #8000003013 By Payal S on 06.09.2017 2. Latest file download
+  DATA: l_no TYPE i.
+  DESCRIBE TABLE gt_files  LINES l_no.
+  IF g_draft = 'X'.  "read 2nd last
+    l_no = l_no - 1.
+    READ TABLE gt_files INTO gs_files INDEX l_no.
+  ELSE.  "Read last
+    READ TABLE gt_files INTO gs_files INDEX l_no.
+  ENDIF.
+***e added for #8000003013 By Payal S on 06.09.2017
+
+  gv_file_path = gs_files-docfile.
+
+***  copy file to remove the error ‘c:/temp/file_path cannot be create’.
+  PERFORM copy_file_template CHANGING gv_file_path.
+ENDFORM.                    " CHECKOUT_DMS_DOCUMENT_TEMPLATE
+*&---------------------------------------------------------------------*
+*&      Form  CREATE_DMS_SDOC
+*&---------------------------------------------------------------------*
+FORM create_dms_sdoc.
+  DATA: ls_statdocdata LIKE gs_documentdata.
+  CLEAR: gs_files, gt_files, gs_documentdata, gs_dms_return.
+
+  ls_statdocdata-documenttype = doc_type.
+**  CONCATENATE 'Static Template ' p_mat '_' p_plant INTO ls_statdocdata-description.
+  ls_statdocdata-description    = 'Annexure document'.
+  ls_statdocdata-username = sy-uname.
+  ls_statdocdata-statusextern = 'DR'.
+  ls_statdocdata-statusintern = 'DR'.
+  ls_statdocdata-docfile1 = gv_file_path.
+  ls_statdocdata-wsapplication1 = 'DOC'.
+
+  gs_files-storagecategory = gv_storagecat.    "'Z_DMS_DEV', 'Z_DMS_QAS', 'DMS_C1_ST'.
+  gs_files-docfile = gv_file_path.
+  gs_files-wsapplication = 'DOC'.
+  APPEND gs_files TO gt_files.
+
+  CALL FUNCTION 'BAPI_DOCUMENT_CREATE2'
+    EXPORTING
+      documentdata    = ls_statdocdata
+    IMPORTING
+      documenttype    = gs_documentdata-documenttype
+      documentnumber  = gs_documentdata-documentnumber
+      documentpart    = gs_documentdata-documentpart
+      documentversion = gs_documentdata-documentversion
+      return          = gs_dms_return
+    TABLES
+      documentfiles   = gt_files.
+  IF gs_dms_return-type CA 'EA'.
+    gv_commit = ' '.
+    ROLLBACK WORK.
+    PERFORM unlock_mdoc.
+    PERFORM delete_temp_file_from_disk USING gv_mdoc_path.
+    PERFORM delete_logo_from_disk USING g_logo_path. "Added By Vrushali on 08.08.2016
+    MESSAGE ID '26' TYPE 'E' NUMBER '000'
+        WITH gs_dms_return-message.
+    EXIT. " if static is not created then no need to go further
+  ELSE.
+    CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
+      EXPORTING
+        wait = 'X'.
+  ENDIF.
+ENDFORM.                    " CREATE_DMS_SDOC
+*&---------------------------------------------------------------------*
+*&      Form  CREATE_DMS_MDOC
+*&---------------------------------------------------------------------*
+FORM create_dms_mdoc.
+  DATA: ls_mdocdata LIKE gs_documentdata.
+  CLEAR: ls_mdocdata, gs_files, gt_files.
+  MOVE-CORRESPONDING gs_documentdata TO ls_mdocdata.
+  CLEAR: gs_documentdata.
+  CONCATENATE 'Master ' doc_type '  ' p_mat '_' p_plant INTO ls_mdocdata-description.
+  ls_mdocdata-docfile1 = gv_mdoc_path.
+  gs_files-docfile = gv_mdoc_path.
+  gs_files-storagecategory = gv_storagecat.    "'Z_DMS_DEV'.    "'Z_DMS_QAS' "'DMS_C1_ST'.
+  gs_files-wsapplication = 'DOC'.
+  APPEND gs_files TO gt_files.
+
+  CALL FUNCTION 'BAPI_DOCUMENT_CREATE2'
+    EXPORTING
+      documentdata    = ls_mdocdata
+    IMPORTING
+      documenttype    = gs_documentdata-documenttype
+      documentnumber  = gs_documentdata-documentnumber
+      documentpart    = gs_documentdata-documentpart
+      documentversion = gs_documentdata-documentversion
+      return          = gs_dms_return
+    TABLES
+      documentfiles   = gt_files.
+  IF gs_dms_return-type CA 'EA'.
+    gv_commit = ' '.
+    ROLLBACK WORK.
+    PERFORM unlock_mdoc.
+    PERFORM delete_temp_file_from_disk USING gv_mdoc_path.
+    PERFORM delete_logo_from_disk USING g_logo_path. "Added By Vrushali on 08.08.2016
+    MESSAGE ID '26' TYPE 'E' NUMBER '000'
+        WITH gs_dms_return-message.
+    EXIT.
+  ENDIF.
+ENDFORM.                    " CREATE_DMS_MDOC
+*&---------------------------------------------------------------------*
+*&      Form  DELETE_EXISTING_MDOC
+*&---------------------------------------------------------------------*
+FORM delete_existing_mdoc.
+  CALL FUNCTION 'CV120_KPRO_DOC_DELETE'
+    EXPORTING
+      pf_batchmode   = 'X'
+*     pf_check_ref   = ' '
+*     pf_delete_ref  = ' '
+      pf_dokar       = gs_mdoc-dokar
+      pf_doknr       = gs_mdoc-dms_doc
+      pf_doktl       = gs_mdoc-doktl
+      pf_dokvr       = gs_mdoc-dokvr
+    EXCEPTIONS
+      error          = 1
+      not_found      = 2
+      has_references = 3
+      OTHERS         = 4.
+  IF sy-subrc <> 0.
+    gv_commit = ' '.
+    ROLLBACK WORK.
+  ELSE.
+    COMMIT WORK AND WAIT.
+  ENDIF.
+ENDFORM.                    " DELETE_EXISTING_MDOC
+*&---------------------------------------------------------------------*
+*&      Form  DELETE_EXISTING_SDOC
+*&---------------------------------------------------------------------*
+FORM delete_existing_sdoc.
+  DATA: lv_no_stat_files TYPE i.
+  CLEAR: gs_dms_return, lv_no_stat_files.
+
+  DESCRIBE TABLE gt_files LINES lv_no_stat_files.
+  READ TABLE gt_files INTO gs_files INDEX lv_no_stat_files. "Ideally, it should always be 1 or 2.
+  gs_files-deletevalue = 'X'.
+  CLEAR gt_files[].
+  INSERT gs_files INTO TABLE gt_files.
+  gs_documentdatax-docfile1 = 'X'.
+  CALL FUNCTION 'BAPI_DOCUMENT_CHANGE2'
+    EXPORTING
+      documentdata    = gs_documentdata
+      documenttype    = gs_documentdata-documenttype
+      documentnumber  = gs_documentdata-documentnumber
+      documentpart    = gs_documentdata-documentpart
+      documentversion = gs_documentdata-documentversion
+      documentdatax   = gs_documentdatax
+    IMPORTING
+      return          = gs_dms_return
+    TABLES
+      documentfiles   = gt_files.
+  IF gs_dms_return-type CA 'EA'.
+    gv_commit = ' '.
+    PERFORM unlock_mdoc.
+    ROLLBACK WORK.
+    PERFORM delete_temp_file_from_disk USING gv_mdoc_path.
+    PERFORM delete_logo_from_disk USING g_logo_path. "Added By Vrushali on 08.08.2016
+    MESSAGE ID '26' TYPE 'E' NUMBER '000'
+            WITH gs_dms_return-message.
+  ELSE.
+    COMMIT WORK AND WAIT.
+  ENDIF.
+ENDFORM.                    " DELETE_EXISTING_SDOC
+*&---------------------------------------------------------------------*
+*&      Form  CHANGE_EXISTING_SDOC
+*&---------------------------------------------------------------------*
+FORM change_existing_sdoc.
+  CLEAR: gs_files, gt_files[].
+  gs_documentdata-docfile1 = gv_file_path.
+  gs_documentdata-wsapplication1 = 'DOC'.
+  gs_files-storagecategory = gv_storagecat.    "'Z_DMS_DEV', 'Z_DMS_QAS', 'DMS_C1_ST'.
+  gs_files-docfile = gv_file_path.
+  gs_files-wsapplication = 'DOC'.
+  APPEND gs_files TO gt_files.
+
+  CALL FUNCTION 'BAPI_DOCUMENT_CHANGE2'
+    EXPORTING
+      documentdata    = gs_documentdata
+      documenttype    = gs_documentdata-documenttype
+      documentnumber  = gs_documentdata-documentnumber
+      documentpart    = gs_documentdata-documentpart
+      documentversion = gs_documentdata-documentversion
+      documentdatax   = gs_documentdatax
+    IMPORTING
+      return          = gs_dms_return
+    TABLES
+      documentfiles   = gt_files.
+  IF gs_dms_return-type CA 'EA'.
+    gv_commit = ' '.
+    ROLLBACK WORK.
+
+    PERFORM unlock_mdoc.
+    PERFORM delete_temp_file_from_disk USING gv_mdoc_path.    "before error msg
+    PERFORM delete_logo_from_disk USING g_logo_path. "Added By Vrushali on 08.08.2016
+    MESSAGE ID '26' TYPE 'E' NUMBER '000'
+        WITH gs_dms_return-message.
+
+    EXIT. " if static is not created then no need to go further
+  ELSE.
+    CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
+      EXPORTING
+        wait = 'X'.
+  ENDIF.
+ENDFORM.                    " CHANGE_EXISTING_SDOC
+*&---------------------------------------------------------------------*
+*&      Form  CHANGE_EXISTING_MDOC
+*&---------------------------------------------------------------------*
+FORM change_existing_mdoc.
+  CLEAR: gs_files, gt_files, gs_dms_return.
+  gs_documentdata-documentversion = gs_mdoc-dokvr.
+  gs_documentdata-docfile1 = gv_mdoc_path.
+  gs_documentdata-wsapplication1 = 'DOC'.
+  gs_files-storagecategory = gv_storagecat.    "'Z_DMS_DEV', 'Z_DMS_QAS', 'DMS_C1_ST'.
+  gs_files-docfile = gv_mdoc_path.
+  gs_files-wsapplication = 'DOC'.
+  APPEND gs_files TO gt_files.
+
+  CALL FUNCTION 'BAPI_DOCUMENT_CHANGE2'
+    EXPORTING
+      documentdata    = gs_documentdata
+      documenttype    = gs_documentdata-documenttype
+      documentnumber  = gs_documentdata-documentnumber
+      documentpart    = gs_documentdata-documentpart
+      documentversion = gs_documentdata-documentversion
+      documentdatax   = gs_documentdatax
+    IMPORTING
+      return          = gs_dms_return
+    TABLES
+      documentfiles   = gt_files.
+  IF gs_dms_return-type CA 'EA'.
+    gv_commit = ' '.
+    ROLLBACK WORK.
+
+    PERFORM unlock_mdoc.
+    PERFORM delete_temp_file_from_disk USING gv_mdoc_path.    "before error msg
+    PERFORM delete_logo_from_disk USING g_logo_path. "Added By Vrushali on 08.08.2016
+    MESSAGE ID '26' TYPE 'E' NUMBER '000'
+        WITH gs_dms_return-message.
+
+    EXIT. " if static is not created then no need to go further
+  ELSE.
+    CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
+      EXPORTING
+        wait = 'X'.
+  ENDIF.
+ENDFORM.                    " CHANGE_EXISTING_SDOC
+*&---------------------------------------------------------------------*
+*&      Form  CHANGE_DISCARD_STATUS
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM change_discard_status USING p_version.
+  DATA: ls_dms_return TYPE bapiret2.
+  CALL FUNCTION 'BAPI_DOCUMENT_SETSTATUS' "Set Document Status
+    EXPORTING
+      documenttype    = gs_mdoc-dokar
+      documentnumber  = gs_mdoc-dms_doc
+      documentpart    = gs_mdoc-doktl
+      documentversion = p_dms
+      statusextern    = 'DR'
+      statusintern    = 'DR'
+*     statuslog       = SPACE           " bapi_doc_draw-statuslog  Status Log Entry
+    IMPORTING
+      return          = ls_dms_return.
+
+  CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'.
+  IF sy-subrc = 0.
+    p_stat = 'DR'.
+  ENDIF.
+ENDFORM.                    " CHANGE_DISCARD_STATUS
+*&---------------------------------------------------------------------*
+*&      Form  COPY_FILE
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      <--P_GV_FILE_PATH  text
+*----------------------------------------------------------------------*
+FORM copy_file  CHANGING gv_file_path.
+  DATA: lv_dest TYPE string.
+  DATA: lv_source TYPE string.
+  DATA: lv_del_file TYPE rlgrap-filename.
+
+  lv_source = gv_file_path.
+
+  CONCATENATE  'C:\temp\' doc_type p_plant gs_mdoc-dms_doc '_' sy-datum '.DOC' INTO lv_dest.
+
+
+  CALL METHOD cl_gui_frontend_services=>file_copy
+    EXPORTING
+      source               = lv_source
+      destination          = lv_dest
+      overwrite            = 'X'
+    EXCEPTIONS
+      cntl_error           = 1
+      error_no_gui         = 2
+      wrong_parameter      = 3
+      disk_full            = 4
+      access_denied        = 5
+      file_not_found       = 6
+      destination_exists   = 7
+      unknown_error        = 8
+      path_not_found       = 9
+      disk_write_protect   = 10
+      drive_not_ready      = 11
+      not_supported_by_gui = 12
+      OTHERS               = 13.
+  IF sy-subrc = 0.
+    lv_del_file  = gv_file_path.
+    CALL FUNCTION 'TMP_GUI_DELETE_FILE'
+      EXPORTING
+        file_name = lv_del_file
+*       FILE_NAME_LONG       =
+      EXCEPTIONS
+        failed    = 1
+        OTHERS    = 2.
+* Implement suitable error handling here
+
+    gv_file_path = lv_dest.
+  ENDIF.
+ENDFORM.                    " COPY_FILE
+*&---------------------------------------------------------------------*
+*&      Form  COPY_FILE_TEMPLATE
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      <--P_GV_FILE_PATH  text
+*----------------------------------------------------------------------*
+FORM copy_file_template  CHANGING gv_file_path.
+  DATA: lv_dest TYPE string.
+  DATA: lv_source TYPE string.
+  DATA: lv_del_file TYPE rlgrap-filename.
+
+  lv_source = gv_file_path.
+
+*  CONCATENATE  'C:\temp\' 'TEMPLATE' p_mat '_' sy-datum+4(4) sy-uzeit '.DOC' INTO lv_dest.  "comment on 14.11.2017
+  CONCATENATE  'C:\temp\' 'TEMPLATE' p_mat '_' g_date+4(4) g_time '.DOC' INTO lv_dest. "timezone changes for 8000003697 by payal on 14.11.2017
+
+
+*  IF g_time IS INITIAL.
+*    g_time = sy-uzeit.
+*  ENDIF.
+*  CONCATENATE  'C:\temp\' 'TEMPLATE' p_mat '_' sy-datum+4(4) g_time '.DOC' INTO lv_dest.
+
+  CALL METHOD cl_gui_frontend_services=>file_copy
+    EXPORTING
+      source               = lv_source
+      destination          = lv_dest
+*     overwrite            = SPACE
+    EXCEPTIONS
+      cntl_error           = 1
+      error_no_gui         = 2
+      wrong_parameter      = 3
+      disk_full            = 4
+      access_denied        = 5
+      file_not_found       = 6
+      destination_exists   = 7
+      unknown_error        = 8
+      path_not_found       = 9
+      disk_write_protect   = 10
+      drive_not_ready      = 11
+      not_supported_by_gui = 12
+      OTHERS               = 13.
+  IF sy-subrc = 0.
+    IF gv_no_static = 'X'.  "added for #8000003013 By Payal S on 06.09.2017 1.Same Template Name can be uploaded.
+      lv_del_file  = gv_file_path.
+      CALL FUNCTION 'TMP_GUI_DELETE_FILE'
+        EXPORTING
+          file_name = lv_del_file
+*         FILE_NAME_LONG       =
+        EXCEPTIONS
+          failed    = 1
+          OTHERS    = 2.
+* Implement suitable error handling here
+    ENDIF.
+    gv_file_path = lv_dest.
+  ENDIF.
+ENDFORM.                    " COPY_FILE_TEMPLATE
+*&---------------------------------------------------------------------*
+*&      Form  CHECKOUT_DMS_DOCUMENT_ADD
+*&---------------------------------------------------------------------*
+FORM checkout_dms_document_add .
+
+  REFRESH  gt_files[].
+  CLEAR gs_files.
+  CALL FUNCTION 'BAPI_DOCUMENT_CHECKOUTVIEW2'
+    EXPORTING
+      documenttype    = gs_mdoc-dokar
+      documentnumber  = gs_mdoc-dms_doc
+      documentpart    = gs_mdoc-doktl
+      documentversion = gs_mdoc-dokvr
+      documentfile    = gs_files
+      getstructure    = '1'
+      getcomponents   = 'X'
+      originalpath    = ' '
+      hostname        = ' '
+      getheader       = 'X'
+      pf_http_dest    = ' '
+      pf_ftp_dest     = ' '
+    IMPORTING
+      return          = gs_dms_return
+    TABLES
+      documentfiles   = gt_files.
+
+  IF gs_dms_return-type CA 'EA'.
+    ROLLBACK WORK.
+*    PERFORM unlock_mdoc.
+    MESSAGE ID '26' TYPE 'E' NUMBER '000'
+            WITH gs_dms_return-message.
+  ELSE.
+    COMMIT WORK.
+  ENDIF.
+
+  LOOP AT gt_files INTO gs_files.
+    gv_file_path = gs_files-docfile.
+  ENDLOOP.
+
+
+***  copy file to remove the error ‘c:/temp/file_path cannot be create’.
+  PERFORM copy_file CHANGING gv_file_path.
+ENDFORM.
