@@ -1,0 +1,556 @@
+*&---------------------------------------------------------------------*
+*& Include          SLIM_USER_CLF_HELP_T01
+*&---------------------------------------------------------------------*
+TYPE-POOLS: icon.
+" for User validation
+TYPES: BEGIN OF gty_roles,
+         agr_name TYPE agr_name,
+         object   TYPE agobject,
+         auth     TYPE xuauth,
+         field    TYPE agrfield,
+         low      TYPE agval,
+         high     TYPE agval,
+         counter  TYPE i,
+         incomplete TYPE flag,
+       END OF gty_roles.
+
+TYPES: BEGIN OF gty_profiles,
+         auth   TYPE xuauth,
+         object TYPE xuobject,
+         field  TYPE xufield,
+         low    TYPE xuval,
+         high   TYPE xuval,
+         counter TYPE i,
+       END OF gty_profiles.
+
+TYPES: BEGIN OF gty_object,
+         object         TYPE agobject,
+         ttext          TYPE xutext,
+         field          TYPE agrfield,
+         field_text     TYPE xutext,
+         low            TYPE agval,
+         low_text       TYPE dd07v-ddtext,
+         high           TYPE agval,
+         high_text      TYPE dd07v-ddtext,
+         classif_s4     TYPE text40,
+         index_object   TYPE sytabix,
+         engine_classif TYPE char40,
+         icon           TYPE string,
+         ps_posid       TYPE string, " df14l-ps_posid,
+*         count          type i,
+       END OF gty_object.
+TYPES: gty_t_object TYPE SORTED TABLE OF gty_object
+         WITH NON-UNIQUE KEY object field low high.
+
+TYPES: BEGIN OF gty_result,
+         uc_rule     TYPE char40,
+         uc_result   TYPE char40,
+         uc_priority TYPE numc4,
+       END OF gty_result.
+TYPES gty_t_result TYPE STANDARD TABLE OF gty_result
+  WITH NON-UNIQUE KEY uc_rule.
+
+TYPES: BEGIN OF gty_user_role,
+         agr_name    TYPE agr_name,
+         auth        TYPE xuauth,
+         classif_s4  TYPE char40,
+         uc_priority TYPE numc4,
+         index_role  TYPE sytabix,
+         referenced  TYPE flag,
+       END OF gty_user_role .
+TYPES:  gty_t_user_role TYPE SORTED TABLE OF gty_user_role
+      WITH UNIQUE KEY agr_name auth .
+
+TYPES: BEGIN OF gty_user_data,
+         bname(24)      TYPE c,
+         classif_s4     TYPE char40,
+         classif_curr   TYPE slim_long_text55,
+         roles          TYPE gty_t_user_role,
+         name_text      TYPE ad_namtext,
+         lic_type       TYPE usertypen,
+         uc_priority    TYPE numc4,
+         ustyp          TYPE xuustyp,
+         trdat          TYPE xuldate,
+         hash_bname(24) TYPE c,
+         engine         TYPE c,
+         refuser(24)    type c,
+         class          TYPE xuclass, " User Group
+       END OF gty_user_data .
+TYPES: gty_t_user_data TYPE SORTED TABLE OF gty_user_data
+      WITH UNIQUE KEY bname.
+
+" Additional User Data (email and personalization object) for consolidation
+TYPES: BEGIN OF gty_addl_user_data,
+         bname(24) TYPE c,
+         email     TYPE string,
+         persobj   TYPE string,
+       END OF gty_addl_user_data.
+TYPES: gty_t_addl_user_data TYPE SORTED TABLE OF gty_addl_user_data
+      WITH UNIQUE KEY bname.
+
+TYPES: BEGIN OF gty_s4_user,
+         classif_s4   TYPE char40,
+         user_numbers TYPE i,
+         user_engines TYPE i,
+         uc_priority  TYPE numc4,
+       END OF gty_s4_user.
+TYPES gty_t_s4_user TYPE STANDARD TABLE OF gty_s4_user.
+
+TYPES: BEGIN OF gty_classif_s4_fields,
+         fname       TYPE lvc_fname,
+         text        TYPE scrtext_l,
+         header_text TYPE string,
+       END OF gty_classif_s4_fields.
+TYPES gty_t_classif_s4_fields TYPE STANDARD TABLE OF gty_classif_s4_fields.
+
+TYPES: BEGIN OF gty_user_classif,
+         bname(24)      TYPE c,
+         hash_bname(24) TYPE c,
+         name_text      TYPE ad_namtext,
+         lic_type       TYPE usertypen,
+         classif_curr   TYPE slim_long_text55,
+         classif_s4     TYPE char40,
+         engine         TYPE c,
+         ratio          TYPE char20,
+         ustyp          type xuustyp,
+         refuser(24)    type c,
+         class          TYPE xuclass,
+         trdat          TYPE xuldate,
+       END OF gty_user_classif.
+TYPES gty_t_user_classif TYPE STANDARD TABLE OF gty_user_classif.
+
+TYPES: BEGIN OF gty_user_engines,
+         bname(24)       TYPE c,
+         engine_priority TYPE numc4,
+         engine_classif  TYPE char40,
+       END OF gty_user_engines.
+TYPES gty_t_user_engines TYPE SORTED TABLE OF gty_user_engines
+     WITH NON-UNIQUE KEY bname.
+
+TYPES: BEGIN OF gty_role_engines,
+         agr_name        TYPE agr_name,
+         auth            TYPE xuauth,
+         engine_priority TYPE numc4,
+         engine_classif  TYPE char40,
+       END OF gty_role_engines.
+TYPES gty_t_role_engines TYPE SORTED TABLE OF gty_role_engines
+     WITH NON-UNIQUE KEY agr_name auth.
+
+TYPES: BEGIN OF gty_engines,
+         engine_priority TYPE numc4,
+         engine_classif  TYPE char40,
+       END OF gty_engines.
+TYPES gty_t_engines TYPE SORTED TABLE OF gty_engines
+          WITH UNIQUE KEY engine_priority.
+
+TYPES: BEGIN OF gty_role_classif,
+         agr_name   TYPE agr_name,
+         agr_text   TYPE agr_title,
+         type         TYPE char01,
+         classif_curr TYPE text60,
+         classif_s4   TYPE text40,
+         total_usr  TYPE i,
+         ratio        TYPE char20,
+         object_count TYPE i,
+         referenced   TYPE string,
+       END OF gty_role_classif.
+TYPES gty_t_role_classif TYPE STANDARD TABLE OF gty_role_classif.
+
+TYPES: BEGIN OF gty_user,
+         bname     TYPE xubname,
+         lic_type  TYPE usertypen,
+         name_text TYPE ad_namtext,
+         ustyp     TYPE xuustyp,
+         trdat     TYPE xuldate,
+         refuser   type xubname,
+         class     TYPE xuclass,
+       END OF gty_user .
+TYPES: gty_t_user_sel  TYPE SORTED TABLE OF gty_user
+         WITH UNIQUE KEY bname,
+       gty_t_excl_user TYPE STANDARD TABLE OF rsuvmuser.
+
+" for Role Validation
+TYPES: BEGIN OF gty_role_user,
+         bname(24)      TYPE c,
+         hash_bname(24) TYPE c,
+         name_text    TYPE ad_namtext,
+         classif_s4   TYPE text40,
+         classif_curr TYPE slim_long_text55,
+         ratio          TYPE char20,
+       END OF gty_role_user .
+TYPES: gty_t_role_user  TYPE SORTED TABLE OF gty_role_user
+         WITH UNIQUE KEY bname,
+       gty_t_role_users TYPE STANDARD TABLE OF gty_role_user.
+
+TYPES: BEGIN OF gty_role_classification,
+         agr_name   TYPE agr_name,
+         flag_value TYPE usertypen,
+         utyptext   TYPE utyptext,
+       END OF gty_role_classification.
+TYPES gty_t_role_classification TYPE SORTED TABLE OF gty_role_classification
+  WITH NON-UNIQUE KEY agr_name.
+
+TYPES: BEGIN OF gty_role_data,
+         agr_name   TYPE agr_name,
+         auth       TYPE xuauth,
+         classif_s4 TYPE char40,
+         users      TYPE gty_t_role_user,
+         index_role TYPE sytabix,
+       END OF gty_role_data.
+TYPES gty_t_role_data TYPE SORTED TABLE OF gty_role_data
+  WITH NON-UNIQUE KEY agr_name auth.
+
+TYPES: BEGIN OF gty_role,
+         agr_name    TYPE agr_name,
+         auth        TYPE xuauth,
+         objects     TYPE gty_t_object,
+         users       TYPE gty_t_role_user,
+         classif_s4  TYPE char40,
+         uc_priority TYPE numc4,
+         index_role  TYPE sytabix,
+         roletext    TYPE agr_title,
+         engine      TYPE c,
+       END OF gty_role .
+TYPES:  gty_t_role TYPE SORTED TABLE OF gty_role
+      WITH UNIQUE KEY agr_name auth .
+
+TYPES: BEGIN OF gty_s4_role,
+         agr_name     TYPE agr_name,
+         agr_text     TYPE agr_title,
+         type         TYPE char01,
+         classif_curr TYPE text60,
+         classif_s4   TYPE text40,
+         user_numbers TYPE i,
+         ratio        TYPE char20,
+         object_count TYPE i,
+       END OF gty_s4_role.
+TYPES gty_t_s4_role TYPE STANDARD TABLE OF gty_s4_role.
+
+" for Objects Classification
+TYPES: BEGIN OF gty_rule_file,
+         step(4)        TYPE n,
+         check_rule(40),
+         final_step(1),
+         type(5),
+         tcode          TYPE tcode,
+         objct          TYPE xuobject,
+         field          TYPE xufield,
+         von            TYPE xuval,
+       END OF gty_rule_file.
+TYPES gty_t_rules_file TYPE STANDARD TABLE OF gty_rule_file.
+
+TYPES: BEGIN OF gty_object_result,
+         object          TYPE agobject,
+         field           TYPE agrfield,
+         low             TYPE agval,
+         high            TYPE agval,
+         classif_s4      TYPE char40,
+         uc_priority     TYPE numc4,
+         result          TYPE gty_t_result,
+
+         oclass          TYPE xuobjclass,
+         objecttext      TYPE xutext,
+         fieldtext       TYPE xutext,
+         valuetext       TYPE xutext40,
+
+         engine_priority TYPE numc4,
+         engine_classif  TYPE char40,
+         engines         TYPE gty_t_result,
+       END OF  gty_object_result.
+TYPES gty_t_object_result TYPE SORTED TABLE OF gty_object_result
+  WITH UNIQUE KEY object field low high.
+
+TYPES: BEGIN OF gty_rule_object,
+         objct TYPE xuobject,
+         field TYPE xufield,
+         von   TYPE xuvalue,
+         bis   TYPE xuvalue,
+       END OF gty_rule_object.
+TYPES gty_t_rule_object TYPE STANDARD TABLE OF gty_rule_object
+  WITH NON-UNIQUE KEY objct.
+
+TYPES: BEGIN OF gty_rules,
+         step        TYPE numc4,
+         final_step  TYPE flag,
+         uc_rule     TYPE char40,
+         uc_result   TYPE char40,
+         uc_priority TYPE numc4,
+         objects     TYPE gty_t_rule_object,
+         type(5),
+       END OF gty_rules.
+TYPES gty_t_rules TYPE STANDARD TABLE OF gty_rules.
+
+" for Texts
+TYPES: BEGIN OF gty_agr_text,
+         agr_name TYPE agr_name,
+         spras    type agr_texts-spras,
+         text     TYPE agr_title,
+       END OF gty_agr_text.
+TYPES gty_t_agr_text TYPE STANDARD TABLE OF gty_agr_text.
+*  WITH UNIQUE KEY agr_name.
+
+TYPES: BEGIN OF gty_prof_text,
+         profn TYPE xuprofname,
+         langu type usr11-langu,
+         ptext TYPE xutext,
+       END OF gty_prof_text.
+TYPES gty_t_prof_text TYPE STANDARD TABLE OF gty_prof_text.
+*  WITH UNIQUE KEY profn.
+
+TYPES: BEGIN OF gty_field_text,
+         field TYPE xufield,
+         ftext TYPE xutext,
+       END OF gty_field_text.
+TYPES gty_t_field_text TYPE HASHED TABLE OF gty_field_text
+  WITH UNIQUE KEY field.
+
+TYPES: BEGIN OF gty_object_text,
+         object TYPE xuobject,
+         ttext  TYPE xutext,
+       END OF gty_object_text.
+TYPES gty_t_object_text TYPE HASHED TABLE OF gty_object_text
+  WITH UNIQUE KEY object.
+
+TYPES gty_t_tutyp TYPE SORTED TABLE OF tutyp
+  WITH UNIQUE KEY langu usertyp.
+
+" for exporting of result
+TYPES: BEGIN OF gty_dataset,
+         bname(24)          TYPE c,
+         classif_s4         TYPE char40,
+         classif_curr       TYPE slim_long_text55,
+         name_text          TYPE ad_namtext,
+         uc_priority        TYPE numc4,
+         index_role         TYPE numc10,
+         lic_type           TYPE slim_long_text55,
+         ustyp              TYPE xuustyp,
+         trdat              TYPE xuldate,
+
+         agr_name_auth(43)  TYPE c,
+         auth               TYPE xuauth,
+         classif_s4_agr     TYPE char40,
+         index_object       TYPE numc10,
+         uc_priority_agr    TYPE numc4,
+         roletext           TYPE agr_title,
+
+         object             TYPE agobject,
+         field              TYPE agrfield,
+         low                TYPE agval,
+         high               TYPE agval,
+         classif_s4_object  TYPE char40,
+         uc_priority_object TYPE numc4,
+         oclass             TYPE xuobjclass,
+         objecttext         TYPE xutext,
+         fieldtext          TYPE xutext,
+         valuetext          TYPE xutext40,
+         engine_priority    TYPE numc4,
+         engine_classif     TYPE char40,
+       END OF gty_dataset.
+TYPES gty_t_dataset TYPE STANDARD TABLE OF gty_dataset.
+
+TYPES: BEGIN OF gty_data_roles,
+         agr_name_auth(43) TYPE c,
+         index_role        TYPE numc10,
+         classif_s4_agr    TYPE char40,
+         bname(24)         TYPE c,
+       END OF gty_data_roles.
+TYPES gty_t_data_roles TYPE STANDARD TABLE OF gty_data_roles.
+
+TYPES: BEGIN OF gty_hash_users,
+         hash_bname(24) TYPE c,
+         bname          TYPE xubname,
+         name_text      TYPE ad_namtext,
+       END OF gty_hash_users.
+TYPES gty_t_hash_users TYPE SORTED TABLE OF gty_hash_users
+  WITH UNIQUE KEY hash_bname
+  WITH UNIQUE SORTED KEY bname COMPONENTS bname.
+
+TYPES: BEGIN OF tys_langu,
+         spras   LIKE agr_texts-spras,
+         counter TYPE i,
+       END OF tys_langu.
+
+TYPES: BEGIN OF tys_rbc,
+         uname    TYPE agr_users-uname,
+         agr_name TYPE agr_users-agr_name,
+         usertyp  TYPE usertypen,
+       END OF tys_rbc.
+
+TYPES: gty_t_rbc TYPE STANDARD TABLE OF tys_rbc.
+
+TYPES: BEGIN OF tys_info,
+         sysid   TYPE sysysid,
+         client  TYPE symandt,
+         type    TYPE char01,
+         date    TYPE sydatum,
+         time    TYPE syuzeit,
+         user    TYPE syuname,
+         ruleset TYPE string,
+         content TYPE string,
+         version TYPE string,
+       END OF tys_info.
+
+TYPES: gty_info TYPE tys_info.
+
+" Reference Users
+TYPES: BEGIN OF tys_refusers,
+         bname    TYPE usrefus-bname,
+         refuser  TYPE usrefus-refuser,
+         lic_type TYPE usr06-lic_type,
+       END OF tys_refusers.
+
+TYPES: gty_t_refusers TYPE STANDARD TABLE OF tys_refusers.
+
+" Data declaration
+TABLES: sscrfields,
+        usr02,
+        usr06,
+        usr10,
+        agr_users.
+
+DATA: gv_s_text            TYPE scrtext_s,
+      gv_m_text            TYPE scrtext_m,
+      gv_l_text            TYPE scrtext_l,
+      gt_struct_components TYPE cl_abap_structdescr=>component_table,
+      go_elem_descr        TYPE REF TO cl_abap_elemdescr,
+      gs_flddescr          TYPE dfies.
+
+DATA: gv_valid_type        TYPE c,
+      gv_total             TYPE i,
+      gv_tabix             TYPE i,
+      gv_percent           TYPE i,
+
+      gt_user_data         TYPE gty_t_user_data,
+      gt_s4_user           TYPE gty_t_s4_user,
+      gt_classif_s4_fields TYPE gty_t_classif_s4_fields,
+      gt_engines           TYPE gty_t_engines,
+      gt_engine_fields     TYPE gty_t_classif_s4_fields,
+      gt_user_classif      TYPE gty_t_user_classif,
+      gt_user_engines      TYPE gty_t_user_engines,
+      gt_role_classif      TYPE gty_t_role_classif,
+      gt_role_engines      TYPE gty_t_role_engines,
+      gt_object_classif    TYPE STANDARD TABLE OF gty_object,
+      gt_hash_users        TYPE gty_t_hash_users,
+
+      gt_role_data         TYPE gty_t_role_data,
+      gt_s4_role           TYPE gty_t_s4_role,
+      gt_role_users        TYPE gty_t_role_users,
+      gt_agr_flags         TYPE gty_t_role_classification,
+
+      gt_object_result     TYPE gty_t_object_result,
+      gt_object_result_rv  TYPE gty_t_object_result,
+      gt_role_result       TYPE gty_t_role,
+      gt_role_result_rv    TYPE gty_t_role,
+      gt_rules             TYPE gty_t_rules,
+      gt_rules_plain       TYPE gty_t_rules_file,
+
+      gt_agr_text          TYPE gty_t_agr_text,
+      gt_prof_text         TYPE gty_t_prof_text,
+      gt_object_text       TYPE gty_t_object_text,
+      gt_field_text        TYPE gty_t_field_text,
+      gt_tutyp             TYPE gty_t_tutyp,
+      gr_languages         TYPE RANGE OF sylangu,
+
+      gv_export_type       TYPE c,
+      go_conv_xstr         TYPE REF TO cl_abap_conv_out_ce,
+      go_conv_str          TYPE REF TO cl_abap_conv_in_ce,
+      go_zip               TYPE REF TO cl_abap_zip,
+      gv_install_number    TYPE char10,
+      gv_sysid             TYPE xutext10,
+      gv_key               TYPE xstring,
+      gv_hash_bname(24)    TYPE c.
+
+" Graphical Display
+DATA: gt_y_values TYPE STANDARD TABLE OF gprval,
+      gt_x_texts  TYPE STANDARD TABLE OF gprtxt.
+
+" For ALVs displaying
+DATA: gv_okcode       TYPE syucomm,
+      gr_table400     TYPE REF TO cl_salv_table,
+      gr_table401     TYPE REF TO cl_salv_table,
+      gr_table402     TYPE REF TO cl_salv_table,
+      gr_table403     TYPE REF TO cl_salv_table,
+      gr_table500     TYPE REF TO cl_salv_table,
+      gr_table501     TYPE REF TO cl_salv_table,
+      gr_container400 TYPE REF TO cl_gui_custom_container,
+      gr_container401 TYPE REF TO cl_gui_custom_container,
+      gr_container402 TYPE REF TO cl_gui_custom_container,
+      gr_container403 TYPE REF TO cl_gui_custom_container,
+      gr_container500 TYPE REF TO cl_gui_custom_container,
+      gr_container501 TYPE REF TO cl_gui_custom_container,
+      gv_title        TYPE lvc_title,
+      gv_info         TYPE lvc_title,
+      gs_info         TYPE gty_info,
+      gv_single_user  TYPE flag,
+      gv_500_filtered TYPE flag,
+      gv_403_filtered TYPE flag,
+      gv_402_filtered TYPE flag,
+      gv_sel_users    TYPE string,
+      gv_pce          TYPE flag,
+      gv_pce_mode     TYPE flag.
+
+CONSTANTS: BEGIN OF gc_valid_type,
+             user_validation    TYPE c VALUE 'U',
+             role_validation    TYPE c VALUE 'R',
+             previous_execution TYPE c VALUE 'E',
+             rules_n_results    TYPE c VALUE 'I',
+           END OF gc_valid_type.
+
+CONSTANTS: BEGIN OF gc_export_type,
+             user TYPE c VALUE 'U',
+             sap  TYPE c VALUE 'S',
+           END OF gc_export_type.
+
+CONSTANTS: BEGIN OF gc_dataset_type,
+             user_based TYPE char10 VALUE 'USER_BASED',
+             role_based TYPE char10 VALUE 'ROLE_BASED',
+           END OF gc_dataset_type.
+
+CONSTANTS: BEGIN OF gc_role_type,
+             role    TYPE char01 VALUE 'R',
+             profile TYPE char01 VALUE 'P',
+           END OF gc_role_type.
+
+CONSTANTS: gc_active      TYPE xuaktpas VALUE 'A',
+           gc_single      TYPE xutyp    VALUE 'S',
+           gc_composite   TYPE xutyp    VALUE 'C',
+           gc_generate    TYPE xutyp    VALUE 'G',
+           gc_not_classif TYPE numc4    VALUE '9999',
+           gc_separator   TYPE c        VALUE '^',
+           gc_date_from   TYPE ad_date_fr VALUE '00010101',
+           gc_dataset_ver TYPE char5      VALUE 'V3.00'.
+
+CONSTANTS: gc_algorithm         TYPE string     VALUE cl_sec_sxml_writer=>co_aes128_algorithm,
+           gc_hash_algorithm(3) TYPE c          VALUE 'MD5',
+           gc_user_length       TYPE i          VALUE 24, "UserID length
+           gc_row_separator     TYPE abap_cr_lf VALUE cl_abap_char_utilities=>cr_lf,
+           gc_field_separator   TYPE abap_char1 VALUE cl_abap_char_utilities=>vertical_tab.
+
+FIELD-SYMBOLS: <gs_total_classif_users> TYPE any,
+               <gt_total_classif_users> TYPE STANDARD TABLE,
+               <gt_user_classif>        TYPE STANDARD TABLE,
+               <gt_role_classif>        TYPE STANDARD TABLE,
+               <gt_s4_role>             TYPE STANDARD TABLE.
+
+FIELD-SYMBOLS: <gs_column>            TYPE salv_s_column_ref,
+               <gs_classif_s4_fields> TYPE gty_classif_s4_fields,
+               <gs_engine_fields>     TYPE gty_classif_s4_fields,
+               <gs_struct_components> TYPE abap_componentdescr,
+               <gs_role_classif>      TYPE gty_role_classif,
+               <gs_role_result>       TYPE gty_role,
+               <gs_object_classif>    TYPE gty_object,
+               <gs_user_classif>      TYPE gty_user_classif,
+               <gs_user_engines>      TYPE gty_user_engines,
+               <gs_role_engines>      TYPE gty_role_engines,
+               <gs_objects>           TYPE gty_object,
+               <gs_object_result>     TYPE gty_object_result,
+               <gs_s4_role>           TYPE gty_s4_role,
+               <gs_role_data>         TYPE gty_role_data,
+               <gs_role_users>        TYPE gty_role_user,
+               <gs_user_data>         TYPE gty_user_data,
+               <gs_users>             TYPE gty_role_user,
+               <gs_sel_users>         TYPE gty_user,
+               <gs_rules_plain>       TYPE gty_rule_file,
+               <gs_dataset>           TYPE gty_dataset,
+               <gs_hash_users>        TYPE gty_hash_users,
+               <gs_user_role>         TYPE gty_user_role.
