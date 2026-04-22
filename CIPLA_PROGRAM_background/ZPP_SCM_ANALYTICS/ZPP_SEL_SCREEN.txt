@@ -1,0 +1,785 @@
+*&---------------------------------------------------------------------*
+* MODIFICATION INFORMATION
+* DATE              : 24.10.2018
+* AUTHOR            : Sushil Pandey
+* CHANGE REQUEST    : <8000004920>
+* TRANSPORT REQUEST : <CRDK958347>
+* DESCRIPTION       : Restricting file size- length reduced from 10000 to 5000
+*&---------------------------------------------------------------------*
+*Modification log
+* Creation Date     : 20.12.2019
+* Author            : Pranita Taware
+* Functional design : FS_PP_206
+* Technical design  : TS_PP_206
+* Change request    : 8000005985
+* Transport number  : CRDK966558
+* Description       : To added the material created on column
+*&---------------------------------------------------------------------*
+*&  INCLUDE           ZPP_SEL_SCREEN
+*&---------------------------------------------------------------------*
+*Modification log
+* Creation Date     : 10.04.2020
+* Author            : Nilesh Dabhekar
+* Functional design : FS_PP_206
+* Technical design  : TS_PP_206
+* Change request    : 8000006175
+* Transport number  : CRDK969189
+* Description       : adde SFTP checkbox in ZLT_SLA
+*&---------------------------------------------------------------------*
+
+TABLES: QALS, WB2_V_VBAK_VBAP2.
+TYPES: BEGIN OF TY_PROD_MASTER,
+        MATNR        TYPE MARA-MATNR,
+        ersda        TYPE mara-ersda,  " lOC Added by pranita for 8000005985 on 20.12.2019
+        MAKTX        TYPE MAKT-MAKTX,
+        MTART        TYPE MARA-MTART,
+        MTBEZ        TYPE T134T-MTBEZ,
+        MSTAE        TYPE MARA-MSTAE,
+        MTSTB        TYPE T141T-MTSTB,
+        BISMT        TYPE MARA-BISMT,
+        ZBRAND_CODE  TYPE ZMM_MARA-ZBRAND_CODE,
+        ZBRAND_DESC  TYPE ZMM_MARA-ZBRAND_DESC,
+        MATKL        TYPE MARA-MATKL,
+        WGBEZ        TYPE T023T-WGBEZ,
+        LABOR        TYPE MARA-LABOR,
+        LBTXT        TYPE T024X-LBTXT,
+        EXTWG        TYPE MARA-EXTWG,
+        MEINS        TYPE MARA-MEINS,
+        SPART        TYPE MARA-SPART,
+        VTEXT        TYPE TSPAT-VTEXT,
+        MOLECULE     TYPE ZMDM_FAMILYDTL-MOLECULE,
+        STRENGTH(20),"     TYPE ZMDM_FAMILYDTL-STRENGTH,
+        STRENGTH1(20),"    TYPE ZMDM_FAMILYDTL-UOM,
+        MHDHB        TYPE MARA-MHDHB,
+      END OF TY_PROD_MASTER,
+
+      BEGIN OF TY_QM_MAT_REF,
+        MATNR         TYPE MARA-MATNR,
+        FAMILY_ID     TYPE ZMDM_FAMILYDTL-FAMILY_ID,
+      END OF TY_QM_MAT_REF,
+
+      BEGIN OF TY_PLANT_MASTER,
+        WERKS         TYPE T001W-WERKS,
+        NAME1         TYPE T001W-NAME1,
+        NAME2         TYPE T001W-NAME2,
+        LAND1         TYPE T001W-LAND1,
+        LANDX         TYPE T005T-LANDX,
+        REGIO         TYPE T001W-REGIO,
+        BEZEI         TYPE T005U-BEZEI,
+        PSTLZ         TYPE T001W-PSTLZ,
+        SORT1         TYPE ADRC-SORT1,
+      END OF TY_PLANT_MASTER,
+
+      BEGIN OF TY_CUST_MAS,
+        KUNNR         TYPE KNA1-KUNNR,
+        NAME1         TYPE KNA1-NAME1,
+        VKORG         TYPE KNVV-VKORG,
+        VTEXT_VKORG   TYPE TVKOT-VTEXT,
+        VTWEG         TYPE KNVV-VTWEG,
+        VTEXT_VTWEG   TYPE TVTWT-VTEXT,
+        SPART         TYPE KNVV-SPART,
+        VTEXT_SPART   TYPE TSPAT-VTEXT,
+        LAND1         TYPE KNA1-LAND1,
+        LANDX         TYPE T005T-LANDX,
+        REGIO         TYPE KNA1-REGIO,
+        BEZEI_T005U   TYPE T005U-BEZEI,
+        PSTLZ         TYPE KNA1-PSTLZ,
+        KDGRP         TYPE KNVV-KDGRP,
+        KTEXT         TYPE T151T-KTEXT,
+        BZIRK         TYPE KNVV-BZIRK,
+        BZTXT         TYPE T171T-BZTXT,
+        VKGRP         TYPE KNVV-VKGRP,
+        BEZEI_TVGRT   TYPE TVGRT-BEZEI,
+        VKBUR         TYPE KNVV-VKBUR,
+        BEZEI_TVKBT   TYPE TVKBT-BEZEI,
+        VWERK         TYPE KNVV-VWERK,
+      END OF TY_CUST_MAS,
+
+      BEGIN OF ty_vend_mas,
+        lifnr         TYPE lfa1-lifnr,
+        name1         TYPE lfa1-name1,
+        land1         TYPE lfa1-land1,
+        landx         TYPE t005t-landx,
+        regio         TYPE lfa1-regio,
+        bezei_t005u   TYPE t005u-BEZEI,
+        pstlz         TYPE lfa1-pstlz,
+        ktokk         TYPE lfa1-ktokk,
+        txt30         TYPE t077y-txt30,
+      END OF ty_vend_mas,
+
+      BEGIN OF TY_TTSLAM,
+        SUP_PLANT     TYPE ZLR_TRANS-SUP_PLANT,
+        REC_PLANT     TYPE ZLR_TRANS-REC_PLANT,
+        ROUTE         TYPE ZLR_TRANS-ROUTE,
+        ZNDAYS        TYPE ZLR_TRANS-NDAYS,
+      END OF TY_TTSLAM,
+
+      BEGIN OF ty_bonus,
+        KAPPL         TYPE KOTN902-KAPPL,
+        KSCHL         TYPE KOTN902-KSCHL,
+        VKORG         TYPE KOTN902-VKORG,
+        VTWEG         TYPE KOTN902-VTWEG,
+        WERKS         TYPE KOTN902-WERKS,
+        MATNR         TYPE KOTN902-MATNR,
+        VALID_To(8),"      TYPE KOTN902-DATBI,
+        VALID_F(8),"       TYPE KOTN902-DATAB,
+        KNUMH         TYPE KOTN902-KNUMH,
+        KNRMM(20),"         TYPE KONDN-KNRMM,
+        KNRZM(20),"        TYPE KONDN-KNRZM,
+        BONUS(20),"         TYPE KONDN-KNRZM,
+        DAYS(10),"          TYPE I,"          KOTN902-DATBI – KOTN902-DATAB + 1
+      END OF ty_bonus,
+
+      BEGIN OF ty_op_stock,
+        MATNR         TYPE ZMRPDASH_STOCK-MATNR,
+        WERKS         TYPE ZMRPDASH_STOCK-WERKS,
+        LGORT         TYPE ZMRPDASH_STOCK-lgort,
+        CHARG         TYPE ZMRPDASH_STOCK-CHARG,
+        HSDAT(8),
+        LWEDT(8),
+        VFDAT(8),
+        MEINS         TYPE ZMRPDASH_STOCK-MEINS,
+        QUAN_UN(20),"       TYPE ZMRPDASH_STOCK-quan,
+        QUAN(20),"          TYPE ZMRPDASH_STOCK-quan,
+      END OF ty_op_stock,
+
+      BEGIN OF ty_po_sto,
+        matnr         TYPE ekpo-matnr,
+        ebeln         TYPE ekpo-ebeln,
+        ebelp         TYPE ekpo-ebelp,
+        etenr         TYPE WSUBST_SWITCHDAT-PO_SCHED_NO,
+        LOEKZ         TYPE ekpo-loekz,
+        ELIKZ         TYPE ekpo-elikz,
+        EGLKZ         TYPE ekpo-eglkz,
+        AEDAT(8),                 " TYPE ekko-aedat,
+        RELEASE_DATE(8),          " TYPE ekpo-,
+        RESWK         TYPE ekko-RESWK,
+        LIFNR         TYPE ekko-lifnr,
+        WERKS         TYPE ekpo-werks,
+        EINDT(8),"         TYPE ekpo-,
+        NETWR(20),"         TYPE ekpo-netwr,
+        PEINH(5),"         TYPE ekpo-peinh,
+        MENGE(20),"         TYPE eket-menge,
+        MEINS         TYPE ekpo-meins,
+      END OF ty_po_sto,
+
+      BEGIN OF ty_zlt_sla,
+        LV_TXT_1(30),           "status(4)         TYPE c,
+        LV_TXT_2(30),           "werks(10),"             TYPE marc-werks,
+        LV_TXT_3(30),           "werks_name(30),"        TYPE t001w-name1,
+        LV_TXT_4(30),           "matnr(30),"             TYPE marc-matnr,
+        LV_TXT_5(30),           "mtart(30),"             TYPE mara-mtart,
+        LV_TXT_6(30),           "maktx(30),"             TYPE makt-maktx,
+        LV_TXT_7(30),           "matkl(30),"             TYPE mara-matkl,
+        LV_TXT_8(30),           "wgbez(30),"             TYPE t023t-wgbez,
+        LV_TXT_9(30),           "charg(30),"             TYPE qals-charg,
+        LV_TXT_10(30),           "prueflos(30),"          TYPE qals-prueflos,
+        LV_TXT_11(30),           "art(30),"               TYPE qals-art,
+        LV_TXT_12(30),           "kurztext(30),"          TYPE tq30t-kurztext,
+        LV_TXT_13(30),           "herkunft(30),"          TYPE qals-herkunft,
+        LV_TXT_14(30),           "ersteldat(30),"         TYPE qals-ersteldat,
+        LV_TXT_15(30),           "rel_date(30),"          TYPE jcds-udate,
+        LV_TXT_16(30),           "apgr_date(30),"         TYPE jcds-udate,
+        LV_TXT_17(30),           "ar_no(30),"             TYPE qals-ar_no,
+        LV_TXT_18(30),           "sample_qty(30),"        TYPE mseg-budat_mkpf,
+        LV_TXT_19(30),           "reinspect(30),"         TYPE qals-reinspect,
+        LV_TXT_20(30),           "zretest_date(30),"      TYPE qals-zretest_date,
+        LV_TXT_21(30),           "exp_date(30),"          TYPE char30,
+        LV_TXT_22(30),           "inco_date(30),"         TYPE jcds-udate,
+        LV_TXT_23(30),           "vdatum(30),"            TYPE qave-vdatum,
+        LV_TXT_24(30),           "rel_apgr_days(5)  TYPE c,
+        LV_TXT_25(30),           "rel_inco_days(5)  TYPE c,
+        LV_TXT_26(30),           "apgr_inco_days(5) TYPE c,
+        LV_TXT_27(30),           "inco_ud_days(5)   TYPE c,
+        LV_TXT_28(30),           "ud_ersteldat_days(5)  TYPE c,
+        LV_TXT_29(30),           "ud_rel_days(5)    TYPE c,
+        LV_TXT_30(30),           "ud_apgr_days(5)   TYPE c,
+        LV_TXT_31(30),           "rel_ersteldat(5)  TYPE c,
+        LV_TXT_32(30),           "apgr_ud_days(5)   TYPE c,
+        LV_TXT_33(30),           "webaz(3),"             TYPE marc-webaz,
+        LV_TXT_34(30),           "lead_time(6)      TYPE c,
+        LV_TXT_35(30),           "gr_date(30),"           TYPE mseg-budat_mkpf,
+        LV_TXT_36(30),           "aufnr(30),"             TYPE qals-aufnr,
+        LV_TXT_37(30),           "kdauf(30),"             TYPE afpo-kdauf,
+        LV_TXT_38(30),           "kdpos(30),"             TYPE afpo-kdpos,
+        LV_TXT_39(30),           "selmatnr(30),"          TYPE qals-selmatnr,
+        LV_TXT_40(30),           "text(300)         TYPE c,
+        LV_TXT_41(30),           "tent_date(30),"         TYPE begda,
+        LV_TXT_42(30),           "txt04(30),"             TYPE tj30t-txt04,
+        LV_TXT_43(30),           "user_stat(100)    TYPE c,
+        LV_TXT_44(30),           "sla_inco(5)       TYPE c,
+        LV_TXT_45(30),           "sla_ud(5)         TYPE c,
+        LV_TXT_46(30),           "mark(30),"              TYPE c,
+        LV_TXT_47(30),           "ud_kurztext(30),"       TYPE qpct-kurztext,
+        LV_TXT_48(30),           "hsdat(30),"             TYPE mch1-hsdat,
+        LV_TXT_49(30),           "txt(30),"               TYPE t003p-txt,
+        LV_TXT_50(30),           "kunnr(30),"             TYPE kna1-name1,
+        LV_TXT_51(30),           "landx(30),"             TYPE  t005t-landx,
+        LV_TXT_52(30),           "po_stat(150)      TYPE  c,
+      END OF ty_zlt_sla,
+
+      BEGIN OF TY_STOCK_MOV,
+        BLDAT         TYPE     MKPF-BLDAT,
+        MBLNR         TYPE     MSEG-MBLNR,
+        ZEILE         TYPE     MSEG-ZEILE,
+        MJAHR         TYPE     MSEG-MJAHR,
+        BWART         TYPE     MSEG-BWART,
+        BTEXT         TYPE     T156T-BTEXT,
+        MATNR         TYPE     MSEG-MATNR,
+        WERKS         TYPE     MSEG-WERKS,
+        LGORT         TYPE     MSEG-LGORT,
+        CHARG         TYPE     MSEG-CHARG,
+        MENGE(20),"     TYPE     MSEG-MENGE,
+        MEINS         TYPE     MSEG-MEINS,
+        EBELN         TYPE     MSEG-EBELN,
+        EBELP         TYPE     MSEG-EBELP,
+      END OF TY_STOCK_MOV,
+
+      BEGIN OF ty_d2d,
+        werks            TYPE ekbe-werks,
+        matnr_fg         TYPE matnr,
+        maktx_fg         TYPE tdline,
+        charg_fg         TYPE ekbe-charg,
+        ebeln            TYPE string,
+        vbeln            TYPE string,
+        menge_sto        TYPE ekbe-menge,
+        menge_fg         TYPE ekbe-menge,
+        budat(10)        TYPE c,
+        aufnr            TYPE afpo-aufnr,
+        fgdis_date(10)   TYPE c,
+        fggr_date(10)    TYPE c,
+        vdatum(10)       TYPE c,
+        charg_bfg        TYPE ekbe-charg,
+        aufnr_bfg        TYPE afpo-aufnr,
+        matnr_bfg        TYPE afpo-matnr,
+        matnr_bfg_1      TYPE afpo-matnr,
+        dis_date_bfg(10) TYPE c,
+        gr_date_bfg(10)  TYPE c,
+        vdatum_bfg(10)   TYPE c,
+        charg_bfg_int    TYPE ekbe-charg,
+        aufnr_bfg_int    TYPE afpo-aufnr,
+        matnr_bfg_int    TYPE afpo-matnr,
+        dis_date_bfg_int(10) TYPE c,
+        gr_date_bfg_int(10)  TYPE c,
+        vdatum_bfg_int(10)   TYPE c,
+        lead_time        TYPE vtbbewe-atage,
+        dosage_form      TYPE t023t-wgbez,
+        name1            TYPE kna1-name1,
+        landx            TYPE t005t-landx,
+        fgdate(10)           TYPE c,
+        pack_size(20),"        TYPE p DECIMALS 3,
+        dis_qty(20),"          TYPE ekbe-menge,
+        meinh(3),"            TYPE marm-meinh,
+        END OF ty_d2d,
+
+        BEGIN OF ty_credit,
+          vbeln       TYPE vbuk-vbeln,
+          cmgst       TYPE vbuk-cmgst,
+          cmpsb       TYPE vbuk-cmpsb,
+        END OF ty_credit,
+
+        BEGIN OF ty_char,
+          LV_CHAR1(50),
+          LV_CHAR2(50),
+          LV_CHAR3(50),
+          LV_CHAR4(50),
+          LV_CHAR5(50),
+          LV_CHAR6(50),
+          LV_CHAR7(50),
+          LV_CHAR8(50),
+          LV_CHAR9(50),
+          LV_CHAR10(50),
+          LV_CHAR11(50),
+          LV_CHAR12(50),
+          LV_CHAR13(50),
+          LV_CHAR14(50),
+          LV_CHAR15(50),
+          LV_CHAR16(50),
+          LV_CHAR17(50),
+          LV_CHAR18(50),
+          LV_CHAR19(50),
+          LV_CHAR20(50),
+          LV_CHAR21(50),
+          LV_CHAR22(50),
+          LV_CHAR23(50),
+          LV_CHAR24(50),
+          LV_CHAR25(50),
+          LV_CHAR26(50),
+          LV_CHAR27(50),
+          LV_CHAR28(50),
+          LV_CHAR29(50),
+          LV_CHAR30(50),
+          LV_CHAR31(50),
+          LV_CHAR32(50),
+          LV_CHAR33(50),
+          LV_CHAR34(50),
+          LV_CHAR35(50),
+          LV_CHAR36(50),
+          LV_CHAR37(50),
+          LV_CHAR38(50),
+          LV_CHAR39(50),
+          LV_CHAR40(50),
+          LV_CHAR41(50),
+          LV_CHAR42(50),
+          LV_CHAR43(50),
+          LV_CHAR44(50),
+          LV_CHAR45(50),
+          LV_CHAR46(50),
+          LV_CHAR47(50),
+          LV_CHAR48(50),
+          LV_CHAR49(50),
+          LV_CHAR50(50),
+          LV_CHAR51(50),
+          LV_CHAR52(50),
+          LV_CHAR53(50),
+          LV_CHAR54(50),
+          LV_CHAR55(50),
+          LV_CHAR56(50),
+          LV_CHAR57(50),
+          LV_CHAR58(50),
+          LV_CHAR59(50),
+          LV_CHAR60(50),
+          LV_CHAR61(50),
+          LV_CHAR62(50),
+          LV_CHAR63(50),
+          LV_CHAR64(50),
+          LV_CHAR65(50),
+          LV_CHAR66(50),
+          LV_CHAR67(50),
+          LV_CHAR68(50),
+          LV_CHAR69(50),
+          LV_CHAR70(50),
+          LV_CHAR71(50),
+          LV_CHAR72(50),
+          LV_CHAR73(50),
+          LV_CHAR74(50),
+          LV_CHAR75(50),
+          LV_CHAR76(50),
+          LV_CHAR77(50),
+          LV_CHAR78(50),
+          LV_CHAR79(50),
+          LV_CHAR80(50),
+          LV_CHAR81(50),
+          LV_CHAR82(50),
+          LV_CHAR83(50),
+          LV_CHAR84(50),
+          LV_CHAR85(50),
+          LV_CHAR86(50),
+          LV_CHAR87(50),
+          LV_CHAR88(50),
+          LV_CHAR89(50),
+          LV_CHAR90(50),
+          LV_CHAR91(50),
+          LV_CHAR92(50),
+          LV_CHAR93(50),
+          LV_CHAR94(50),
+          LV_CHAR95(50),
+          LV_CHAR96(50),
+          LV_CHAR97(50),
+          LV_CHAR98(50),
+          LV_CHAR99(50),
+          LV_CHAR100(50),
+          LV_CHAR101(50),
+          LV_CHAR102(50),
+          LV_CHAR103(50),
+          LV_CHAR104(50),
+          LV_CHAR105(50),
+          LV_CHAR106(50),
+          LV_CHAR107(50),
+          LV_CHAR108(50),
+          LV_CHAR109(50),
+          LV_CHAR110(50),
+          LV_CHAR111(50),
+          LV_CHAR112(50),
+          LV_CHAR113(50),
+          LV_CHAR114(50),
+          LV_CHAR115(50),
+          LV_CHAR116(50),
+          LV_CHAR117(50),
+          LV_CHAR118(50),
+          LV_CHAR119(50),
+          LV_CHAR120(50),
+          LV_CHAR121(50),
+          LV_CHAR122(50),
+          LV_CHAR123(50),
+          LV_CHAR124(50),
+          LV_CHAR125(50),
+          LV_CHAR126(50),
+          LV_CHAR127(50),
+          LV_CHAR128(50),
+          LV_CHAR129(50),
+          LV_CHAR130(50),
+          LV_CHAR131(50),
+          LV_CHAR132(50),
+          LV_CHAR133(50),
+          LV_CHAR134(50),
+          LV_CHAR135(50),
+          LV_CHAR136(50),
+          LV_CHAR137(50),
+          LV_CHAR138(50),
+          LV_CHAR139(50),
+          LV_CHAR140(50),
+          LV_CHAR141(50),
+          LV_CHAR142(50),
+          LV_CHAR143(50),
+          LV_CHAR144(50),
+          LV_CHAR145(50),
+          LV_CHAR146(50),
+          LV_CHAR147(50),
+          LV_CHAR148(50),
+          LV_CHAR149(50),
+          LV_CHAR150(50),
+          LV_CHAR151(50),
+          LV_CHAR152(50),
+          LV_CHAR153(50),
+          LV_CHAR154(50),
+          LV_CHAR155(50),
+          LV_CHAR156(50),
+          LV_CHAR157(50),
+          LV_CHAR158(50),
+          LV_CHAR159(50),
+          LV_CHAR160(50),
+          LV_CHAR161(50),
+          LV_CHAR162(50),
+          LV_CHAR163(50),
+          LV_CHAR164(50),
+          LV_CHAR165(50),
+          LV_CHAR166(50),
+          LV_CHAR167(50),
+          LV_CHAR168(50),
+          LV_CHAR169(50),
+          LV_CHAR170(50),
+          LV_CHAR171(50),
+          LV_CHAR172(50),
+          LV_CHAR173(50),
+          LV_CHAR174(50),
+          LV_CHAR175(50),
+          LV_CHAR176(50),
+          LV_CHAR177(50),
+          LV_CHAR178(50),
+          LV_CHAR179(50),
+          LV_CHAR180(50),
+          LV_CHAR181(50),
+          LV_CHAR182(50),
+          LV_CHAR183(50),
+          LV_CHAR184(50),
+          LV_CHAR185(50),
+          LV_CHAR186(50),
+          LV_CHAR187(50),
+          LV_CHAR188(50),
+          LV_CHAR189(50),
+          LV_CHAR190(50),
+          LV_CHAR191(50),
+          LV_CHAR192(50),
+          LV_CHAR193(50),
+          LV_CHAR194(50),
+          LV_CHAR195(50),
+          LV_CHAR196(50),
+          LV_CHAR197(50),
+          LV_CHAR198(50),
+          LV_CHAR199(50),
+          LV_CHAR200(50),
+        END OF ty_char,
+
+        BEGIN OF ty_ftp,
+         line(10000) TYPE c,
+       END OF ty_ftp.
+TYPES:BEGIN OF ty_final1,
+      werks             TYPE marc-werks,
+      werks_name        TYPE t001w-name1,
+      matnr             TYPE marc-matnr,
+      mtart             TYPE mara-mtart,
+      maktx             TYPE makt-maktx,
+      matkl             TYPE mara-matkl,
+      wgbez             TYPE t023t-wgbez,
+      charg             TYPE qals-charg,
+      prueflos          TYPE qals-prueflos,
+      art               TYPE qals-art,
+      kurztext          TYPE tq30t-kurztext,
+      herkunft          TYPE qals-herkunft,
+      ersteldat         TYPE qals-ersteldat,
+      rel_date          TYPE jcds-udate,
+      apgr_date         TYPE jcds-udate,
+      ar_no             TYPE qals-ar_no,
+      sample_qty        TYPE mseg-budat_mkpf,
+      reinspect         TYPE qals-reinspect,
+      zretest_date      TYPE qals-zretest_date,
+      exp_date          TYPE char30,
+      inco_date         TYPE jcds-udate,
+      vdatum            TYPE qave-vdatum,
+      rel_apgr_days(5)  TYPE c,
+      rel_inco_days(5)  TYPE c,
+      apgr_inco_days(5) TYPE c,
+      inco_ud_days(5)   TYPE c,
+      ud_ersteldat_days(5)  TYPE c,
+      ud_rel_days(5)    TYPE c,
+      ud_apgr_days(5)   TYPE c,
+      rel_ersteldat(5)  TYPE c,
+      apgr_ud_days(5)   TYPE c,
+      webaz             TYPE marc-webaz,
+      lead_time(6)      TYPE c,
+      gr_date           TYPE mseg-budat_mkpf,
+      aufnr             TYPE qals-aufnr,
+      kdauf             TYPE afpo-kdauf,
+      kdpos             TYPE afpo-kdpos,
+      selmatnr          TYPE qals-selmatnr,
+      text(210)         TYPE c,
+      tent_date         TYPE begda,
+      txt04             TYPE tj30t-txt04,
+      user_stat(100)    TYPE c,
+      sla_inco(5)       TYPE c,
+      sla_ud(5)         TYPE c,
+      mark              TYPE c,
+      status(4)         TYPE c,
+      ud_kurztext       TYPE qpct-kurztext,
+      hsdat             TYPE mch1-hsdat,
+      txt               TYPE t003p-txt,
+      kunnr             TYPE kna1-name1,
+      landx             TYPE t005t-landx,
+      po_stat(150)      TYPE  c,
+      END OF ty_final1.
+
+DATA:ta_final1 TYPE TABLE OF ty_final1.
+DATA: ls_data TYPE REF TO data.
+*DATA: ls_data TYPE REF TO data.
+FIELD-SYMBOLS: <fs_data> TYPE ANY TABLE,
+               <fs_wa> TYPE ANY.
+
+DATA : g_dest         TYPE rfcdes-rfcdest VALUE 'SAPFTPA',
+       g_hdl          TYPE i,
+       exp5           TYPE c,
+       lv_file        TYPE char300,
+       lv_file1       TYPE char300,
+       lv_tab(1) value '|',"         TYPE c VALUE cl_abap_char_utilities=>horizontal_tab,
+*       lv_tab         TYPE c VALUE cl_abap_char_utilities=>horizontal_tab,
+       wa_FTP         TYPE ty_ftp,
+       ta_ftp         TYPE TABLE OF ty_ftp.
+
+DATA: WA_PROD_MAST    TYPE TY_PROD_MASTER,
+      WA_PLANT_MAST   TYPE TY_PLANT_MASTER,
+      WA_MRPDASH_MAS  TYPE ZMRPDASH_MAIN,
+      WA_CUST_MAST    TYPE TY_CUST_MAS,
+      wa_vend_mast    TYPE ty_vend_mas,
+      WA_TTSLAM       TYPE TY_TTSLAM,
+      WA_BONUS        TYPE ty_bonus,
+      wa_op_stock     TYPE ty_op_stock,
+      wa_po_sto       TYPE ty_po_sto,
+      wa_zltsla       TYPE ty_zlt_sla,
+      WA_STOCK_MOV    TYPE TY_STOCK_MOV,
+      wa_d2d          TYPE ty_d2d,
+      wa_credit       TYPE ty_credit,
+      wa_char         TYPE ty_char,
+      TA_PROD_MAST    TYPE TABLE OF TY_PROD_MASTER,
+      TA_PLANT_MAST   TYPE TABLE OF TY_PLANT_MASTER,
+      TA_MRPDASH_MAS  TYPE TABLE OF ZMRPDASH_MAIN,
+      TA_CUST_MAST    TYPE TABLE OF TY_CUST_MAS,
+      ta_vend_mast    TYPE TABLE OF ty_vend_mas,
+      TA_TTSLAM       TYPE TABLE OF TY_TTSLAM,
+      TA_BONUS        TYPE TABLE OF TY_BONUS,
+      TA_OP_STOCK     TYPE TABLE OF ty_op_stock,
+      TA_PO_STO       TYPE TABLE OF TY_PO_STO,
+      ta_zltsla       TYPE TABLE OF ty_zlt_sla,
+      TA_STOCK_MOV    TYPE TABLE OF TY_STOCK_MOV,
+      TA_D2D          TYPE TABLE OF ty_d2d,
+      TA_CREDIT       TYPE TABLE OF ty_credit,
+      ta_char         TYPE TABLE OF ty_char.
+
+DATA: v_werks         TYPE marc-werks,
+      v_matnr         TYPE matnr,
+      v_mtart         TYPE mara-mtart,
+      v_matkl         TYPE mara-matkl,
+      v_charg         TYPE mch1-charg,
+      v_prueflos      TYPE qals-prueflos,
+      v_art           TYPE qals-art,
+      v_vdatum        TYPE qvedatum,
+      v_enstehdat     TYPE qals-enstehdat,
+      lv_webaz        TYPE dlydy,
+      v_apgr          TYPE jcds-udate,
+      v_inco          TYPE jcds-udate,
+      v_bsart         TYPE ekko-bsart,
+      lv_flag(1).
+SELECTION-SCREEN: BEGIN OF BLOCK abc WITH FRAME TITLE TEXT-001.
+********* "SELECTION SCREEN FOR PRODUCT MASTER*********************************
+PARAMETERS: P_PROD_M        AS CHECKBOX USER-COMMAND P01.
+SELECT-OPTIONS: S_MATNR     FOR   WA_PROD_MAST-MATNR MODIF ID S1,
+                S_MTART     FOR   WA_PROD_MAST-MTART MODIF ID S2,
+                S_LABOR     FOR   WA_PROD_MAST-LABOR MODIF ID S3.
+SELECTION-SCREEN: END OF BLOCK abc.
+********"SELECTION SCREEN FOR PLANT MASTER************************************
+SELECTION-SCREEN:BEGIN OF BLOCK abd WITH FRAME TITLE TEXT-004.
+PARAMETERS:     P_PLNT_M    AS CHECKBOX USER-COMMAND P02.
+SELECT-OPTIONS: S_WERKSM    FOR WA_PLANT_MAST-WERKS MODIF ID S4,
+                S_NAME2     FOR WA_PLANT_MAST-NAME2 MODIF ID S5,
+                S_LAND1     FOR WA_PLANT_MAST-LAND1 MODIF ID S6.
+SELECTION-SCREEN: END OF BLOCK abd.
+**************" SELECTION SCREEN FOR MRP Dashboard Master******************
+SELECTION-SCREEN: BEGIN OF BLOCK abe WITH FRAME TITLE TEXT-005.
+PARAMETERS: P_MRP_DA        AS CHECKBOX USER-COMMAND P03.
+SELECT-OPTIONS: S_MAT_LM    FOR WA_PROD_MAST-MATNR    MODIF ID S7,
+                S_WERKLM    FOR WA_PLANT_MAST-WERKS   MODIF ID S8,
+                S_MTATLM    FOR WA_PROD_MAST-MTART    MODIF ID S9,
+                s_dash_t    FOR wa_mrpdash_mas-type1  MODIF ID S0 no INTERVALS.
+SELECTION-SCREEN: END OF BLOCK abe.
+***************"SELECTION SCREEN FOR CUSTOMER MASTER***********************
+SELECTION-SCREEN: BEGIN OF BLOCK abf WITH FRAME TITLE TEXT-006.
+PARAMETERS: P_CUST_M    AS CHECKBOX USER-COMMAND P04.
+SELECT-OPTIONS: S_KUNNR     FOR WA_CUST_MAST-KUNNR MODIF ID SA,
+                S_VKORG     FOR WA_CUST_MAST-VKORG MODIF ID SB,
+                S_VTWEG     FOR WA_CUST_MAST-VTWEG MODIF ID SC,
+                S_LANDC     FOR WA_CUST_MAST-LAND1 MODIF ID SD.
+SELECTION-SCREEN: END OF BLOCK abf.
+***************"SELECTION SCREEN FOR VENDOR MASTER****************************
+SELECTION-SCREEN: BEGIN OF BLOCK abg WITH FRAME TITLE TEXT-007.
+PARAMETERS: P_VEND  AS CHECKBOX USER-COMMAND P05.
+SELECT-OPTIONS: s_lifnr    FOR wa_vend_mast-lifnr MODIF ID SE,
+                s_ktokk    FOR wa_vend_mast-ktokk MODIF ID SF.
+SELECTION-SCREEN: END OF BLOCK abg.
+***************"SELECTION SCREEN FOR TRANSIT TIME SLA MASTER******************
+SELECTION-SCREEN: BEGIN OF BLOCK abh WITH FRAME TITLE TEXT-008.
+PARAMETERS: P_TTSLAM       AS CHECKBOX USER-COMMAND P06.
+SELECT-OPTIONS: S_SWERK    FOR  WA_TTSLAM-SUP_PLANT     MODIF ID SG,
+                S_RWERK    FOR  WA_TTSLAM-REC_PLANT     MODIF ID SH,
+                S_ROUTE    FOR  WA_TTSLAM-ROUTE   MODIF ID SI.
+SELECTION-SCREEN: END OF BLOCK abh.
+*********************"SELECTION SCREEN FOR BONUS DATA ************************
+SELECTION-SCREEN: BEGIN OF BLOCK abi WITH FRAME TITLE TEXT-009.
+PARAMETERS: P_BONUS        AS CHECKBOX USER-COMMAND P07.
+SELECT-OPTIONS: S_KAPPL    FOR WA_BONUS-KAPPL     MODIF ID SJ,
+                S_KSCHL    FOR WA_BONUS-KSCHL     MODIF ID SK,
+                S_VKORGB   FOR WA_BONUS-VKORG     MODIF ID SL,
+                S_VTWEGB   FOR WA_BONUS-VTWEG     MODIF ID SM,
+                S_WERKSB   FOR WA_BONUS-WERKS     MODIF ID SN,
+                S_MATNRB   FOR WA_BONUS-MATNR     MODIF ID SO,
+                S_DATBI    FOR WA_BONUS-valid_to  MODIF ID SP,
+                S_DATAB    FOR WA_BONUS-VALID_F   MODIF ID SQ.
+SELECTION-SCREEN: END OF BLOCK abi.
+***************"SELECTION SCREEN FOR OPENING STOCK ***************************
+SELECTION-SCREEN: BEGIN OF BLOCK abj WITH FRAME TITLE TEXT-010.
+PARAMETERS: P_O_STK         AS CHECKBOX USER-COMMAND P08.
+SELECT-OPTIONS: s_matnro    FOR wa_op_stock-MATNR MODIF ID SR,
+                s_werkso    FOR wa_op_stock-WERKS MODIF ID SS,
+                s_lgort     FOR wa_op_stock-lgort MODIF ID ST.
+SELECTION-SCREEN: END OF BLOCK abj.
+***************"SELECTION SCREEN FOR ALL PO/STO ******************************
+SELECTION-SCREEN: BEGIN OF BLOCK abk WITH FRAME TITLE TEXT-011.
+PARAMETERS: P_PO_STO        AS CHECKBOX USER-COMMAND P09.
+SELECT-OPTIONS: S_EBELNP    FOR WA_PO_STO-EBELN,
+                S_EBELPP    FOR WA_PO_STO-EBELP,
+                S_BSARTP    FOR v_bsart,
+                S_MATNRP    FOR WA_PO_STO-MATNR,
+                S_WERKSP    FOR WA_PO_STO-WERKS,
+                S_AEDATP    FOR qals-PAENDTERM.
+SELECTION-SCREEN: BEGIN OF LINE.
+PARAMETERS: PO_R1           RADIOBUTTON GROUP 21 USER-COMMAND smd.
+SELECTION-SCREEN COMMENT 2(15) text-0a1 for FIELD PO_R1.
+PARAMETERS: PO_R2           RADIOBUTTON GROUP 21 DEFAULT 'X'.
+SELECTION-SCREEN COMMENT 20(20) text-0a2 FOR FIELD PO_R2.
+PARAMETERS: PO_R3           RADIOBUTTON GROUP 21.
+SELECTION-SCREEN COMMENT 45(20) text-0a3 for FIELD PO_R3.
+SELECTION-SCREEN: END OF LINE.
+SELECTION-SCREEN: END OF BLOCK abk.
+***************"SELECTION SCREEN FOR BILL OF MATERIALS ***********************
+SELECTION-SCREEN: BEGIN OF BLOCK abl WITH FRAME TITLE TEXT-012.
+PARAMETERS: P_BOM           AS CHECKBOX USER-COMMAND P10.
+SELECT-OPTIONS: s_laborb    for WA_PROD_MAST-labor.
+SELECTION-SCREEN: END OF BLOCK abl.
+***************"SELECTION SCREEN FOR ZLT_SLA *********************************
+SELECTION-SCREEN: BEGIN OF BLOCK abm WITH FRAME TITLE TEXT-013.
+PARAMETERS:     P_ZLTSLA    AS CHECKBOX USER-COMMAND P11.
+PARAMETERS:     P_SFTP      AS CHECKBOX USER-COMMAND P11. "LOC added By Nilesh 16.04.2020 8000006175
+SELECT-OPTIONS: s_werksz    FOR v_werks,
+                s_matnrz    FOR v_matnr,
+                s_mtartz    FOR v_mtart,
+                s_matklz    FOR v_matkl,
+                s_chargz    FOR v_charg,
+                s_inslot    FOR v_prueflos,
+                s_art       FOR v_art,
+                s_vdatum    FOR v_vdatum,
+                s_past      FOR v_enstehdat,
+                s_apgr      FOR v_apgr,
+                s_inco      FOR v_inco.
+SELECTION-SCREEN: BEGIN OF LINE.
+PARAMETERS: lt_r1 RADIOBUTTON GROUP LT USER-COMMAND ZLT.
+SELECTION-SCREEN COMMENT 2(15) TEXT-0A1 FOR FIELD LT_R1.
+PARAMETERS: lt_r2 RADIOBUTTON GROUP LT DEFAULT 'X'.
+SELECTION-SCREEN COMMENT 20(20) TEXT-0A2 FOR FIELD LT_R2.
+PARAMETERS: lt_r3 RADIOBUTTON GROUP LT.
+SELECTION-SCREEN COMMENT 45(20) TEXT-0A3 FOR FIELD LT_R3.
+SELECTION-SCREEN: END OF LINE.
+SELECTION-SCREEN: END OF BLOCK abm.
+***************"SELECTION SCREEN FOR QA33 ************************************
+SELECTION-SCREEN BEGIN OF BLOCK abn WITH FRAME TITLE text-014.
+PARAMETERS:     P_QA33      AS CHECKBOX USER-COMMAND P12,
+                P_SELID     TYPE  RQELA-selid.
+SELECT-OPTIONS: QL_ENSTD    FOR   v_enstehdat,
+                QL_PASTR    FOR   QALS-PASTRTERM,
+                QL_PAEND    FOR   QALS-PAENDTERM,
+                QL_WERKS    FOR   QALS-WERK,
+                QL_HERKT    FOR   QALS-HERKUNFT,
+                QL_MATNR    FOR   QALS-MATNR,
+                QL_CHARG    FOR   QALS-CHARG,
+                QL_LIFNR    FOR   QALS-LIFNR,
+                QL_HERST    FOR   QALS-HERSTELLER,
+                QL_KUNNR    FOR   QALS-KUNNR.
+PARAMETERS:     QL_VARI     TYPE RSVAR-VARIANT.
+SELECTION-SCREEN: END OF BLOCK abn.
+***************"SELECTION SCREEN FOR STOCK MOVEMENTS *************************
+SELECTION-SCREEN: BEGIN OF BLOCK abo WITH FRAME TITLE text-015.
+PARAMETERS:     P_STOCK     AS CHECKBOX USER-COMMAND P13.
+SELECT-OPTIONS: S_MJAHRS    FOR   WA_STOCK_MOV-MJAHR,
+                S_BLDAT     FOR   WA_STOCK_MOV-BLDAT,
+                S_MATNRS    FOR   WA_STOCK_MOV-MATNR,
+                S_WERKSS    FOR   WA_STOCK_MOV-WERKS,
+                S_BWARTS    FOR   WA_STOCK_MOV-BWART.
+SELECTION-SCREEN: BEGIN OF LINE.
+PARAMETERS: ST_R1 RADIOBUTTON GROUP ST USER-COMMAND ZSTO.
+SELECTION-SCREEN COMMENT 2(15) TEXT-0A1 FOR FIELD ST_R1.
+PARAMETERS: ST_R2 RADIOBUTTON GROUP ST DEFAULT 'X'.
+SELECTION-SCREEN COMMENT 20(20) TEXT-0A2 FOR FIELD ST_R2.
+PARAMETERS: ST_R3 RADIOBUTTON GROUP ST.
+SELECTION-SCREEN COMMENT 45(20) TEXT-0A3 FOR FIELD ST_R3.
+SELECTION-SCREEN: END OF LINE.
+SELECTION-SCREEN: END OF BLOCK ABO.
+***************"SELECTION SCREEN FOR DISPENSE TO DISPATCH ********************
+SELECTION-SCREEN: BEGIN OF BLOCK abp WITH FRAME TITLE text-016.
+PARAMETERS:     P_D2D       AS CHECKBOX USER-COMMAND P14.
+SELECT-OPTIONS: D_WERKS     FOR QALS-WERK,
+                D_MATNR     FOR QALS-MATNR,
+                D_CHARG     FOR QALS-CHARG,
+                D_BFGMAT    FOR QALS-MATNR,
+                D_BFGCHA    FOR QALS-CHARG,
+                D_BUDAT     FOR QALS-PAENDTERM.
+SELECTION-SCREEN: END OF BLOCK abp.
+***************"SELECTION SCREEN FOR DEPOT LOSS REPORT (MI24) ****************
+SELECTION-SCREEN: BEGIN OF BLOCK abq WITH FRAME TITLE text-017.
+PARAMETERS:     P_MI24      AS CHECKBOX USER-COMMAND P15.
+SELECT-OPTIONS: IM_MATNR    FOR QALS-MATNR,
+                IM_WERKS    FOR QALS-WERK,
+                IM_ZLDAT    FOR qals-PAENDTERM.
+PARAMETERS:     im_vari     TYPE RSVAR-VARIANT.
+SELECTION-SCREEN: END OF BLOCK abq.
+***************"SELECTION SCREEN FOR CREDIT BLOCK STATUS AT MONTH END ********
+SELECTION-SCREEN: BEGIN OF BLOCK IJK WITH FRAME TITLE text-018.
+PARAMETERS:     P_CR_BLS        AS CHECKBOX USER-COMMAND P16.
+SELECT-OPTIONS: CR_VBELN    FOR WB2_V_VBAK_VBAP2-vbeln_i,
+                CR_POSNR    FOR WB2_V_VBAK_VBAP2-posnr_i,
+                CR_ERDAT    FOR WB2_V_VBAK_VBAP2-erdat_i,
+                CR_EDATU    FOR WB2_V_VBAK_VBAP2-vdatu,
+                CR_AUART    FOR WB2_V_VBAK_VBAP2-auart,
+                CR_VKORG    FOR WB2_V_VBAK_VBAP2-vkorg,
+                CR_VKBUR    FOR WB2_V_VBAK_VBAP2-vkbur,
+                CR_VTWEG    FOR WB2_V_VBAK_VBAP2-vtweg,
+                CR_SPART    FOR WB2_V_VBAK_VBAP2-spart_i,
+                CR_AUGRU    FOR WB2_V_VBAK_VBAP2-augru,
+                CR_ABGRU    FOR WB2_V_VBAK_VBAP2-abgru_i,
+                CR_CMGST    FOR wa_credit-cmgst,
+                CR_CMPSB    FOR wa_credit-cmpsb.
+SELECTION-SCREEN: BEGIN OF LINE.
+PARAMETERS: cr_r1 RADIOBUTTON GROUP r1 USER-COMMAND zcrd.
+SELECTION-SCREEN COMMENT 2(15) TEXT-0A1 FOR FIELD CR_R1.
+PARAMETERS: cr_r2 RADIOBUTTON GROUP r1 DEFAULT 'X'.
+SELECTION-SCREEN COMMENT 20(20) TEXT-0A2 FOR FIELD CR_R2.
+PARAMETERS: cr_r3 RADIOBUTTON GROUP r1.
+SELECTION-SCREEN COMMENT 45(20) TEXT-0A3 FOR FIELD CR_R3.
+SELECTION-SCREEN: END OF LINE.
+SELECTION-SCREEN: END OF BLOCK IJK.

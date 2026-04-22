@@ -1,0 +1,1834 @@
+*&---------------------------------------------------------------------*
+*& Report  ZMM_TRANSIT_STOCK
+*&---------------------------------------------------------------------*
+* Program
+* Title             : Stock in transit
+* Author            : Prakash Mali
+* Program Type      : Report
+* Creation Date     : 27.01.2015
+* Transaction       :
+* Functional design :
+* Technical design  :
+* Change request    :<CRDK917170>
+* Transport number  :
+* Description       :
+*&---------------------------------------------------------------------*
+* Modification Information
+* Date            : <11.03.2015>
+* Author          : <Prakash Mali>
+* Change request  : <change request number>
+* Transport number: <>
+* Description     : <Logic to fetch manufacture date is added for material and batch combination>
+*-----------------------------------------------------------------------**&---------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+* Modification Information
+* Date            : <29.07.2015>
+* Author          : <Sagar Gujar>
+* Change request  : <change request number>
+* Solman Id       : 8000000997
+* Transport number: <>
+* Description     : Table to store intransit records is created(ZMM_STOCK_TRAN) and updated through
+*                   same report
+*-----------------------------------------------------------------------**&------------------------*
+
+REPORT zmm_transit_stock_update.
+************************************************************************
+*                           Table Declarations
+************************************************************************
+TYPE-POOLS : slis.
+
+TABLES     : konp, mara, ekko, ekpo.
+*&---------------------------------------------------------------------*
+*&      TYPES DECLARATION
+*&---------------------------------------------------------------------*
+TYPES: BEGIN OF ty_ekko,
+        ebeln TYPE ekko-ebeln,
+        bsart TYPE ekko-bsart,
+        bedat TYPE ekko-bedat,
+        reswk TYPE ekko-reswk,
+       END OF ty_ekko,
+
+       BEGIN OF ty_ekpo,
+         ebeln TYPE ekpo-ebeln,
+         ebelp TYPE ekpo-ebelp,
+         bsart TYPE ekko-bsart,
+         txz01 TYPE ekpo-txz01,
+         matnr TYPE ekpo-matnr,
+         werks TYPE ekpo-werks,
+         menge TYPE ekpo-menge,
+         meins TYPE ekpo-meins,
+         matkl TYPE ekpo-matkl,
+         reswk TYPE ekko-reswk,
+         bedat TYPE ekko-bedat,
+       END OF ty_ekpo,
+
+       BEGIN OF ty_ekbe,
+         ebeln TYPE ekbe-ebeln,
+         ebelp TYPE ekbe-ebelp,
+         gjahr TYPE ekbe-gjahr,
+         belnr TYPE ekbe-belnr,
+         buzei TYPE ekbe-buzei,
+         bewtp TYPE ekbe-bewtp,
+         bwart TYPE ekbe-bwart,
+         budat TYPE ekbe-budat,
+         menge TYPE ekbe-menge, "30.01.15 Prakahs
+         dmbtr TYPE ekbe-dmbtr,
+         wrbtr TYPE ekbe-wrbtr,
+         waers TYPE ekbe-waers,
+         bwtar TYPE ekbe-bwtar, "10.02.15 prakash
+         shkzg TYPE ekbe-shkzg, "04.02.15 Prakash
+         xblnr TYPE ekbe-xblnr,
+************         added by prakash on 30.01.15
+         matnr TYPE ekbe-matnr, "10.02.15 Prakash
+         werks TYPE ekbe-werks, "10.02.15 Prakash
+         bamng TYPE ekbe-bamng, "10.02.15
+         charg TYPE ekbe-charg,
+         vbeln_st TYPE ekbe-vbeln_st,
+         vbelp_st TYPE ekbe-vbelp_st,
+         bsart TYPE ekko-bsart,
+         flag TYPE c,
+       END OF ty_ekbe,
+
+       BEGIN OF ty_lips,
+         vgbel TYPE lips-vgbel,
+         vgpos TYPE lips-vgpos,
+         vbeln TYPE lips-vbeln,
+         posnr TYPE lips-posnr,
+         matnr TYPE lips-matnr,
+         werks TYPE lips-werks,
+         charg TYPE lips-charg,
+       END OF ty_lips,
+
+       BEGIN OF ty_likp,
+         vbeln TYPE likp-vbeln,
+         vstel TYPE likp-vstel,
+         werks TYPE likp-werks,
+         inco2 TYPE likp-inco2,
+         bolnr TYPE likp-bolnr,
+         traty TYPE likp-traty,
+         traid TYPE likp-traid,
+       END OF ty_likp,
+
+       BEGIN OF ty_mkpf,
+         xblnr TYPE mkpf-xblnr,
+         mblnr TYPE mkpf-mblnr,
+         mjahr TYPE mkpf-mjahr,
+         blart TYPE mkpf-blart,
+         frbnr TYPE mkpf-frbnr,
+         bwart TYPE ekbe-bwart,
+       END OF ty_mkpf,
+
+       BEGIN OF ty_mseg,
+*         sjahr TYPE mseg-sjahr,
+*         smbln TYPE mseg-smbln,
+*         smblp TYPE mseg-smblp,
+*         mblnr TYPE mseg-mblnr,
+*         mjahr TYPE mseg-mjahr,
+*         ebeln TYPE mseg-ebeln,
+*         ebelp TYPE mseg-ebelp,
+*         zeile TYPE mseg-zeile,
+*         bwart TYPE mseg-bwart,
+         mblnr TYPE mseg-mblnr,
+         mjahr TYPE mseg-mjahr,
+         zeile TYPE mseg-zeile,
+         bwart TYPE mseg-bwart,
+         ebeln TYPE mseg-ebeln,
+         ebelp TYPE mseg-ebelp,
+         sjahr TYPE mseg-sjahr,
+         smbln TYPE mseg-smbln,
+         smblp TYPE mseg-smblp,
+       END OF ty_mseg,
+
+       BEGIN OF ty_mbew,
+         matnr TYPE mbew-matnr,
+         bwkey TYPE mbew-bwkey,
+         bwtar TYPE mbew-bwtar,
+         stprs TYPE mbew-stprs,
+         peinh TYPE mbew-peinh,
+         bklas TYPE mbew-bklas,
+       END OF ty_mbew,
+
+       BEGIN OF ty_mcha,
+         matnr TYPE mcha-matnr,
+         werks TYPE mcha-werks,
+         charg TYPE mcha-charg,
+         vfdat TYPE mcha-vfdat,
+         END OF ty_mcha,
+
+       BEGIN OF ty_vbfa,
+         vbelv TYPE vbfa-vbelv,
+*         vbtyp_n TYPE vbfa-vbtyp_n,
+         posnv TYPE vbfa-posnv,
+         vbeln TYPE vbfa-vbeln,
+         posnn TYPE vbfa-posnn,
+*         matnr TYPE vbfa-matnr,
+*         bwart TYPE vbfa-bwart,
+         erdat TYPE vbfa-erdat,
+         vbtyp_n TYPE vbfa-vbtyp_n,
+       END OF ty_vbfa,
+
+       BEGIN OF ty_vbrk,
+         vbeln TYPE vbrk-vbeln,
+         knumv TYPE vbrk-knumv,
+       END OF ty_vbrk,
+
+       BEGIN OF ty_konv,
+         knumv TYPE konv-knumv,
+         kposn TYPE konv-kposn,
+         kschl TYPE konv-kschl,
+         kbetr TYPE konv-kbetr,
+         kwert TYPE konv-kwert,
+       END OF ty_konv,
+
+       BEGIN OF ty_vbrp,
+         vbeln TYPE vbrp-vbeln,
+         posnr TYPE vbrp-posnr,
+         vgbel TYPE vbrp-vgbel,
+         vgpos TYPE vbrp-vgpos,
+         aubel TYPE vbrp-aubel,
+         aupos TYPE vbrp-aupos,
+         matnr TYPE vbrp-matnr,
+         netwr TYPE vbrp-netwr,
+       END OF ty_vbrp,
+
+       BEGIN OF ty_data,
+         ebeln TYPE ekpo-ebeln,
+         ebelp TYPE ekpo-ebelp,
+         bedat TYPE ekko-bedat,
+         reswk TYPE ekko-reswk,
+         supp_regio TYPE t001w-regio,
+         werks TYPE ekpo-werks,
+         recv_regio TYPE t001w-regio,
+         matnr TYPE ekpo-matnr,
+         txz01 TYPE ekpo-txz01,
+         menge TYPE ekpo-menge,
+         meins TYPE ekpo-meins,
+         bamng TYPE ekbe-bamng,
+         bmein TYPE mara-meins,
+         stprs TYPE mbew-stprs,
+         kbetr TYPE konp-kbetr,
+         tot_stk_rate TYPE konp-kbetr,
+         tot_stk_val TYPE konp-kbetr,
+         stprs_std TYPE konp-kbetr,
+         tot_std TYPE konp-kbetr,
+         inco2 TYPE likp-inco2,
+         bolnr TYPE likp-bolnr,
+         traid TYPE likp-traid,
+         mblnr TYPE mseg-mblnr,
+         zeile TYPE mseg-zeile,
+         matkl TYPE t023t-wgbez,
+         budat TYPE mkpf-budat,
+         charg TYPE lips-charg,
+         zpkd TYPE char8,
+         access TYPE konv-kwert,
+         cess TYPE konv-kwert,
+         excise TYPE konv-kwert,
+         ekmenge TYPE ekbe-menge,
+         dmbtr   TYPE ekbe-dmbtr,
+         wrbtr   TYPE ekbe-wrbtr,
+         waers   TYPE ekbe-waers,
+         ponum   TYPE ekpo-ebeln,
+         poitm   TYPE ekpo-ebelp,
+         bklas   TYPE mbew-bklas,
+         bwtar   TYPE ekbe-bwtar,
+         vfdat   TYPE mcha-vfdat,
+         hsdat   TYPE mch1-hsdat,
+         salk3   TYPE mbew-salk3,
+         saknr   TYPE zmm_mb5l_gl-saknr,
+         vprsv   TYPE mbew-vprsv,
+         verpr   TYPE mbew-verpr,
+*         stprs   TYPE mbew-stprs,
+         peinh   TYPE mbew-peinh,
+       END OF ty_data.
+TYPES: BEGIN OF ty_t001w,
+        werks TYPE t001w-werks,
+        regio TYPE t001w-regio,
+       END OF ty_t001w.
+
+TYPES : BEGIN OF ty_tmp,
+        vbeln TYPE lips-vgbel,
+        posnr TYPE lips-vgpos,
+        END OF ty_tmp.
+
+TYPES : BEGIN OF ty_eket,
+        ebeln TYPE eket-ebeln,
+        ebelp TYPE eket-ebelp,
+        wemng TYPE eket-wemng,
+        wamng TYPE eket-wamng,
+        END OF ty_eket.
+
+TYPES : BEGIN OF ty_t023t,
+          matkl TYPE t023t-matkl,
+          wgbez TYPE t023t-wgbez,
+        END OF ty_t023t.
+
+TYPES : BEGIN OF ty_mara,
+  matnr TYPE mara-matnr,
+  meins TYPE mara-meins,
+  END OF ty_mara.
+
+TYPES : BEGIN OF ty_temp,
+  ebeln TYPE ekbe-ebeln,
+  ebelp TYPE ekbe-ebelp,
+  bwart TYPE ekbe-bwart,
+  matnr TYPE ekbe-matnr,
+  werks TYPE ekbe-werks,
+  charg TYPE ekbe-charg,
+  menge TYPE ekbe-menge,
+  dmbtr TYPE ekbe-dmbtr,
+  wrbtr TYPE ekbe-wrbtr,
+  bamng TYPE ekbe-bamng,
+  END OF ty_temp.
+
+TYPES : BEGIN OF ty_mch1,
+  matnr TYPE mch1-matnr,
+  charg TYPE mch1-charg,
+  hsdat TYPE mch1-hsdat,
+  END OF ty_mch1.
+
+*&---------------------------------------------------------------------*
+*&      INTERNAL TABLES DECLARATION
+*&---------------------------------------------------------------------*
+*DATA: ta_ekko TYPE SORTED TABLE OF ty_ekko WITH NON-UNIQUE KEY ebeln,
+*      ta_ekpo TYPE SORTED TABLE OF ty_ekpo WITH NON-UNIQUE KEY ebeln ebelp,
+*      ta_ekpo_gr TYPE SORTED TABLE OF ty_ekpo WITH NON-UNIQUE KEY ebeln ebelp,
+*      ta_eket TYPE SORTED TABLE OF ty_eket WITH NON-UNIQUE KEY ebeln ebelp,
+*      ta_lips TYPE SORTED TABLE OF ty_lips WITH NON-UNIQUE KEY vgbel vgpos vbeln,
+*      ta_likp TYPE TABLE OF ty_likp,
+*      ta_mkpf TYPE SORTED TABLE OF ty_mkpf WITH NON-UNIQUE KEY xblnr mblnr mjahr,
+*      ta_mkpf_tmp TYPE SORTED TABLE OF ty_mkpf WITH NON-UNIQUE KEY xblnr mblnr mjahr,
+*      ta_mseg TYPE TABLE OF ty_mseg, "WITH NON-UNIQUE KEY sjahr smbln mblnr mjahr,
+*      ta_mseg_tmp TYPE TABLE OF ty_mseg, "WITH NON-UNIQUE KEY sjahr smbln mblnr mjahr
+*      ta_ekbe TYPE SORTED TABLE OF ty_ekbe WITH NON-UNIQUE KEY ebeln ebelp bewtp,
+*      ta_ekbe_gr TYPE SORTED TABLE OF ty_ekbe WITH NON-UNIQUE KEY ebeln ebelp bewtp,
+*      ta_ekbe_gi TYPE SORTED TABLE OF ty_ekbe WITH NON-UNIQUE KEY ebeln ebelp bewtp,
+
+DATA: ta_ekko TYPE TABLE OF ty_ekko,
+      ta_ekpo TYPE TABLE OF ty_ekpo,
+      ta_ekpo_gr TYPE TABLE OF ty_ekpo,
+*      ta_eket TYPE TABLE OF ty_eket,
+*      ta_lips TYPE TABLE OF ty_lips,
+      ta_likp TYPE TABLE OF ty_likp,
+      ta_mkpf TYPE TABLE OF ty_mkpf,
+      ta_mkpf_tmp TYPE TABLE OF ty_mkpf,
+      ta_mseg TYPE TABLE OF ty_mseg, "WITH NON-UNIQUE KEY sjahr smbln mblnr mjahr,
+      ta_mseg_tmp TYPE TABLE OF ty_mseg, "WITH NON-UNIQUE KEY sjahr smbln mblnr mjahr
+      ta_ekbe TYPE TABLE OF ty_ekbe,
+      ta_ekbe_gr TYPE TABLE OF ty_ekbe,
+      ta_ekbe_gi TYPE TABLE OF ty_ekbe,
+      ta_mbew TYPE TABLE OF ty_mbew,
+      ta_data TYPE TABLE OF ty_data,
+      ta_vbfa TYPE TABLE OF ty_vbfa,
+      ta_vbrk TYPE TABLE OF ty_vbrk,
+      ta_vbrp TYPE TABLE OF ty_vbrp,
+      ta_konv TYPE TABLE OF ty_konv,
+      ta_t001w TYPE TABLE OF ty_t001w,
+      ta_tmp TYPE TABLE OF ty_tmp,
+      ta_t023t TYPE TABLE OF ty_t023t,
+      ta_mara TYPE TABLE OF ty_mara,
+      ta_mcha TYPE TABLE OF ty_mcha,
+      ta_temp TYPE TABLE OF ty_temp,
+      ta_mb5l  TYPE TABLE OF zmm_mb5l,
+      ta_mch1 TYPE TABLE OF ty_mch1.
+
+DATA: gta_t023t TYPE TABLE OF t023t.
+
+DATA: wa_ekko TYPE ty_ekko,
+      wa_ekpo TYPE ty_ekpo,
+      wa_eket TYPE ty_eket,
+      wa_lips TYPE ty_lips,
+      wa_likp TYPE ty_likp,
+      wa_mkpf TYPE ty_mkpf,
+      wa_mseg TYPE ty_mseg,
+      wa_ekbe TYPE ty_ekbe,
+      wa_ekbe_gi TYPE ty_ekbe,
+      wa_ekbe_gr TYPE ty_ekbe,
+      wa_mbew TYPE ty_mbew,
+      wa_data TYPE ty_data,
+      wa_vbfa TYPE ty_vbfa,
+      wa_vbrk TYPE ty_vbrk,
+      wa_vbrp TYPE ty_vbrp,
+      wa_konv TYPE ty_konv,
+      wa_t001w TYPE ty_t001w,
+      wa_tmp TYPE ty_tmp,
+      wa_t023t TYPE ty_t023t,
+      wa_mara TYPE ty_mara,
+      wa_mcha TYPE ty_mcha,
+      wa_temp TYPE ty_temp,
+      wa_mb5l TYPE zmm_mb5l,
+      wa_mch1 TYPE ty_mch1.
+
+DATA: pamt1(16) TYPE p DECIMALS 4.
+DATA : pamt2(16) TYPE p DECIMALS 4.
+DATA : pamt22(16) TYPE p DECIMALS 4.
+DATA : pamt3(16) TYPE p DECIMALS 5.
+DATA : pamt4(16) TYPE p DECIMALS 4.
+DATA : pamt5(16) TYPE p DECIMALS 4.
+DATA : pamt7(16) TYPE p DECIMALS 4.
+DATA : pamt6(16) TYPE p DECIMALS 4.
+DATA : v_vat TYPE p DECIMALS 3 VALUE '0.125'.
+
+DATA : g_flag TYPE zmm_stock_upd-flag.
+
+*---------------------------------------------------------------------*
+*                     ALV DECLARATION
+*---------------------------------------------------------------------*
+DATA  : gt_fieldcat TYPE slis_t_fieldcat_alv,
+        gt_events           TYPE slis_t_event,
+
+        g_variant LIKE disvariant,
+
+        g_user_command      TYPE slis_formname VALUE 'USER_COMMAND',
+        g_status            TYPE slis_formname VALUE 'SET_PF_STATUS',
+        gt_list_top_of_page TYPE slis_t_listheader,
+        g_repid LIKE sy-repid,
+        gf_pos TYPE i,
+        gt_sortinfo TYPE slis_t_sortinfo_alv.
+
+DATA : gv_crper TYPE s034-spmon,
+       gv_prper TYPE s034-spmon,
+       gv_perio(4) TYPE c,
+       g_date   TYPE sy-datum.
+
+DATA: ls_layout TYPE slis_layout_alv.
+
+CONSTANTS:
+       gc_formname_top_of_page TYPE slis_formname VALUE 'TOP_OF_PAGE'.
+
+CONSTANTS:
+       gc_formname_end_of_list TYPE slis_formname VALUE 'END_OF_LIST'.
+*&---------------------------------------------------------------------*
+*&      SELECTION SCREEN
+*&---------------------------------------------------------------------*
+SELECTION-SCREEN: BEGIN OF BLOCK b1 WITH FRAME.
+SELECT-OPTIONS: so_bukrs FOR ekko-bukrs,
+                so_reswk FOR ekko-reswk,
+                so_werks FOR ekpo-werks.
+*                  so_bedat FOR ekko-bedat OBLIGATORY.
+PARAMETERS : p_date TYPE sy-datum OBLIGATORY.
+*  SELECTION-SCREEN: skip.
+SELECTION-SCREEN: ULINE.
+*  PARAMETERS: p_curr RADIOBUTTON GROUP abc,
+*              p_asdt RADIOBUTTON GROUP abc DEFAULT 'X'.
+SELECTION-SCREEN: END OF BLOCK b1.
+
+SELECTION-SCREEN BEGIN OF BLOCK b2 WITH FRAME.
+PARAMETERS    : p_uom TYPE ekpo-meins.
+SELECT-OPTIONS: so_ebeln FOR ekpo-ebeln,
+                so_matnr FOR ekpo-matnr.
+SELECTION-SCREEN END OF BLOCK b2.
+
+SELECTION-SCREEN BEGIN OF BLOCK b3 WITH FRAME.
+PARAMETERS: variant TYPE disvariant.
+SELECTION-SCREEN END OF BLOCK b3.
+
+SELECTION-SCREEN BEGIN OF BLOCK b4 WITH FRAME TITLE text-002.
+
+SELECTION-SCREEN COMMENT 1(79) comm1.
+
+SELECTION-SCREEN END OF BLOCK b4.
+
+
+INITIALIZATION.
+  comm1 = 'You can run this report only for current and previous period'.
+*&---------------------------------------------------------------------*
+*&      AT SELECTION SCREEN
+*&---------------------------------------------------------------------*
+AT SELECTION-SCREEN.
+  PERFORM select_suppl_rcvng_plant.
+  PERFORM validate_data.
+
+AT SELECTION-SCREEN ON variant.
+  PERFORM fetch_variant.
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR variant.
+  PERFORM get_f4_variant.
+
+*&---------------------------------------------------------------------*
+*&      START OF SELECTION
+*&---------------------------------------------------------------------*
+START-OF-SELECTION.
+  PERFORM fetch_data.
+  PERFORM collect_351.
+  PERFORM check_gr_gi.
+  PERFORM build_it.
+  PERFORM get_mb5l.
+
+END-OF-SELECTION.
+
+  PERFORM modify_ztable.
+*  PERFORM comment_build.
+
+*&---------------------------------------------------------------------*
+*&      Form  SELECT_SUPPL_RCVNG_PLANT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM select_suppl_rcvng_plant .
+  IF so_reswk[] IS INITIAL AND so_werks[] IS INITIAL.
+    MESSAGE e078(m2) WITH 'Select either supplying or recieving plant'.
+  ENDIF.
+ENDFORM.                    " SELECT_SUPPL_RCVNG_PLANT
+*&---------------------------------------------------------------------*
+*&      Form  FETCH_VARIANT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM fetch_variant .
+  DATA: g_variant LIKE disvariant.
+  g_variant-report = sy-repid.
+  IF NOT variant IS INITIAL.
+    g_variant-variant = variant.
+    CALL FUNCTION 'REUSE_ALV_VARIANT_EXISTENCE'
+*     EXPORTING
+*       I_SAVE              = ' '
+      CHANGING
+        cs_variant = g_variant
+*     EXCEPTIONS
+*       WRONG_INPUT         = 1
+*       NOT_FOUND  = 2
+*       PROGRAM_ERROR       = 3
+*       OTHERS     = 4
+      .
+    IF sy-subrc <> 0.
+*     MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+*             WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+    ENDIF.
+  ENDIF.
+ENDFORM.                    " FETCH_VARIANT
+*&---------------------------------------------------------------------*
+*&      Form  GET_F4_VARIANT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM get_f4_variant .
+  variant-report = sy-repid.
+  CALL FUNCTION 'REUSE_ALV_VARIANT_F4'
+    EXPORTING
+      is_variant         = variant
+*     I_TABNAME_HEADER   =
+*     I_TABNAME_ITEM     =
+*     IT_DEFAULT_FIELDCAT       =
+*     I_SAVE             = ' '
+      i_display_via_grid = 'X'
+    IMPORTING
+*     E_EXIT             =
+      es_variant         = variant
+* EXCEPTIONS
+*     NOT_FOUND          = 1
+*     PROGRAM_ERROR      = 2
+*     OTHERS             = 3
+    .
+  IF sy-subrc <> 0.
+* MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+*         WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+  ENDIF.
+ENDFORM.                    " GET_F4_VARIANT
+*&---------------------------------------------------------------------*
+*&      Form  FETCH_DATA
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM fetch_data .
+  DATA : lv_tabix TYPE sy-tabix,
+         lta_ekbe TYPE TABLE OF ty_ekbe.
+
+  CLEAR : lv_tabix,ta_ekpo[].
+  SELECT b~ebeln b~ebelp a~bsart b~txz01 b~matnr b~werks b~menge b~meins b~matkl
+         a~reswk a~bedat
+    FROM ekko AS a INNER JOIN ekpo AS b
+    ON a~mandt = b~mandt
+    AND a~ebeln = b~ebeln
+    INTO TABLE ta_ekpo
+    WHERE a~ebeln IN so_ebeln
+    AND   a~reswk IN so_reswk[]
+*    AND   a~bsart = 'UB'
+    AND   a~bsart IN ('ZFG', 'ZICO', 'ZSEZ', 'ZUB', 'ZUBM', 'ZCOP')
+    AND   a~bedat <= p_date
+    AND   ( b~loekz = space OR b~loekz = 'S' ) "changed by prakash on 12.02.15
+    AND   b~matnr IN so_matnr[]
+    AND   b~werks IN so_werks[].
+  IF sy-subrc = 0.
+    SORT ta_ekpo BY ebeln ebelp.
+  ENDIF.
+
+
+  CLEAR g_flag.
+  SELECT SINGLE flag
+                FROM zmm_stock_upd
+                CLIENT SPECIFIED
+                INTO g_flag
+                WHERE mandt = sy-mandt.
+
+  IF NOT ta_ekpo IS INITIAL.
+    CLEAR :ta_ekbe[].
+    SELECT ebeln ebelp gjahr belnr buzei bewtp bwart budat menge dmbtr wrbtr waers bwtar shkzg xblnr matnr werks bamng charg vbeln_st vbelp_st
+      FROM ekbe CLIENT SPECIFIED
+      INTO TABLE ta_ekbe
+      FOR ALL ENTRIES IN ta_ekpo
+      WHERE mandt = sy-mandt
+      AND   ebeln = ta_ekpo-ebeln
+      AND   ebelp = ta_ekpo-ebelp
+*      AND   bewtp = 'E'
+    AND   budat <= p_date.
+    IF sy-subrc = 0.
+      SORT ta_ekbe by belnr gjahr buzei.
+
+      CLEAR : ta_mseg[].
+      SELECT mblnr mjahr zeile bwart ebeln ebelp sjahr smbln smblp
+             FROM mseg CLIENT SPECIFIED
+             INTO TABLE ta_mseg
+             FOR ALL ENTRIES IN ta_ekbe
+             WHERE mandt = sy-mandt
+             AND   mblnr = ta_ekbe-belnr
+             AND  mjahr  = ta_ekbe-gjahr
+             AND  zeile  = ta_ekbe-buzei.
+
+      SORT ta_ekbe by ebeln ebelp belnr gjahr.
+    ENDIF.
+
+    CLEAR ta_mara[].
+    SELECT matnr meins
+      INTO TABLE ta_mara
+      FROM mara CLIENT SPECIFIED
+      FOR ALL ENTRIES IN ta_ekpo
+      WHERE mandt = sy-mandt
+      AND   matnr = ta_ekpo-matnr.
+
+
+*    LOOP AT ta_ekbe INTO wa_ekbe WHERE bwart = '642'.         "to delete reversed GI and its corresponding doc.
+*    SORT ta_mseg BY ebeln ebelp sjahr smbln smblp.
+    SORT ta_mseg by mblnr mjahr ebeln ebelp.
+    LOOP AT ta_ekbe INTO wa_ekbe WHERE bwart = '352'
+                                    OR bwart = '642'
+                                    OR bwart = '644'.
+      lv_tabix = sy-tabix.
+      CLEAR : wa_mseg.
+      READ TABLE ta_mseg INTO wa_mseg WITH KEY mblnr = wa_ekbe-belnr
+                                               mjahr = wa_ekbe-gjahr
+                                               ebeln = wa_ekbe-ebeln
+                                               ebelp = wa_ekbe-ebelp.
+      IF sy-subrc = 0.
+*        DELETE ta_ekbe WHERE ebeln = wa_ekbe-ebeln
+*                         AND ebelp = wa_ekbe-ebelp
+*                         AND belnr = wa_mseg-smbln
+*                         AND gjahr = wa_mseg-sjahr.
+*        DELETE ta_ekbe WHERE ebeln = wa_ekbe-ebeln
+*                        AND  ebelp = wa_ekbe-ebelp
+*                        AND  belnr = wa_ekbe-belnr
+*                        AND  gjahr = wa_ekbe-gjahr.
+        wa_ekbe-flag = 'X'.
+        MODIFY ta_ekbe FROM wa_ekbe TRANSPORTING flag WHERE ebeln = wa_ekbe-ebeln
+                                                        AND ebelp = wa_ekbe-ebelp
+                                                        AND belnr = wa_mseg-smbln
+                                                        AND gjahr = wa_mseg-sjahr.
+
+        MODIFY ta_ekbe FROM wa_ekbe TRANSPORTING flag WHERE ebeln = wa_ekbe-ebeln
+                                                        AND  ebelp = wa_ekbe-ebelp
+                                                        AND  belnr = wa_ekbe-belnr
+                                                        AND  gjahr = wa_ekbe-gjahr.
+      ENDIF.
+
+      CLEAR wa_ekbe.
+    ENDLOOP.
+
+    SORT ta_ekbe BY flag DESCENDING.
+    DELETE ta_ekbe WHERE flag IS NOT INITIAL.
+
+    IF ta_ekbe IS NOT INITIAL.
+      CLEAR lta_ekbe[].
+      lta_ekbe[] = ta_ekbe[].
+      SORT lta_ekbe BY matnr werks charg.
+      DELETE ADJACENT DUPLICATES FROM lta_ekbe COMPARING matnr werks charg.
+
+      CLEAR : ta_mcha[].
+      SELECT matnr werks charg vfdat_1
+        INTO TABLE ta_mcha
+        FROM v_mmim_lc CLIENT SPECIFIED
+        FOR ALL ENTRIES IN lta_ekbe
+        WHERE mandt = sy-mandt
+        AND   matnr = lta_ekbe-matnr
+        AND   werks = lta_ekbe-werks
+        AND   charg = lta_ekbe-charg.
+      IF sy-subrc = 0.
+        SORT ta_mcha BY matnr werks charg.
+      ENDIF.
+
+      CLEAR lta_ekbe[].
+      lta_ekbe[] = ta_ekbe[].
+      SORT lta_ekbe BY matnr charg.
+      DELETE ADJACENT DUPLICATES FROM lta_ekbe COMPARING matnr charg.
+
+      CLEAR ta_mch1[].
+      SELECT matnr charg hsdat
+        INTO TABLE ta_mch1
+        FROM mch1 CLIENT SPECIFIED
+        FOR ALL ENTRIES IN lta_ekbe
+        WHERE mandt = sy-mandt
+        AND   matnr = lta_ekbe-matnr
+        AND   charg = lta_ekbe-charg.
+      IF sy-subrc = 0.
+        SORT ta_mch1 BY matnr charg.
+      ENDIF.
+    ENDIF.
+
+    CLEAR :ta_ekbe_gi[],ta_ekbe_gr[].
+    LOOP AT ta_ekbe INTO wa_ekbe.
+      IF wa_ekbe-bewtp = 'U'.
+        APPEND wa_ekbe TO ta_ekbe_gi.
+      ELSEIF wa_ekbe-bewtp = 'E'.
+        APPEND wa_ekbe TO ta_ekbe_gr.
+      ENDIF.
+      CLEAR wa_ekbe.
+    ENDLOOP.
+  ENDIF.
+
+  IF ta_ekbe_gi IS NOT INITIAL.
+    SORT ta_ekbe_gi BY bwart.
+  ENDIF.
+
+ENDFORM.                    " FETCH_DATA
+*&---------------------------------------------------------------------*
+*&      Form  CHECK_GR_GI
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM check_gr_gi .
+  DATA: ls_index TYPE sy-tabix,
+        lv_index TYPE sy-tabix,
+        lv_tabix TYPE sy-tabix.
+  DATA: ls_ekpo_gr TYPE ty_ekpo.
+  DATA : lv_issue TYPE ekbe-menge,
+         lv_recei TYPE ekbe-menge,
+         lv_issue1 TYPE ekbe-menge,
+         lv_recei1 TYPE ekbe-menge,
+         lv_bissu TYPE ekbe-menge,
+         lv_bissu1 TYPE ekbe-menge,
+         lv_brecei TYPE ekbe-menge,
+         lv_brecei1 TYPE ekbe-menge.
+
+  DATA : lta_ekpo TYPE TABLE OF ty_ekpo.
+
+  CLEAR : lv_issue, lv_recei, lv_index, ls_index.
+
+  IF ta_ekbe_gi IS NOT INITIAL.
+    SORT ta_ekbe_gi BY ebeln ebelp bsart.
+  ENDIF.
+
+  IF ta_ekbe_gr IS NOT INITIAL.
+    SORT ta_ekbe_gr BY ebeln ebelp charg.
+  ENDIF.
+
+  CLEAR ta_tmp[].
+  LOOP AT ta_ekpo INTO wa_ekpo.
+    ls_index = sy-tabix.
+    CLEAR : wa_ekbe, lv_issue, lv_recei1, lv_bissu, lv_bissu1, lv_brecei1, lv_brecei,lv_index.
+    LOOP AT ta_ekbe_gi INTO wa_ekbe WHERE ebeln = wa_ekpo-ebeln
+                                    AND   ebelp = wa_ekpo-ebelp.
+      lv_index = sy-tabix.
+
+      IF wa_ekbe-shkzg = 'H'.
+        lv_issue = lv_issue + wa_ekbe-menge.
+        lv_bissu = lv_bissu + wa_ekbe-bamng.
+      ELSE.
+        lv_issue = lv_issue - wa_ekbe-menge.
+        lv_bissu = lv_bissu - wa_ekbe-bamng.
+      ENDIF.
+*************  for 351 by prakash on 09.02.15 ******************
+      IF wa_ekpo-bsart = 'ZUBM'.
+        CLEAR : wa_ekbe_gr, lv_recei1, lv_brecei1..
+        LOOP AT ta_ekbe_gr INTO wa_ekbe_gr WHERE ebeln = wa_ekpo-ebeln
+                                            AND  ebelp = wa_ekpo-ebelp
+                                            AND  charg = wa_ekbe-charg.
+          lv_tabix = sy-tabix.
+          IF wa_ekbe_gr-shkzg = 'S'.
+            lv_recei1 = lv_recei1 + wa_ekbe_gr-menge.
+            lv_brecei1 = lv_brecei1 + wa_ekbe_gr-bamng.
+          ELSE.
+            lv_recei1 = lv_recei1 - wa_ekbe_gr-menge.
+            lv_brecei1 = lv_brecei1 - wa_ekbe_gr-bamng.
+          ENDIF.
+          wa_ekbe_gr-bsart = 'ZUBM'.
+          MODIFY ta_ekbe_gr INDEX lv_tabix FROM wa_ekbe_gr TRANSPORTING bsart.
+          CLEAR : wa_ekbe_gr.
+        ENDLOOP.
+        IF lv_recei1 IS NOT INITIAL.
+          lv_issue1 = lv_issue.
+          lv_bissu1 = lv_bissu.
+          IF wa_ekbe-menge NE lv_recei1.
+            IF wa_ekbe-shkzg = 'H'.
+              lv_issue = lv_issue - wa_ekbe-menge.
+              lv_bissu = lv_bissu - wa_ekbe-menge.
+            ELSE.
+              lv_issue = lv_issue + wa_ekbe-menge.
+              lv_bissu = lv_bissu + wa_ekbe-menge.
+            ENDIF.
+            wa_ekbe-menge = wa_ekbe-menge - lv_recei1.
+            wa_ekbe-bamng = wa_ekbe-bamng - lv_brecei1.
+            wa_ekbe-bsart = 'ZUBM'.
+            MODIFY ta_ekbe_gi INDEX lv_index FROM wa_ekbe TRANSPORTING menge bamng bsart.
+            lv_recei = lv_recei1.
+            lv_brecei = lv_brecei1.
+            CLEAR : lv_recei1, lv_brecei1.
+          ELSE.
+            IF wa_ekbe-shkzg = 'H'.
+              lv_issue = lv_issue - wa_ekbe-menge.
+              lv_bissu = lv_bissu - wa_ekbe-bamng.
+            ELSE.
+              lv_issue = lv_issue + wa_ekbe-menge.
+              lv_bissu = lv_bissu + wa_ekbe-bamng.
+            ENDIF.
+            DELETE ta_ekbe_gi INDEX lv_index.
+          ENDIF.
+        ELSE.
+          wa_ekbe-bsart = 'ZUBM'.
+          MODIFY ta_ekbe_gi INDEX lv_index FROM wa_ekbe TRANSPORTING bsart.
+        ENDIF.
+      ENDIF.
+******************EOC by prakash on 09.02.15 ***********************
+      CLEAR : wa_ekbe.
+    ENDLOOP.
+    CLEAR : lv_recei, wa_ekbe_gr, lv_brecei.
+*************  for 351 by prakash on 09.02.15 ******************
+*    IF wa_ekpo-bsart = 'ZUBM'.
+*      IF lv_recei1 IS INITIAL.
+*        LOOP AT ta_ekbe_gr INTO wa_ekbe_gr WHERE ebeln = wa_ekpo-ebeln
+*                                            AND  ebelp = wa_ekpo-ebelp.
+*          lv_recei1 = lv_recei1 + wa_ekbe_gr-menge.
+*        ENDLOOP.
+*      ELSE.
+**          wa_ekbe-menge = lv_issue - lv_recei1.
+**          MODIFY ta_ekbe_gi INDEX lv_tabix FROM wa_ekbe TRANSPORTING menge.
+*      ENDIF.
+*    ENDIF.
+*******************   EOC by prakash on 09.02.15 ***************
+    LOOP AT ta_ekbe_gr INTO wa_ekbe_gr WHERE ebeln = wa_ekpo-ebeln
+                                        AND  ebelp = wa_ekpo-ebelp
+                                        AND  bewtp = 'E'.
+      IF wa_ekbe_gr-bsart NE 'ZUBM'.
+        IF wa_ekbe_gr-shkzg = 'S'.
+          lv_recei = lv_recei + wa_ekbe_gr-menge.
+          lv_brecei = lv_brecei + wa_ekbe_gr-bamng.
+        ELSE.
+          lv_recei = lv_recei - wa_ekbe_gr-menge.
+          lv_brecei = lv_brecei - wa_ekbe_gr-bamng.
+        ENDIF.
+      ENDIF.
+      CLEAR : wa_ekbe_gr.
+    ENDLOOP.
+**************  for 351 by prakash on 09.02.15 ******************
+*    IF wa_ekpo-bsart = 'ZUBM'.
+*      CLEAR : wa_ekbe.
+*      LOOP AT ta_ekbe_gi INTO wa_ekbe WHERE ebeln = wa_ekpo-ebeln
+*                                      AND   ebelp = wa_ekpo-ebelp
+*                                      AND   bsart = 'ZUBM'.
+**        IF wa_ekbe-bsart = 'ZUBM'.
+*        lv_issue = lv_issue - wa_ekbe-menge.
+*      ENDLOOP.
+*    ENDIF.
+***************** EOC by prakash on 09.02.15 ********************
+
+    IF lv_issue = lv_recei.
+      CLEAR : wa_ekbe_gi.
+      READ TABLE ta_ekbe_gi INTO wa_ekbe_gi WITH KEY ebeln = wa_ekpo-ebeln
+                                                     ebelp = wa_ekpo-ebelp
+                                                     bsart = 'ZUBM'.
+      IF sy-subrc NE 0.
+        DELETE ta_ekpo INDEX ls_index.
+      ENDIF.
+
+    ELSE.
+**********  SOC by prakash on 06.02.15 to show stock in transfer *****
+      IF wa_ekpo-bsart = 'ZUBM'.
+        CLEAR lv_index.
+        LOOP AT ta_ekbe_gi INTO wa_ekbe_gi WHERE ebeln = wa_ekpo-ebeln
+                                             AND ebelp = wa_ekpo-ebelp
+                                             AND bsart NE 'ZUBM'.
+          lv_index = sy-tabix.
+          wa_ekbe_gi-menge = ( lv_issue - lv_recei ).
+          wa_ekbe_gi-bamng = ( lv_bissu - lv_brecei ) .
+          MODIFY ta_ekbe_gi INDEX lv_index FROM wa_ekbe_gi TRANSPORTING menge bamng.
+          CLEAR : wa_ekbe_gi.
+        ENDLOOP.
+      ENDIF.
+**********  EOC by prakash on 06.02.15 to show stock in transfer *****
+      PERFORM insert_delv.
+
+    ENDIF.
+
+*      READ TABLE ta_ekbe_gr INTO wa_ekbe_gr WITH KEY ebeln = wa_ekpo-ebeln
+*                                                      ebelp = wa_ekpo-ebelp
+*                                                      bewtp = 'E'
+*                                             BINARY SEARCH.
+*      IF sy-subrc = 0.
+**        IF wa_ekbe_gr-budat <= p_date.
+**          PERFORM insert_delv.
+**        ELSE.
+*        DELETE ta_ekpo INDEX ls_index.
+**        ENDIF.
+*      ELSE.
+**        wa_tmp-vbeln = wa_ekbe-xblnr.
+**        APPEND wa_tmp to ta_tmp.
+*        PERFORM insert_delv.
+*      ENDIF.
+**    ENDIF.
+*    ENDLOOP.
+    CLEAR : wa_ekpo.
+  ENDLOOP.
+
+
+  IF NOT ta_ekpo IS INITIAL.
+    CLEAR lta_ekpo[].
+    lta_ekpo[] = ta_ekpo[].
+    SORT lta_ekpo BY werks.
+    DELETE ADJACENT DUPLICATES FROM lta_ekpo COMPARING werks.
+
+    CLEAR ta_t001w[].
+    SELECT werks regio
+      FROM t001w CLIENT SPECIFIED
+      INTO TABLE ta_t001w
+      FOR ALL ENTRIES IN lta_ekpo
+      WHERE mandt = sy-mandt
+      AND   werks = lta_ekpo-werks.
+
+    CLEAR lta_ekpo[].
+    lta_ekpo[] = ta_ekpo[].
+    SORT lta_ekpo BY reswk.
+    DELETE ADJACENT DUPLICATES FROM lta_ekpo COMPARING reswk.
+
+    SELECT  werks regio
+      FROM t001w CLIENT SPECIFIED
+      APPENDING TABLE ta_t001w
+      FOR ALL ENTRIES IN lta_ekpo
+      WHERE mandt = sy-mandt
+      AND   werks = lta_ekpo-reswk.
+
+    CLEAR lta_ekpo[].
+    lta_ekpo[] = ta_ekpo[].
+    SORT lta_ekpo BY matnr werks.
+    DELETE ADJACENT DUPLICATES FROM lta_ekpo COMPARING matnr werks.
+
+    CLEAR ta_mbew[].
+    SELECT matnr bwkey bwtar stprs peinh bklas
+      FROM mbew INTO TABLE ta_mbew
+      FOR ALL ENTRIES IN lta_ekpo
+      WHERE matnr = lta_ekpo-matnr
+      AND   bwkey = lta_ekpo-werks.
+
+    CLEAR lta_ekpo[].
+    lta_ekpo[] = ta_ekpo[].
+    SORT lta_ekpo BY matkl.
+    DELETE ADJACENT DUPLICATES FROM lta_ekpo COMPARING matkl.
+
+    CLEAR ta_t023t[].
+    SELECT matkl wgbez
+      FROM t023t CLIENT SPECIFIED
+      INTO TABLE ta_t023t
+      FOR ALL ENTRIES IN lta_ekpo
+      WHERE mandt = sy-mandt
+      AND   spras = sy-langu
+      AND   matkl = lta_ekpo-matkl.
+
+    SORT ta_tmp BY vbeln posnr.
+    DELETE ADJACENT DUPLICATES FROM ta_tmp.
+    IF NOT ta_tmp IS INITIAL.
+*      SELECT vgbel vgpos vbeln posnr matnr werks charg
+*         FROM lips CLIENT SPECIFIED
+*         INTO TABLE ta_lips
+*         FOR ALL ENTRIES IN ta_tmp
+*         WHERE mandt = sy-mandt
+*         AND   vbeln = ta_tmp-vbeln
+*         AND   posnr = ta_tmp-posnr.
+
+*      SELECT vbeln vstel werks inco2 bolnr traty traid
+*        FROM likp CLIENT SPECIFIED
+*        INTO TABLE ta_likp
+*        FOR ALL ENTRIES IN ta_tmp
+*        WHERE mandt = sy-mandt
+*        AND   vbeln = ta_tmp-vbeln.
+*      if NOT ta_likp is INITIAL.
+*        SELECT vgbel vgpos vbeln posnr matnr werks charg
+*          FROM lips CLIENT SPECIFIED
+*          INTO TABLE ta_lips
+*          FOR ALL ENTRIES IN ta_likp
+*          WHERE mandt = sy-mandt
+*          AND   vbeln = ta_likp-vbeln.
+*      IF NOT ta_lips IS INITIAL.
+*        SELECT vbelv posnv vbeln posnn erdat vbtyp_n
+*          FROM vbfa CLIENT SPECIFIED
+*          INTO TABLE ta_vbfa
+*          FOR ALL ENTRIES IN ta_lips
+*          WHERE mandt = sy-mandt
+*          AND   vbelv = ta_lips-vbeln
+*          AND   posnv = ta_lips-posnr
+**          AND   ( vbtyp_n = 'M' OR vbtyp_n = 'N' ). "prakash
+*          AND ( vbtyp_n = 'R' OR vbtyp_n = 'U' OR vbtyp_n = 'i' ) .
+*
+*        LOOP AT ta_vbfa INTO wa_vbfa WHERE vbtyp_n = 'N'.
+*          DELETE ta_vbfa WHERE vbelv = wa_vbfa-vbelv
+*                           AND posnv = wa_vbfa-posnv.
+*        ENDLOOP.
+*
+*        IF NOT ta_vbfa IS INITIAL .
+*          SELECT vbeln knumv
+*            FROM vbrk CLIENT SPECIFIED
+*            INTO TABLE ta_vbrk
+*            FOR ALL ENTRIES IN ta_vbfa
+*            WHERE mandt = sy-mandt
+*            AND   vbeln = ta_vbfa-vbeln.
+*
+*          SELECT vbeln posnr vgbel vgpos aubel aupos matnr netwr
+*            FROM vbrp CLIENT SPECIFIED
+*            INTO TABLE ta_vbrp
+*            FOR ALL ENTRIES IN ta_vbfa
+*            WHERE mandt = sy-mandt
+*            AND   vbeln = ta_vbfa-vbeln
+*            AND   posnr = ta_vbfa-posnn.
+*
+*          IF NOT ta_vbrk IS INITIAL.
+*            SELECT knumv kposn kschl kbetr kwert
+*              INTO TABLE ta_konv
+*              FROM konv CLIENT SPECIFIED
+*              FOR ALL ENTRIES IN ta_vbrk
+*              WHERE mandt = sy-mandt
+*              AND   knumv = ta_vbrk-knumv
+*              AND ( stunr BETWEEN '10' AND '70'
+*              OR    kschl IN ('ZEXT','ZMXT','ZXCT','ZCXT','ZWED','ZWXT') ).
+*          ENDIF.
+*        ENDIF.
+*      ENDIF.
+    ENDIF.
+  ENDIF.
+ENDFORM.                    " CHECK_GR_GI
+*&---------------------------------------------------------------------*
+*&      Form  INSERT_DELV
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM insert_delv .
+  DATA : lwa_ekbe TYPE ty_ekbe.
+  IF wa_ekpo-bsart = 'ZUBM'.
+    LOOP AT ta_ekbe INTO lwa_ekbe WHERE ebeln = wa_ekpo-ebeln
+                                  AND   ebelp = wa_ekpo-ebelp
+                                  AND   bewtp = 'U'.
+      CLEAR wa_tmp.
+      wa_tmp-vbeln = wa_ekbe-belnr.
+      wa_tmp-posnr = wa_ekbe-vbelp_st.
+      APPEND wa_tmp TO ta_tmp.
+
+      CLEAR lwa_ekbe.
+    ENDLOOP.
+  ELSE.
+*    READ TABLE ta_ekbe INTO wa_ekbe WITH KEY ebeln = wa_ekpo-ebeln
+*                                             ebelp = wa_ekpo-ebelp
+*                                             bewtp = 'L'
+*                                    BINARY SEARCH.
+*    IF sy-subrc = 0.
+*
+*      wa_tmp-vbeln = wa_ekbe-belnr.
+**    wa_tmp-posnr = wa_ekbe-buzei.
+**    wa_tmp-posnr = wa_ekbe-vbelp_st.
+**    READ TABLE ta_ekbe INTO wa_ekbe WITH KEY ebeln = wa_ekpo-ebeln
+**                                             ebelp = wa_ekpo-ebelp
+**                                             bewtp = 'U'
+**                                             BINARY SEARCH.
+**    IF sy-subrc = 0.
+*      LOOP AT ta_ekbe INTO lwa_ekbe WHERE ebeln = wa_ekpo-ebeln
+*                                    AND   ebelp = wa_ekpo-ebelp
+*                                    AND   bewtp = 'U'.
+*
+*        wa_tmp-posnr = lwa_ekbe-vbelp_st.
+**    ENDIF.
+*
+*        APPEND wa_tmp TO ta_tmp.
+*      ENDLOOP.
+    LOOP AT ta_ekbe_gi INTO wa_ekbe_gi WHERE ebeln = wa_ekpo-ebeln
+                                        AND  ebelp = wa_ekpo-ebelp.
+      wa_tmp-vbeln = wa_ekbe_gi-vbeln_st.
+      wa_tmp-posnr = wa_ekbe_gi-vbelp_st.
+      APPEND wa_tmp TO ta_tmp.
+      CLEAR : wa_ekbe_gi, wa_tmp.
+    ENDLOOP.
+*  ENDIF.
+  ENDIF.
+ENDFORM.                    " INSERT_DELV
+*&---------------------------------------------------------------------*
+*&      Form  BUILD_IT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM build_it .
+  DATA: ls_knumh TYPE konp-knumh.
+
+  SORT ta_mbew BY matnr bwkey.
+  SORT ta_likp BY vbeln.
+  SORT ta_mseg BY mblnr mjahr zeile.
+*sort ta_ekbe_gr by ebeln ebelp bewtp.
+*sort ta_ekbe_gi by ebeln ebelp bewtp.
+  SORT ta_t001w BY werks.
+  SORT ta_likp BY vbeln.
+  SORT ta_tmp BY vbeln posnr.
+  SORT ta_vbrk BY vbeln.
+  SORT ta_vbrp BY vbeln posnr.
+  SORT ta_konv BY knumv kposn kschl.
+*  SORT ta_vbfa BY vbelv posnn.
+  SORT ta_vbfa BY vbelv posnv vbtyp_n.
+*  SORT ta_lips BY vbeln posnr.
+  SORT ta_t001w BY werks.
+  SORT ta_likp BY vbeln.
+  SORT ta_t023t BY matkl.
+
+  CLEAR : wa_ekpo, ta_mb5l[], ta_data[].
+  LOOP AT ta_ekpo INTO wa_ekpo.
+    CLEAR : wa_ekbe.
+*    READ TABLE ta_ekbe_gi INTO wa_ekbe WITH KEY ebeln = wa_ekpo-ebeln
+*                                             ebelp = wa_ekpo-ebelp
+*                                    BINARY SEARCH.
+*    IF sy-subrc = 0.
+    LOOP AT ta_ekbe_gi INTO wa_ekbe WHERE ebeln = wa_ekpo-ebeln
+                                    AND   ebelp = wa_ekpo-ebelp.
+
+
+      wa_data-ekmenge = wa_ekbe-menge.
+      wa_data-dmbtr  =  wa_ekbe-dmbtr.
+      wa_data-wrbtr = wa_ekbe-wrbtr.
+      wa_data-waers = wa_ekbe-waers.
+      wa_data-ponum = wa_ekbe-ebeln.
+      wa_data-poitm = wa_ekbe-ebelp.
+      wa_data-charg = wa_ekbe-charg.
+      wa_data-bwtar = wa_ekbe-bwtar.
+      wa_data-ebeln = wa_ekbe-belnr.
+      wa_data-ebelp = wa_ekbe-buzei.
+      wa_data-bedat = wa_ekbe-budat.
+
+      CLEAR wa_mcha.
+      READ TABLE ta_mcha INTO wa_mcha WITH KEY matnr = wa_ekbe-matnr
+                                               werks = wa_ekbe-werks
+                                               charg = wa_ekbe-charg.
+      IF sy-subrc = 0.
+        wa_data-vfdat = wa_mcha-vfdat.
+      ENDIF.
+
+      CLEAR wa_mch1.
+      READ TABLE ta_mch1 INTO wa_mch1 WITH KEY matnr = wa_ekbe-matnr
+                                               charg = wa_ekbe-charg.
+      IF sy-subrc = 0.
+        wa_data-hsdat = wa_mch1-hsdat.
+      ENDIF.
+
+      CLEAR wa_mara.
+      READ TABLE ta_mara INTO wa_mara WITH KEY matnr = wa_ekpo-matnr.
+      IF sy-subrc = 0.
+        wa_data-bmein = wa_mara-meins.
+      ENDIF.
+
+      IF wa_ekpo-bsart NE 'ZUBM'.
+*        CLEAR : wa_tmp.
+*        READ TABLE ta_tmp INTO wa_tmp WITH KEY vbeln = wa_ekbe-xblnr
+*                                               posnr = wa_ekbe-vbelp_st
+*                                      BINARY SEARCH.
+*        IF sy-subrc = 0.
+*          CLEAR : wa_likp.
+*          READ TABLE ta_likp INTO wa_likp WITH KEY vbeln = wa_ekbe-xblnr
+*                                           BINARY SEARCH.
+*          IF sy-subrc = 0.
+*            wa_data-inco2 = wa_likp-inco2.
+*            wa_data-bolnr = wa_likp-bolnr.
+*            IF wa_likp-traty = '0001'.
+*              wa_data-traid = wa_likp-traid.
+*            ENDIF.
+*            CLEAR : wa_lips.
+**          READ TABLE ta_lips INTO wa_lips WITH KEY vgbel = wa_ekpo-ebeln
+**                                                   vgpos = wa_ekpo-ebelp
+**                                          BINARY SEARCH.
+*            READ TABLE ta_lips INTO wa_lips WITH KEY vbeln = wa_ekbe-xblnr
+*                                                     posnr = wa_ekbe-vbelp_st.
+*
+*            IF sy-subrc = 0.
+**              wa_data-charg = wa_lips-charg.
+*              PERFORM pkd_calc.
+*            ENDIF.
+
+*          PERFORM convert_mat_qty.
+*          CLEAR : wa_mbew.
+*          READ TABLE ta_mbew INTO wa_mbew WITH KEY matnr = wa_ekpo-matnr
+*                                                   bwkey = wa_ekpo-werks
+*                                          BINARY SEARCH.
+*          IF sy-subrc = 0.
+*            TRY.
+*                wa_data-stprs_std = wa_mbew-stprs / wa_mbew-peinh.
+*              CATCH cx_sy_zerodivide.
+*            ENDTRY.
+*            wa_data-tot_std = wa_data-stprs_std * wa_ekpo-menge.
+*          ENDIF.
+*          CLEAR : wa_t023t.
+*          READ TABLE ta_t023t INTO wa_t023t WITH KEY matkl = wa_ekpo-matkl
+*                                            BINARY SEARCH.
+*          IF sy-subrc = 0.
+*            wa_data-matkl = wa_t023t-wgbez.
+*          ENDIF.
+        wa_data-menge = wa_ekbe-menge.
+        wa_data-bamng = wa_ekbe-bamng.
+        CLEAR : wa_ekbe_gr.
+        LOOP AT ta_ekbe_gr INTO wa_ekbe_gr WHERE ebeln = wa_ekpo-ebeln
+                                            AND  ebelp = wa_ekpo-ebelp
+                                            AND vbeln_st = wa_ekbe-vbeln_st
+                                            AND vbelp_st = wa_ekbe-vbelp_st.
+          IF wa_ekbe_gr-shkzg = 'S'.
+            wa_data-menge = wa_data-menge - wa_ekbe_gr-menge.
+            wa_data-bamng = wa_data-bamng - wa_ekbe_gr-bamng.
+          ELSE.
+            wa_data-menge = wa_data-menge + wa_ekbe_gr-menge.
+            wa_data-bamng = wa_data-bamng + wa_ekbe_gr-bamng.
+          ENDIF.
+*      ENDIF.
+*              wa_data-menge = wa_data-menge - wa_ekbe_gr-menge.
+          CLEAR wa_ekbe_gr.
+        ENDLOOP.
+*            READ TABLE ta_ekbe_gr INTO wa_ekbe_gr WITH KEY ebeln = wa_ekpo-ebeln
+*                                                           ebelp = wa_ekpo-ebelp
+*                                                           vbeln_st = wa_tmp-vbeln
+*                                                           vbelp_st = wa_tmp-posnr.
+*
+*            IF sy-subrc = 0.
+*              wa_data-menge = ( wa_ekbe-menge - wa_ekbe_gr-menge ) .
+*            ELSE.
+*              wa_data-menge = wa_ekbe-menge .
+*            ENDIF.
+*            CLEAR : wa_vbfa.
+*            READ TABLE ta_vbfa INTO wa_vbfa WITH KEY vbelv = wa_ekbe-xblnr "wa_likp-vbeln prakash
+**                                                   posnn = wa_ekpo-ebelp "prakash
+*                                                     posnv = wa_ekbe-vbelp_st "wa_ekpo-ebelp prakash
+*                                                     vbtyp_n = 'R'
+*                                            BINARY SEARCH.
+*            IF sy-subrc = 0.
+*              wa_data-ebeln = wa_vbfa-vbeln.
+*              wa_data-ebelp = wa_vbfa-posnn.
+*              wa_data-bedat = wa_vbfa-erdat.
+*              CLEAR wa_vbrk.
+*              READ TABLE ta_vbrk INTO wa_vbrk WITH KEY vbeln = wa_vbfa-vbeln
+*                                              BINARY SEARCH.
+*              IF sy-subrc = 0.
+*                CLEAR : wa_vbrp.
+*                READ TABLE ta_vbrp INTO wa_vbrp WITH KEY vbeln = wa_vbfa-vbeln
+*                                                         posnr = wa_vbfa-posnn
+*                                                BINARY SEARCH.
+*                IF sy-subrc = 0.
+*                  PERFORM get_cess_excise.
+*                ENDIF.
+*              ENDIF.
+*            ELSE.
+*              CLEAR: wa_data.
+*              CONTINUE.
+*            ENDIF.
+*          ELSE.
+*            CLEAR: wa_data.
+*            CONTINUE.
+*          ENDIF.
+*        ELSE.
+*          CLEAR: wa_data.
+*          CONTINUE.
+*        ENDIF.
+      ELSE.
+
+        wa_data-menge = wa_ekbe-menge.
+        wa_data-bamng = wa_ekbe-bamng.
+      ENDIF.
+****************   SOC by prakash copied from below on 30.01.15
+      PERFORM convert_mat_qty.
+      CLEAR : wa_mbew.
+      READ TABLE ta_mbew INTO wa_mbew WITH KEY matnr = wa_ekpo-matnr
+                                               bwkey = wa_ekpo-werks
+                                               BINARY SEARCH.
+      IF sy-subrc = 0.
+        wa_data-bklas = wa_mbew-bklas.
+        TRY.
+            wa_data-stprs_std = wa_mbew-stprs / wa_mbew-peinh.
+          CATCH cx_sy_zerodivide.
+        ENDTRY.
+        wa_data-tot_std = wa_data-stprs_std * wa_ekpo-menge.
+      ENDIF.
+      CLEAR : wa_t023t.
+      READ TABLE ta_t023t INTO wa_t023t WITH KEY matkl = wa_ekpo-matkl
+                                        BINARY SEARCH.
+      IF sy-subrc = 0.
+        wa_data-matkl = wa_t023t-wgbez.
+      ENDIF.
+
+      wa_data-reswk = wa_ekpo-reswk.
+      CLEAR : wa_t001w.
+      READ TABLE ta_t001w INTO wa_t001w WITH KEY werks = wa_ekpo-reswk
+                                        BINARY SEARCH.
+      IF sy-subrc = 0.
+        wa_data-supp_regio = wa_t001w-regio.
+      ENDIF.
+
+      wa_data-werks = wa_ekpo-werks.
+      CLEAR : wa_t001w.
+      READ TABLE ta_t001w INTO wa_t001w WITH KEY werks = wa_ekpo-werks
+                                        BINARY SEARCH.
+      IF sy-subrc = 0.
+        wa_data-recv_regio = wa_t001w-regio.
+      ENDIF.
+
+      wa_data-matnr = wa_ekpo-matnr.
+      wa_data-txz01 = wa_ekpo-txz01.
+      IF p_uom IS NOT INITIAL.
+        wa_data-meins = p_uom.
+      ELSE.
+        wa_data-meins = wa_ekpo-meins.
+      ENDIF.
+*      wa_data-menge = wa_ekpo-menge. 04.02.2015 Prakahs
+
+
+*    PERFORM ratchk using wa_ekpo-matnr wa_ekpo-reswk.
+*                         wa_ekpo-werks.
+
+*    wa_data-tot_stk_rate = wa_data-stprs + wa_data-kbetr.
+*    wa_data-tot_stk_val = wa_data-tot_stk_rate * wa_data-menge.
+*    wa_data-tot_stk_val = wa_data-stprs * wa_data-menge.
+      IF wa_data-cess < 0.
+        wa_data-cess = wa_data-cess * -1.
+      ENDIF.
+      IF wa_data-excise < 0.
+        wa_data-excise = wa_data-excise * -1.
+      ENDIF.
+      IF wa_data-tot_stk_val < 0.
+        wa_data-tot_stk_val = wa_data-tot_stk_val * -1.
+      ENDIF.
+      IF wa_vbrp-netwr < 0.
+        wa_vbrp-netwr = wa_vbrp-netwr * -1.
+      ENDIF.
+      TRY.
+          wa_data-stprs = wa_vbrp-netwr / wa_data-menge.
+        CATCH cx_sy_zerodivide.
+      ENDTRY.
+
+      CLEAR : wa_mb5l.
+      wa_mb5l-matnr = wa_data-matnr.
+      wa_mb5l-bwkey = wa_data-werks.
+      wa_mb5l-charg = wa_data-charg.
+      wa_mb5l-bwtar = wa_data-bwtar.
+      wa_mb5l-bklas = wa_data-bklas.
+      wa_mb5l-lbkum = wa_data-menge.
+      APPEND wa_mb5l TO ta_mb5l.
+      APPEND wa_data TO ta_data.
+      CLEAR: wa_data, wa_mb5l.
+
+      CLEAR wa_ekbe.
+    ENDLOOP.
+************************      EOC by prakash on 30.01.15
+*    ELSE.
+*      CLEAR: wa_data.
+*      CONTINUE.
+*    ENDIF.
+
+*    wa_data-reswk = wa_ekpo-reswk.
+*    CLEAR : wa_t001w.
+*    READ TABLE ta_t001w INTO wa_t001w WITH KEY werks = wa_ekpo-reswk
+*                                      BINARY SEARCH.
+*    IF sy-subrc = 0.
+*      wa_data-supp_regio = wa_t001w-regio.
+*    ENDIF.
+*
+*    wa_data-werks = wa_ekpo-werks.
+*    CLEAR : wa_t001w.
+*    READ TABLE ta_t001w INTO wa_t001w WITH KEY werks = wa_ekpo-werks
+*                                      BINARY SEARCH.
+*    IF sy-subrc = 0.
+*      wa_data-recv_regio = wa_t001w-regio.
+*    ENDIF.
+*
+*    wa_data-matnr = wa_ekpo-matnr.
+*    wa_data-txz01 = wa_ekpo-txz01.
+*    IF p_uom IS NOT INITIAL.
+*      wa_data-meins = p_uom.
+*    ELSE.
+*      wa_data-meins = wa_ekpo-meins.
+*    ENDIF.
+*    wa_data-menge = wa_ekpo-menge.
+*
+*
+**    PERFORM ratchk using wa_ekpo-matnr wa_ekpo-reswk.
+**                         wa_ekpo-werks.
+*
+**    wa_data-tot_stk_rate = wa_data-stprs + wa_data-kbetr.
+**    wa_data-tot_stk_val = wa_data-tot_stk_rate * wa_data-menge.
+**    wa_data-tot_stk_val = wa_data-stprs * wa_data-menge.
+*    IF wa_data-cess < 0.
+*      wa_data-cess = wa_data-cess * -1.
+*    ENDIF.
+*    IF wa_data-excise < 0.
+*      wa_data-excise = wa_data-excise * -1.
+*    ENDIF.
+*    IF wa_data-tot_stk_val < 0.
+*      wa_data-tot_stk_val = wa_data-tot_stk_val * -1.
+*    ENDIF.
+*    IF wa_vbrp-netwr < 0.
+*      wa_vbrp-netwr = wa_vbrp-netwr * -1.
+*    ENDIF.
+*    TRY.
+*        wa_data-stprs = wa_vbrp-netwr / wa_data-menge.
+*      CATCH cx_sy_zerodivide.
+*    ENDTRY.
+*    APPEND wa_data TO ta_data.
+*    CLEAR: wa_data.
+    CLEAR wa_ekpo.
+  ENDLOOP.
+
+  IF ta_data IS NOT INITIAL.
+    SORT ta_data BY menge.
+    DELETE ta_data WHERE menge IS INITIAL.
+  ENDIF.
+
+  IF ta_mb5l IS NOT INITIAL.
+    SORT ta_mb5l BY lbkum.
+    DELETE ta_mb5l WHERE lbkum IS INITIAL.
+
+    SORT ta_mb5l BY matnr bwkey charg bwtar bklas lbkum.
+  ENDIF.
+
+
+ENDFORM.                    " BUILD_IT
+*&---------------------------------------------------------------------*
+*&      Form  CONVERT_MAT_QTY
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM convert_mat_qty .
+  IF p_uom IS NOT INITIAL.
+
+    CALL FUNCTION 'MD_CONVERT_MATERIAL_UNIT'
+      EXPORTING
+        i_matnr              = wa_ekpo-matnr
+        i_in_me              = wa_ekpo-meins
+        i_out_me             = p_uom
+        i_menge              = wa_ekpo-menge
+      IMPORTING
+        e_menge              = wa_ekpo-menge
+      EXCEPTIONS
+        error_in_application = 1
+        error                = 2
+        OTHERS               = 3.
+    IF sy-subrc <> 0.
+* MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+*         WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+    ENDIF.
+
+  ENDIF.
+ENDFORM.                    " CONVERT_MAT_QTY
+*&---------------------------------------------------------------------*
+*&      Form  PKD_CALC
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM pkd_calc .
+  DATA: zweek TYPE char2,
+        zyr TYPE c,
+        zyear TYPE char4,
+        zwkyr TYPE scal-week,
+        zmonth TYPE scal-date.
+
+  zweek =  wa_lips-charg+2(2).
+  zyr = wa_lips-charg+5(1).
+  CONCATENATE '200' zyr INTO zyear.
+  CONCATENATE zyear zweek INTO zwkyr.
+
+*     IF zweek <> space.
+  CALL FUNCTION 'WEEK_GET_FIRST_DAY'
+    EXPORTING
+      week         = zwkyr
+    IMPORTING
+      date         = zmonth
+    EXCEPTIONS
+      week_invalid = 1
+      OTHERS       = 2.
+*     ENDIF.
+  IF sy-subrc = 0.
+*      CONCATENATE zmonth+4(2) '/' zmonth+2(2) INTO wa_data-charg.
+    CONCATENATE zmonth+4(2) '/' zmonth+2(2) INTO wa_data-zpkd.
+  ENDIF.
+
+  IF    wa_lips-charg+2(1) = '8'.
+    CONCATENATE  wa_lips-charg+3(2) '/' '0' wa_lips-charg+2(1) INTO
+                                                               wa_data-zpkd.
+  ENDIF.
+  IF    wa_lips-charg+2(1) = '9'.
+    CONCATENATE  wa_lips-charg+3(2) '/' '0' wa_lips-charg+2(1) INTO
+                                                               wa_data-zpkd.
+  ENDIF.
+ENDFORM.                    " PKD_CALC
+*&---------------------------------------------------------------------*
+*&      Form  GET_CESS_EXCISE
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM get_cess_excise .
+  DATA: v_mrp TYPE konv-kwert,
+        v_cess TYPE konv-kwert,
+        v_excise TYPE konv-kwert,
+        v_abtment TYPE konv-kwert.
+
+  IF wa_ekpo-reswk+0(1) = 'D'.
+    wa_data-tot_stk_val = wa_vbrp-netwr.
+  ELSE.
+    CLEAR : wa_konv.
+    READ TABLE ta_konv INTO wa_konv WITH KEY knumv = wa_vbrk-knumv
+                                             kposn = wa_vbrp-posnr
+                                             kschl = 'ZEAT'
+                                    BINARY SEARCH.
+    IF sy-subrc = 0.
+      LOOP AT ta_konv INTO wa_konv
+                           WHERE knumv = wa_vbrk-knumv
+                           AND   kposn = wa_vbrp-posnr.
+        CASE wa_konv-kschl.
+          WHEN 'ZPR0'.
+            v_mrp = wa_konv-kwert.
+          WHEN 'ZPRW'.
+            v_mrp = wa_konv-kwert.
+          WHEN 'ZEAT'.
+            v_abtment = wa_konv-kwert.
+          WHEN 'ZEXT'.
+            v_excise = v_excise + wa_konv-kwert.
+          WHEN 'ZMXT'.
+            v_excise = v_excise + wa_konv-kwert.
+          WHEN 'ZXCT'.
+            v_cess = v_cess + wa_konv-kwert.
+          WHEN 'ZCXT'.
+            v_cess = v_cess + wa_konv-kwert.
+          WHEN 'ZWED'.
+            v_excise = v_excise + wa_konv-kwert.
+          WHEN 'ZWXT'.
+            v_cess = v_cess + wa_konv-kwert.
+        ENDCASE.
+      ENDLOOP.
+      wa_data-access = v_mrp + v_abtment.
+      wa_data-cess = v_cess.
+      wa_data-excise = v_excise.
+      CLEAR : wa_konv.
+    ELSE.
+      LOOP AT ta_konv INTO wa_konv
+                       WHERE knumv = wa_vbrk-knumv
+                       AND   kposn = wa_vbrp-posnr.
+        CASE wa_konv-kschl.
+          WHEN 'ZPR0'.
+            v_mrp = wa_konv-kwert.
+          WHEN 'ZPRW'.
+            v_mrp = wa_konv-kwert.
+          WHEN 'ZWED'.
+            v_excise = v_excise + wa_konv-kwert.
+          WHEN 'ZWXT'.
+            v_cess = v_cess + wa_konv-kwert.
+          WHEN OTHERS.
+            v_abtment = v_abtment + wa_konv-kwert.
+        ENDCASE.
+        IF wa_konv-kschl = 'ZEXT'.
+          v_excise = v_excise + wa_konv-kwert.
+        ENDIF.
+        IF wa_konv-kschl = 'ZMXT'.
+          v_excise = v_excise + wa_konv-kwert.
+        ENDIF.
+        IF wa_konv-kschl = 'ZXCT'.
+          v_cess = v_cess + wa_konv-kwert.
+        ENDIF.
+        IF wa_konv-kschl = 'ZCXT'.
+          v_cess = v_cess + wa_konv-kwert.
+        ENDIF.
+      ENDLOOP.
+      wa_data-access = v_mrp + v_abtment.
+      wa_data-cess = v_cess.
+      wa_data-excise = v_excise.
+      CLEAR : wa_konv.
+    ENDIF.
+    wa_data-tot_stk_val = wa_data-cess + wa_data-excise.
+  ENDIF.
+ENDFORM.                    " GET_CESS_EXCISE
+*&---------------------------------------------------------------------*
+*&      Form  COMMENT_BUILD
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+*FORM comment_build .
+*  DATA: ls_line TYPE slis_listheader,
+*        ls_txt(60) TYPE c.
+*
+*  CLEAR: ls_line.
+*  ls_line-typ  = 'H'.
+*  ls_line-key  = 'Name of Company :'.
+*  ls_line-info = 'Cipla'.
+*  APPEND ls_line TO gt_list_top_of_page.
+*
+*  CLEAR ls_line.
+*  ls_line-typ = 'A'.
+*  CONCATENATE 'Stock in Transit as on ' p_date+6(2) '.' p_date+4(2) '.' p_date+0(4) INTO ls_line-info .
+*  APPEND ls_line TO gt_list_top_of_page.
+*ENDFORM.                    " COMMENT_BUILD
+*FORM top-of-page.
+*  CALL FUNCTION 'REUSE_ALV_COMMENTARY_WRITE'
+*    EXPORTING
+*      it_list_commentary = gt_list_top_of_page
+**     I_LOGO             =
+**     I_END_OF_LIST_GRID =
+**     I_ALV_FORM         =
+*    .
+*
+*ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  COLLECT_351
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM collect_351 .
+
+  DATA : l_tabix TYPE sy-tabix.
+*  SORT ta_ekbe_gi BY ebeln ebelp gjahr bwart matnr werks charg.
+  CLEAR : wa_ekbe, ta_temp[], wa_temp, l_tabix.
+
+  LOOP AT ta_ekbe_gi INTO wa_ekbe WHERE bwart = '351'.
+    wa_temp-ebeln = wa_ekbe-ebeln.
+    wa_temp-ebelp = wa_ekbe-ebelp.
+    wa_temp-bwart = wa_ekbe-bwart.
+    wa_temp-matnr = wa_ekbe-matnr.
+    wa_temp-werks = wa_ekbe-werks.
+    wa_temp-charg = wa_ekbe-charg.
+    wa_temp-menge = wa_ekbe-menge.
+    wa_temp-dmbtr = wa_ekbe-dmbtr.
+    wa_temp-wrbtr = wa_ekbe-wrbtr.
+    wa_temp-bamng = wa_ekbe-bamng.
+    COLLECT wa_temp INTO ta_temp.
+    CLEAR : wa_ekbe, wa_temp.
+  ENDLOOP.
+  SORT ta_temp BY ebeln ebelp bwart matnr werks charg.
+  LOOP AT ta_ekbe_gi INTO wa_ekbe WHERE bwart = '351'.
+    l_tabix = sy-tabix.
+    CLEAR : wa_temp.
+    READ TABLE ta_temp INTO wa_temp WITH KEY ebeln = wa_ekbe-ebeln
+                                             ebelp = wa_ekbe-ebelp
+                                             bwart = wa_ekbe-bwart
+                                             matnr = wa_ekbe-matnr
+                                             werks = wa_ekbe-werks
+                                             charg = wa_ekbe-charg
+                                             BINARY SEARCH.
+    IF sy-subrc = 0.
+      wa_ekbe-menge = wa_temp-menge.
+      wa_ekbe-dmbtr = wa_temp-dmbtr.
+      wa_ekbe-wrbtr = wa_temp-wrbtr.
+      wa_ekbe-bamng = wa_temp-bamng.
+      MODIFY ta_ekbe_gi INDEX l_tabix FROM wa_ekbe TRANSPORTING menge dmbtr wrbtr bamng.
+      CLEAR : wa_ekbe, wa_temp.
+    ENDIF.
+    CLEAR wa_ekbe.
+  ENDLOOP.
+
+  SORT ta_ekbe_gi BY ebeln ebelp bwart menge dmbtr wrbtr matnr werks bamng charg.
+  DELETE ADJACENT DUPLICATES FROM ta_ekbe_gi COMPARING ebeln ebelp bwart menge dmbtr wrbtr matnr werks bamng charg.
+ENDFORM.                    " COLLECT_351
+*&---------------------------------------------------------------------*
+*&      Form  VALIDATE_DATA
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM validate_data .
+  DATA : lv_year(4) TYPE c,
+         lv_poper TYPE poper,
+         lv_reljr TYPE reljr,
+         lv_spmon TYPE s034-spmon,
+         lv_periodyear TYPE zperyear,
+         lv_per TYPE zperyear,
+         lv_date TYPE sy-datum.
+
+  gv_crper = sy-datum+0(6).
+  lv_spmon = p_date+0(6).
+  IF gv_crper+4(2) = '01'.
+    lv_year = gv_crper+0(4) - 1.
+    CONCATENATE lv_year '12' INTO gv_prper.
+  ELSE.
+    gv_prper = gv_crper - 1.
+  ENDIF.
+
+  IF lv_spmon NE gv_prper AND lv_spmon NE gv_crper.
+    MESSAGE 'You can run this report only for current and previous period' TYPE 'E'.
+  ENDIF.
+  IF lv_spmon = gv_prper.
+    gv_perio = 'PREV'.
+  ELSEIF lv_spmon = gv_crper.
+    gv_perio = 'CURR'.
+  ENDIF.
+
+*  CLEAR g_date.
+*  g_date = p_date.
+*  IF sy-batch = 'X' OR sy-uname = 'BATCH'.
+
+*  CLEAR : lv_date,lv_per.
+*
+*  CALL FUNCTION 'OIL_LAST_DAY_OF_PREVIOUS_MONTH'
+*    EXPORTING
+*      i_date_old = p_date
+*    IMPORTING
+*      e_date_new = p_date.
+*
+*  lv_per = p_date+0(06).
+*
+*  CLEAR : lv_periodyear.
+*  SELECT SINGLE periodyear
+*                FROM zmm_stock_tran
+*                INTO lv_periodyear
+*                WHERE periodyear = lv_per.
+*
+*  IF sy-subrc = 0.
+**      p_date = g_date.
+*    MESSAGE 'For Given Period Record Already Exists' TYPE 'I'.
+**      g_flag = 'X'.
+*  ENDIF.
+
+*  ENDIF.
+
+ENDFORM.                    " VALIDATE_DATA
+*&---------------------------------------------------------------------*
+*&      Form  GET_MB5L
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM get_mb5l .
+  DATA : lv_tabix TYPE sy-tabix.
+  CLEAR : lv_tabix.
+
+  CALL FUNCTION 'ZMM_GET_MB5L'
+    EXPORTING
+      iv_perio = gv_perio
+    TABLES
+      ta_mb5l  = ta_mb5l[].
+
+  CLEAR : wa_data, wa_mb5l.
+
+  LOOP AT ta_data INTO wa_data.
+    lv_tabix = sy-tabix.
+    READ TABLE ta_mb5l INTO wa_mb5l WITH KEY matnr = wa_data-matnr
+                                             bwkey = wa_data-werks
+                                             charg = wa_data-charg
+                                             bwtar = wa_data-bwtar
+                                             bklas = wa_data-bklas
+                                             lbkum = wa_data-menge.
+    IF sy-subrc = 0.
+      wa_data-saknr = wa_mb5l-saknr.
+      wa_data-vprsv = wa_mb5l-vprsv.
+      wa_data-stprs = wa_mb5l-stprs.
+      wa_data-verpr = wa_mb5l-verpr.
+      wa_data-peinh = wa_mb5l-peinh.
+      wa_data-salk3 = wa_mb5l-salk3.
+    ENDIF.
+    MODIFY ta_data INDEX lv_tabix FROM wa_data TRANSPORTING salk3 saknr vprsv stprs verpr peinh.
+    CLEAR : wa_data, wa_mb5l, lv_tabix.
+  ENDLOOP.
+ENDFORM.                    " GET_MB5L
+*&---------------------------------------------------------------------*
+*&      Form  WRITE_DATA
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*&      Form  MODIFY_ZTABLE
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM modify_ztable .
+
+  DATA : lta_stock_tran TYPE TABLE OF zmm_stock_tran,
+         lwa_stock_tran TYPE zmm_stock_tran.
+
+  DATA : ls_period TYPE sy-datum.
+*
+*  CLEAR: ls_period.
+*
+*  CALL FUNCTION 'OIL_LAST_DAY_OF_PREVIOUS_MONTH'
+*    EXPORTING
+*      i_date_old = p_date
+*    IMPORTING
+*      e_date_new = ls_period.
+
+  SORT ta_data BY werks matnr charg.
+
+  CLEAR lta_stock_tran[].
+  LOOP AT ta_data INTO wa_data .
+
+    lwa_stock_tran-periodyear = p_date+0(06).
+    lwa_stock_tran-plant = wa_data-werks.
+    lwa_stock_tran-material = wa_data-matnr.
+    lwa_stock_tran-batch = wa_data-charg.
+    lwa_stock_tran-valuation_class = wa_data-bklas.
+    lwa_stock_tran-valuation_type = wa_data-bwtar.
+    lwa_stock_tran-qty_in_buom_intra = wa_data-bamng.
+    lwa_stock_tran-buom_intra = wa_data-meins.
+    lwa_stock_tran-value_intra = wa_data-salk3.
+    lwa_stock_tran-currency_intra = wa_data-waers.
+    lwa_stock_tran-price_indicator = wa_data-vprsv.
+    lwa_stock_tran-standard_price = wa_data-stprs.
+    lwa_stock_tran-moving_avg_price = wa_data-verpr.
+    lwa_stock_tran-price_per_unit = wa_data-peinh.
+    lwa_stock_tran-created_by = sy-uname.
+    lwa_stock_tran-created_on = sy-datum.
+    lwa_stock_tran-ctreated_time = sy-uzeit.
+    lwa_stock_tran-changed_by = sy-uname.
+    lwa_stock_tran-changed_on = sy-datum.
+    lwa_stock_tran-changed_time = sy-uzeit.
+    COLLECT lwa_stock_tran INTO lta_stock_tran.
+*    APPEND lwa_stock_tran TO lta_stock_tran.
+    CLEAR: lwa_stock_tran,wa_data.
+
+  ENDLOOP.
+  IF g_flag IS NOT INITIAL.
+    MODIFY zmm_stock_tran FROM TABLE lta_stock_tran.
+    IF sy-subrc = 0.
+      COMMIT WORK.
+    ENDIF.
+  ENDIF.
+
+ENDFORM.                    " MODIFY_ZTABLE

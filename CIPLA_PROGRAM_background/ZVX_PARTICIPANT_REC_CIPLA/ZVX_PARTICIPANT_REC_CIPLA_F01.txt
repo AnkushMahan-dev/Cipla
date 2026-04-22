@@ -1,0 +1,508 @@
+*&---------------------------------------------------------------------*
+*&  Include           ZVX_PARTICIPANT_REC_CIPLA_F01
+*&---------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+* Include Name    :  ZVX_PARTICIPANT_REC_CIPLA_F01                     *
+* Creation Date   :  05-March-2020                                     *
+* Author          :  Sindhuja Dhulipudi                                *
+* Application Area:  Agreements                                        *
+* ---------------------------------------------------------------------*
+* Description: Report to create a job in BB_ASP~AFTER_SAVE method to   *
+*              create the CR participation records when saving the     *
+*              BB Agreement
+*----------------------------------------------------------------------*
+* Change History:                                                      *
+*----------------------------------------------------------------------*
+* Date        Created By     Task #      Description                   *
+* ---------------------------------------------------------------------*
+* 05-March-2020  ABAP1      CRDK968332      Initial Development        *
+*                                                                      *
+*&---------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*&      Form  GET_DATA
+*&---------------------------------------------------------------------*
+FORM get_data.
+  DATA: lt_rules TYPE /irm/t_gpr_rules.
+  DATA: ls_kona  TYPE /irm/s_gkona.
+**Get Agreement Rules
+  CALL FUNCTION '/IRM/IPA_AGREEMENT_READ'
+    EXPORTING
+      i_knuma_ag          = p_knuma
+      i_mode              = 'A'
+    IMPORTING
+*     es_agreement        =
+      es_kona             = ls_kona
+*     ES_T6B1             =
+*     E_CLASS             =
+*     ES_TIPAGT           =
+      et_rules            = lt_rules
+*     ET_RULES_OVERVIEW   =
+*     ET_SPENDS           =
+*     ET_TERRITORIES      =
+*     ET_TERRITORY_FUNDS  =
+*     ET_AGR_REQUESTS     =
+*     ET_DEPCODES         =
+*     ET_TEXT_HEADER      =
+*     ET_MESSAGES         =
+    EXCEPTIONS
+      agreement_not_found = 1
+      rules_errors        = 2
+      type_not_found      = 3
+      OTHERS              = 4.
+
+  IF sy-subrc <> 0.
+* Implement suitable error handling here
+  ENDIF.
+
+  IF lt_rules IS NOT INITIAL.
+**Get the period profiles maintained in the YIPC rule
+    PERFORM get_period_prfls USING lt_rules.
+** Get the existing participation records for the agreement
+    PERFORM get_part_exist_data.
+**Prepare the participation records data from YVCC,YVET,YVCS conditions
+    PERFORM prepare_part_data USING lt_rules
+                                    ls_kona.
+    IF gt_part_rec IS NOT INITIAL.
+** Check the existing data and update accordingly
+      PERFORM check_the_existing_data.
+    ENDIF.
+  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  GET_PERIOD_PRFLS
+*&---------------------------------------------------------------------*
+FORM get_period_prfls USING lt_rules TYPE /irm/t_gpr_rules.
+
+  DATA: ls_rules TYPE /irm/s_gpr_rules,
+        ls_prdpr TYPE ty_prdpr.
+
+  FIELD-SYMBOLS: <lt_r3in_yipc> TYPE   table,
+                 <ls_r3in_yipc> TYPE   data,
+                 <lv_loevm>     TYPE   any.
+**Get the Peroid profiles
+  CLEAR: ls_rules.
+  READ TABLE lt_rules INTO ls_rules
+            WITH KEY kschl = zvx_global=>c_kschl_yipc.
+  IF sy-subrc = 0.
+    ASSIGN ls_rules-ref_prm->mt_r3in->* TO <lt_r3in_yipc>.
+    IF <lt_r3in_yipc> IS ASSIGNED AND
+        <lt_r3in_yipc> IS NOT INITIAL.
+
+      LOOP AT <lt_r3in_yipc> ASSIGNING <ls_r3in_yipc>.
+
+        ASSIGN COMPONENT 'LOEVM_KO' OF STRUCTURE <ls_r3in_yipc> TO <lv_loevm>.
+        IF <lv_loevm> IS ASSIGNED AND
+           <lv_loevm> IS INITIAL.
+          ASSIGN COMPONENT 'ZZPRDPR' OF STRUCTURE <ls_r3in_yipc> TO FIELD-SYMBOL(<lv_zzprdpr>).
+          IF <lv_zzprdpr> IS ASSIGNED AND
+             <lv_zzprdpr> IS NOT INITIAL.
+            ls_prdpr-zzprdpr = <lv_zzprdpr>.
+            APPEND ls_prdpr TO gt_prdpr.
+          ENDIF.
+        ENDIF.
+      ENDLOOP.
+      SORT gt_prdpr.
+      DELETE ADJACENT DUPLICATES FROM gt_prdpr COMPARING ALL FIELDS.
+    ENDIF.
+  ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  PREPARE_PART_DATA
+*&---------------------------------------------------------------------*
+FORM prepare_part_data USING lt_rules TYPE /irm/t_gpr_rules
+                             ls_kona TYPE /irm/s_gkona.
+
+  DATA: ls_rules TYPE /irm/s_gpr_rules,
+        ls_prdpr TYPE ty_prdpr,
+        ls_part  TYPE /irm/s_ipcipa.
+
+  DATA: lv_panum TYPE numc7.
+
+  FIELD-SYMBOLS: <lt_r3in_yvcc_yvet> TYPE   table,
+                 <lt_r3in>           TYPE   table,
+                 <ls_r3in>           TYPE   data,
+                 <lv_loevm>          TYPE   any.
+
+  lv_panum = '0'.
+
+**Preparing the participation records data from YVRS condition customers
+  CLEAR ls_rules.
+  READ TABLE lt_rules INTO ls_rules
+                  WITH KEY  kschl = zvx_global=>c_kschl_yvrs.
+  IF sy-subrc = 0.
+    ASSIGN ls_rules-ref_prm->mt_r3in->* TO <lt_r3in_yvcc_yvet>.
+    IF <lt_r3in_yvcc_yvet> IS ASSIGNED AND
+       <lt_r3in_yvcc_yvet> IS NOT INITIAL.
+
+      PERFORM update_data USING <lt_r3in_yvcc_yvet>
+                                 ls_kona
+                          CHANGING  lv_panum.
+
+    ENDIF.
+  ENDIF.
+
+  CHECK gt_part IS INITIAL.
+
+**Preparing the participation records data from YVSP condition customers
+  CLEAR ls_rules.
+  READ TABLE lt_rules INTO ls_rules
+                  WITH KEY  kschl = zvx_global=>c_kschl_yvsp.
+  IF sy-subrc = 0.
+    ASSIGN ls_rules-ref_prm->mt_r3in->* TO <lt_r3in_yvcc_yvet>.
+    IF <lt_r3in_yvcc_yvet> IS ASSIGNED AND
+       <lt_r3in_yvcc_yvet> IS NOT INITIAL.
+
+      PERFORM update_data USING <lt_r3in_yvcc_yvet>
+                                 ls_kona
+                          CHANGING  lv_panum.
+
+    ENDIF.
+  ENDIF.
+
+  IF gt_part[] IS INITIAL.
+**Preparing the participation records data from YVCC condition customers
+    CLEAR ls_rules.
+    READ TABLE lt_rules INTO ls_rules
+                    WITH KEY  kschl = zvx_global=>c_kschl_yvcc.
+    IF sy-subrc = 0.
+      ASSIGN ls_rules-ref_prm->mt_r3in->* TO <lt_r3in_yvcc_yvet>.
+      IF <lt_r3in_yvcc_yvet> IS ASSIGNED AND
+         <lt_r3in_yvcc_yvet> IS NOT INITIAL.
+
+        PERFORM update_data USING <lt_r3in_yvcc_yvet>
+                                   ls_kona
+                            CHANGING  lv_panum.
+
+      ENDIF.
+    ENDIF.
+
+    CHECK gt_part IS INITIAL.
+**Preparing the participation records data from YVET condition customers
+    CLEAR ls_rules.
+    READ TABLE lt_rules INTO ls_rules
+                    WITH KEY  kschl = zvx_global=>c_kschl_yvet.
+    IF sy-subrc = 0.
+      UNASSIGN <lt_r3in_yvcc_yvet>.
+      ASSIGN ls_rules-ref_prm->mt_r3in->* TO <lt_r3in_yvcc_yvet>.
+      IF <lt_r3in_yvcc_yvet> IS ASSIGNED AND
+         <lt_r3in_yvcc_yvet> IS NOT INITIAL.
+
+        PERFORM update_data USING <lt_r3in_yvcc_yvet>
+                                   ls_kona
+                            CHANGING  lv_panum.
+
+      ENDIF.
+    ENDIF.
+
+    CHECK gt_part IS INITIAL.
+**Preparing the participation records data from YVCS condition customers
+    CLEAR ls_rules.
+    READ TABLE lt_rules INTO ls_rules
+                    WITH KEY  kschl = zvx_global=>c_kschl_yvcs.
+    IF sy-subrc = 0.
+      UNASSIGN <lt_r3in_yvcc_yvet>.
+      ASSIGN ls_rules-ref_prm->mt_r3in->* TO <lt_r3in_yvcc_yvet>.
+      IF <lt_r3in_yvcc_yvet> IS ASSIGNED AND
+         <lt_r3in_yvcc_yvet> IS NOT INITIAL.
+
+        PERFORM update_data USING <lt_r3in_yvcc_yvet>
+                                   ls_kona
+                         CHANGING  lv_panum.
+
+      ENDIF.
+    ENDIF.
+
+    CHECK gt_part IS INITIAL.
+**Preparing the participation records data from Y3EC condition customers
+    CLEAR ls_rules.
+    READ TABLE lt_rules INTO ls_rules
+                    WITH KEY  kschl = zvx_global=>c_kschl_y3ec.
+    IF sy-subrc = 0.
+      UNASSIGN <lt_r3in_yvcc_yvet>.
+      ASSIGN ls_rules-ref_prm->mt_r3in->* TO <lt_r3in_yvcc_yvet>.
+      IF <lt_r3in_yvcc_yvet> IS ASSIGNED AND
+         <lt_r3in_yvcc_yvet> IS NOT INITIAL.
+
+        PERFORM update_data USING <lt_r3in_yvcc_yvet>
+                                   ls_kona
+                         CHANGING  lv_panum.
+
+      ENDIF.
+    ENDIF.
+  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  UPDATE_PART_DATA
+*&---------------------------------------------------------------------*
+FORM update_part_data.
+
+  DATA: ls_part    TYPE /irm/s_ipcipa,
+        ls_depcode TYPE ty_depcode.
+
+  DATA: lt_part    TYPE /irm/t_ipcipa,
+*        lt_xpart   TYPE /irm/t_ipcipa,
+        lt_ypart   TYPE /irm/t_ipcipa,
+        lt_depcode TYPE tt_depcode.
+  IF gt_part IS NOT INITIAL.
+    SORT gt_part.
+    DELETE ADJACENT DUPLICATES FROM gt_part COMPARING ALL FIELDS.
+  ENDIF.
+
+  LOOP AT gt_part INTO ls_part.
+    lt_part[] = gt_part[].
+    lt_ypart[] = gt_ypart[].
+*    lt_xpart[] = gt_xpart[].
+
+    IF NOT line_exists( lt_depcode[ depcode = ls_part-depcode ] ).
+      DELETE lt_part   WHERE depcode NE ls_part-depcode.
+      DELETE lt_ypart  WHERE depcode NE ls_part-depcode.
+*      DELETE lt_xpart  WHERE depcode NE ls_part-depcode.
+      ls_depcode-depcode = ls_part-depcode.
+      APPEND ls_depcode TO lt_depcode.
+
+**When changing the dates in the agreement system not supporting to
+**change them in the participation records if both ct_x_participants and
+**ct_y_participants are passing in below FM
+**so placed the code to call the below FM 2 times,first time to delete the records
+**and then to insert the records
+
+      IF lt_ypart IS NOT INITIAL.
+        CALL FUNCTION '/IRM/IPCP_PARTICIPANTS_UPDATE'
+          EXPORTING
+            i_depcode              = ls_part-depcode
+            i_version              = ls_part-vrsio
+            i_commit_work          = 'X'
+          CHANGING
+            ct_y_participants      = lt_ypart
+          EXCEPTIONS
+            depcode_version_locked = 1
+            incomplete_parameters  = 2
+            OTHERS                 = 3.
+
+        IF sy-subrc <> 0.
+* Implement suitable error handling here
+        ENDIF.
+      ENDIF.
+
+**-- Update PANUM_H to stop in calrun if posting exist
+*      IF lt_xpart IS NOT INITIAL.
+*        CALL FUNCTION '/IRM/IPCP_PARTICIPANTS_UPDATE'
+*          EXPORTING
+*            i_depcode              = ls_part-depcode
+*            i_version              = ls_part-vrsio
+*            i_commit_work          = 'X'
+*          CHANGING
+*            ct_x_participants      = lt_xpart
+*          EXCEPTIONS
+*            depcode_version_locked = 1
+*            incomplete_parameters  = 2
+*            OTHERS                 = 3.
+*
+*        IF sy-subrc <> 0.
+** Implement suitable error handling here
+*        ENDIF.
+*      ENDIF.
+
+      IF lt_part IS NOT INITIAL.
+        CALL FUNCTION '/IRM/IPCP_PARTICIPANTS_UPDATE'
+          EXPORTING
+            i_depcode              = ls_part-depcode
+            i_version              = ls_part-vrsio
+            i_commit_work          = 'X'
+          CHANGING
+            ct_x_participants      = lt_part
+          EXCEPTIONS
+            depcode_version_locked = 1
+            incomplete_parameters  = 2
+            OTHERS                 = 3.
+
+        IF sy-subrc <> 0.
+* Implement suitable error handling here
+        ENDIF.
+      ENDIF.
+    ENDIF.
+    REFRESH: lt_part, lt_ypart.
+  ENDLOOP.
+  REFRESH: lt_depcode.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  UPDATE_DATA
+*&---------------------------------------------------------------------*
+
+FORM update_data USING lt_r3in_yvcc_yvet TYPE ANY TABLE
+                        ls_kona TYPE /irm/s_gkona
+               CHANGING cv_panum TYPE numc7.
+
+  DATA: ls_part  TYPE /irm/s_ipcipa,
+        ls_prdpr TYPE ty_prdpr.
+
+  DATA: lv_part_insr TYPE xfeld.
+
+  LOOP AT lt_r3in_yvcc_yvet ASSIGNING FIELD-SYMBOL(<ls_r3in>).
+
+*-- One participation for rule check
+    IF lv_part_insr EQ abap_true.
+      EXIT.
+    ENDIF.
+
+    ASSIGN COMPONENT 'LOEVM_KO' OF STRUCTURE <ls_r3in> TO FIELD-SYMBOL(<lv_loevm>).
+    IF <lv_loevm> IS ASSIGNED AND
+       <lv_loevm> IS INITIAL.
+
+      ASSIGN COMPONENT 'KSCHL' OF STRUCTURE <ls_r3in> TO FIELD-SYMBOL(<lv_kschl>).
+      IF <lv_kschl> IS ASSIGNED.
+        IF <lv_kschl> EQ zvx_global=>c_kschl_yvet.
+          ASSIGN COMPONENT 'HIENR' OF STRUCTURE <ls_r3in> TO FIELD-SYMBOL(<lv_hienr>).
+        ELSE.
+          ASSIGN COMPONENT 'KUNNR' OF STRUCTURE <ls_r3in> TO FIELD-SYMBOL(<lv_kunnr>).
+        ENDIF.
+      ENDIF.
+
+      IF ( <lv_kunnr> IS ASSIGNED AND
+           <lv_kunnr> IS NOT INITIAL ) OR
+         ( <lv_hienr> IS ASSIGNED AND
+           <lv_hienr> IS NOT INITIAL ).
+
+        IF <lv_kunnr> IS ASSIGNED AND
+           <lv_kunnr> IS NOT INITIAL.
+          ls_part-sktonr = <lv_kunnr>.
+        ELSEIF <lv_hienr> IS ASSIGNED AND
+               <lv_hienr> IS NOT INITIAL.
+          ls_part-sktonr = <lv_hienr>.
+        ENDIF.
+
+        ls_part-snrart = zvx_global=>c_nrart_ku.
+        ls_part-name1 = ls_kona-botext.
+        ls_part-vrsio = zvx_global=>c_zvx_version.
+        ls_part-nrart = zvx_global=>c_nrart_ag.
+        ls_part-knuma_ag = p_knuma.
+        ls_part-agr_ref = p_knuma.
+
+        ASSIGN COMPONENT 'DATAB' OF STRUCTURE <ls_r3in>
+          TO FIELD-SYMBOL(<lv_datab>).
+        IF <lv_datab> IS ASSIGNED.
+          ls_part-begda = <lv_datab>.
+        ENDIF.
+        ASSIGN COMPONENT 'DATBI' OF STRUCTURE <ls_r3in>
+             TO FIELD-SYMBOL(<lv_datbi>).
+        IF <lv_datbi> IS ASSIGNED.
+          ls_part-endda = <lv_datbi>.
+        ENDIF.
+        ls_part-apovr = abap_true.
+        ls_part-updkz = zvx_global=>c_updkz_ins.
+
+        LOOP AT gt_prdpr INTO ls_prdpr.
+
+          CASE ls_prdpr-zzprdpr.
+            WHEN zvx_global=>c_zvx_prdpr_mnthly.
+              ls_part-depcode = zvx_global=>c_zvx_dpcd_mnthly.
+              ls_part-fprpf   = zvx_global=>c_zvx_fprpf_mnthly.
+            WHEN zvx_global=>c_zvx_prdpr_qrtly.
+              ls_part-depcode = zvx_global=>c_zvx_dpcd_qrtly.
+              ls_part-fprpf  = zvx_global=>c_zvx_fprpf_qrtly.
+            WHEN zvx_global=>c_zvx_prdpr_hfrly.
+              ls_part-depcode = zvx_global=>c_zvx_dpcd_hfrly.
+              ls_part-fprpf  = zvx_global=>c_zvx_fprpf_hfrly.
+            WHEN zvx_global=>c_zvx_prdpr_yearly.
+              ls_part-depcode = zvx_global=>c_zvx_dpcd_yearly.
+              ls_part-fprpf  = zvx_global=>c_zvx_fprpf_yearly.
+          ENDCASE.
+
+          cv_panum = cv_panum + 1.
+          CONCATENATE '&&' cv_panum INTO ls_part-panum.
+
+          APPEND ls_part TO gt_part.
+
+          lv_part_insr = abap_true.
+        ENDLOOP.
+      ENDIF."<lv_kunnr>
+    ENDIF."<lv_loevm>
+  ENDLOOP.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  GET_PART_EXIST_DATA
+*&---------------------------------------------------------------------*
+FORM get_part_exist_data .
+
+  SELECT panum depcode vrsio nrart
+         partid knuma_ag endda
+         begda snrart sktonr agr_ref
+       FROM /irm/ipcrpart
+       INTO TABLE gt_part_rec
+       WHERE knuma_ag = p_knuma.
+  IF sy-subrc = 0 .
+    SORT gt_part_rec BY panum.
+  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  CHECK_THE_EXISTING_DATA
+*&---------------------------------------------------------------------*
+FORM check_the_existing_data.
+  DATA: ls_part         TYPE /irm/s_ipcipa,
+        lt_part         TYPE /irm/t_ipcipa,
+        lt_part_check   TYPE /irm/t_ipcipa,
+        lt_accr_aps     TYPE /irm/t_ipciaps,
+        lt_int_setl_aps TYPE /irm/t_ipciaps,
+        lt_setl_aps     TYPE /irm/t_ipciaps.
+
+  SORT gt_part BY depcode endda begda sktonr.
+
+  LOOP AT gt_part_rec INTO DATA(ls_part_rec).
+
+    READ TABLE gt_part ASSIGNING FIELD-SYMBOL(<ls_part>)
+                    WITH KEY   depcode = ls_part_rec-depcode
+*                               endda   = ls_part_rec-endda
+                                "extension issues
+                               begda   = ls_part_rec-begda
+                               sktonr  = ls_part_rec-sktonr
+                    BINARY SEARCH.
+    IF sy-subrc NE 0.
+      MOVE-CORRESPONDING ls_part_rec TO ls_part.
+
+      REFRESH lt_part_check.
+      APPEND ls_part TO lt_part_check.
+
+*-- If Participations are having postings
+      " update panum_h to stop participation in calrun
+      CALL FUNCTION '/IRM/IPCP_PART_POSTINGS_GET'
+        EXPORTING
+          i_class                 = '3'
+          it_participants         = lt_part_check
+        IMPORTING
+          et_accr_aps             = lt_accr_aps
+          et_int_setl_aps         = lt_int_setl_aps
+          et_setl_aps             = lt_setl_aps
+        EXCEPTIONS
+          inconsistent_parameters = 1
+          no_data_exists          = 2
+          OTHERS                  = 3.
+      IF sy-subrc <> 0.
+*   MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+*           WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+      ENDIF.
+
+*-- Check Postings
+      IF lt_accr_aps     IS NOT INITIAL OR
+         lt_int_setl_aps IS NOT INITIAL OR
+         lt_setl_aps     IS NOT INITIAL.
+
+        ls_part-panum_h = ls_part_rec-panum.
+        ls_part-updkz   = zvx_global=>c_updkz_upd.
+        APPEND ls_part TO gt_part.
+        CLEAR ls_part.
+      ELSE.
+
+        ls_part-updkz = zvx_global=>c_updkz_del.
+        APPEND ls_part TO lt_part.
+        CLEAR ls_part.
+      ENDIF.
+    ELSE.
+      <ls_part>-panum = ls_part_rec-panum.
+      <ls_part>-updkz = zvx_global=>c_updkz_upd.
+    ENDIF.
+  ENDLOOP.
+  IF lt_part IS NOT INITIAL.
+    APPEND LINES OF lt_part TO gt_ypart.
+  ENDIF.
+ENDFORM.

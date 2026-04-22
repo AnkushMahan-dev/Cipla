@@ -1,0 +1,185 @@
+*&---------------------------------------------------------------------*
+*& Report  rsbcs_reorg                                                 *
+*& Business Communication Services (BCS): Reorganization               *
+*& Deletion of documents and send requests                             *
+*&---------------------------------------------------------------------*
+*& This report is the successor of rsbcsre03 and rssore00.
+*& It comes with note 966854
+*&
+*& It includes the complete functionality of rsbcsre03 and rssore00.
+*& RSBCSRE00, RSBCSRE01, RSBCSRE02, RSBCSRE03 and RSSORE00, RSSORE02
+*& are not needed any longer and should not be used anymore
+*& when using this report.
+*&
+*& Enhancements:
+*&    - enhanced selection criteria
+*&    - more detailed output
+*&    - send requests and corresponding documents get deleted together
+*&    - documents without send requests get also deleted (if option is
+*&      selected)
+*&    - links to business objects get deleted in case the corresponding
+*&      object does not exist anymore
+*&    - attachments get deleted directly
+*&    - RSSOREKI is not called anymore. SOMG gets deleted directly
+*&
+*& Remark:
+*& The report uses classes which are also new with note 966854!
+*&---------------------------------------------------------------------*
+report  rsbcs_reorg.
+
+include rsbcs_reorg_top.
+
+*-----------------------------------------------------------------------
+initialization.
+  authority-check object 'S_OC_ROLE'
+                  id     'OFFADMI'
+                  field  'ADMINISTRATOR'.
+  if sy-subrc ne 0.
+    message e015(so).
+  endif.
+
+*----------------------------------------------------------------------
+at selection-screen output.
+  perform set_age.
+  perform modify_screen.
+
+*----------------------------------------------------------------------
+start-of-selection.
+  perform set_age.
+  perform reorg.
+
+*&---------------------------------------------------------------------*
+*&      Form  reorg
+*&---------------------------------------------------------------------*
+form reorg.
+
+  data lo_cx  type ref to cx_bcs.
+  data lt_sel type rsparams_tt.
+  data l_reorg type ref to cl_reorg_bcs.
+
+  if testmode = space.
+    try.
+        cl_reorg_bcs=>ask_really_delete( ).
+      catch cx_bcs.
+        return.
+    endtry.
+  endif.
+
+  call function 'RS_REFRESH_FROM_SELECTOPTIONS'
+    exporting
+      curr_report     = sy-repid
+    tables
+      selection_table = lt_sel
+    exceptions
+      not_found       = 1
+      no_report       = 2
+      others          = 3.
+  if sy-subrc <> 0.
+    message a118(xs) with 'RS_REFRESH_FROM_SELECTOPTIONS' sy-subrc.
+  endif.
+
+  l_reorg = cl_reorg_bcs=>get_instance( ).
+
+  try.
+      l_reorg->set_exponly( exponly ).
+      l_reorg->set_unused_docs( docdel ).
+      l_reorg->set_sent_docs( srdel ).
+      l_reorg->set_testmode( testmode ).
+      l_reorg->set_keep_log( showlog ).
+      l_reorg->set_sel_options( lt_sel ).
+      l_reorg->set_maxsel( maxsel ).
+      l_reorg->set_packsize( packsize ).
+      l_reorg->reorg( ).
+      l_reorg->output_log( ).
+    catch cx_bcs into lo_cx.
+      message id lo_cx->msgid type lo_cx->msgty number lo_cx->msgno
+        with lo_cx->msgv1 lo_cx->msgv2 lo_cx->msgv3 lo_cx->msgv4.
+  endtry.
+
+endform.                    "reorg
+*&---------------------------------------------------------------------*
+*&      Form  set_age
+*&---------------------------------------------------------------------*
+form set_age.
+
+  data sel_date type sy-datum.
+
+  if relative = space.
+    crdat[] = created[].
+  else.
+    clear: crdat, crdat[].
+    if days_old[] is initial.
+      crdat-sign = 'I'.
+      crdat-option = 'EQ'.
+      crdat-low = sy-datum.
+      append crdat.
+      exit.
+    endif.
+    read table days_old index 1.
+*   set sign
+    crdat-sign   = days_old-sign.
+*   set option
+    crdat-option = days_old-option.
+    if crdat-option(1) = 'G'.
+      crdat-option(1) = 'L'.
+    elseif crdat-option(1) = 'L'.
+      crdat-option(1) = 'G'.
+    endif.
+*   set low and high
+    if crdat-option = 'BT'.
+      sel_date = sy-datum - days_old-high.
+      crdat-low = sel_date.
+      sel_date = sy-datum - days_old-low.
+      crdat-high = sel_date.
+    else.
+      sel_date = sy-datum - days_old-low.
+      crdat-low = sel_date.
+    endif.
+    condense: crdat-low, crdat-high.
+    append crdat.
+  endif.
+
+endform.                    "set_age
+*&---------------------------------------------------------------------*
+*&      Form  modify_screen
+*&---------------------------------------------------------------------*
+form modify_screen.
+
+  loop at screen.
+    case screen-group1.
+      when 'DEL'.
+        check screen-group3 = 'LOW' or screen-group3 = 'HGH'
+           or screen-group3 = 'PAR'.
+        if srdel = 'X'.
+          screen-input = '1'.
+        else.
+          screen-input = '0'.
+        endif.
+        modify screen.
+      when 'DA1'.
+        if relative = 'X'.
+          screen-active = '0'.
+        else.
+          screen-active = '1'.
+        endif.
+        modify screen.
+      when 'DA2'.
+        if relative = 'X'.
+          screen-active = '1'.
+        else.
+          screen-active = '0'.
+        endif.
+        modify screen.
+      when 'DA3'.
+        if relative = 'X'.
+          check screen-group3 = 'LOW' or screen-group3 = 'HGH'.
+          screen-active = '1'.
+          screen-input = '0'.
+        else.
+          screen-active = '0'.
+        endif.
+        modify screen.
+    endcase.
+  endloop.
+
+endform.                    "modify_screen

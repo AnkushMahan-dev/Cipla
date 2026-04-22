@@ -1,0 +1,149 @@
+*----------------------------------------------------------------------*
+***INCLUDE ZPP_SCM_ANALYTICS_PLANT_MAST.
+*----------------------------------------------------------------------*
+*&      Form  PLANT_MASTER
+*&---------------------------------------------------------------------*
+*       Plant Master
+*----------------------------------------------------------------------*
+FORM plant_master .
+TYPES: BEGIN OF ty_plant_mas,
+        line(200),
+       END OF ty_plant_mas.
+DATA: wa_ftp_plant_mas TYPE ty_plant_mas,
+      ta_ftp_plant_mas TYPE TABLE OF ty_plant_mas.
+
+SELECT
+  WERKS,
+  NAME1,
+  NAME2,
+  LAND1,
+  REGIO,
+  adrnr,
+  PSTLZ FROM T001W INTO TABLE @data(ta_t001w)
+        where werks IN @S_WERKSM AND
+              NAME2 IN @S_NAME2  AND
+              LAND1 IN @S_LAND1.
+  IF ta_t001w IS NOT INITIAL.
+    SELECT
+      LAND1,
+      landx FROM t005t INTO TABLE @data(ta_t005t)
+            for  ALL ENTRIES IN @ta_T001W
+            WHERE spras = 'E'  AND
+                  LAND1 = @ta_t001w-LAND1.
+      SELECT
+        LAND1,
+        bland,
+        BEZEI FROM t005u INTO TABLE @data(ta_t005u)
+              for ALL ENTRIES IN @ta_t001w
+              WHERE spras = 'E'             AND
+                    LAND1 = @ta_t001w-LAND1 AND
+                    bland = @ta_t001w-REGIO.
+    SELECT addrnumber, sort1 FROM adrc INTO TABLE @data(ta_adrc)
+      for ALL ENTRIES IN @ta_t001w
+      WHERE addrnumber = @ta_t001w-adrnr.
+  ENDIF.
+
+  LOOP AT ta_t001w INTO data(wa_t001w).
+    wa_plant_mast-WERKS   = wa_t001w-werks.
+    wa_plant_mast-NAME1   = wa_t001w-NAME1.
+    wa_plant_mast-NAME2   = wa_t001w-NAME2.
+    wa_plant_mast-LAND1   = wa_t001w-LAND1.
+    wa_plant_mast-REGIO   = wa_t001w-REGIO.
+    wa_plant_mast-PSTLZ   = wa_t001w-PSTLZ.
+    READ TABLE ta_t005t INTO data(wa_t005t) WITH KEY LAND1 = wa_t001w-LAND1.
+    IF sy-subrc EQ 0.
+      wa_plant_mast-LANDX = wa_t005t-landx.
+    ENDIF.
+    READ TABLE ta_t005u INTO data(wa_t005u)
+      WITH KEY LAND1  = wa_t001w-LAND1
+               bland  = wa_t001w-REGIO.
+    IF sy-subrc EQ 0.
+      wa_plant_mast-BEZEI = wa_t005u-BEZEI.
+    ENDIF.
+    READ TABLE ta_adrc INTO data(wa_adrc) WITH KEY addrnumber = wa_t001w-adrnr.
+    IF sy-subrc EQ 0.
+     WA_PLANT_MAST-SORT1 = wa_adrc-sort1.
+    ENDIF.
+    APPEND WA_PLANT_MAST to TA_PLANT_MAST.
+    CLEAR: WA_PLANT_MAST, wa_t005t, wa_t005u, wa_adrc.
+  ENDLOOP.
+*****************************************************************************************
+****************     " Begin of Process to send Plant Master on FTP Folder **************
+*****************************************************************************************
+IF TA_PLANT_MAST[] IS NOT INITIAL.
+CLEAR: wa_ftp, ta_ftp[], lv_file, wa_ftp_plant_mas, ta_ftp_plant_mas.
+CONCATENATE
+    'plnt_code'
+    'plnt_name'
+    'plnt_type'
+    'country_code'
+    'country_name'
+    'reg_code'
+    'reg_name'
+    'postl_code'
+    'search_term' INTO wa_ftp_plant_mas SEPARATED BY lv_tab. " wa_ftp has been replaced wa_ftp_plant_mas against ticket no. 8000004920
+    APPEND wa_ftp_plant_mas to ta_ftp_plant_mas." wa_ftp has been replaced wa_ftp_plant_mas and ta_ftp as ta_ftp_plant_mas against ticket no. 8000004920
+    CLEAR wa_ftp.
+LOOP AT TA_PLANT_MAST INTO WA_PLANT_MAST.
+CONCATENATE
+WA_PLANT_MAST-WERKS
+WA_PLANT_MAST-NAME1
+WA_PLANT_MAST-NAME2
+WA_PLANT_MAST-LAND1
+WA_PLANT_MAST-LANDX
+WA_PLANT_MAST-REGIO
+WA_PLANT_MAST-BEZEI
+WA_PLANT_MAST-PSTLZ
+WA_PLANT_MAST-SORT1 INTO wa_ftp_plant_mas SEPARATED BY lv_tab.
+APPEND wa_ftp_plant_mas to ta_ftp_plant_mas.
+CLEAR: wa_ftp, WA_PLANT_MAST, wa_ftp_plant_mas.
+ENDLOOP.
+PERFORM connect_2_ftp USING g_dest CHANGING g_hdl exp5.
+IF exp5 IS INITIAL AND ta_ftp_plant_mas[] IS NOT INITIAL.
+CONCATENATE lv_file1 'plant_master.txt' INTO lv_file.
+IF lv_file IS NOT INITIAL.
+*******data lv_command(100) type c.
+*******DATA:lv_dest  TYPE rfcdes-rfcdest VALUE 'SAPFTPA'.
+*******data: lta_data TYPE TABLE OF datab.
+*******CONSTANTS lc_del(3) VALUE 'del'.
+*******BREAK abap4.
+*******lv_command =  |{ lc_del } { lv_file1 }{ '' }{ 'plant_master.txt' }|.
+*******CALL FUNCTION 'FTP_COMMAND'
+*******  EXPORTING
+*******   HANDLE                = g_hdl
+*******    command               = lv_command
+********   COMPRESS              =
+*******   RFC_DESTINATION       = lv_dest
+*******  tables
+*******    data                  = lta_data
+******* EXCEPTIONS
+*******   TCPIP_ERROR           = 1
+*******   COMMAND_ERROR         = 2
+*******   DATA_ERROR            = 3
+*******   OTHERS                = 4.
+***FTP_R3_TO_SERVER:used to transfer the internal table data as a file to other system in the character mode.
+  CALL FUNCTION 'FTP_R3_TO_SERVER'
+    EXPORTING
+      handle         = g_hdl
+      fname          = lv_file "p_lv_file          "file path of destination system
+      character_mode = 'X'
+    TABLES
+      text           = ta_ftp_plant_mas " ta_ftp has been replaced by ta_ftp_plant_mas against ticket 8000004920
+    EXCEPTIONS
+      tcpip_error    = 1
+      command_error  = 2
+      data_error     = 3
+      OTHERS         = 4.
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+    WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4
+    RAISING invalid_output_file.
+  ENDIF.
+*PERFORM send_2_ftp USING lv_file.
+ENDIF.
+ENDIF.
+PERFORM disconnect_ftp USING g_hdl g_dest.
+************************** " End of Process to Send file on FTP Server***********************
+
+ENDIF.
+ENDFORM.

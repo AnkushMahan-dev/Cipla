@@ -1,0 +1,381 @@
+*&---------------------------------------------------------------------*
+*& Report  ZSD_OD_CREDIT
+*&
+*&---------------------------------------------------------------------*
+* Program         : ZSD_OD_CREDIT
+* Title           : Credit Limit Data Report for OD Connect
+* Author          : Prathamesh Parab
+* Program Type    : Report
+* Creation Date   : 22.12.2022
+* Transaction     : ZSD_OD_CREDIT
+* Functional design: <document with functional specifications>
+* Technical design: <document with technical specifications>
+* Change request  : 8000008541
+* Transport number: CRDK985706
+* Description     : Credit Limit Data Report for OD Connect
+*----------------------------------------------------------------------*
+REPORT zsd_od_credit.
+
+TABLES: vbrk, vbrp.
+
+TYPES: BEGIN OF ty_report,
+         dc_code       TYPE ad_sort1,
+         utilised_amt  TYPE kwert,
+         transfer_date TYPE datum,
+         customer      TYPE c LENGTH 11,
+       END OF ty_report,
+
+       BEGIN OF ty_customer_vbrk,
+         kunnr TYPE kunnr,
+         vbeln TYPE vbeln,
+       END OF ty_customer_vbrk,
+
+       BEGIN OF ty_string,
+         row TYPE string,
+       END OF ty_string.
+
+DATA: lt_report        TYPE TABLE OF ty_report,
+      wa_report        TYPE ty_report,
+      lt_customer_vbrk TYPE TABLE OF ty_customer_vbrk,
+      wa_customer_vbrk TYPE ty_customer_vbrk,
+      lv_param_matkl   TYPE char70,
+      lt_string        TYPE TABLE OF ty_string,
+      wa_string        TYPE ty_string,
+      lv_amt_string    TYPE string,
+      lt_fieldcat      TYPE slis_t_fieldcat_alv,
+      wa_fieldcat      TYPE slis_fieldcat_alv.
+
+SELECTION-SCREEN: BEGIN OF BLOCK b1.
+SELECT-OPTIONS: s_kunag FOR vbrk-kunag, "Customer (Sold To)
+                s_vkorg FOR vbrk-vkorg OBLIGATORY, "Sales Org.
+                s_vtweg FOR vbrk-vtweg OBLIGATORY, "Distribution Channel
+                s_werks FOR vbrp-werks OBLIGATORY, "Plant
+                s_kdgrp FOR vbrk-kdgrp OBLIGATORY, "Customer Group
+                s_fkart FOR vbrk-fkart OBLIGATORY, "Billing Type
+                s_erdat FOR vbrk-erdat OBLIGATORY. "Invoice Date
+PARAMETERS: p_al11 AS CHECKBOX. "Send to AL11
+SELECTION-SCREEN: END OF BLOCK b1.
+
+START-OF-SELECTION.
+
+  SELECT param_name
+    FROM zparam_table
+    INTO TABLE @DATA(lt_zparam_matkl)
+   WHERE id_name = 'MMS_MG_CL'.
+
+  SELECT vbeln,
+         vkorg,
+         vtweg,
+         knumv,
+         kdgrp,
+         erdat,
+         kunag
+    FROM vbrk
+    INTO TABLE @DATA(lt_vbrk)
+   WHERE fkart IN @s_fkart
+     AND vkorg IN @s_vkorg
+     AND vtweg IN @s_vtweg
+     AND kdgrp IN @s_kdgrp
+     AND erdat IN @s_erdat
+     AND kunag IN @s_kunag
+     AND fksto NE 'X'.
+
+  IF sy-subrc = 0.
+
+    LOOP AT lt_vbrk INTO DATA(wa_vbrk).
+      wa_customer_vbrk-kunnr = wa_vbrk-kunag.
+      wa_customer_vbrk-vbeln = wa_vbrk-vbeln.
+      APPEND wa_customer_vbrk TO lt_customer_vbrk.
+      CLEAR: wa_customer_vbrk, wa_vbrk.
+    ENDLOOP.
+
+    SORT lt_customer_vbrk BY kunnr vbeln.
+    DELETE ADJACENT DUPLICATES FROM lt_customer_vbrk COMPARING kunnr vbeln.
+
+    SELECT vbeln,
+           posnr,
+           fkimg,
+           matnr,
+           matkl,
+           werks,
+           cmpre
+      FROM vbrp
+      INTO TABLE @DATA(lt_vbrp)
+      FOR ALL ENTRIES IN @lt_vbrk
+     WHERE vbeln = @lt_vbrk-vbeln
+       AND werks IN @s_werks.
+
+    IF sy-subrc = 0.
+
+      SELECT matnr,
+             bwkey,
+             vprsv,
+             verpr,
+             stprs
+        FROM mbew
+        INTO TABLE @DATA(lt_mbew)
+        FOR ALL ENTRIES IN @lt_vbrp
+       WHERE matnr = @lt_vbrp-matnr
+         AND bwkey = @lt_vbrp-werks
+         AND ( vprsv = 'S' OR vprsv = 'V' ) .
+
+      IF sy-subrc = 0.
+        "Do Nothing
+      ENDIF.
+
+    ENDIF.
+
+    SELECT knumv,
+* Start of Change Inc 8000008541 | TR CRDK985886 | Prathamesh Parab | 06.01.2023
+           kposn,
+           stunr,
+           zaehk,
+* End of Change Inc 8000008541 | TR CRDK985886 | Prathamesh Parab | 06.01.2023
+           kschl,
+           kwert
+      FROM konv
+      INTO TABLE @DATA(lt_konv)
+      FOR ALL ENTRIES IN @lt_vbrk
+     WHERE knumv = @lt_vbrk-knumv
+       AND kschl = 'VPRS'.
+
+    IF sy-subrc = 0.
+      "Do Nothing
+    ENDIF.
+
+    SELECT kunnr,
+           adrnr
+      FROM kna1
+      INTO TABLE @DATA(lt_kna1)
+      FOR ALL ENTRIES IN @lt_vbrk
+     WHERE kunnr = @lt_vbrk-kunag.
+
+    IF sy-subrc = 0.
+
+      SELECT addrnumber,
+             sort1
+        FROM adrc
+        INTO TABLE @DATA(lt_adrc)
+        FOR ALL ENTRIES IN @lt_kna1
+       WHERE addrnumber = @lt_kna1-adrnr.
+
+      IF sy-subrc = 0.
+        "Do Nothing.
+      ENDIF.
+
+    ENDIF.
+
+  ENDIF.
+
+  LOOP AT lt_customer_vbrk INTO wa_customer_vbrk.
+
+    wa_report-customer = wa_customer_vbrk-kunnr.
+    wa_report-transfer_date = sy-datum.
+
+    SORT lt_kna1 BY kunnr.
+    READ TABLE lt_kna1 INTO DATA(wa_kna1) WITH KEY kunnr = wa_customer_vbrk-kunnr BINARY SEARCH.
+    IF sy-subrc = 0.
+      SORT lt_adrc BY addrnumber.
+      READ TABLE lt_adrc INTO DATA(wa_adrc) WITH KEY addrnumber = wa_kna1-adrnr BINARY SEARCH.
+      IF sy-subrc = 0.
+        wa_report-dc_code = wa_adrc-sort1.
+        CLEAR: wa_adrc.
+      ENDIF.
+      CLEAR: wa_kna1.
+    ENDIF.
+
+    DATA(lt_vbrk_temp) = lt_vbrk.
+*    DELETE lt_vbrk WHERE vbeln NE wa_customer_vbrk-vbeln. " Change added by Inc 8000008541 | TR CRDK985886 | Prathamesh Parab | 06.01.2023
+    DELETE lt_vbrk_temp WHERE vbeln NE wa_customer_vbrk-vbeln. " Change added by Inc 8000008541 | TR CRDK985886 | Prathamesh Parab | 06.01.2023
+
+*   LOOP AT lt_vbrk INTO wa_vbrk WHERE vbeln = wa_customer_vbrk-vbeln. " Change added by Inc 8000008541 | TR CRDK985886 | Prathamesh Parab | 06.01.2023
+    LOOP AT lt_vbrk_temp INTO wa_vbrk WHERE vbeln = wa_customer_vbrk-vbeln. " Change added by Inc 8000008541 | TR CRDK985886 | Prathamesh Parab | 06.01.2023
+
+      DATA(lt_vbrp_temp) = lt_vbrp.
+*     DELETE lt_vbrp WHERE vbeln NE wa_vbrk-vbeln. " Change added by Inc 8000008541 | TR CRDK985886 | Prathamesh Parab | 06.01.2023
+      DELETE lt_vbrp_temp WHERE vbeln NE wa_vbrk-vbeln. " Change added by Inc 8000008541 | TR CRDK985886 | Prathamesh Parab | 06.01.2023
+
+*     LOOP AT lt_vbrp INTO DATA(wa_vbrp) WHERE vbeln = wa_vbrk-vbeln. " Change added by Inc 8000008541 | TR CRDK985886 | Prathamesh Parab | 06.01.2023
+      LOOP AT lt_vbrp_temp INTO DATA(wa_vbrp) WHERE vbeln = wa_vbrk-vbeln. " Change added by Inc 8000008541 | TR CRDK985886 | Prathamesh Parab | 06.01.2023
+
+        lv_param_matkl = wa_vbrp-matkl.
+
+        READ TABLE lt_zparam_matkl TRANSPORTING NO FIELDS WITH KEY param_name = lv_param_matkl.
+        IF sy-subrc = 0.
+
+          DATA(lt_konv_temp) = lt_konv.
+*         DELETE lt_konv WHERE knumv NE wa_vbrk-knumv. " Change added by Inc 8000008541 | TR CRDK985886 | Prathamesh Parab | 06.01.2023
+          DELETE lt_konv_temp WHERE knumv NE wa_vbrk-knumv. " Change added by Inc 8000008541 | TR CRDK985886 | Prathamesh Parab | 06.01.2023
+
+*         READ TABLE lt_konv TRANSPORTING NO FIELDS WITH KEY knumv = wa_vbrk-knumv kschl = 'VPRS'. " Change added by Inc 8000008541 | TR CRDK985886 | Prathamesh Parab | 06.01.2023
+          READ TABLE lt_konv_temp INTO DATA(wa_konv) WITH KEY knumv = wa_vbrk-knumv
+                                                              kposn = wa_vbrp-posnr
+                                                              kschl = 'VPRS'. " Change added by Inc 8000008541 | TR CRDK985886 | Prathamesh Parab | 06.01.2023
+          IF sy-subrc = 0.
+*           LOOP AT lt_konv INTO DATA(wa_konv) WHERE knumv = wa_vbrk-knumv AND kschl = 'VPRS'. " Change added by Inc 8000008541 | TR CRDK985886 | Prathamesh Parab | 06.01.2023
+            wa_report-utilised_amt = wa_report-utilised_amt + wa_konv-kwert.
+*           ENDLOOP. " Change added by Inc 8000008541 | TR CRDK985886 | Prathamesh Parab | 06.01.2023
+          ELSE.
+* Start of Change Inc 8000008541 | TR CRDK985886 | Prathamesh Parab | 06.01.2023
+*           LOOP AT lt_mbew INTO DATA(wa_mbew) WHERE matnr = wa_vbrp-matnr AND bwkey = wa_vbrp-werks.
+            SORT lt_mbew BY matnr bwkey.
+
+            READ TABLE lt_mbew INTO DATA(wa_mbew) WITH KEY matnr = wa_vbrp-matnr
+                                                           bwkey = wa_vbrp-werks
+                                                           BINARY SEARCH.
+            IF sy-subrc = 0.
+              IF wa_mbew-vprsv = 'S'.
+                wa_report-utilised_amt = wa_report-utilised_amt + ( wa_mbew-stprs * wa_vbrp-fkimg ).
+              ELSEIF wa_mbew-vprsv = 'V'.
+                wa_report-utilised_amt = wa_report-utilised_amt + ( wa_mbew-verpr * wa_vbrp-fkimg ).
+              ENDIF.
+            ENDIF.
+*           ENDLOOP.
+* End of Change Inc 8000008541 | TR CRDK985886 | Prathamesh Parab | 06.01.2023
+          ENDIF.
+
+*         lt_konv = lt_konv_temp. " Change added by Inc 8000008541 | TR CRDK985886 | Prathamesh Parab | 06.01.2023
+          lt_konv_temp = lt_konv. " Change added by Inc 8000008541 | TR CRDK985886 | Prathamesh Parab | 06.01.2023
+        ELSE.
+          wa_report-utilised_amt = wa_report-utilised_amt + ( wa_vbrp-cmpre * wa_vbrp-fkimg ).
+        ENDIF.
+        CLEAR: wa_vbrp.
+
+      ENDLOOP.
+*     lt_vbrp = lt_vbrp_temp. " Change added by Inc 8000008541 | TR CRDK985886 | Prathamesh Parab | 06.01.2023
+      lt_vbrp_temp = lt_vbrp. " Change added by Inc 8000008541 | TR CRDK985886 | Prathamesh Parab | 06.01.2023
+
+      CLEAR: wa_vbrk.
+
+    ENDLOOP.
+
+    AT END OF kunnr.
+      APPEND wa_report TO lt_report.
+      CLEAR: wa_customer_vbrk, wa_report.
+    ENDAT.
+
+*   lt_vbrk = lt_vbrk_temp. " Change added by Inc 8000008541 | TR CRDK985886 | Prathamesh Parab | 06.01.2023
+    lt_vbrk_temp = lt_vbrk. " Change added by Inc 8000008541 | TR CRDK985886 | Prathamesh Parab | 06.01.2023
+
+  ENDLOOP.
+
+  IF lt_report IS NOT INITIAL.
+
+    IF p_al11 IS NOT INITIAL.
+      CONCATENATE ''
+                  ' '
+                  ' '
+                  ''
+             INTO wa_string-row
+        SEPARATED BY '|'.
+
+      APPEND wa_string TO lt_string.
+      CLEAR wa_string.
+
+      LOOP AT lt_report INTO wa_report.
+
+        lv_amt_string = wa_report-utilised_amt.
+
+        CONCATENATE wa_report-dc_code
+                    lv_amt_string
+                    wa_report-transfer_date
+                    wa_report-customer
+               INTO wa_string-row SEPARATED BY '|'.
+
+        APPEND wa_string TO lt_string.
+
+      ENDLOOP.
+
+      SELECT SINGLE param_name
+        FROM zparam_table
+        INTO @DATA(lv_filepath)
+       WHERE id_name = 'DR_CRDREP1'.
+
+      IF lv_filepath IS NOT INITIAL.
+        DATA(lv_filename) = |ODCRLT_{ sy-datum }_{ sy-uzeit }.CSV|.
+        lv_filepath = |{ lv_filepath }{ lv_filename }|.
+
+        OPEN DATASET lv_filepath FOR OUTPUT IN TEXT MODE ENCODING DEFAULT WITH SMART LINEFEED.
+
+        IF sy-subrc = 0.
+          LOOP AT lt_string INTO wa_string.
+            TRANSFER wa_string-row TO lv_filepath.
+          ENDLOOP.
+        ENDIF.
+
+        CLOSE DATASET lv_filepath.
+        IF sy-subrc = 0.
+          MESSAGE 'File Transferred to AL11' TYPE 'S'.
+        ENDIF.
+
+      ELSE.
+        MESSAGE 'Filepath not found in ZPARAM_TABLE, Param name: DR_CRDREP1' TYPE 'S'.
+      ENDIF.
+    ENDIF.
+
+* ALV Display
+    PERFORM build_fieldcatalog USING 'DC_CODE' '' 'DC Code' '' '20' '' ''.
+    PERFORM build_fieldcatalog USING 'UTILISED_AMT' '' 'Utilised Amount' '' '20' '' ''.
+    PERFORM build_fieldcatalog USING 'TRANSFER_DATE' '' 'Transfer Date' '' '15' '' ''.
+    PERFORM build_fieldcatalog USING 'CUSTOMER' '' 'Customer' '' '15' '' ''.
+
+    PERFORM display_alv.
+  ELSE.
+    MESSAGE 'Data not found.' TYPE 'S'.
+  ENDIF.
+*&---------------------------------------------------------------------*
+*&      Form  BUILD_FIELDCATALOG
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM build_fieldcatalog USING u_fname
+                              u_seltext_s
+                              u_seltext_m
+                              u_seltext_l
+                              u_outputlen
+                              u_ref_field
+                              u_ref_table.
+
+  wa_fieldcat-fieldname     = u_fname.
+  wa_fieldcat-seltext_s     = u_seltext_s.
+  wa_fieldcat-seltext_m     = u_seltext_m.
+  wa_fieldcat-seltext_l     = u_seltext_l.
+  wa_fieldcat-outputlen     = u_outputlen.
+  wa_fieldcat-ref_tabname   = u_ref_table.
+  wa_fieldcat-ref_fieldname = u_ref_field.
+  APPEND wa_fieldcat TO lt_fieldcat.
+  CLEAR wa_fieldcat.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  DISPLAY_ALV
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM display_alv .
+
+  CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+    EXPORTING
+      i_callback_program = sy-repid
+      it_fieldcat        = lt_fieldcat
+    TABLES
+      t_outtab           = lt_report
+    EXCEPTIONS
+      program_error      = 1
+      OTHERS             = 2.
+
+  IF sy-subrc <> 0.
+* Implement suitable error handling here
+  ENDIF.
+
+
+  IF sy-subrc <> 0.
+  ENDIF.
+
+ENDFORM.

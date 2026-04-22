@@ -1,0 +1,200 @@
+*&---------------------------------------------------------------------*
+*&  Include           ZPP_SCM_ANALYTICS_STOCK_MOV
+*&---------------------------------------------------------------------*
+*&      Form  ZPP_STOCK_MOV
+*&---------------------------------------------------------------------*
+FORM zpp_stock_mov .
+"""" SOC done by Sushil against ticket number 8000004920
+TYPES: BEGIN OF ty_ftp_stock,
+        line(420),
+       END OF ty_ftp_stock.
+DATA: wa_ftp_stock TYPE ty_ftp_stock,
+      ta_ftp_stock TYPE TABLE OF ty_ftp_stock.
+"""" EOC done by Sushil against ticket number 8000004920
+* SOC by Ashwin Madival in CRDK949079 for CR#8000003793
+*  SELECT
+*    mblnr,
+*    zeile,
+*    mjahr,
+*    bwart,
+*    matnr,
+*    werks,
+*    lgort,
+*    charg,
+*    menge,
+*    meins,
+*    ebeln,
+*    ebelp FROM mseg INTO TABLE @DATA(ta_mseg_stock_mov)
+*          WHERE mjahr IN @s_mjahrs AND
+*                bwart IN @s_bwarts AND
+*                matnr IN @s_matnrs AND
+*                werks IN @s_werkss.
+*  IF ta_mseg_stock_mov[] IS NOT INITIAL.
+*    SELECT
+*    mblnr,
+*    mjahr,
+*    bldat FROM mkpf INTO TABLE @DATA(ta_mkpf_stock)
+*      FOR ALL ENTRIES IN @ta_mseg_stock_mov
+*      WHERE mblnr = @ta_mseg_stock_mov-mblnr AND
+*            mjahr = @ta_mseg_stock_mov-mjahr.
+*    DATA(ta_mseg_tmp) = ta_mseg_stock_mov[].
+*    SORT ta_mseg_tmp[] BY bwart.
+*    DELETE ADJACENT DUPLICATES FROM ta_mseg_tmp COMPARING bwart.
+*    SELECT
+*      bwart,
+*      btext FROM t156t INTO TABLE @DATA(ta_t156t)
+*            FOR ALL ENTRIES IN @ta_mseg_tmp
+*            WHERE spras = 'E'   AND
+*                  bwart = @ta_mseg_tmp-bwart.
+*  ENDIF.
+* EOC by Ashwin Madival in CRDK949079 for CR#8000003793
+* SOC by Ashwin Madival in CRDK949079 for CR#8000003793
+  SELECT
+    mblnr,
+    mjahr,
+    zeile_i,
+    bldat,
+    bwart_i,
+    matnr_i,
+    werks_i,
+    lgort_i,
+    charg_i,
+    menge_i,
+    meins_i,
+    ebeln_i,
+    ebelp_i FROM wb2_v_mkpf_mseg2 INTO TABLE @DATA(ta_mseg_stock_mov)
+            WHERE mjahr IN @s_mjahrs AND
+                  bldat IN @s_bldat  AND
+                  bwart_i IN @s_bwarts AND
+                  matnr_i IN @s_matnrs AND
+                  werks_i IN @s_werkss AND
+                  charg_i <> ''.
+
+  IF ta_mseg_stock_mov[] IS NOT INITIAL.
+    DATA(ta_mseg_tmp) = ta_mseg_stock_mov[].
+    SORT ta_mseg_tmp[] BY bwart_i.
+    DELETE ADJACENT DUPLICATES FROM ta_mseg_tmp COMPARING bwart_i.
+    SELECT
+      bwart,
+      btext FROM t156t INTO TABLE @DATA(ta_t156t)
+            FOR ALL ENTRIES IN @ta_mseg_tmp
+            WHERE spras = 'E'   AND
+                  bwart = @ta_mseg_tmp-bwart_i.
+  ENDIF.
+* EOC by Ashwin Madival in CRDK949079 for CR#8000003793
+
+  LOOP AT ta_mseg_stock_mov INTO DATA(wa_mseg_stock_mov) WHERE charg_i IS NOT INITIAL.
+
+* SOC by Ashwin Madival in CRDK949079 for CR#8000003793
+    wa_stock_mov-mblnr = wa_mseg_stock_mov-mblnr.
+    wa_stock_mov-zeile = wa_mseg_stock_mov-zeile_i.
+    wa_stock_mov-mjahr = wa_mseg_stock_mov-mjahr.
+    wa_stock_mov-bwart = wa_mseg_stock_mov-bwart_i.
+    wa_stock_mov-matnr = wa_mseg_stock_mov-matnr_i.
+    wa_stock_mov-werks = wa_mseg_stock_mov-werks_i.
+    wa_stock_mov-lgort = wa_mseg_stock_mov-lgort_i.
+    wa_stock_mov-charg = wa_mseg_stock_mov-charg_i.
+    wa_stock_mov-meins = wa_mseg_stock_mov-meins_i.
+    wa_stock_mov-ebeln = wa_mseg_stock_mov-ebeln_i.
+    wa_stock_mov-ebelp = wa_mseg_stock_mov-ebelp_i.
+* EOC by Ashwin Madival in CRDK949079 for CR#8000003793
+
+    wa_stock_mov-menge = wa_mseg_stock_mov-menge_i.
+
+* SOC by Ashwin Madival in CRDK949079 for CR#8000003793
+*    READ TABLE ta_mkpf_stock INTO DATA(wa_mkpf_stock)
+*      WITH KEY mblnr = wa_mseg_stock_mov-mblnr
+*               mjahr = wa_mseg_stock_mov-mjahr.
+*    IF sy-subrc EQ 0.
+*    CONCATENATE wa_mkpf_stock-bldat+6(2) wa_mkpf_stock-bldat+4(2) wa_mkpf_stock-bldat+0(4) INTO wa_stock_mov-bldat.
+*    ENDIF.
+* SOC by Ashwin Madival in CRDK949079 for CR#8000003793
+
+    CONCATENATE wa_mseg_stock_mov-bldat+6(2) wa_mseg_stock_mov-bldat+4(2) wa_mseg_stock_mov-bldat+0(4) INTO wa_stock_mov-bldat.
+    READ TABLE ta_t156t INTO DATA(wa_t156t) WITH KEY bwart = wa_mseg_stock_mov-bwart_i.
+    IF sy-subrc EQ 0.
+      wa_stock_mov-btext = wa_t156t-btext.
+    ENDIF.
+    SHIFT: wa_stock_mov-matnr LEFT DELETING LEADING '0'.
+    APPEND wa_stock_mov TO ta_stock_mov.
+    CLEAR: wa_stock_mov, wa_t156t.
+  ENDLOOP.
+
+***********" Process to send Stock movement file on FTP Server************************
+  IF ta_stock_mov[] IS NOT INITIAL.
+    CLEAR: wa_ftp_stock, ta_ftp_stock[], lv_file.
+    CONCATENATE
+    'doc_dt'
+    'mat_doc'
+    'mat_doc_itm'
+    'mat_doc_year'
+    'mov_type'
+    'mov_type_desc'
+    'po_num'
+    'po_itm'
+    'mat_code'
+    'Plant'
+    'str_loc'
+    'batch'
+    'qty'
+    'buom' INTO wa_ftp_stock SEPARATED BY lv_tab. " wa_ftp has been replaced by wa_ftp_stock against ticket number 8000004920
+    APPEND wa_ftp_stock TO ta_ftp_stock." wa_ftp has been replaced by wa_ftp_stock against ticket number 8000004920
+    CLEAR wa_ftp_stock.
+
+    LOOP AT ta_stock_mov INTO wa_stock_mov.
+      CONCATENATE
+        wa_stock_mov-bldat
+        wa_stock_mov-mblnr
+        wa_stock_mov-zeile
+        wa_stock_mov-mjahr
+        wa_stock_mov-bwart
+        wa_stock_mov-btext
+        wa_stock_mov-ebeln
+        wa_stock_mov-ebelp
+        wa_stock_mov-matnr
+        wa_stock_mov-werks
+        wa_stock_mov-lgort
+        wa_stock_mov-charg
+        wa_stock_mov-menge
+        wa_stock_mov-meins INTO wa_ftp_stock SEPARATED BY lv_tab.
+      APPEND wa_ftp_stock TO ta_ftp_stock.
+      CLEAR wa_ftp_stock.
+    ENDLOOP.
+    PERFORM connect_2_ftp USING g_dest CHANGING g_hdl exp5.
+    CLEAR: wa_ftp,lv_file.
+
+    IF exp5 IS INITIAL AND ta_ftp_stock[] IS NOT INITIAL.
+      IF st_r1 = 'X'.
+        CONCATENATE lv_file1 'stock_movements.txt' INTO lv_file.
+      ELSEIF st_r2 = 'X'.
+        CONCATENATE lv_file1 'stock_movements_' sy-datum+4(2) sy-datum+0(4) '.txt' INTO lv_file.
+      ELSEIF st_r3 = 'X'.
+        CONCATENATE lv_file1 'stock_movements_' sy-datum+6(2) sy-datum+4(2) sy-datum+0(4) '.txt' INTO lv_file.
+      ENDIF.
+
+      IF lv_file IS NOT INITIAL.
+*        PERFORM send_2_ftp USING lv_file.
+*FTP_R3_TO_SERVER:used to transfer the internal table data as a file to other system in the character mode.
+  CALL FUNCTION 'FTP_R3_TO_SERVER'
+    EXPORTING
+      handle         = g_hdl
+      fname          = lv_file "p_lv_file          "file path of destination system
+      character_mode = 'X'
+    TABLES
+      text           = ta_ftp_stock
+    EXCEPTIONS
+      tcpip_error    = 1
+      command_error  = 2
+      data_error     = 3
+      OTHERS         = 4.
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+    WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4
+    RAISING invalid_output_file.
+  ENDIF.
+      ENDIF.
+    ENDIF.
+    PERFORM disconnect_ftp USING g_hdl g_dest.
+************************** " End of Process to Send file on FTP Server***********************
+  ENDIF.
+ENDFORM.

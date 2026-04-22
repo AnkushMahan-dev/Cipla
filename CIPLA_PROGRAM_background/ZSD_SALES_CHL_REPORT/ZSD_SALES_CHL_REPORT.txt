@@ -1,0 +1,3388 @@
+*&-----------------------------------------------------------------------------------*
+*& Report  ZSD_SALES_CHL_REPORT
+*&
+*&-----------------------------------------------------------------------------------*
+*& Program           : ZSD_SALES_CHL_REPORT
+*& Title             : Program to display Sales Report
+*& Author            : Somesh Chattopadhyay
+*& Program           : ALV REPORT
+*& Creation Date     : 26-12-2016
+*& Transaction       : ZSD_SALES_CHL
+*& Functional design : FS_SD_347_ CHL Sales Report_V1.0
+*& Technical design  : TS_SD_347_ CHL Sales Report_V1.0
+*& Change request    : 8000002621
+*& Transport number  : CRDK941528
+*& Description       : ALV To Display Stock Quantity in Transit Report.
+*&------------------------------------------------------------------------------------*
+* Modification Information
+* Date            : 24.02.2017
+* Author          : Payal Shetye
+* Change request  : SOLMAN ticket : 8000002925
+* Transport number: CRDK942943
+* Description     : 1. new table zsd_sales_chl instead of zsd_sales
+*                   2. sales org 3800 added
+*&---------------------------------------------------------------------*
+* Modification Information
+* Date            : 23.11.2017
+* Author          : Shubhangi Chikate
+* Change request  : CRDK949825
+* Transport number:
+* Description     :CHL sales to Cipla
+*                  Solman ticket : 8000003563 Added Batch wise MRP value
+*----------------------------------------------------------------------*
+* Modification Information
+* Date            : 11.01.2019
+* Author          : Parashar Khedekar
+* Functional      : Sarang Lonkar
+* Change request  : 8000004882
+* Transport number: CRDK960218
+* Description     : Bonus Quantity Discount Change
+*	*----------------------------------------------------------------------*
+* Modification Information
+* Date            : 07.10.2020;08.10.2020
+* Author          : Aarti Dhikale
+* Functional      : Sarang Lonkar
+* Change request  :8000006682
+* Transport number: CRDK973707;CRDK973740
+* Description     : Addition of field TCS amount
+*	*----------------------------------------------------------------------*
+* Modification Information
+* Date            : 21.04.2021
+* Author          : Sumeet Bhadan
+* Functional      : Sandeep More
+* Change request  :8000007125
+* Transport number: CRDK977541
+* Description     : Correction ZSD_SALES_CHL report for D
+*	*----------------------------------------------------------------------*
+* Modification Information
+* Date            : 18.11.2025
+* Author          : Aditya Raina
+* Functional      : Sayeed Arif
+* Change request  : 8000004626
+* Transport number: CRDK998337
+* Description     :  CHL Report changes
+*	*----------------------------------------------------------------------
+
+REPORT zsd_sales_chl_report.
+
+TYPE-POOLS: slis.
+
+INITIALIZATION.
+*PERFORM tcode(ZDUPLICATETCODE).
+
+  TYPE-POOLS: slis.
+
+  TABLES: vbrk,vbrp, marm, tvkot, t005u, vbap,mara.
+
+  SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE t1.
+
+  SELECT-OPTIONS: custgrp FOR vbrk-kdgrp,
+                  invdate FOR vbrk-fkdat,          "aedat,
+                  billtype FOR vbrk-fkart OBLIGATORY,
+                  state FOR vbrk-regio,
+                  op_plant FOR vbrp-werks ,
+                  sorg FOR vbrp-vkorg_auft,
+                  dchan FOR vbrp-vtweg_auft,
+                  divi FOR vbrk-spart,
+***Insert-Start-Nitin D-09-02-2015-CRDK917695-Display Plant and material wise Radio button on selection screen
+                  s_prddiv FOR mara-spart,
+***Insert-Start-Nitin D-09-02-2015-CRDK917695-Display Plant and material wise Radio button on selection screen
+                  mat FOR vbrp-matnr,
+                 cust FOR vbrk-kunag ,
+                 vkbur FOR vbrp-vkbur,
+                 bzirk FOR vbrp-bzirk_auft,
+                 vkgrp FOR vbrp-vkgrp ."OBLIGATORY.
+  PARAMETERS rb_matnr TYPE c RADIOBUTTON GROUP grp.
+  PARAMETERS rb_plant TYPE c RADIOBUTTON GROUP grp.
+  PARAMETERS invoice  TYPE c RADIOBUTTON GROUP grp.
+  PARAMETERS p_var    LIKE disvariant-variant.
+  PARAMETERS chk      TYPE c AS CHECKBOX USER-COMMAND chkbox.
+  PARAMETERS rd2      TYPE c RADIOBUTTON GROUP rd.
+  PARAMETERS rd1      TYPE c RADIOBUTTON GROUP rd.
+  PARAMETERS path     TYPE string LOWER CASE.
+  SELECTION-SCREEN END OF BLOCK b1.
+
+
+********************************MEHER
+*  DATA: BEGIN OF wa_vbrp,
+**       vbeln type vbrp-vbeln,
+*         werks TYPE vbrp-werks,
+*          vkgrp TYPE vbrp-vkgrp,
+*          vkbur TYPE vbrp-vkbur,
+*          bzirk TYPE vbrp-bzirk_auft,
+*         fkimg TYPE vbrp-fkimg,
+*        vrkme  TYPE vbrp-vrkme,
+**        vbeln
+**        kgrp
+**        vkbur
+**        BZIRK_AUFT
+*          kzwi2 TYPE vbrp-kzwi2,
+*          mwsbp TYPE vbrp-mwsbp,
+*        END OF wa_vbrp.
+
+*  DATA: ta_vbrp LIKE TABLE OF wa_vbrp.
+
+  DATA : it_sales TYPE TABLE OF zsd_sales_chl.
+  DATA : wa_sales TYPE zsd_sales_chl.
+
+  DATA: BEGIN OF wa_tvgrt,
+          vkgrp TYPE tvgrt-vkgrp,
+          bezei TYPE tvgrt-bezei,
+        END OF wa_tvgrt.
+  DATA:ta_tvgrt LIKE TABLE OF wa_tvgrt.
+  DATA: BEGIN OF wa_tvkbt,
+          vkbur TYPE tvkbt-vkbur,
+          bezei TYPE tvkbt-bezei,
+        END OF wa_tvkbt.
+
+  DATA:ta_tvkbt LIKE TABLE OF wa_tvkbt.
+
+  DATA: BEGIN OF wa_t171t,
+          bzirk TYPE t171t-bzirk,
+          bztxt TYPE t171t-bztxt,
+        END OF wa_t171t.
+  DATA : ta_t171t LIKE TABLE OF wa_t171t.
+
+  DATA:BEGIN OF wa_final,
+*           vbeln type vbrk-vbeln,
+         werks       TYPE vbrp-werks,
+         vkgrp       TYPE vbrp-vkgrp,
+         vkbur       TYPE vbrp-vkbur,
+         bzirk       TYPE vbrp-bzirk_auft,
+         sale_group  TYPE tvgrt-bezei,
+         sale_office TYPE tvkbt-bezei,
+         bztxt       TYPE t171t-bztxt,
+         fkimg       TYPE vbrp-fkimg,
+         vrkme       TYPE vbrp-vrkme,
+         kzwi2       TYPE vbrp-kzwi2,
+         mwsbp       TYPE vbrp-mwsbp,
+
+         kbetr       TYPE konv-kbetr,     "  Added by Shubhangi against Ticket # 8000003563
+
+       END OF wa_final.
+  DATA:ta_final LIKE TABLE OF wa_final.
+
+*****************************MEHER
+  DATA: BEGIN OF it_vbrp OCCURS 0,
+          vbeln      LIKE vbrk-vbeln,
+          vkorg      LIKE vbrp-vkorg_auft,
+          vtweg      LIKE vbrp-vtweg_auft,
+***Insert-Start-Nitin-04.03.2015-CRDK918542-Remove invoice with indicator A OR B
+          rfbsk      LIKE vbrk-rfbsk,
+***Insert-End-Nitin-04.03.2015-CRDK918542-Remove invoice with indicator A OR B
+          regio      LIKE vbrk-regio,
+          rdesc      LIKE t005u-bezei,
+          kunag      LIKE vbrk-kunag,
+          kunrg      LIKE vbrk-kunrg,
+          posnr      LIKE vbrp-posnr,
+          werks      LIKE vbrp-werks,
+          kdgrp      LIKE vbrk-kdgrp,
+          fkdat      LIKE vbrk-fkdat,
+          spart      LIKE vbrk-spart,
+          matnr      LIKE vbrp-matnr,
+          arktx      LIKE vbrp-arktx,
+          fkart      LIKE vbrk-fkart,
+*   KZWI2 LIKE VBRP-KZWI2,
+          kzwi2      LIKE vbrp-kzwi2, "MEHER
+*   KZWI2 LIKE VBRP-KZWI2,
+          mwsbp      LIKE vbrp-mwsbp, "MEHER
+          netwr      LIKE vbrp-netwr,
+          fkimg      LIKE vbrp-fkimg,
+          vrkme      LIKE vbrp-vrkme,
+          waerk      LIKE vbrk-waerk,
+          kurrf      LIKE vbrk-kurrf,
+          name1      LIKE kna1-name1,
+          vtext      LIKE tvkot-vtext,
+          bland      LIKE t005u-bland,
+          bezei      LIKE t005u-bezei,
+          aubel      LIKE vbrp-aubel,
+          aupos      LIKE vbrp-aupos,
+          pstyv      LIKE vbrp-pstyv,
+          spart_i    TYPE vbrp-spart,
+*    MWSBP  LIKE VBRP-MWSBP,
+          meins      LIKE vbrp-meins,        " Meins added
+          vkgrp      TYPE vbrp-vkgrp,
+          vkbur      TYPE vbrp-vkbur,
+          bzirk_auft TYPE vbrp-bzirk_auft,
+          bztxt      TYPE t171t-bztxt,
+          "Insert-Strat-Nitin D-12.03.2015-Add Storage Location
+          lgort      TYPE lgort_d,
+          "Insert-End-Nitin D-12.03.2015-Add Storage Location
+
+          kbetr      TYPE konv-kbetr,      " Added by Shubhangi against Ticket # 8000003563
+          charg      TYPE charg_d,      " Added by Shubhangi against Ticket # 8000003563
+          dis_per    TYPE konv-kbetr, "Added by parashar CRDK960218 cr-8000004882
+          dis_amt    TYPE  konv-kwert, "Added by parashar CRDK960218 cr-8000004882
+*kzwi2 LIKE vbrp-kzwi2,"MEHER
+**   KZWI2 LIKE VBRP-KZWI2,
+*      mwsbp LIKE vbrp-mwsbp,"MEHER
+          tcs_amt    TYPE konv-kwert, " Added by Aarti against Ticket # 8000006682
+          auart      TYPE vbak-auart,
+          sakn1      TYPE konv-sakn1,
+        END OF it_vbrp.
+
+**********************  SOC by Shubhangi against Ticket # 8000003563
+  TYPES: BEGIN OF ty_vbrk,
+           vbeln TYPE vbrk-vbeln,
+           knumv TYPE vbrk-knumv,
+         END OF ty_vbrk,
+
+         BEGIN OF ty_knov,
+           knumv TYPE knumv,
+           kposn TYPE kposn,
+           kschl TYPE kschl,
+           kbetr TYPE kbetr,
+           kwert TYPE kwert, "Added by parashar CRDK960218 cr-8000004882
+         END OF ty_knov,
+*soc by aditya:8000004626:11.11.2025
+         BEGIN OF ty_konv1,
+           sakn1 TYPE saknr,
+           kvsl1 TYPE kvsl1,
+           knumv TYPE knumv,
+         END OF ty_konv1,
+*eoc by aditya:8000004626:11.11.2025
+         BEGIN OF ty_charg,
+           vbeln TYPE vbeln_vf,
+           posnr TYPE posnr_vf,
+           charg TYPE charg_d,
+         END OF ty_charg.
+
+  DATA: it_vbrk  TYPE TABLE OF ty_vbrk,
+        it_knov  TYPE TABLE OF ty_knov,
+        wa_vbrk  TYPE ty_vbrk,
+        wa_knov  TYPE ty_knov,
+        it_charg TYPE TABLE OF ty_charg,
+        wa_charg TYPE ty_charg.
+*        V_POSNR  TYPE VBRP-POSNR.
+
+**********************  EOC by Shubhangi against Ticket # 8000003563
+  DATA: ta_vbrp LIKE TABLE OF it_vbrp,
+        wa_vbrp LIKE LINE OF ta_vbrp.
+
+
+  DATA v_date TYPE sy-datum.
+  DATA: BEGIN OF it_vbrp1 OCCURS 0,
+          vbeln      LIKE vbrk-vbeln,
+          vkorg      LIKE vbrp-vkorg_auft,
+          vtweg      LIKE vbrp-vtweg_auft,
+          regio      LIKE vbrk-regio,
+          kunag      LIKE vbrk-kunag,
+*     kunrg LIKE vbrk-kunrg,
+          posnr      LIKE vbrp-posnr,
+          werks      LIKE vbrp-werks,
+          kdgrp      LIKE vbrk-kdgrp,
+          fkdat      TYPE char10,
+          spart      LIKE vbrk-spart,
+          matnr      LIKE vbrp-matnr,
+          arktx      LIKE vbrp-arktx,
+          fkart      LIKE vbrk-fkart,
+*   KZWI2 LIKE VBRP-KZWI2,
+          kzwi2      TYPE char30, "MEHER
+*   KZWI2 LIKE VBRP-KZWI2,
+          mwsbp      TYPE char30, "MEHER
+*      netwr LIKE vbrp-netwr,
+          fkimg      TYPE char30,
+          vrkme      LIKE vbrp-vrkme,
+          waerk      LIKE vbrk-waerk,
+          kurrf      LIKE vbrk-kurrf,
+*     name1 LIKE kna1-name1,
+*     vtext LIKE tvkot-vtext,
+*      bland LIKE t005u-bland,
+*     bezei LIKE t005u-bezei,
+          aubel      LIKE vbrp-aubel,
+          aupos      LIKE vbrp-aupos,
+*      pstyv  LIKE vbrp-pstyv,
+
+*    MWSBP  LIKE VBRP-MWSBP,
+          meins      LIKE vbrp-meins,        " Meins added
+          vkgrp      TYPE vbrp-vkgrp,
+          vkbur      TYPE vbrp-vkbur,
+          bzirk_auft TYPE vbrp-bzirk_auft,
+          spart_i    TYPE vbrp-spart,
+          flag       TYPE c,
+        END OF it_vbrp1.
+
+
+  DATA : it_kna1 TYPE TABLE OF kna1 WITH HEADER LINE.
+
+  DATA : BEGIN OF it_alv OCCURS 0,
+           vkorg  LIKE vbrk-vkorg,
+           vtext  LIKE tvkot-vtext,
+           regio  LIKE vbrk-regio,
+           werks  LIKE vbrp-werks,
+           bezei  LIKE t005u-bezei,
+           kunag  LIKE vbrk-kunag,
+           matnr  LIKE vbrp-matnr,
+           fkimg  TYPE p DECIMALS 3,
+           fkimg1 TYPE p DECIMALS 3,
+           meins  TYPE meins,               "Meins added
+*      KZWI2   LIKE VBRP-KZWI2,
+           kzwi2  LIKE vbrp-kzwi2, "MEHER
+*      KZWI2   LIKE VBRP-KZWI2,
+           mwsbp  LIKE vbrp-mwsbp, "MEHER
+           name1  LIKE kna1-name1,
+           gross  LIKE vbrp-kzwi2,
+           arktx  LIKE vbrp-arktx,
+           vrkme  LIKE vbrp-vrkme,
+           vrkme1 LIKE vbrp-vrkme,
+           vbeln  LIKE vbrk-vbeln,  "as
+           posnr  LIKE vbrp-posnr,
+           fkdat  LIKE vbrk-fkdat,
+           kdmat  LIKE vbap-kdmat,
+           "Insert-Strat-Nitin D-12.03.2015-Add Storage Location
+           lgort  LIKE vbap-lgort,
+           "Insert-End-Nitin D-12.03.2015-Add Storage Location
+         END OF it_alv.
+
+  DATA : it_alvt LIKE it_alv OCCURS 0 WITH HEADER LINE.
+
+  DATA: it_alv1     LIKE it_alv  OCCURS 0 WITH HEADER LINE,
+        it_alv2     LIKE it_alv  OCCURS 0 WITH HEADER LINE,
+        it_alv3     LIKE it_alv  OCCURS 0 WITH HEADER LINE,
+        it_alv1t    LIKE it_alv1 OCCURS 0 WITH HEADER LINE,
+        wa_alv1t    LIKE LINE OF it_alv1,
+        it_alv_temp LIKE it_alv  OCCURS 0 WITH HEADER LINE..
+
+  DATA: lv_vkorg LIKE vbrk-vkorg,
+        lv_regio LIKE vbrk-regio,
+        lv_werks LIKE vbrp-werks.
+
+  DATA: fieldcatalog TYPE slis_t_fieldcat_alv WITH HEADER LINE,
+        gd_tab_group TYPE slis_t_sp_group_alv,
+        gd_layout    TYPE slis_layout_alv,
+        gd_repid     LIKE sy-repid.
+
+  DATA: fieldcatalog1 TYPE slis_t_fieldcat_alv WITH HEADER LINE,
+        fieldcatalog2 TYPE slis_t_fieldcat_alv WITH HEADER LINE.
+  DATA:ta_field TYPE slis_t_fieldcat_alv,
+       wa_field LIKE LINE OF ta_field.
+
+  DATA gt_sort     TYPE slis_t_sortinfo_alv.
+  DATA gs_sort     TYPE slis_sortinfo_alv.
+  DATA gs_subtot   TYPE alvdynp.
+  DATA :  ta_sort TYPE slis_t_sortinfo_alv,
+          wa_sort TYPE slis_sortinfo_alv.
+*        TA_SUBTOT   TYPE ALVDYNP.
+
+***Insert-Start-Nitin D-09-02-2015--Display Plant and material wise Radio button on selection screen
+  TYPES : BEGIN OF ty_tvkot,
+            vkorg TYPE tvkot-vkorg,
+            vtext TYPE tvkot-vtext,
+          END OF ty_tvkot.
+  DATA : ta_tvkot TYPE STANDARD TABLE OF ty_tvkot,
+         wa_tvkot TYPE ty_tvkot.
+
+  TYPES : BEGIN OF ty_marm,
+            matnr TYPE marm-matnr,
+            meinh TYPE marm-meinh,
+            umrez TYPE marm-umrez,
+            umren TYPE marm-umren,
+          END OF ty_marm.
+
+  DATA : ta_marm TYPE STANDARD TABLE OF ty_marm,
+         wa_marm TYPE ty_marm.
+
+  TYPES : BEGIN OF ty_vbap,
+            vbeln TYPE vbap-vbeln,
+            posnr TYPE vbap-posnr,
+            matnr TYPE vbap-matnr,
+            kdmat TYPE vbap-kdmat,
+            werks TYPE vbap-werks,
+          END OF ty_vbap.
+
+  TYPES : BEGIN OF ty_t7inrt,
+            spras     TYPE t7inrt-spras,
+            pin_regio TYPE t7inrt-pin_regio,
+            rdesc     TYPE t7inrt-rdesc,
+          END OF ty_t7inrt.
+
+  TYPES : BEGIN OF ty_t171t2,
+            spras TYPE t171t-spras,
+            bzirk TYPE t171t-bzirk,
+            bztxt TYPE t171t-bztxt,
+          END OF ty_t171t2.
+
+  TYPES : BEGIN OF ty_t005u,
+            spras TYPE t005u-spras,
+            land1 TYPE t005u-land1,
+            bland TYPE t005u-bland,
+            bezei TYPE t005u-bezei,
+          END OF ty_t005u.
+
+  TYPES : BEGIN OF ty_vbak,
+            auart TYPE vbak-auart,
+            vbeln TYPE vbak-vbeln,
+          END OF ty_vbak.
+
+  DATA : ta_t7inrt TYPE TABLE OF ty_t7inrt,
+         wa_t7inrt TYPE ty_t7inrt.
+
+  DATA : ta_t171t2 TYPE TABLE OF ty_t171t2,
+         wa_t171t2 TYPE ty_t171t2.
+
+  DATA : ta_t005u TYPE TABLE OF ty_t005u,
+         wa_t005u TYPE ty_t005u.
+
+  DATA : ta_vbap TYPE STANDARD TABLE OF ty_vbap,
+         wa_vbap TYPE ty_vbap.
+*soc by aditya:8000004626:11.11.2025
+  DATA : ta_vbak TYPE STANDARD TABLE OF ty_vbak,
+         wa_vbak TYPE ty_vbak.
+
+  DATA : ta_konv1 TYPE STANDARD TABLE OF ty_konv1,
+         wa_konv1 TYPE ty_konv1.
+*eoc by aditya:8000004626:11.11.2025
+  CONSTANTS: c_fkart_s1(2) TYPE c VALUE 'S1'.    "LOC added by Sumeet on 21.04.2021
+
+***Insert-End-Nitin D-09-02-2015--Display Plant and material wise Radio button on selection screen
+*soc by aditya:8000004626:11.11.2025
+  DATA: ta_layout TYPE slis_layout_alv,
+        ta_field1 TYPE slis_t_fieldcat_alv,
+        wa_field1 LIKE LINE OF ta_field.
+
+
+  DATA: p_layout TYPE slis_vari.
+  DATA: lwa_sftp_head(50000) TYPE c.
+  DATA g_variant LIKE disvariant.
+  DATA: lv_full TYPE string.
+  DATA lta_fc  TYPE lvc_t_fcat WITH HEADER LINE..
+  DATA lc_tab   TYPE c VALUE cl_abap_char_utilities=>horizontal_tab..
+*eoc by aditya:8000004626:11.11.2025
+
+INITIALIZATION.
+
+*---------------------------------------------------------------------*
+* A T S E L E C T I O N - S C R E E N                               *
+*---------------------------------------------------------------------*
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_var.   "soc by aditya:8000004626:11.11.2025
+
+  PERFORM call_varient.
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR path.
+
+  CALL FUNCTION 'GUI_FILE_SAVE_DIALOG'
+    EXPORTING
+      default_extension = 'XLS'
+      default_file_name = 'SALESREPORT.XLS'
+    IMPORTING
+*     FILENAME          =
+      fullpath          = lv_full.
+*     USER_ACTION             =
+*     FILE_ENCODING           =
+  IF sy-subrc = 0 AND lv_full IS NOT INITIAL .
+    path = lv_full.
+  ENDIF.       "soc by aditya:8000004626:11.11.2025
+
+
+AT SELECTION-SCREEN OUTPUT.
+
+  IF sy-calld IS INITIAL.
+    LOOP AT SCREEN.
+***Comment-Start-Nitin D-09-02-2015-CRDK917695-Display Plant and material wise Radio button on selection screen
+*      IF screen-name = 'RB_PLANT' OR screen-name = 'RB_MATNR'.
+***Comment-End-Nitin D-09-02-2015-CRDK917695-Display Plant and material wise Radio button on selection screen
+***Insert-Start-Nitin D-09-02-2015-CRDK917695-Display Plant and material wise Radio button on selection screen
+      IF screen-name = 'RB_MATNR'.
+***Insert-Start-Nitin D-09-02-2015-CRDK917695-Display Plant and material wise Radio button on selection screen
+        screen-input = 0.
+        screen-invisible = 1.
+        MODIFY SCREEN.
+      ENDIF.
+    ENDLOOP.
+  ENDIF.
+*soc by aditya:8000004626:11.11.2025
+  LOOP AT SCREEN.
+    IF screen-name EQ 'RD1' OR screen-name EQ 'RD2'OR screen-name EQ 'PATH'.
+      IF chk NE 'X'.
+        screen-invisible = 1.
+      ELSE.
+        screen-invisible = 0.
+      ENDIF.
+*      IF rd1 NE 'X'.
+*      IF screen-name EQ 'PATH'.
+*        screen-active = 0.
+*      ELSE.
+*        screen-active = 1.
+*        ENDIF.
+*      ENDIF.
+      MODIFY SCREEN.
+    ENDIF.
+  ENDLOOP.
+  LOOP AT SCREEN.
+    IF screen-name EQ 'PATH'.
+      IF rd1 NE 'X'.
+        screen-invisible = 1.
+      ELSE.
+        screen-invisible = 0.
+      ENDIF.
+      MODIFY SCREEN.
+    ENDIF.
+  ENDLOOP.
+*eoc by aditya:8000004626:11.11.2025
+START-OF-SELECTION.
+
+*Commented by Govindu:12-11-2104.
+
+*  SELECT   a~vbeln
+*           b~vkorg_auft AS vkorg
+*           b~vtweg_auft AS vtweg
+*           a~regio
+*           a~kunag
+*           a~kunrg
+*           b~posnr
+*           b~werks
+*           a~kdgrp
+*           a~fkdat
+*           a~spart
+*           b~matnr
+*           b~arktx
+*            a~fkart
+*           b~netwr AS netwr
+*           "B~KZWI2
+*           "B~KZWI2
+** MEHER
+*           b~kzwi2
+*           b~mwsbp
+** MEHER
+*           b~fkimg
+*          b~vrkme
+*           a~waerk
+*           a~kurrf
+*           b~aubel
+*           b~aupos
+*           b~meins
+*
+*           b~pstyv
+*           b~spart AS spart_i
+*           b~vkgrp
+*           b~vkbur
+*           b~bzirk_auft
+**           B~MWSBP
+*      FROM  ( vbrk AS a
+*     INNER JOIN vbrp AS b
+*        ON a~vbeln = b~vbeln )
+*     INTO  CORRESPONDING FIELDS OF TABLE  it_vbrp
+*     WHERE  b~vkorg_auft IN sorg   "so_vkorg
+*       AND b~vtweg_auft IN dchan     "so_vtweg
+*       AND b~werks IN op_plant       "so_werks
+*       AND a~kdgrp IN custgrp        "so_kdgrp
+*       AND a~spart IN divi           "so_spart
+*       AND b~matnr IN mat            "so_matnr
+*       AND a~fkdat IN  invdate       "so_fkdat
+*       AND a~fkart IN billtype       "SO_FKART
+**       AND A~FKSTO NE 'X'
+*       AND b~vkgrp IN vkgrp
+*       AND b~vkbur IN vkbur
+*       AND b~bzirk_auft IN bzirk
+**       and b~MWSBP ne '0.00'
+*       AND a~kunag  IN  cust
+*       AND b~fkimg > 0.
+*Commented by Govidu:12-11-2014.
+
+
+  SELECT    vbeln                            ""Added by Govind:12-11-2104.
+            vkorg_auft
+            vtweg_auft
+***Insert-Start-Nitin-04.03.2015-CRDK918542-Remove invoice with indicator A OR B
+            rfbsk
+***Insert-End-Nitin-04.03.2015-CRDK918542-Remove invoice with indicator A OR B
+            regio
+            kunag
+            kunrg
+            posnr
+            werks
+            kdgrp
+            fkdat
+            spart
+            matnr
+            arktx
+            fkart
+            netwr
+            kzwi2
+            mwsbp
+            fkimg
+            vrkme
+            waerk
+            kurrf
+            aubel
+            aupos
+            meins
+            pstyv
+            spart_i
+            vkgrp
+            vkbur
+            bzirk_auft
+"Insert-Strat-Nitin D-12.03.2015-Add Storage Location
+            lgort
+"Insert-End-Nitin D-12.03.2015-Add Storage Location
+      FROM zsd_stock
+      INTO  CORRESPONDING FIELDS OF TABLE  it_vbrp
+      WHERE  vkorg_auft IN sorg   "so_vkorg
+        AND vtweg_auft IN dchan     "so_vtweg
+        AND werks IN op_plant       "so_werks
+        AND kdgrp IN custgrp        "so_kdgrp
+        AND spart IN divi           "so_spart
+        AND matnr IN mat            "so_matnr
+        AND fkdat IN invdate       "so_fkdat
+        AND fkart IN billtype       "SO_FKART
+        AND vkgrp IN vkgrp
+        AND vkbur IN vkbur
+        AND bzirk_auft IN bzirk
+        AND kunag  IN  cust
+***Insert-Start-Nitin D-09-02-2015-CRDK917695-Display Plant and material wise Radio button on selection screen
+        AND spart_i IN s_prddiv
+***Insert-Start-Nitin D-09-02-2015-CRDK917695-Display Plant and material wise Radio button on selection screen
+  AND fkimg > 0.                         ""Added by ""Govindu:12-11_2014
+
+**Insert-Start-Nitin-04.03.2015-CRDK918542-Remove invoice with indicator NE  C OR D
+  SORT it_vbrp BY rfbsk.
+  DELETE it_vbrp WHERE rfbsk NE 'C' AND  rfbsk NE 'D'.
+**Insert-End-Nitin-04.03.2015-CRDK918542-Remove invoice with indicator NE C OR D
+
+****Added by Sagar Gujar on 26.02.2015.
+***Begin of commented by Sagar Gujar on 03.03.2015
+*  CLEAR : TA_T7INRT[].
+*
+*  SELECT SPRAS
+*         PIN_REGIO
+*         RDESC
+*         FROM T7INRT
+*         CLIENT SPECIFIED
+*         INTO TABLE TA_T7INRT
+*         FOR ALL ENTRIES IN IT_VBRP
+*         WHERE MANDT = SY-MANDT
+*         AND   SPRAS = 'EN'
+*         AND   PIN_REGIO = IT_VBRP-REGIO.
+*
+*  IF SY-SUBRC = 0.
+*    SORT TA_T7INRT BY PIN_REGIO.
+*  ENDIF.
+****EOCommented By Sagar Gujar on 03.03.2015
+
+  CLEAR : ta_t005u[].
+
+  SELECT spras
+         land1
+         bland
+         bezei
+         FROM t005u
+         CLIENT SPECIFIED
+         INTO TABLE ta_t005u
+         FOR ALL ENTRIES IN it_vbrp
+         WHERE mandt = sy-mandt
+         AND   spras = 'EN'
+  AND   land1 = 'IN'
+  AND   bland = it_vbrp-regio.
+
+  IF sy-subrc = 0.
+    SORT ta_t005u BY bland.
+  ENDIF.
+
+
+  CLEAR : ta_t171t2[].
+
+  SELECT spras
+         bzirk
+         bztxt
+         FROM t171t
+         CLIENT SPECIFIED
+         INTO TABLE ta_t171t2
+         FOR ALL ENTRIES IN it_vbrp
+         WHERE mandt = sy-mandt
+  AND   spras = 'EN'
+  AND   bzirk = it_vbrp-bzirk_auft.
+
+  IF sy-subrc = 0.
+    SORT ta_t171t2 BY bzirk.
+  ENDIF.
+***End of addition by Sagar Gujar.
+
+
+***sochange on 24.02.2017 for 8000002925
+*  SELECT * FROM zsd_sales CLIENT SPECIFIED INTO CORRESPONDING FIELDS OF TABLE it_sales
+*    WHERE mandt = sy-mandt.
+  SELECT * FROM zsd_sales_chl CLIENT SPECIFIED INTO CORRESPONDING FIELDS OF TABLE it_sales
+  WHERE mandt = sy-mandt.
+***eochange on 24.02.2017 for 8000002925
+
+  DELETE it_vbrp WHERE NOT regio IN state.
+  DELETE it_vbrp WHERE NOT kunag IN cust.
+
+
+  IF NOT it_vbrp[] IS INITIAL.
+
+***socomment on 08.01.2014
+*    LOOP AT it_vbrp WHERE pstyv = 'REN'
+*                      AND mwsbp = '0.00'
+*                      AND ( werks NE '1172' OR werks NE '1176' ).
+*
+*      it_vbrp-kzwi2 =  it_vbrp-mwsbp.
+*      MODIFY it_vbrp TRANSPORTING kzwi2.
+*      CLEAR: it_vbrp.
+*    ENDLOOP.
+***eocomment on 08.01.2014
+*********************************************************************
+    " Added by abhay for multiple condition based on invoice type ..
+
+***Insert-Start-Nitin D-09-02-2015-CRDK918055-Display Plant and material wise Radio button on selection screen
+    SELECT *
+     FROM kna1
+     INTO TABLE it_kna1
+    FOR ALL ENTRIES IN it_vbrp
+    WHERE kunnr = it_vbrp-kunag.
+***Insert-End-Nitin D-09-02-2015-CRDK918055-Display Plant and material wise Radio button on selection screen
+
+
+**********************  SOC by Shubhangi against Ticket # 8000003563
+    SELECT vbeln knumv
+      FROM vbrk
+      INTO TABLE it_vbrk
+    FOR ALL ENTRIES IN it_vbrp
+    WHERE vbeln = it_vbrp-vbeln.
+
+    SELECT knumv
+           kposn
+           kschl
+           kbetr
+           kwert "Added by parashar CRDK960218 cr-8000004882
+      FROM konv
+      INTO TABLE it_knov
+        FOR ALL ENTRIES IN it_vbrk
+      WHERE knumv = it_vbrk-knumv
+*      AND KSCHL = 'ZMRP'. "Commented by parashar CRDK960218 cr-8000004882
+*      AND kschl IN ('ZMRP','ZBDC' ). "Added by parashar CRDK960218 cr-8000004882
+    AND kschl IN ('ZMRP','ZBDC' ,'JTC1' )." Added by Aarti against Ticket #8000006682
+*soc by aditya:8000004626:11.11.2025
+    SELECT sakn1
+           kvsl1
+           knumv
+      FROM konv
+      INTO TABLE ta_konv1
+        FOR ALL ENTRIES IN it_vbrk
+    WHERE knumv = it_vbrk-knumv
+    AND   kvsl1 = 'ERL'.
+    DELETE ta_konv1 WHERE sakn1 IS INITIAL.
+*eoc by aditya:8000004626:11.11.2025
+
+    SELECT vbeln
+           posnr
+           charg
+      FROM vbrp
+      INTO TABLE it_charg
+    FOR ALL ENTRIES IN it_vbrp
+    WHERE vbeln = it_vbrp-vbeln AND posnr = it_vbrp-posnr.
+
+**********************  EOC by Shubhangi against Ticket # 8000003563
+*soc by aditya:8000004626:11.11.2025
+    SELECT auart
+           vbeln
+           FROM vbak
+           INTO TABLE ta_vbak
+    FOR ALL ENTRIES IN it_vbrp
+    WHERE vbeln = it_vbrp-aubel.
+*eoc by aditya:8000004626:11.11.2025
+    SORT it_vbrp BY vbeln posnr.
+    LOOP AT it_vbrp .
+
+**********************  SOC by Shubhangi against Ticket # 8000003563
+      READ TABLE it_vbrk INTO wa_vbrk WITH KEY vbeln = it_vbrp-vbeln.
+      IF sy-subrc = 0.
+*        V_POSNR = IT_VBRP-POSNR.
+        READ TABLE it_knov INTO wa_knov WITH KEY knumv = wa_vbrk-knumv kposn = it_vbrp-posnr kschl = 'ZMRP'.
+        IF sy-subrc EQ 0.
+          it_vbrp-kbetr = wa_knov-kbetr.
+        ENDIF.
+
+*** Added by parashar CRDK960218 cr-8000004882
+        CLEAR :wa_knov.
+        READ TABLE it_knov INTO wa_knov WITH KEY knumv = wa_vbrk-knumv kposn = it_vbrp-posnr kschl = 'ZBDC'.
+        IF sy-subrc EQ 0.
+          it_vbrp-dis_per = ( wa_knov-kbetr / 10 ) * -1.
+          it_vbrp-dis_amt = wa_knov-kwert * -1.
+        ENDIF.
+        " Added by Aarti against Ticket #8000006682
+        CLEAR :wa_knov.
+        READ TABLE it_knov INTO wa_knov WITH KEY knumv = wa_vbrk-knumv kposn = it_vbrp-posnr kschl = 'JTC1'.
+        IF sy-subrc EQ 0.
+*          it_vbrp-dis_per = ( wa_knov-kbetr / 10 ) * -1.
+          it_vbrp-mwsbp = it_vbrp-mwsbp - wa_knov-kwert .
+          it_vbrp-tcs_amt = wa_knov-kwert * -1.                   " Added by Aarti against Ticket #8000006682 on 08.10.2020
+
+        ENDIF.
+*** Added upto by parashar CRDK960218 cr-8000004882
+*soc by aditya:8000004626:11.11.2025
+        CLEAR:wa_konv1.
+        READ TABLE ta_konv1 INTO wa_konv1 WITH KEY knumv = wa_vbrk-knumv  kvsl1 = 'ERL'.
+        IF sy-subrc EQ 0.
+          it_vbrp-sakn1 = wa_konv1-sakn1 .
+        ENDIF.
+      ENDIF.
+*eoc by aditya:8000004626:11.11.2025
+
+      READ TABLE it_charg INTO wa_charg WITH KEY vbeln = it_vbrp-vbeln posnr = it_vbrp-posnr.
+      IF sy-subrc = 0.
+        it_vbrp-charg = wa_charg-charg.
+      ENDIF.
+
+**********************  EOC by Shubhangi against Ticket # 8000003563
+
+
+
+      READ TABLE it_sales INTO wa_sales  WITH KEY fkart = it_vbrp-fkart pstyv = it_vbrp-pstyv.
+
+      IF sy-subrc = 0.
+
+        IF wa_sales-qty_flag = 2 AND  wa_sales-val_flag = 2 .
+
+          it_vbrp-fkimg = it_vbrp-fkimg * '-1'.
+          it_vbrp-kzwi2 = it_vbrp-kzwi2 * '-1' .
+
+          IF it_vbrp-kzwi2 IS INITIAL AND ( it_vbrp-fkart = 'ZCSI' OR it_vbrp-fkart = 'ZCRI'
+                                         OR it_vbrp-fkart = 'ZDRI' OR it_vbrp-fkart = 'S2'  ).
+
+            it_vbrp-kzwi2 = it_vbrp-netwr * '-1' .
+
+          ENDIF.
+
+          it_vbrp-mwsbp = it_vbrp-mwsbp * '-1' .
+
+        ELSEIF wa_sales-qty_flag = 3 AND  wa_sales-val_flag = 1.
+
+          it_vbrp-fkimg = it_vbrp-fkimg * '0'.
+          it_vbrp-kzwi2 = it_vbrp-kzwi2 * '1' .
+
+          IF it_vbrp-kzwi2 IS INITIAL AND ( it_vbrp-fkart = 'ZCSI' OR it_vbrp-fkart = 'ZCRI'
+                                          OR it_vbrp-fkart = 'ZDRI' OR it_vbrp-fkart = 'S2' ).
+
+            it_vbrp-kzwi2 = it_vbrp-netwr * '1' .
+
+          ENDIF.
+
+          it_vbrp-mwsbp = it_vbrp-mwsbp * '1' .
+
+        ELSEIF wa_sales-qty_flag = 3 AND  wa_sales-val_flag = 2 .
+
+          it_vbrp-fkimg = it_vbrp-fkimg * '0'.
+          it_vbrp-kzwi2 = it_vbrp-kzwi2 * '-1' .
+
+          IF it_vbrp-kzwi2 IS INITIAL AND ( it_vbrp-fkart = 'ZCSI' OR it_vbrp-fkart = 'ZCRI'
+                                          OR it_vbrp-fkart = 'ZDRI' OR it_vbrp-fkart = 'S2' OR it_vbrp-fkart = c_fkart_s1  ).   "C_FKART_S1 ADDED BY SUMEET ON 21.04.2021
+
+            it_vbrp-kzwi2 = it_vbrp-netwr * '-1' .
+
+          ENDIF.
+
+          it_vbrp-mwsbp = it_vbrp-mwsbp * '-1' .
+
+        ELSEIF wa_sales-qty_flag = 3 AND  wa_sales-val_flag = 3 .
+
+*------------------------Start of Code Somesh as per tkt. 8000002621------------------------*
+          IF it_vbrp-pstyv EQ 'TANN'
+                  OR it_vbrp-pstyv EQ 'RENN'.  "added on 24.02.2017 for 8000002925
+            it_vbrp-fkimg = it_vbrp-fkimg.
+          ELSE.
+            it_vbrp-fkimg = it_vbrp-fkimg * '0'.
+          ENDIF.
+*-------------------------End of Code Somesh as per tkt. 8000002621-------------------------*
+          it_vbrp-kzwi2 = it_vbrp-kzwi2 * '0' .
+
+          it_vbrp-mwsbp = it_vbrp-mwsbp * '0' .
+
+
+        ENDIF.
+      ENDIF.
+
+
+*      CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+*        CHANGING
+*          value = it_vbrp-mwsbp_str.
+*
+*      CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+*        CHANGING
+*          value = it_vbrp-kzwi2_str.
+
+**      DATA : lv_kzwi2 TYPE char20.
+**      CLEAR : lv_kzwi2.
+**      MOVE it_vbrp-kzwi2 TO lv_kzwi2.
+**
+**      CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+**        CHANGING
+**          value = lv_kzwi2.
+**      CLEAR : it_vbrp-kzwi2.
+**      it_vbrp-kzwi2 = lv_kzwi2.
+**
+**      CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+**        CHANGING
+**          value = it_vbrp-mwsbp.
+**
+**      CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+**        CHANGING
+**          value = it_vbrp-netwr.
+**
+**      CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+**        CHANGING
+**          value = it_vbrp-fkimg.
+***Insert-Start-Nitin D-09-02-2015-CRDK918055-Display Plant and material wise Radio button on selection screen
+      READ TABLE it_kna1 WITH KEY kunnr = it_vbrp-kunag.
+
+      IF sy-subrc = 0.
+        it_vbrp-name1 = it_kna1-name1.
+      ENDIF.
+***Insert-End-Nitin D-09-02-2015-CRDK918055-Display Plant and material wise Radio button on selection screen
+*****inseted by Sagar Gujar on 26.02.2015
+
+*      CLEAR : wa_t7inrt.
+*      READ TABLE ta_t7inrt INTO wa_t7inrt WITH KEY spras = 'EN' pin_regio = it_vbrp-regio.
+*      IF sy-subrc = 0.
+*        it_vbrp-rdesc  = wa_t7inrt-rdesc.
+*      ENDIF.
+
+      CLEAR : wa_t005u.
+      READ TABLE ta_t005u INTO wa_t005u WITH KEY spras = 'EN' land1 = 'IN' bland = it_vbrp-regio.
+      IF sy-subrc = 0.
+        it_vbrp-rdesc = wa_t005u-bezei.
+      ENDIF.
+
+      CLEAR : wa_t171t2.
+      READ TABLE ta_t171t2 INTO wa_t171t2 WITH KEY spras = 'EN' bzirk = it_vbrp-bzirk_auft.
+      IF sy-subrc = 0.
+        it_vbrp-bztxt   = wa_t171t2-bztxt.
+      ENDIF.
+*****End of insertion by Sagar Gujar
+*soc by aditya:8000004626:11.11.2025
+      CLEAR : wa_vbak.
+      READ TABLE ta_vbak INTO wa_vbak WITH KEY vbeln = it_vbrp-aubel.
+      IF sy-subrc = 0.
+        it_vbrp-auart   = wa_vbak-auart.
+      ENDIF.
+*eoc by aditya:8000004626:11.11.2025
+      MODIFY it_vbrp.
+      CLEAR it_vbrp.
+      CLEAR wa_sales.
+    ENDLOOP.
+
+***Comment-Start-Nitin D-09-02-2015-CRDK918055-Display Plant and material wise Radio button on selection screen
+*    SELECT *
+*     FROM kna1
+*     INTO TABLE it_kna1
+*      FOR ALL ENTRIES IN it_vbrp
+*    WHERE kunnr = it_vbrp-kunag.
+***Comment-Start-Nitin D-09-02-2015-CRDK918055-Display Plant and material wise Radio button on selection screen
+
+  ENDIF.
+
+
+
+  IF invoice = 'X'.
+    PERFORM zsap_get_invoice.
+  ELSE.     "added on 08.01.2015
+*  ENDIF.        ""commented on 08.01.2015
+    SORT it_vbrp BY vkorg.
+***Insert-Start-Nitin D-09-02-2015-CRDK918055-Display Plant and material wise Radio button on selection screen
+
+    IF it_vbrp[] IS NOT INITIAL.
+
+      SELECT vkorg
+                vtext
+                FROM tvkot
+                INTO TABLE ta_tvkot
+                FOR ALL ENTRIES IN it_vbrp
+      WHERE vkorg EQ it_vbrp-vkorg
+      AND spras = 'E'.
+
+      SELECT matnr
+             meinh
+             umrez
+             umren
+             FROM marm
+             INTO TABLE ta_marm
+      FOR ALL ENTRIES IN it_vbrp
+      WHERE matnr EQ it_vbrp-matnr.
+
+      SELECT vbeln
+             posnr
+             matnr
+             kdmat
+             werks
+             FROM vbap
+             INTO TABLE ta_vbap
+             FOR ALL ENTRIES IN it_vbrp
+             WHERE vbeln = it_vbrp-aubel
+             AND posnr = it_vbrp-aupos
+      AND matnr = it_vbrp-matnr
+      AND werks = it_vbrp-werks.
+
+    ENDIF.
+
+    SORT ta_tvkot BY vkorg.
+    SORT ta_marm BY matnr meinh.
+    SORT ta_vbap BY vbeln posnr matnr werks.
+***Insert-End-Nitin D-09-02-2015-CRDK918055-Display Plant and material wise Radio button on selection screen
+
+    LOOP AT it_vbrp.
+***Comment-Start-Nitin D-09-02-2015-CRDK917695-Display Plant and material wise Radio button on selection screen
+*      SELECT SINGLE *
+*            FROM tvkot
+*            WHERE vkorg = it_vbrp-vkorg
+*            AND spras = 'E'.
+***Comment-Start-Nitin D-09-02-2015-CRDK917695-Display Plant and material wise Radio button on selection screen
+***Insert-Start-Nitin D-09-02-2015--Display Plant and material wise Radio button on selection screen
+      CLEAR : wa_tvkot.
+      READ TABLE ta_tvkot INTO wa_tvkot WITH KEY vkorg = it_vbrp BINARY SEARCH.
+
+***Insert-End-Nitin D-09-02-2015--Display Plant and material wise Radio button on selection screen
+      IF sy-subrc = 0.
+***Comment-Start-Nitin D-09-02-2015-CRDK917695-Display Plant and material wise Radio button on selection screen
+*        it_vbrp-vtext = tvkot-vtext.
+***Comment-Start-Nitin D-09-02-2015-CRDK917695-Display Plant and material wise Radio button on selection screen
+
+***Insert-Start-Nitin D-09-02-2015--Display Plant and material wise Radio button on selection screen
+        it_vbrp-vtext = wa_tvkot-vtext.
+***Insert-End-Nitin D-09-02-2015--Display Plant and material wise Radio button on selection screen
+      ENDIF.
+
+*    SELECT SINGLE *
+*      FROM t005u
+*       WHERE bland = it_vbrp-regio
+*        AND spras ='E'
+*       AND land1 = 'IN'.
+*
+*    IF sy-subrc = 0.
+*      it_vbrp-bezei = t005u-bezei.
+*    ENDIF.
+
+      it_alv-vbeln = it_vbrp-vbeln.
+      it_alv-fkdat = it_vbrp-fkdat.
+      it_alv-kunag = it_vbrp-kunag.
+      it_alv-vkorg = it_vbrp-vkorg.
+      it_alv-regio = it_vbrp-regio.
+      "Insert-Strat-Nitin D-12.03.2015-Add Storage Location
+      it_alv-lgort = it_vbrp-lgort.
+      "Insert-End-Nitin D-12.03.2015-Add Storage Location
+      READ TABLE it_kna1 WITH KEY kunnr = it_vbrp-kunag.
+
+      IF sy-subrc = 0.
+        it_alv-name1 = it_kna1-name1.
+      ENDIF.
+
+
+
+***********************Begin of c******************************
+*Changed UOM CS into EA
+
+      IF it_vbrp-spart EQ '09' AND it_vbrp-werks+0(2) EQ '27'.
+
+        IF it_vbrp-vrkme EQ 'CS'."EA'
+***Comment-Start-Nitin D-09-02-2015-CRDK918055-Display Plant and material wise Radio button on selection screen
+*          SELECT SINGLE *
+*            FROM marm
+*           WHERE meinh EQ 'CS'"'EA' "
+*             AND matnr EQ it_vbrp-matnr.
+***Comment-End-Nitin D-09-02-2015-CRDK918055-Display Plant and material wise Radio button on selection screen
+***Insert-Start-Nitin D-09-02-2015-CRDK918055-Display Plant and material wise Radio button on selection screen
+          CLEAR :wa_marm.
+          READ TABLE  ta_marm INTO wa_marm WITH KEY matnr = it_vbrp-matnr
+                                                    meinh = 'CS'
+                                                    BINARY SEARCH.
+
+***Insert-End-Nitin D-09-02-2015-CRDK918055-Display Plant and material wise Radio button on selection screen
+          IF sy-subrc EQ 0.
+***Insert-Start-Nitin D-09-02-2015-CRDK918055-Display Plant and material wise Radio button on selection screen
+            it_vbrp-fkimg =  wa_marm-umrez * it_vbrp-fkimg.
+***Insert-End-Nitin D-09-02-2015-CRDK918055-Display Plant and material wise Radio button on selection screen
+*            it_vbrp-fkimg = marm-umrez * it_vbrp-fkimg.
+            it_vbrp-vrkme = 'EA'.
+            MODIFY it_vbrp.
+          ENDIF.
+        ENDIF.
+
+      ELSE.
+
+        IF it_vbrp-vrkme EQ 'EA'.
+
+          IF it_vbrp-meins NE 'CS'.
+***Comment-Start-Nitin D-09-02-2015-CRDK918055-Display Plant and material wise Radio button on selection screen
+*            SELECT SINGLE *
+*              FROM marm
+*             WHERE meinh EQ 'CS'
+*               AND matnr EQ it_vbrp-matnr.
+***Comment-Start-Nitin D-09-02-2015-CRDK918055-Display Plant and material wise Radio button on selection screen
+***Insert-Start-Nitin D-09-02-2015-CRDK918055-Display Plant and material wise Radio button on selection screen
+            CLEAR :wa_marm.
+            READ TABLE  ta_marm INTO wa_marm WITH KEY matnr = it_vbrp-matnr
+                                                      meinh = 'CS'
+                                                      BINARY SEARCH.
+
+***Insert-End-Nitin D-09-02-2015-CRDK918055-Display Plant and material wise Radio button on selection screen
+            IF sy-subrc EQ 0.
+***Insert-Start-Nitin D-09-02-2015-CRDK918055-Display Plant and material wise Radio button on selection screen
+*              it_vbrp-fkimg = wa_marm-umren / wa_marm-umrez * it_vbrp-fkimg.
+              it_vbrp-fkimg =  wa_marm-umren * it_vbrp-fkimg.
+***Insert-End-Nitin D-09-02-2015-CRDK918055-Display Plant and material wise Radio button on selection screen
+***Comment-Stkart-Nitin D-09-02-2015-CRDK918055-Display Plant and material wise Radio button on selection screen
+*            IF sy-subrc EQ 0.
+*              it_vbrp-fkimg = marm-umren / marm-umrez * it_vbrp-fkimg.
+***Comment-End-Nitin D-09-02-2015-CRDK918055-Display Plant and material wise Radio button on selection screen
+              it_vbrp-vrkme = 'CS'.
+              MODIFY it_vbrp.
+            ENDIF.
+          ELSE.
+***Comment-Start-Nitin D-09-02-2015-CRDK918055-Display Plant and material wise Radio button on selection screen
+*            SELECT SINGLE *
+*              FROM marm
+*             WHERE meinh NE 'EA'"'CS'
+*               AND matnr EQ it_vbrp-matnr.
+*            IF sy-subrc EQ 0.
+*              it_vbrp-fkimg = marm-umrez / marm-umren * it_vbrp-fkimg.
+***Comment-Start-Nitin D-09-02-2015-CRDK918055-Display Plant and material wise Radio button on selection screen
+***Insert-Start-Nitin D-09-02-2015-CRDK918055-Display Plant and material wise Radio button on selection screen
+            CLEAR :wa_marm.
+            READ TABLE  ta_marm INTO wa_marm WITH KEY matnr = it_vbrp-matnr
+                                                      meinh = 'EA'
+                                                      BINARY SEARCH.
+
+***Insert-End-Nitin D-09-02-2015-CRDK918055-Display Plant and material wise Radio button on selection screen
+            IF sy-subrc NE 0.
+              it_vbrp-fkimg = wa_marm-umrez / wa_marm-umren * it_vbrp-fkimg.
+              it_vbrp-vrkme = 'EA'."'CS'.
+              MODIFY it_vbrp.
+            ENDIF.
+          ENDIF.
+        ENDIF.
+
+      ENDIF.
+***********************End of change*******************************
+      " Commented by abhay
+****    IF  ( IT_VBRP-FKART EQ 'RE' OR IT_VBRP-FKART EQ 'ZRE' or IT_VBRP-FKART EQ 'F8' ).
+****      IT_VBRP-FKIMG   = IT_VBRP-FKIMG * '-1'.
+*****      IT_VBRP-KZWI2 = IT_VBRP-KZWI2 * '-1' .
+****      IT_VBRP-KZWI2 = IT_VBRP-KZWI2 * '-1' ."MEHER
+*****      IT_VBRP-KZWI2 = IT_VBRP-KZWI2 * '-1'."MEHER
+****      IT_VBRP-MWSBP = IT_VBRP-MWSBP * '-1' .
+****    ENDIF.
+
+      IF it_vbrp-waerk <> 'INR'.
+*      IT_VBRP-KZWI2 = IT_VBRP-KZWI2 * IT_VBRP-KURRF.
+        it_vbrp-kzwi2 = it_vbrp-kzwi2 * it_vbrp-kurrf."MEHER
+*      IT_VBRP-KZWI2 = IT_VBRP-KZWI2 * IT_VBRP-KURRF.
+        it_vbrp-mwsbp = it_vbrp-mwsbp * it_vbrp-kurrf."MEHER
+      ENDIF.
+
+      CLEAR: vbap.
+***Comment-Start-Nitin D-09-02-2015-CRDK918055-Display Plant and material wise Radio button on selection screen
+*      SELECT SINGLE kdmat FROM vbap INTO vbap-kdmat WHERE vbeln = it_vbrp-aubel
+*                                                      AND posnr = it_vbrp-aupos
+*                                                      AND matnr = it_vbrp-matnr
+*                                                      AND werks = it_vbrp-werks.
+***Comment-End-Nitin D-09-02-2015-CRDK918055-Display Plant and material wise Radio button on selection screen
+***Insert-Start-Nitin D-09-02-2015-CRDK918055-Display Plant and material wise Radio button on selection screen
+      CLEAR :wa_vbap.
+      READ TABLE ta_vbap INTO wa_vbap WITH KEY vbeln = it_vbrp-aubel
+                                               posnr = it_vbrp-aupos
+                                               matnr = it_vbrp-matnr
+                                               werks = it_vbrp-werks
+                                               BINARY SEARCH.
+
+***Insert-End-Nitin D-09-02-2015-CRDK918055-Display Plant and material wise Radio button on selection screen
+      IF sy-subrc = 0.
+        it_alv-kdmat = wa_vbap-kdmat.
+      ENDIF.
+      it_alv-posnr   = it_vbrp-posnr.
+      it_alv-fkimg   = it_vbrp-fkimg.
+      it_alv-kzwi2   = it_vbrp-kzwi2.
+      it_alv-matnr   = it_vbrp-matnr.
+      it_alv-vtext   = it_vbrp-vtext.
+      it_alv-mwsbp   = it_vbrp-mwsbp.
+      it_alv-kzwi2   = it_vbrp-kzwi2.
+      it_alv-arktx   = it_vbrp-arktx.
+*    IT_ALV-GROSS   = IT_VBRP-KZWI2 + IT_VBRP-KZWI2.
+      it_alv-gross   = it_vbrp-kzwi2 + it_vbrp-mwsbp."MEHER
+      it_alv-vrkme = it_vbrp-vrkme.
+      it_alv-werks = it_vbrp-werks.
+*      IF it_alv-fkimg NE '0.000'.
+      APPEND it_alv.
+*      ENDIF.
+    ENDLOOP.
+
+
+    PERFORM build_fieldcatalog.
+    PERFORM build_layout.
+    PERFORM display_alv_report.
+
+  ENDIF.    "added on 08.01.2015
+
+*&---------------------------------------------------------------------*
+*&      Form  build_fieldcatalog
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM build_fieldcatalog.
+
+  fieldcatalog-fieldname   = 'VKORG'.
+  fieldcatalog-seltext_m   = 'SO CODE'.
+  fieldcatalog-col_pos     = 0.
+  fieldcatalog-outputlen   = 20.
+  fieldcatalog-emphasize   = 'X'.
+  fieldcatalog-key         = 'X'.
+  fieldcatalog-tabname     = 'IT_ALV'.
+  APPEND fieldcatalog TO fieldcatalog.
+  CLEAR  fieldcatalog.
+
+  fieldcatalog-fieldname   = 'VTEXT'.
+  fieldcatalog-seltext_m   = 'SALES ORGANISATION'.
+  fieldcatalog-col_pos     = 1.
+  fieldcatalog-outputlen   = 20.
+  fieldcatalog-emphasize   = 'X'.
+  fieldcatalog-key         = 'X'.
+  fieldcatalog-tabname     = 'IT_ALV'.
+  APPEND fieldcatalog TO fieldcatalog.
+  CLEAR  fieldcatalog.
+
+  fieldcatalog-fieldname   = 'FKIMG'.
+  fieldcatalog-seltext_m   = 'QUANTITY (CS)'.
+  fieldcatalog-col_pos     = 2.
+  APPEND fieldcatalog TO fieldcatalog.
+  CLEAR  fieldcatalog.
+
+  fieldcatalog-fieldname   = 'VRKME'.
+  fieldcatalog-seltext_m   = 'UOM'.
+  fieldcatalog-col_pos     = 4.
+  fieldcatalog-outputlen   = 20.
+  fieldcatalog-tabname     = 'IT_ALV'.
+  APPEND fieldcatalog TO fieldcatalog.
+  CLEAR  fieldcatalog.
+
+  fieldcatalog-fieldname   = 'KZWI2'."'KZWI2'.
+  fieldcatalog-seltext_m   = 'NET VALUE'.
+  fieldcatalog-col_pos     = 5.
+  APPEND fieldcatalog TO fieldcatalog.
+  CLEAR  fieldcatalog.
+
+
+  fieldcatalog-fieldname   = 'MWSBP'."'KZWI2'.
+  fieldcatalog-seltext_m   = 'TAX AMOUNT'.
+  fieldcatalog-col_pos     = 6.
+  APPEND fieldcatalog TO fieldcatalog.
+  CLEAR  fieldcatalog.
+
+*  fieldcatalog-fieldname   = 'TCS_AMT'."'KZWI2'.     "Aarti
+*  fieldcatalog-seltext_m   = 'TCS AMOUNT'.
+*  fieldcatalog-col_pos     = 7.
+*  APPEND fieldcatalog TO fieldcatalog.
+*  CLEAR  fieldcatalog.
+
+
+ENDFORM.                    "build_fieldcatalog
+
+
+*&---------------------------------------------------------------------*
+*&      Form  build_layout
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM build_layout.
+  gd_layout-no_input          = 'X'.
+  gd_layout-colwidth_optimize = 'X'.
+  gd_layout-totals_text       = 'Totals'(201).
+ENDFORM.                    " BUILD_LAYOUT
+
+*&---------------------------------------------------------------------*
+*&      Form  DISPLAY_ALV_REPORT
+*&---------------------------------------------------------------------*
+*       Display report using ALV grid
+*----------------------------------------------------------------------*
+*- FOR LEVEL 1
+FORM display_alv_report.
+*  SORT IT_ALV BY VTEXT.
+
+  SORT it_alv BY vkorg.
+  LOOP AT it_alv.
+    it_alvt-vkorg = it_alv-vkorg.
+    it_alvt-werks = it_alv-werks.
+    it_alvt-vrkme = it_alv-vrkme.
+    AT NEW vtext.
+      SUM.
+      it_alvt-vtext   = it_alv-vtext.
+      it_alvt-fkimg   = it_alv-fkimg.
+
+      it_alvt-mwsbp   = it_alv-mwsbp.
+*      it_alvt-tcs_amt   = it_alv-tcs_amt. "aarti
+      it_alvt-kzwi2   = it_alv-kzwi2."MEHER
+      APPEND it_alvt.
+    ENDAT.
+  ENDLOOP.
+
+  IF rb_plant EQ 'X'.
+    gd_repid = sy-repid.
+
+    CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+      EXPORTING
+        i_callback_program      = gd_repid
+        i_callback_user_command = 'USER_COMMANDS'
+        is_layout               = gd_layout
+        it_fieldcat             = fieldcatalog[]
+        i_save                  = 'X'
+      TABLES
+        t_outtab                = it_alvt
+      EXCEPTIONS
+        program_error           = 1
+        OTHERS                  = 2.
+    IF sy-subrc <> 0.
+*      MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+*         WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+    ENDIF.
+
+  ELSEIF rb_matnr EQ 'X'.
+
+    gd_repid = sy-repid.
+    CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+      EXPORTING
+        i_callback_program      = gd_repid
+        i_callback_user_command = 'USER_COMMANDS1'
+        is_layout               = gd_layout
+        it_fieldcat             = fieldcatalog[]
+        i_save                  = 'X'
+      TABLES
+        t_outtab                = it_alvt
+      EXCEPTIONS
+        program_error           = 1
+        OTHERS                  = 2.
+    IF sy-subrc <> 0.
+*      MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+*         WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+    ENDIF.
+  ENDIF.
+ENDFORM.                    "display_alv_report
+
+
+* FOR LEVEL 2
+*-----------------------------------------------------------------*
+*                                                                 *
+*                                                                 *
+*                                                                 *
+*-----------------------------------------------------------------*
+*                                                                 *
+*-----------------------------------------------------------------*
+FORM user_commands USING r_ucomm LIKE sy-ucomm
+                 rs_selfield TYPE slis_selfield.
+
+*---Check function code
+  CASE r_ucomm.
+    WHEN '&IC1'.
+
+
+
+      REFRESH: fieldcatalog1, it_alv1.
+      it_alv1[] = it_alv[].
+      READ TABLE it_alvt INDEX rs_selfield-tabindex.
+      lv_vkorg = it_alvt-vkorg.
+      lv_werks = it_alvt-werks.
+
+      DELETE it_alv1 WHERE vkorg NE lv_vkorg.
+
+      PERFORM region_grp.
+      PERFORM build_fieldcatalog1.
+      PERFORM build_layout1.
+      PERFORM display_alv_report1.
+  ENDCASE.
+ENDFORM.                    "user_commands
+
+
+* FOR LEVEL 3
+*-----------------------------------------------------------------*
+*                                                                 *
+*                                                                 *
+*                                                                 *
+*-----------------------------------------------------------------*
+*                                                                 *
+*-----------------------------------------------------------------*
+FORM user_commands1 USING r_ucomm LIKE sy-ucomm rs_selfield TYPE slis_selfield.
+  DATA:BEGIN OF wa_vbrk,
+         vbeln TYPE vbrk-vbeln,
+         kunag TYPE vbrk-kunag,
+       END OF wa_vbrk.
+  DATA: ta_vbrk LIKE TABLE OF wa_vbrk.
+  CASE r_ucomm.
+
+    WHEN '&IC1'.
+
+***********************
+
+      DATA:ta_vbrp1 LIKE TABLE OF wa_vbrp.
+      IF rb_plant = 'X'.
+        REFRESH ta_final.
+        CLEAR wa_final.
+
+        READ TABLE it_alv1t INTO wa_alv1t INDEX   rs_selfield-tabindex.
+*(+) Start of Addition/Deletion Code by MEHER with the TOC   CRDK908431 DATE:13/06/2014
+
+        SELECT
+             vbeln                                      "#EC CI_NOFIELD
+             kunag
+             FROM vbrk
+            INTO TABLE ta_vbrk
+           WHERE fkart IN billtype
+*  and   KUNAG = IT_ALV-KUNAG
+        AND fkdat IN invdate.
+        " commented by abhay by sandeep sir at 10122014
+*  and FKSTO NE 'X'.   "SO_FKART
+*(+) Start of Addition/Deletion Code by MEHER with the TOC   CRDK908431 DATE:13/06/2014
+        "Comment start by nitin 20.03.2015
+
+        IF  invoice EQ 'X'.
+
+          SELECT
+*   vbelnF
+                  werks
+                  vkgrp
+                  vkbur
+                  bzirk_auft
+                 fkimg
+                  vrkme
+                  kzwi2
+                  mwsbp
+*                prctr
+                  pstyv
+            FROM vbrp INTO TABLE ta_vbrp
+                 FOR ALL ENTRIES IN ta_vbrk
+          WHERE vbeln = ta_vbrk-vbeln
+          AND werks   = it_alv1t-werks.
+          "comment end by nitin 20.03.2015
+
+*       and MATNR in  MAT
+*       and spart in DIVI
+*       and FKIMG > 0 .
+
+        ELSEIF rb_plant EQ 'X'.
+
+*        "Insert-Start-20.03.2015
+*        SELECT    vbeln                            ""Added by Govind:12-11-2104.
+*            vkorg_auft
+*            vtweg_auft
+****Insert-Start-Nitin-04.03.2015-CRDK918542-Remove invoice with indicator A OR B
+*            RFBSK
+****Insert-End-Nitin-04.03.2015-CRDK918542-Remove invoice with indicator A OR B
+*            regio
+*            kunag
+*            kunrg
+*            posnr
+*            werks
+*            kdgrp
+*            fkdat
+*            spart
+*            matnr
+*            arktx
+*            fkart
+*            netwr
+*            kzwi2
+*            mwsbp
+*            fkimg
+*            vrkme
+*            waerk
+*            kurrf
+*            aubel
+*            aupos
+*            meins
+*            pstyv
+*            spart_i
+*            vkgrp
+*            vkbur
+*            bzirk_auft
+*"Insert-Strat-Nitin D-12.03.2015-Add Storage Location
+*            LGORT
+*"Insert-End-Nitin D-12.03.2015-Add Storage Location
+*      FROM zsd_stock
+*      INTO  CORRESPONDING FIELDS OF TABLE  ta_vbrp
+*      WHERE  vkorg_auft IN sorg   "so_vkorg
+*        AND vtweg_auft IN dchan     "so_vtweg
+*        AND werks IN op_plant       "so_werks
+*        AND kdgrp IN custgrp        "so_kdgrp
+*        AND spart IN divi           "so_spart
+*        AND matnr IN mat            "so_matnr
+*        AND fkdat IN invdate       "so_fkdat
+*        AND fkart IN billtype       "SO_FKART
+*        AND vkgrp IN vkgrp
+*        AND vkbur IN vkbur
+*        AND bzirk_auft IN bzirk
+*        AND kunag  IN  cust
+****Insert-Start-Nitin D-09-02-2015-CRDK917695-Display Plant and material wise Radio button on selection screen
+*        AND spart_i IN s_prddiv
+****Insert-Start-Nitin D-09-02-2015-CRDK917695-Display Plant and material wise Radio button on selection screen
+*        AND fkimg > 0.                         ""Added by ""Govindu:12-11_2014
+*
+***Insert-Start-Nitin-04.03.2015-CRDK918542-Remove invoice with indicator NE  C OR D
+*SORT it_vbrp by RFBSK.
+*delete it_vbrp WHERE RFBSK NE 'C' AND  RFBSK NE 'D'.
+*
+*"insert-End-20.03.2015
+
+          ta_vbrp[] = it_vbrp[].
+
+          SORT ta_vbrp BY werks.
+          DELETE ta_vbrp WHERE werks NE wa_alv1t-werks.
+          CLEAR : wa_alv1t.
+        ENDIF.
+
+
+        IF NOT ta_vbrp IS INITIAL.
+
+*DELETE ADJACENT DUPLICATES FROM TA_VBRP COMPARING  VKGRP.
+*TA_VBRP1 = TA_VBRP.
+
+          SELECT vkgrp
+                 bezei
+                FROM tvgrt INTO TABLE ta_tvgrt
+               FOR ALL ENTRIES IN ta_vbrp
+          WHERE vkgrp = ta_vbrp-vkgrp
+          AND   spras = 'EN'.
+
+*DELETE ADJACENT DUPLICATES FROM TA_VBRP COMPARING  VKBUR.
+*TA_VBRP1 = TA_VBRP.
+
+          SELECT vkbur
+                 bezei
+               FROM tvkbt
+              INTO TABLE ta_tvkbt
+              FOR ALL ENTRIES IN ta_vbrp
+          WHERE vkbur = ta_vbrp-vkbur
+          AND spras = 'EN'.
+*DELETE ADJACENT DUPLICATES FROM TA_VBRP COMPARING  BZTIRK.
+*TA_VBRP1 = TA_VBRP.
+*          SELECT bzirk
+*                 bztxt
+*                 FROM  t171t
+*              INTO TABLE ta_t171t
+*            FOR ALL ENTRIES IN ta_vbrp
+*            WHERE bzirk = ta_vbrp-bzirk
+*            AND spras = 'EN'.
+
+          LOOP AT ta_vbrp INTO wa_vbrp.
+*wa_final-VBELN = WA_vbrp-VBELN.
+            wa_final-werks = wa_vbrp-werks.
+            wa_final-vkgrp = wa_vbrp-vkgrp.
+            wa_final-vkbur = wa_vbrp-vkbur.
+*            wa_final-bzirk = wa_vbrp-bzirk .
+            wa_final-fkimg = wa_vbrp-fkimg.
+            wa_final-kzwi2  = wa_vbrp-kzwi2 .
+            wa_final-mwsbp = wa_vbrp-mwsbp.
+            wa_final-vrkme = wa_vbrp-vrkme.
+            CLEAR wa_vbrk.
+
+*READ TABLE TA_VBrk INTO wa_vbrk WITH  KEY VBELN = wa_vbrp-vbeln
+*                                            BINARY SEARCH   .
+            CLEAR wa_tvgrt.
+            READ TABLE ta_tvgrt INTO wa_tvgrt WITH  KEY
+                                       vkgrp = wa_vbrp-vkgrp.
+*                           BINARY SEARCH .
+            IF sy-subrc = 0.
+              wa_final-sale_group = wa_tvgrt-bezei.
+
+            ENDIF.
+
+            CLEAR wa_tvkbt.
+            READ TABLE ta_tvkbt INTO wa_tvkbt WITH  KEY
+                                      vkbur = wa_vbrp-vkbur.
+*                          BINARY SEARCH.
+            IF sy-subrc = 0.
+              wa_final-sale_office = wa_tvkbt-bezei.
+            ENDIF.
+
+
+
+            CLEAR:wa_t171t.
+            READ TABLE ta_t171t INTO wa_t171t WITH KEY
+                                      bzirk = wa_vbrp-bzirk_auft.
+*                          BINARY SEARCH.
+            IF sy-subrc = 0.
+              wa_final-bztxt = wa_t171t-bztxt.
+            ENDIF.
+            CLEAR wa_tvgrt.
+
+
+            APPEND wa_final TO ta_final.
+            CLEAR wa_final.
+          ENDLOOP.
+
+
+        ENDIF.
+        CLEAR wa_field.
+        REFRESH ta_field.
+*wa_field-COL_POS = 1.
+*wa_field-FIELDNAME = 'VBELN'.
+*wa_field-SELTEXT_M = 'BILLING DOC'.
+*APPEND wa_field TO ta_field.
+*CLEAR wa_field.
+
+
+        wa_field-col_pos = 1.
+        wa_field-fieldname = 'WERKS'.
+        wa_field-seltext_m = 'PLANT'.
+        APPEND wa_field TO ta_field.
+        CLEAR wa_field.
+
+        wa_field-col_pos = 2.
+        wa_field-fieldname = 'VKGRP'.
+        wa_field-seltext_m = 'SALE GROUP'.
+        wa_field-key         = 'X'.
+        APPEND wa_field TO ta_field.
+        CLEAR wa_field.
+
+        wa_field-col_pos = 3.
+        wa_field-fieldname = 'SALE_GROUP'.
+        wa_field-seltext_m = 'SALE GROUP DISCRIPTION'.
+        APPEND wa_field TO ta_field.
+        CLEAR wa_field.
+
+
+
+        wa_field-col_pos = 4.
+        wa_field-fieldname = 'VKBUR'.
+        wa_field-seltext_m = 'SALE OFFICE'.
+        wa_field-key         = 'X'.
+        APPEND wa_field TO ta_field.
+        CLEAR wa_field.
+
+
+        wa_field-col_pos = 5.
+        wa_field-fieldname = 'SALE_OFFICE'.
+        wa_field-seltext_m = 'SALE_OFFICE DISCRIPTION'.
+        APPEND wa_field TO ta_field.
+        CLEAR wa_field.
+
+
+        wa_field-col_pos = 6.
+        wa_field-fieldname = 'BZIRK'.
+        wa_field-seltext_m = 'SALES DISTRICT'.
+        wa_field-key         = 'X'.
+        APPEND wa_field TO ta_field.
+        CLEAR wa_field.
+
+
+
+
+
+
+
+
+        wa_field-col_pos = 7.
+        wa_field-fieldname = 'BZTXT'.
+        wa_field-seltext_m = 'SALES DISTRICT DISCRIPTION'.
+        APPEND wa_field TO ta_field.
+        CLEAR wa_field.
+
+
+
+
+
+
+
+
+
+        wa_field-col_pos = 8.
+        wa_field-fieldname = 'FKIMG'.
+        wa_field-seltext_m = 'QTY'.
+        wa_field-do_sum = 'X'.
+        APPEND wa_field TO ta_field.
+        CLEAR wa_field.
+
+
+        wa_field-col_pos = 9.
+        wa_field-fieldname = 'VRKME'.
+        wa_field-seltext_m = 'UOM'.
+        wa_field-do_sum = 'X'.
+        APPEND wa_field TO ta_field.
+        CLEAR wa_field.
+
+
+        wa_field-col_pos = 10.
+        wa_field-fieldname = 'KZWI2'.
+        wa_field-seltext_m = 'NET AMOUNT'.
+        wa_field-do_sum = 'X'.
+        APPEND wa_field TO ta_field.
+        CLEAR wa_field.
+
+
+
+
+        wa_field-col_pos = 11.
+        wa_field-fieldname = 'MWSBP'.
+        wa_field-seltext_m = 'TAX AMOUNT'.
+        wa_field-do_sum = 'X'.
+        APPEND wa_field TO ta_field.
+        CLEAR wa_field.
+
+*
+        SORT ta_final BY   vkgrp ASCENDING . "vkbur  .
+*wa_sort-spos      = 1.
+*  wa_sort-fieldname = 'WERKS'.
+*  wa_sort-up        = 'X'.
+*  wa_sort-subtot    = 'X'.
+*  wa_SORT-EXPA        = 'X'.
+*  APPEND wa_sort TO ta_sort.
+*        CLEAR wa_sort.
+*        wa_sort-spos      = 3.
+*        wa_sort-fieldname = 'SALE_GROUP'.
+*        wa_sort-up        = 'X'.
+*        wa_sort-subtot    = 'X'.
+*        wa_sort-expa        = 'X'.
+*        APPEND wa_sort TO ta_sort.
+*        CLEAR wa_sort.
+* wa_sort-spos      = 4.
+*  wa_sort-fieldname = 'VKBUR'.
+*  wa_sort-up        = 'X'.
+*  wa_sort-subtot    = 'X'.
+*  wa_SORT-EXPA        = 'X'.
+*  APPEND wa_sort TO ta_sort.
+*  CLEAR wa_sort.
+
+        CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+          EXPORTING
+*           I_INTERFACE_CHECK       = ' '
+*           I_BYPASSING_BUFFER      = ' '
+*           I_BUFFER_ACTIVE         = ' '
+            i_callback_program      = sy-repid
+*           I_CALLBACK_PF_STATUS_SET          = ' '
+            i_callback_user_command = 'USER_COMMAND12'
+*           I_CALLBACK_TOP_OF_PAGE  = ' '
+*           I_CALLBACK_HTML_TOP_OF_PAGE       = ' '
+*           I_CALLBACK_HTML_END_OF_LIST       = ' '
+*           I_STRUCTURE_NAME        =
+*           I_BACKGROUND_ID         = ' '
+*           I_GRID_TITLE            =
+*           I_GRID_SETTINGS         =
+*           IS_LAYOUT               =
+            it_fieldcat             = ta_field
+*           IT_EXCLUDING            =
+*           IT_SPECIAL_GROUPS       =
+            it_sort                 = ta_sort
+*           IT_FILTER               =
+*           IS_SEL_HIDE             =
+*           I_DEFAULT               = 'X'
+*           I_SAVE                  = ' '
+*           IT_EXCEPT_QINFO         =
+*           IR_SALV_FULLSCREEN_ADAPTER        =
+* IMPORTING
+*           E_EXIT_CAUSED_BY_CALLER =
+*           ES_EXIT_CAUSED_BY_USER  =
+          TABLES
+            t_outtab                = ta_final.
+* EXCEPTIONS
+*   PROGRAM_ERROR                     = 1
+*   OTHERS                            = 2
+        .
+      ENDIF.
+
+
+*PERFORM ZSAP_GET_SALES.
+
+**********************
+      REFRESH : fieldcatalog2,it_alv2,it_alv3.
+      it_alv2[] = it_alv1[].
+
+      IF rb_matnr <> 'X'.
+        READ TABLE it_alv1t INDEX rs_selfield-tabindex.
+        lv_werks = it_alv1t-werks.
+        DELETE it_alv2 WHERE werks NE lv_werks.
+      ELSE.
+
+        READ TABLE it_alvt INDEX rs_selfield-tabindex.
+        it_alv2[] = it_alv[].
+        DELETE it_alv2 WHERE vkorg NE it_alvt-vkorg.
+      ENDIF.
+
+      SORT it_alv2 BY kunag matnr.
+      IF rb_matnr = 'X'.
+        LOOP AT it_alv2 .
+          COLLECT it_alv2 INTO it_alv3.
+        ENDLOOP.
+        DELETE it_alv3 WHERE fkimg = '0.000'.
+*
+        break abap4.
+        PERFORM form_break_qty_into_cases_unit.
+        PERFORM build_fieldcatalog2.
+        PERFORM build_layout2.
+        PERFORM display_alv_report2.
+      ENDIF.
+*************************
+  ENDCASE.
+ENDFORM.                    "user_commands1
+
+* FIELD CATALOG FOR LEVEL 2
+FORM build_fieldcatalog1.
+
+  fieldcatalog1-fieldname   = 'WERKS'.
+  fieldcatalog1-seltext_m   = 'Plant'.
+  fieldcatalog1-col_pos     = 1.
+  fieldcatalog1-outputlen   = 10.
+  fieldcatalog1-emphasize   = 'X'.
+  fieldcatalog1-key         = 'X'.
+  APPEND fieldcatalog1 TO fieldcatalog1.
+  CLEAR  fieldcatalog1.
+
+  fieldcatalog1-fieldname   = 'FKIMG'.
+  fieldcatalog1-seltext_m   = 'QUANTITY'.
+  fieldcatalog1-col_pos     = 3.
+  APPEND fieldcatalog1 TO fieldcatalog1.
+  CLEAR  fieldcatalog1.
+
+  fieldcatalog1-fieldname   = 'VRKME'.
+  fieldcatalog1-seltext_m   = 'UOM'.
+  fieldcatalog1-col_pos     = 4.
+  fieldcatalog1-outputlen   = 20.
+  APPEND fieldcatalog1 TO fieldcatalog1.
+  CLEAR  fieldcatalog1.
+
+  fieldcatalog1-fieldname   = 'KZWI2'."'KZWI2'.MEHER
+  fieldcatalog1-seltext_m   = 'Net Value'.
+  fieldcatalog1-col_pos     = 5.
+  APPEND fieldcatalog1 TO fieldcatalog1.
+  CLEAR  fieldcatalog1.
+
+  fieldcatalog1-fieldname   = 'MWSBP'."'KZWI2'.MEHER
+  fieldcatalog1-seltext_m   = 'TAX.AMOUNT'.
+  fieldcatalog1-col_pos     = 6.
+  fieldcatalog1-do_sum      = 'X'.
+  APPEND fieldcatalog1 TO fieldcatalog1.
+  CLEAR  fieldcatalog1.
+
+  fieldcatalog1-fieldname   = 'GROSS'.
+  fieldcatalog1-seltext_m   = 'GROSSAMOUNT'.
+  fieldcatalog1-col_pos     = 7.
+  fieldcatalog1-do_sum      = 'X'.
+  APPEND fieldcatalog1 TO fieldcatalog1.
+  CLEAR  fieldcatalog1.
+
+ENDFORM.                    "build_fieldcatalog1
+
+* FIELD CATALOG FOR LEVEL 3
+FORM build_fieldcatalog2.
+
+  IF rb_plant = 'X'.
+    REFRESH fieldcatalog2.
+    CLEAR fieldcatalog2.
+    fieldcatalog2-fieldname   = 'KUNAG'.
+    fieldcatalog2-seltext_m   = 'Customer Code'.          "-----'CUSTOMER'.
+    fieldcatalog2-col_pos     = 0.
+*    fieldcatalog2-outputlen   = 10.
+*    fieldcatalog2-emphasize   = 'X'.
+    fieldcatalog2-key         = 'X'.
+*    fieldcatalog-do_sum       = 'X'.
+*    fieldcatalog-no_zero      = 'X'.
+    APPEND fieldcatalog2 TO fieldcatalog2.
+    CLEAR  fieldcatalog2.
+
+    fieldcatalog2-fieldname   = 'NAME1'.
+    fieldcatalog2-seltext_m   = 'Customer Name'.
+    fieldcatalog2-col_pos     = 1.
+    APPEND fieldcatalog2 TO fieldcatalog2.
+    CLEAR  fieldcatalog2.
+
+
+    fieldcatalog2-fieldname   = 'VBELN'.
+    fieldcatalog2-seltext_m   = 'Invoice No.'.
+    fieldcatalog2-col_pos     = 2.
+    APPEND fieldcatalog2 TO fieldcatalog2.
+    CLEAR  fieldcatalog2.
+
+    fieldcatalog2-fieldname   = 'FKDAT'.
+    fieldcatalog2-seltext_m   = 'Invoice Date'.
+    fieldcatalog2-col_pos     = 3.
+    APPEND fieldcatalog2 TO fieldcatalog2.
+    CLEAR  fieldcatalog2.
+
+    fieldcatalog2-fieldname   = 'MATNR'.
+    fieldcatalog2-seltext_m   = 'Material Number'.
+    fieldcatalog2-outputlen   = 20.
+    fieldcatalog2-col_pos     = 4.
+    APPEND fieldcatalog2 TO fieldcatalog2.
+    CLEAR  fieldcatalog2.
+
+    fieldcatalog2-fieldname   = 'ARKTX'.
+    fieldcatalog2-seltext_m   = 'Material description'.
+    fieldcatalog2-col_pos     = 5.
+    APPEND fieldcatalog2 TO fieldcatalog2.
+    CLEAR  fieldcatalog2.
+
+    fieldcatalog2-fieldname   = 'KDMAT'.
+    fieldcatalog2-seltext_m   = 'Customer Material number'.
+    fieldcatalog2-col_pos     = 6.
+    APPEND fieldcatalog2 TO fieldcatalog2.
+    CLEAR  fieldcatalog2.
+
+
+    fieldcatalog2-fieldname   = 'FKIMG'.
+    fieldcatalog2-seltext_m   = 'QUANTITY'.
+    fieldcatalog2-col_pos     = 7.
+    fieldcatalog2-do_sum      = 'X'.
+    APPEND fieldcatalog2 TO fieldcatalog2.
+    CLEAR  fieldcatalog2.
+
+    fieldcatalog2-fieldname   = 'VRKME'.
+    fieldcatalog2-seltext_m   = 'UOM'.
+    fieldcatalog2-col_pos     = 8.
+    fieldcatalog2-outputlen   = 20.
+    APPEND fieldcatalog2 TO fieldcatalog2.
+    CLEAR  fieldcatalog2.
+
+    fieldcatalog2-fieldname   = 'FKIMG1'.
+    fieldcatalog2-seltext_m   = 'QUANTITY'.
+    fieldcatalog2-col_pos     = 9.
+    fieldcatalog2-do_sum      = 'X'.
+    APPEND fieldcatalog2 TO fieldcatalog2.
+    CLEAR  fieldcatalog2.
+
+    fieldcatalog2-fieldname   = 'VRKME1'.
+    fieldcatalog2-seltext_m   = 'UOM'.
+    fieldcatalog2-col_pos     = 10.
+    fieldcatalog2-outputlen   = 20.
+    APPEND fieldcatalog2 TO fieldcatalog2.
+    CLEAR  fieldcatalog2.
+
+    fieldcatalog2-fieldname   = 'KZWI2'."'KZWI2'.MEHER
+    fieldcatalog2-seltext_m   = 'Net Value'.
+    fieldcatalog2-col_pos     = 11.
+    fieldcatalog2-do_sum      = 'X'.
+    APPEND fieldcatalog2 TO fieldcatalog2.
+    CLEAR  fieldcatalog2.
+
+    fieldcatalog2-fieldname   = 'MWSBP'."'KZWI2'.
+    fieldcatalog2-seltext_m   = 'TAX.AMOUNT'.
+    fieldcatalog2-col_pos     = 12.
+    fieldcatalog2-do_sum      = 'X'.
+    APPEND fieldcatalog2 TO fieldcatalog2.
+    CLEAR  fieldcatalog2.
+
+    fieldcatalog2-fieldname   = 'GROSS'.
+    fieldcatalog2-seltext_m   = 'GROSSAMOUNT'.
+    fieldcatalog2-col_pos     = 13.
+    fieldcatalog2-do_sum      = 'X'.
+    APPEND fieldcatalog2 TO fieldcatalog2.
+    CLEAR  fieldcatalog2.
+
+* Specifying the sort fields and their sort sequence
+    gs_sort-spos        = '0'.
+    gs_sort-fieldname   = 'KUNAG'.
+    gs_subtot-subtotals = 'X'.
+    gs_sort-subtot      = gs_subtot-subtotals. "--------GROUP TOTAL ON ARKTX --------------------"
+    gs_sort-expa        = 'X'.                 "--------SHOW ONLY GROUP TOTALS-------------------"
+    APPEND gs_sort TO gt_sort.
+
+  ELSE.
+
+    fieldcatalog2-fieldname   = 'MATNR'.
+    fieldcatalog2-seltext_m   = 'Material Number'.
+    fieldcatalog2-col_pos     = 1.
+    fieldcatalog2-outputlen   = 20.
+    APPEND fieldcatalog2 TO fieldcatalog2.
+    CLEAR  fieldcatalog2.
+
+    fieldcatalog2-fieldname   = 'ARKTX'.
+    fieldcatalog2-seltext_m   = 'Material description'.
+    fieldcatalog2-col_pos     = 2.
+    APPEND fieldcatalog2 TO fieldcatalog2.
+    CLEAR  fieldcatalog2.
+
+    fieldcatalog2-fieldname   = 'KDMAT'.
+    fieldcatalog2-seltext_m   = 'Costomer Material number'.
+    fieldcatalog2-col_pos     = 3.
+    APPEND fieldcatalog2 TO fieldcatalog2.
+    CLEAR  fieldcatalog2.
+
+    fieldcatalog2-fieldname   = 'FKIMG'.
+    fieldcatalog2-seltext_m   = 'QUANTITY'.
+    fieldcatalog2-col_pos     = 4.
+    fieldcatalog2-do_sum      = 'X'.
+    APPEND fieldcatalog2 TO fieldcatalog2.
+    CLEAR  fieldcatalog2.
+
+    fieldcatalog2-fieldname   = 'VRKME'.
+    fieldcatalog2-seltext_m   = 'UOM (Cases)'.
+    fieldcatalog2-col_pos     = 5.
+    fieldcatalog2-outputlen   = 20.
+    APPEND fieldcatalog2 TO fieldcatalog2.
+    CLEAR  fieldcatalog2.
+
+    fieldcatalog2-fieldname   = 'FKIMG1'.
+    fieldcatalog2-seltext_m   = 'QUANTITY'.
+    fieldcatalog2-col_pos     = 6.
+    fieldcatalog2-do_sum      = 'X'.
+    APPEND fieldcatalog2 TO fieldcatalog2.
+    CLEAR  fieldcatalog2.
+
+    fieldcatalog2-fieldname   = 'VRKME1'.
+    fieldcatalog2-seltext_m   = 'UOM (Each)'.
+    fieldcatalog2-col_pos     = 7.
+    fieldcatalog2-outputlen   = 20.
+    APPEND fieldcatalog2 TO fieldcatalog2.
+    CLEAR  fieldcatalog2.
+
+    fieldcatalog2-fieldname   = 'KZWI2'."'KZWI2'.MEHER
+    fieldcatalog2-seltext_m   = 'Net Value'.
+    fieldcatalog2-col_pos     = 8.
+    fieldcatalog2-do_sum      = 'X'.
+    APPEND fieldcatalog2 TO fieldcatalog2.
+    CLEAR  fieldcatalog2.
+
+*    FIELDCATALOG2-FIELDNAME   = 'MWSBP'."'KZWI2'.MEHER
+*    FIELDCATALOG2-SELTEXT_M   = 'TAX.AMOUNT'.
+*    FIELDCATALOG2-COL_POS     = 9.
+*    FIELDCATALOG2-DO_SUM      = 'X'.
+*    APPEND FIELDCATALOG2 TO FIELDCATALOG2.
+*    CLEAR  FIELDCATALOG2.
+
+    fieldcatalog2-fieldname   = 'GROSS'.
+    fieldcatalog2-seltext_m   = 'GROSSAMOUNT'.
+    fieldcatalog2-col_pos     = 9.
+    fieldcatalog2-do_sum      = 'X'.
+    APPEND fieldcatalog2 TO fieldcatalog2.
+    CLEAR  fieldcatalog2.
+
+* Specifying the sort fields and their sort sequence
+    gs_sort-spos      = '1'.
+    gs_sort-fieldname = 'MATNR'.
+    APPEND gs_sort TO gt_sort.
+
+    gs_sort-spos        = '2'.
+    gs_sort-fieldname   = 'ARKTX'.
+    gs_subtot-subtotals = 'X'.
+    gs_sort-subtot      = gs_subtot-subtotals.
+    gs_sort-expa        = 'X'.
+    APPEND gs_sort TO gt_sort.
+
+  ENDIF.
+
+ENDFORM.                    "build_fieldcatalog2
+
+*&---------------------------------------------------------------------*
+*&      Form  build_layout1
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM build_layout1 .
+  gd_layout-no_input          = 'X'.
+  gd_layout-colwidth_optimize = 'X'.
+  gd_layout-totals_text       = 'Totals'(201).
+ENDFORM.                    " build_layout1
+
+
+*&---------------------------------------------------------------------*
+*&      Form  display_alv_report1
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM display_alv_report1 .
+  gd_repid = sy-repid.
+  CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+    EXPORTING
+      i_callback_program      = gd_repid
+      i_callback_user_command = 'USER_COMMANDS1'
+      is_layout               = gd_layout
+      it_fieldcat             = fieldcatalog1[]
+      i_save                  = 'X'
+    TABLES
+      t_outtab                = it_alv1t
+    EXCEPTIONS
+      program_error           = 1
+      OTHERS                  = 2.
+
+  IF sy-subrc <> 0.
+*    MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+*       WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+  ENDIF.
+
+ENDFORM.                    " display_alv_report1
+
+*&---------------------------------------------------------------------*
+*&      Form  display_alv_report2
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM display_alv_report2 .
+  gd_repid = sy-repid.
+
+  CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+    EXPORTING
+      i_callback_program = gd_repid
+      is_layout          = gd_layout
+      it_fieldcat        = fieldcatalog2[]
+      i_save             = 'X'
+      it_sort            = gt_sort       "--------- GROUP TOTAL + SORT --------------"
+    TABLES
+      t_outtab           = it_alv3
+    EXCEPTIONS
+      program_error      = 1
+      OTHERS             = 2.
+
+  IF sy-subrc <> 0.
+*   MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+*      WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+  ENDIF.
+
+ENDFORM.                    " display_alv_report1
+
+
+
+*&---------------------------------------------------------------------*
+*&      Form  build_layout2
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM build_layout2.
+  gd_layout-no_input          = 'X'.
+  gd_layout-colwidth_optimize = 'X'.
+  gd_layout-totals_text       = 'Totals'(201).
+ENDFORM.                    " build_layout2
+
+
+*&---------------------------------------------------------------------*
+*&      Form  region_grp
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM region_grp .
+  REFRESH it_alv1t.
+  it_alv_temp[] = it_alv[].
+  DELETE it_alv_temp WHERE vkorg NE lv_vkorg.
+  DATA l_last_plant TYPE werks.
+  DATA l_fkimg TYPE fkimg.
+  DATA l_vrkme TYPE vrkme.
+  DATA l_kzwi2 TYPE  kzwi2. "MEHER   "KZWI2.
+*  DATA L_KZWI2 TYPE KZWI2.
+  DATA:l_mwsbp TYPE mwsbp."MEHER
+  DATA l_gross TYPE vbrp-kzwi2.
+
+  SORT it_alv_temp BY werks.
+  LOOP AT it_alv_temp.
+    IF l_last_plant = it_alv_temp-werks.
+      l_fkimg = l_fkimg + it_alv_temp-fkimg.
+*      L_KZWI2 = L_KZWI2 + IT_ALV_TEMP-KZWI2.
+      l_kzwi2 = l_kzwi2 + it_alv_temp-kzwi2. "MEHER
+*      L_KZWI2 = L_KZWI2 + IT_ALV_TEMP-KZWI2.
+      l_mwsbp = l_mwsbp + it_alv_temp-mwsbp. "MEHER
+      l_gross = l_gross + it_alv_temp-gross.
+      l_vrkme = it_alv_temp-vrkme.
+    ELSE.
+      IF sy-tabix <> 1.
+        it_alv1t-werks = l_last_plant.
+        it_alv1t-vrkme = l_vrkme.
+        it_alv1t-fkimg = l_fkimg.
+*        IT_ALV1T-KZWI2 = L_KZWI2.
+        it_alv1t-kzwi2 = l_kzwi2."MEHER
+*        IT_ALV1T-KZWI2 = L_KZWI2.
+        it_alv1t-mwsbp = l_mwsbp."MEHER
+        it_alv1t-gross = l_gross.
+        APPEND it_alv1t.
+        l_fkimg = 0.
+        l_kzwi2 = 0 .  "L_KZWI2 = 0.MEHER
+        l_mwsbp = 0.   "L_KZWI2 = 0.
+        l_gross = 0.
+        l_vrkme = ''.
+      ENDIF.
+      l_fkimg = l_fkimg + it_alv_temp-fkimg.
+*      L_KZWI2 = L_KZWI2 + IT_ALV_TEMP-KZWI2.
+      l_kzwi2 = l_kzwi2 + it_alv_temp-kzwi2."MEHER
+*      L_KZWI2 = L_KZWI2 + IT_ALV_TEMP-KZWI2.
+      l_mwsbp = l_mwsbp + it_alv_temp-mwsbp."MEHER
+      l_gross = l_gross + it_alv_temp-gross.
+      l_vrkme = it_alv_temp-vrkme.
+    ENDIF.
+    l_last_plant = it_alv_temp-werks.
+  ENDLOOP.
+
+  IF l_last_plant = it_alv_temp-werks.
+    it_alv1t-werks = l_last_plant.
+    it_alv1t-vrkme = l_vrkme.
+    it_alv1t-fkimg = l_fkimg.
+*    IT_ALV1T-KZWI2 = L_KZWI2.
+    it_alv1t-kzwi2 = l_kzwi2."MEHER
+*    IT_ALV1T-KZWI2 = L_KZWI2.
+    it_alv1t-mwsbp = l_mwsbp."MEHER
+    it_alv1t-gross = l_gross.
+    APPEND it_alv1t.
+  ENDIF.
+
+  REFRESH it_alv_temp.
+
+ENDFORM.                    " region_grp
+
+
+*&---------------------------------------------------------------------*
+*&      Form  form_break_qty_into_cases_unit
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM form_break_qty_into_cases_unit .
+
+  LOOP AT it_alv3.
+
+    DATA: l_meins TYPE meins.
+    CLEAR l_meins.
+
+    SELECT SINGLE meins FROM mara INTO l_meins WHERE matnr = it_alv3-matnr.
+
+    IF l_meins NE 'CS'.
+      SELECT SINGLE *
+        FROM marm
+      WHERE meinh EQ it_alv3-vrkme      "'CS'
+      AND matnr EQ it_alv3-matnr.
+    ELSE.
+      SELECT SINGLE *
+      FROM marm
+      WHERE meinh NE 'CS'
+      AND matnr EQ it_alv3-matnr.
+
+    ENDIF.
+
+    IF sy-subrc EQ 0.
+      IF l_meins NE 'CS'.
+        it_alv3-fkimg1 = marm-umrez * it_alv3-fkimg.
+      ELSE.
+        it_alv3-fkimg1 = marm-umren * it_alv3-fkimg.
+      ENDIF.
+      DATA str0    TYPE string.
+      DATA str1    TYPE string.
+      DATA: val     TYPE c .
+      DATA str2(3) TYPE n.
+
+      MOVE it_alv3-fkimg1 TO str0.
+      SPLIT str0 AT '.' INTO str1 str2.
+      val = str2+0(1) .
+      IF val GE 5 .
+        COMPUTE it_alv3-fkimg1 = ceil( it_alv3-fkimg1 ).
+      ELSE.
+        COMPUTE it_alv3-fkimg1 = floor( it_alv3-fkimg1 ).
+      ENDIF.
+*      IT_ALV3-VRKME  = MARM-MEINH.
+
+      IF it_alv3-vrkme = 'CS'.
+        it_alv3-vrkme1 = 'EA'.
+      ELSE.
+*        IT_ALV3-VRKME1 = IT_ALV3-VRKME.
+        it_alv3-vrkme1 = marm-meinh.
+      ENDIF.
+
+      MODIFY it_alv3.
+    ELSE.
+      it_alv3-fkimg1 = it_alv3-fkimg.
+      it_alv3-fkimg  = ''.
+      it_alv3-vrkme1 = it_alv3-vrkme.
+      it_alv3-vrkme  = ''.
+      MODIFY it_alv3.
+    ENDIF.
+
+    " Commented by abhay 18112014
+
+***    IF  IT_VBRP-FKART EQ 'RE' OR IT_VBRP-FKART = 'ZRE'.
+***      IT_ALV3-FKIMG   = IT_ALV3-FKIMG   *  '-1'.
+***      IT_ALV3-FKIMG1  = IT_ALV3-FKIMG1  *  '-1'.
+***    ENDIF.
+    MODIFY it_alv3.
+  ENDLOOP.
+
+ENDFORM.
+FORM user_command12 USING l_ucomm LIKE sy-ucomm
+                         rs_selfield TYPE slis_selfield.
+  IF l_ucomm = '&IC1'.
+    CLEAR: it_alv3[].
+    SORT it_alv2 BY kunag matnr.
+
+*      LOOP AT IT_ALV2 WHERE WERKS = WA_FINAL-WERKS.
+*        COLLECT IT_ALV2 INTO IT_ALV3.
+*      ENDLOOP.
+    READ TABLE ta_final INTO wa_final INDEX rs_selfield-tabindex.
+    LOOP AT it_alv WHERE werks = wa_final-werks.
+      COLLECT it_alv INTO it_alv3.
+    ENDLOOP.
+*    DELETE it_alv3 WHERE fkimg = '0.000'.
+
+    PERFORM form_break_qty_into_cases_unit.
+    PERFORM build_fieldcatalog2.
+    PERFORM build_layout2.
+    PERFORM display_alv_report2.
+  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  ZSAP_GET_INVOICE
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM zsap_get_invoice .
+
+
+*(+) Start of Addition/Deletion Code by MEHER with the TOC   CRDK909075 DATE:20/06/2014
+  wa_field1-col_pos = 1.
+  wa_field1-fieldname = 'VBELN'.
+  wa_field1-seltext_m = 'Invoice'.
+  wa_field1-do_sum = 'X'.
+  APPEND wa_field1 TO ta_field1.
+  CLEAR wa_field1.
+
+  wa_field1-col_pos = 6.
+  wa_field1-fieldname = 'VKORG'.
+  wa_field1-seltext_m = 'SALE ORG'.
+  wa_field1-do_sum = 'X'.
+  APPEND wa_field1 TO ta_field1.
+  CLEAR wa_field1.
+
+  wa_field1-col_pos = 3.
+  wa_field1-fieldname = 'VTWEG'.
+  wa_field1-seltext_m = 'Dist.Chanl'.
+  wa_field1-do_sum = 'X'.
+  APPEND wa_field1 TO ta_field1.
+  CLEAR wa_field1.
+
+  wa_field1-col_pos = 4.
+  wa_field1-fieldname = 'REGIO'.
+  wa_field1-seltext_m = 'Region'.
+  wa_field1-do_sum = 'X'.
+  APPEND wa_field1 TO ta_field1.
+  CLEAR wa_field1.
+
+****Added by Sagar Gujar on 25.02.2015
+  wa_field1-col_pos = 5.
+  wa_field1-fieldname = 'RDESC'.
+  wa_field1-seltext_m = 'Region Desc.'.
+  wa_field1-do_sum = 'X'.
+  APPEND wa_field1 TO ta_field1.
+  CLEAR wa_field1.
+****End of Addition by Sagar Gujar on 25.02.2015
+
+  wa_field1-col_pos = 6.
+  wa_field1-fieldname = 'KUNAG'.
+  wa_field1-seltext_m = 'Sold-to party'.
+  wa_field1-do_sum = 'X'.
+  APPEND wa_field1 TO ta_field1.
+  CLEAR wa_field1.
+***Insert-Start-Nitin D-16.02.2015-Add new fields
+  wa_field1-col_pos = 7.
+  wa_field1-fieldname = 'NAME1'.
+  wa_field1-seltext_m = 'Sold-to party'.
+  APPEND wa_field1 TO ta_field1.
+  CLEAR wa_field1.
+***Insert-End-Nitin D-16.02.2015-Add new fields
+  wa_field1-col_pos = 2.
+  wa_field1-fieldname = 'POSNR'.
+  wa_field1-seltext_m = 'Item'.
+  wa_field1-do_sum = 'X'.
+  APPEND wa_field1 TO ta_field1.
+  CLEAR wa_field1.
+
+  wa_field1-col_pos = 8.
+  wa_field1-fieldname = 'WERKS'.
+  wa_field1-seltext_m = 'Plant'.
+  wa_field1-do_sum = 'X'.
+  APPEND wa_field1 TO ta_field1.
+  CLEAR wa_field1.
+
+  wa_field1-col_pos = 9.
+  wa_field1-fieldname = 'KDGRP'.
+  wa_field1-seltext_m = 'Customer group'.
+  wa_field1-do_sum = 'X'.
+  APPEND wa_field1 TO ta_field1.
+  CLEAR wa_field1.
+
+  wa_field1-col_pos = 10.
+  wa_field1-fieldname = 'FKDAT'.
+  wa_field1-seltext_m = 'Billing date'.
+  wa_field1-do_sum = 'X'.
+  APPEND wa_field1 TO ta_field1.
+  CLEAR wa_field1.
+
+  wa_field1-col_pos = 11.
+  wa_field1-fieldname = 'SPART'.
+  wa_field1-seltext_m = 'Division'.
+*wa_field1-DO_SUM = 'X'.
+  APPEND wa_field1 TO ta_field1.
+  CLEAR wa_field1.
+
+  wa_field1-col_pos = 12.
+  wa_field1-fieldname = 'MATNR'.
+  wa_field1-seltext_m = 'Material Number'.
+  wa_field1-outputlen = 20.
+***  wa_field1-ref_tabname = 'MARA'.
+***  wa_field1-ref_fieldname = 'MATNR'.
+*wa_field1-DO_SUM = 'X'.
+  APPEND wa_field1 TO ta_field1.
+  CLEAR wa_field1.
+
+  wa_field1-col_pos = 13.
+  wa_field1-fieldname = 'ARKTX'.
+  wa_field1-seltext_m = 'Material text'.
+*wa_field1-DO_SUM = 'X'.
+  APPEND wa_field1 TO ta_field1.
+  CLEAR wa_field1.
+
+  wa_field1-col_pos = 14.
+  wa_field1-fieldname = 'FKART'.
+  wa_field1-seltext_m = 'Billing Type'.
+  wa_field1-do_sum = 'X'.
+  APPEND wa_field1 TO ta_field1.
+  CLEAR wa_field1.
+
+  wa_field1-col_pos = 15.
+  wa_field1-fieldname = 'KZWI2'.
+  wa_field1-seltext_m = 'pricing procedure'.
+  wa_field1-do_sum  = 'X'.
+*  wa_field1-no_sign = 'X'.
+  APPEND wa_field1 TO ta_field1.
+  CLEAR wa_field1.
+
+  wa_field1-col_pos = 16.
+  wa_field1-fieldname = 'MWSBP'.
+  wa_field1-seltext_m = 'Tax amount'.
+  wa_field1-do_sum = 'X'.
+  APPEND wa_field1 TO ta_field1.
+  CLEAR wa_field1.
+
+  wa_field1-col_pos = 17.
+  wa_field1-fieldname = 'FKIMG'.
+  wa_field1-seltext_m = 'Quantity'.
+  wa_field1-do_sum = 'X'.
+  APPEND wa_field1 TO ta_field1.
+  CLEAR wa_field1.
+
+  wa_field1-col_pos = 18.
+  wa_field1-fieldname = 'VRKME'.
+  wa_field1-seltext_m = 'Sales unit'.
+  wa_field1-do_sum = 'X'.
+  APPEND wa_field1 TO ta_field1.
+  CLEAR wa_field1.
+
+
+  wa_field1-col_pos = 19.
+  wa_field1-fieldname = 'WAERK'.
+  wa_field1-seltext_m = 'CURRENCY'.
+  wa_field1-do_sum = 'X'.
+  APPEND wa_field1 TO ta_field1.
+  CLEAR wa_field1.
+*
+*
+  wa_field1-col_pos = 20.
+  wa_field1-fieldname = 'KURRF'.
+  wa_field1-seltext_m = 'Exchange Rate'.
+  wa_field1-do_sum = 'X'.
+  APPEND wa_field1 TO ta_field1.
+  CLEAR wa_field1.
+*
+*
+  wa_field1-col_pos = 21.
+  wa_field1-fieldname = 'AUBEL'.
+  wa_field1-seltext_m = 'Sales Doc'.
+  wa_field1-do_sum = 'X'.
+  APPEND wa_field1 TO ta_field1.
+  CLEAR wa_field1.
+*
+*
+  wa_field1-col_pos = 22.
+  wa_field1-fieldname = 'AUPOS'.
+  wa_field1-seltext_m = 'Sales Doc Item'.
+  wa_field1-do_sum = 'X'.
+  APPEND wa_field1 TO ta_field1.
+  CLEAR wa_field1.
+*
+  wa_field1-col_pos = 23.
+  wa_field1-fieldname = 'MEINS'.
+  wa_field1-seltext_m = 'Unit of Measure'.
+  wa_field1-do_sum = 'X'.
+  APPEND wa_field1 TO ta_field1.
+  CLEAR wa_field1.
+
+  wa_field1-col_pos = 24.
+  wa_field1-fieldname = 'VKGRP'.
+  wa_field1-seltext_m = 'SALES GROUP'.
+  wa_field1-do_sum = 'X'.
+  APPEND wa_field1 TO ta_field1.
+  CLEAR wa_field1.
+
+
+  wa_field1-col_pos = 25.
+  wa_field1-fieldname = 'VKBUR'.
+  wa_field1-seltext_m = 'SALES OFFICE'.
+  wa_field1-do_sum = 'X'.
+  APPEND wa_field1 TO ta_field1.
+  CLEAR wa_field1.
+
+
+  wa_field1-col_pos = 26.
+  wa_field1-fieldname = 'BZIRK_AUFT'.
+  wa_field1-seltext_m = 'SALES DISTRIC'.
+  wa_field1-do_sum = 'X'.
+  APPEND wa_field1 TO ta_field1.
+  CLEAR wa_field1.
+
+  wa_field1-col_pos = 27.
+  wa_field1-fieldname = 'BZTXT'.
+  wa_field1-seltext_m = 'SALES DISTRIC DESC.'.
+  wa_field1-do_sum = 'X'.
+  APPEND wa_field1 TO ta_field1.
+  CLEAR wa_field1.
+
+
+  wa_field1-col_pos = 28.
+  wa_field1-fieldname = 'SPART_I'.
+  wa_field1-seltext_m = 'Division For Item'.
+  wa_field1-do_sum = 'X'.
+  APPEND wa_field1 TO ta_field1.
+  CLEAR wa_field1.
+
+  "Insert-Strat-Nitin D-12.03.2015-Add Storage Location
+  wa_field1-col_pos = 29.
+  wa_field1-fieldname = 'LGORT'.
+  wa_field1-seltext_m = 'S Loc'.
+*  wa_field1-do_sum = 'X'.
+  APPEND wa_field1 TO ta_field1.
+  CLEAR wa_field1.
+  "Insert-End-Nitin D-12.03.2015-Add Storage Location
+
+**********************  SOC by Shubhangi against Ticket # 8000003563
+  wa_field1-col_pos = 30.
+  wa_field1-fieldname = 'KBETR'.
+  wa_field1-seltext_m = 'Batch wise MRP'.
+*  wa_field1-do_sum = 'X'.
+  APPEND wa_field1 TO ta_field1.
+  CLEAR wa_field1.
+
+  wa_field1-col_pos = 31.
+  wa_field1-fieldname = 'CHARG'.
+  wa_field1-seltext_m = 'Batch No'.
+*  wa_field1-do_sum = 'X'.
+  APPEND wa_field1 TO ta_field1.
+  CLEAR wa_field1.
+**********************  EOC by Shubhangi against Ticket # 8000003563
+*** Added by parashar CRDK960218 cr-8000004882
+  wa_field1-col_pos = 32.
+  wa_field1-fieldname = 'DIS_PER'.
+  wa_field1-seltext_m = 'Discount Rate'.
+*  wa_field1-do_sum = 'X'.
+  APPEND wa_field1 TO ta_field1.
+  CLEAR wa_field1.
+
+  wa_field1-col_pos = 33.
+  wa_field1-fieldname = 'DIS_AMT'.
+  wa_field1-seltext_m = 'Discount Amount'.
+*  wa_field1-do_sum = 'X'.
+  APPEND wa_field1 TO ta_field1.
+  CLEAR wa_field1.
+*** Added by parashar CRDK960218 cr-8000004882
+
+  " Added by Aarti against Ticket # 8000006682
+
+  wa_field1-col_pos = 34.
+  wa_field1-fieldname = 'TCS_AMT'.
+  wa_field1-seltext_m = 'TCS Amount'.
+  wa_field1-do_sum = 'X'.
+  APPEND wa_field1 TO ta_field1.
+  CLEAR wa_field1.
+*(+) end of Addition/Deletion Code by MEHER with the TOC   CRDK909075 DATE:20/06/2014
+  wa_field1-col_pos = 35.
+  wa_field1-fieldname = 'AUART'.
+  wa_field1-seltext_m = 'SALES DOC TYPE'.
+*  wa_field1-do_sum = 'X'.
+  APPEND wa_field1 TO ta_field1.
+  CLEAR wa_field1.
+
+  wa_field1-col_pos = 36.
+  wa_field1-fieldname = 'SAKN1'.
+  wa_field1-seltext_m = 'GL Account'.
+*  wa_field1-do_sum = 'X'.
+  APPEND wa_field1 TO ta_field1.
+  CLEAR wa_field1.
+*soc by aditya:8000004626:11.11.2025
+  IF rd2 EQ abap_true  AND chk EQ abap_true.
+    PERFORM file_to_ftp.
+  ELSEIF rd1 EQ abap_true AND chk EQ abap_true.
+    PERFORM download.
+  ELSE.
+    g_variant-variant = p_var.
+    g_variant-report = sy-repid.
+*eoc by aditya:8000004626:11.11.2025
+
+    CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+      EXPORTING
+*       I_INTERFACE_CHECK        = ' '
+*       I_BYPASSING_BUFFER       = ' '
+*       I_BUFFER_ACTIVE          = ' '
+        i_callback_program       = 'ZSD_SALES_REPORT'
+        i_callback_pf_status_set = 'SET_PF_STATUS'
+        i_callback_user_command  = 'USER_COMMAND'
+*       I_CALLBACK_TOP_OF_PAGE   = ' '
+*       I_CALLBACK_HTML_TOP_OF_PAGE       = ' '
+*       I_CALLBACK_HTML_END_OF_LIST       = ' '
+*       I_STRUCTURE_NAME         =
+*       I_BACKGROUND_ID          = ' '
+*       I_GRID_TITLE             =
+*       I_GRID_SETTINGS          =
+        is_layout                = ta_layout
+        it_fieldcat              = ta_field1
+*       IT_EXCLUDING             =
+*       IT_SPECIAL_GROUPS        =
+*       IT_SORT                  =
+*       IT_FILTER                =
+*       IS_SEL_HIDE              =
+*       I_DEFAULT                = 'X'
+        i_save                   = 'A'
+        is_variant               = g_variant
+*       IT_EVENTS                =
+*       IT_EVENT_EXIT            =
+*       IS_PRINT                 =
+*       IS_REPREP_ID             =
+*       I_SCREEN_START_COLUMN    = 0
+*       I_SCREEN_START_LINE      = 0
+*       I_SCREEN_END_COLUMN      = 0
+*       I_SCREEN_END_LINE        = 0
+*       I_HTML_HEIGHT_TOP        = 0
+*       I_HTML_HEIGHT_END        = 0
+*       IT_ALV_GRAPHICS          =
+*       IT_HYPERLINK             =
+*       IT_ADD_FIELDCAT          =
+*       IT_EXCEPT_QINFO          =
+*       IR_SALV_FULLSCREEN_ADAPTER        =
+* IMPORTING
+*       E_EXIT_CAUSED_BY_CALLER  =
+*       ES_EXIT_CAUSED_BY_USER   =
+      TABLES
+        t_outtab                 = it_vbrp
+* EXCEPTIONS
+*       PROGRAM_ERROR            = 1
+*       OTHERS                   = 2
+      .
+    IF sy-subrc <> 0.
+* Implement suitable error handling here
+    ENDIF.
+  ENDIF.
+ENDFORM.                    " ZSAP_GET_INVOICE
+
+
+FORM set_pf_status USING l_extab TYPE slis_t_extab.
+  SET PF-STATUS 'STANDARD_FULLSCREEN'.
+ENDFORM.
+
+FORM user_command  USING    l_ucomm LIKE sy-ucomm                   ##CALLED
+                            l_selfield TYPE slis_selfield.
+  READ TABLE ta_final INTO wa_final INDEX l_selfield-tabindex.
+
+  IF  l_ucomm = 'DOWNLOAD'.
+    DATA : lv_desktop TYPE char100.
+    DATA : lv_desktop1 TYPE string.
+
+    DATA i_filtered TYPE slis_t_filtered_entries.
+    DATA w_filtered LIKE LINE OF i_filtered.
+    REFRESH i_filtered.
+
+    CALL FUNCTION 'REUSE_ALV_GRID_LAYOUT_INFO_GET'
+      IMPORTING
+        et_filtered_entries = i_filtered
+      EXCEPTIONS
+        OTHERS              = 1.
+
+    CALL FUNCTION 'GUI_GET_DESKTOP_INFO'
+      EXPORTING
+        type   = 12
+      CHANGING
+        return = lv_desktop.
+
+    CONCATENATE lv_desktop '\' sy-datum '\' sy-uzeit '.xls' INTO lv_desktop1.
+*    lv_desktop1 = lv_desktop.
+
+    CLEAR : it_vbrp1[].
+    MOVE-CORRESPONDING it_vbrp[] TO it_vbrp1[].
+
+
+    LOOP AT it_vbrp1.
+      CLEAR v_date.
+
+      v_date = it_vbrp1-fkdat.
+
+      CALL FUNCTION 'CONVERT_DATE_TO_EXTERNAL'
+        EXPORTING
+          date_internal            = v_date
+        IMPORTING
+          date_external            = it_vbrp1-fkdat
+        EXCEPTIONS
+          date_internal_is_invalid = 1
+          OTHERS                   = 2.
+      IF sy-subrc <> 0.
+* Implement suitable error handling here
+      ENDIF.
+
+
+      CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+        CHANGING
+          value = it_vbrp1-fkimg.
+      CONDENSE it_vbrp1-fkimg.
+
+      CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+        CHANGING
+          value = it_vbrp1-mwsbp.
+      CONDENSE it_vbrp1-mwsbp.
+
+      CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+        CHANGING
+          value = it_vbrp1-kzwi2.
+      CONDENSE it_vbrp1-kzwi2.
+
+      READ TABLE i_filtered INTO w_filtered WITH KEY table_line = sy-tabix.
+      IF sy-subrc = 0.
+        it_vbrp1-flag = 'X'.
+      ENDIF.
+
+      MODIFY it_vbrp1 TRANSPORTING fkdat fkimg mwsbp kzwi2 flag.
+    ENDLOOP.
+
+    DELETE it_vbrp1 WHERE flag = 'X'.
+    DATA : git_name TYPE TABLE OF fieldnames.
+    DATA : gwa_name TYPE  fieldnames.
+    REFRESH : git_name.
+
+    gwa_name-fieldname = 'Invoice'.
+    CONDENSE gwa_name-fieldname.
+    APPEND gwa_name TO git_name.
+    CLEAR : gwa_name.
+
+    gwa_name-fieldname = 'SALE ORG'.
+    CONDENSE gwa_name-fieldname.
+    APPEND gwa_name TO git_name.
+    CLEAR : gwa_name.
+
+    gwa_name-fieldname = 'Dist.Chanl'.
+    CONDENSE gwa_name-fieldname.
+    APPEND gwa_name TO git_name.
+    CLEAR : gwa_name.
+
+    gwa_name-fieldname = 'Region'.
+    CONDENSE gwa_name-fieldname.
+    APPEND gwa_name TO git_name.
+    CLEAR : gwa_name.
+
+    gwa_name-fieldname = 'Sold-to party'.
+    CONDENSE gwa_name-fieldname.
+    APPEND gwa_name TO git_name.
+    CLEAR : gwa_name.
+
+    gwa_name-fieldname = 'Item'.
+    CONDENSE gwa_name-fieldname.
+    APPEND gwa_name TO git_name.
+    CLEAR : gwa_name.
+
+    gwa_name-fieldname = 'Plant'.
+    CONDENSE gwa_name-fieldname.
+    APPEND gwa_name TO git_name.
+    CLEAR : gwa_name.
+
+    gwa_name-fieldname = 'Customer group'.
+    CONDENSE gwa_name-fieldname.
+    APPEND gwa_name TO git_name.
+    CLEAR : gwa_name.
+
+    gwa_name-fieldname = 'Billing date'.
+    CONDENSE gwa_name-fieldname.
+    APPEND gwa_name TO git_name.
+    CLEAR : gwa_name.
+
+    gwa_name-fieldname = 'Division'.
+    CONDENSE gwa_name-fieldname.
+    APPEND gwa_name TO git_name.
+    CLEAR : gwa_name.
+
+    gwa_name-fieldname = 'Material'.
+    CONDENSE gwa_name-fieldname.
+    APPEND gwa_name TO git_name.
+    CLEAR : gwa_name.
+
+    gwa_name-fieldname = 'Material text'.
+    CONDENSE gwa_name-fieldname.
+    APPEND gwa_name TO git_name.
+    CLEAR : gwa_name.
+
+    gwa_name-fieldname = 'Billing Type'.
+    CONDENSE gwa_name-fieldname.
+    APPEND gwa_name TO git_name.
+    CLEAR : gwa_name.
+
+    gwa_name-fieldname = 'pricing procedure'.
+    CONDENSE gwa_name-fieldname.
+    APPEND gwa_name TO git_name.
+    CLEAR : gwa_name.
+
+    gwa_name-fieldname = 'Tax amount'.
+    CONDENSE gwa_name-fieldname.
+    APPEND gwa_name TO git_name.
+    CLEAR : gwa_name.
+
+    gwa_name-fieldname = 'Quantity'.
+    CONDENSE gwa_name-fieldname.
+    APPEND gwa_name TO git_name.
+    CLEAR : gwa_name.
+
+    gwa_name-fieldname = 'Sales unit'.
+    CONDENSE gwa_name-fieldname.
+    APPEND gwa_name TO git_name.
+    CLEAR : gwa_name.
+
+    gwa_name-fieldname = 'CURRENCY'.
+    CONDENSE gwa_name-fieldname.
+    APPEND gwa_name TO git_name.
+    CLEAR : gwa_name.
+
+    gwa_name-fieldname = 'Exchange Rate'.
+    CONDENSE gwa_name-fieldname.
+    APPEND gwa_name TO git_name.
+    CLEAR : gwa_name.
+
+    gwa_name-fieldname = 'Sales Doc'.
+    CONDENSE gwa_name-fieldname.
+    APPEND gwa_name TO git_name.
+    CLEAR : gwa_name.
+
+    gwa_name-fieldname = 'Sales Doc Item'.
+    CONDENSE gwa_name-fieldname.
+    APPEND gwa_name TO git_name.
+    CLEAR : gwa_name.
+
+    gwa_name-fieldname = 'Unit of Measure'.
+    CONDENSE gwa_name-fieldname.
+    APPEND gwa_name TO git_name.
+    CLEAR : gwa_name.
+
+    gwa_name-fieldname = 'SALES GROUP'.
+    CONDENSE gwa_name-fieldname.
+    APPEND gwa_name TO git_name.
+    CLEAR : gwa_name.
+
+    gwa_name-fieldname = 'SALES OFFICE'.
+    CONDENSE gwa_name-fieldname.
+    APPEND gwa_name TO git_name.
+    CLEAR : gwa_name.
+
+    gwa_name-fieldname = 'SALES DISTRIC'.
+    CONDENSE gwa_name-fieldname.
+    APPEND gwa_name TO git_name.
+    CLEAR : gwa_name.
+
+    gwa_name-fieldname = 'Division For Item'.
+    CONDENSE gwa_name-fieldname.
+    APPEND gwa_name TO git_name.
+    CLEAR : gwa_name.
+
+**********************  SOC by Shubhangi against Ticket # 8000003563
+    gwa_name-fieldname = 'Batch wise MRP'.
+    CONDENSE gwa_name-fieldname.
+    APPEND gwa_name TO git_name.
+    CLEAR : gwa_name.
+
+    gwa_name-fieldname = 'Batch No'.
+    CONDENSE gwa_name-fieldname.
+    APPEND gwa_name TO git_name.
+    CLEAR : gwa_name.
+**********************  EOC by Shubhangi against Ticket # 8000003563
+
+    CALL FUNCTION 'GUI_DOWNLOAD'
+      EXPORTING
+*       BIN_FILESIZE          =
+        filename              = lv_desktop1
+        filetype              = 'ASC'
+*       APPEND                = ' '
+        write_field_separator = 'X'
+*       HEADER                = '00'
+*       TRUNC_TRAILING_BLANKS = ' '
+*       WRITE_LF              = 'X'
+*       COL_SELECT            = ' '
+*       COL_SELECT_MASK       = ' '
+*       DAT_MODE              = ' '
+*       CONFIRM_OVERWRITE     = ' '
+        no_auth_check         = 'X'
+*       CODEPAGE              = ' '
+*       IGNORE_CERR           = ABAP_TRUE
+*       REPLACEMENT           = '#'
+*       WRITE_BOM             = ' '
+*       TRUNC_TRAILING_BLANKS_EOL       = 'X'
+*       WK1_N_FORMAT          = ' '
+*       WK1_N_SIZE            = ' '
+*       WK1_T_FORMAT          = ' '
+*       WK1_T_SIZE            = ' '
+*       WRITE_LF_AFTER_LAST_LINE        = ABAP_TRUE
+*       SHOW_TRANSFER_STATUS  = ABAP_TRUE
+*       VIRUS_SCAN_PROFILE    = '/SCET/GUI_DOWNLOAD'
+*     IMPORTING
+*       FILELENGTH            =
+      TABLES
+        data_tab              = it_vbrp1
+        fieldnames            = git_name
+*     EXCEPTIONS
+*       FILE_WRITE_ERROR      = 1
+*       NO_BATCH              = 2
+*       GUI_REFUSE_FILETRANSFER         = 3
+*       INVALID_TYPE          = 4
+*       NO_AUTHORITY          = 5
+*       UNKNOWN_ERROR         = 6
+*       HEADER_NOT_ALLOWED    = 7
+*       SEPARATOR_NOT_ALLOWED = 8
+*       FILESIZE_NOT_ALLOWED  = 9
+*       HEADER_TOO_LONG       = 10
+*       DP_ERROR_CREATE       = 11
+*       DP_ERROR_SEND         = 12
+*       DP_ERROR_WRITE        = 13
+*       UNKNOWN_DP_ERROR      = 14
+*       ACCESS_DENIED         = 15
+*       DP_OUT_OF_MEMORY      = 16
+*       DISK_FULL             = 17
+*       DP_TIMEOUT            = 18
+*       FILE_NOT_FOUND        = 19
+*       DATAPROVIDER_EXCEPTION          = 20
+*       CONTROL_FLUSH_ERROR   = 21
+*       OTHERS                = 22
+      .
+    IF sy-subrc <> 0.
+* Implement suitable error handling here
+    ELSE.
+      REFRESH it_vbrp1.     "added on 08.01.2015
+    ENDIF.
+
+  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  FILE_TO_FTP
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+*soc by aditya:8000004626:11.11.2025
+FORM file_to_ftp .
+  TYPES : BEGIN OF lty_line,
+            line(5000) TYPE c,
+          END OF lty_line.
+
+  DATA : lt_line       TYPE TABLE OF lty_line,
+         wa_line(5000) TYPE  c,
+         lv_file(128)  TYPE c,
+         lv_file1(128) TYPE c,
+         lv_for        TYPE char4.
+
+  DATA : lv_str          TYPE char2000,
+         lv_len          TYPE p,
+         lwa_sftp(50000) TYPE c.
+  DATA : g_variant   LIKE disvariant,
+         lv_name(22) TYPE c.
+  DATA: lv_tab TYPE char1 VALUE  cl_abap_char_utilities=>horizontal_tab.
+
+  DATA : lv_appl_path TYPE char200.
+
+  DATA: lv_leng   TYPE i.
+  DATA: lta_heads1 TYPE slis_t_fieldcat_alv.
+
+  FIELD-SYMBOLS: <fs_val>.
+  CONSTANTS : lc_id_name  TYPE char10 VALUE 'ZSD_OBIZ',
+              lc_xls      TYPE char4 VALUE '.XLS',
+              lc_csv      TYPE char4 VALUE '.CSV',
+              lc_txt      TYPE char4 VALUE '.TXT',
+              lc_msg1(30) TYPE c VALUE 'File cannot be opened.',
+              lc_txt_csv  TYPE char4 VALUE '.CSV'.
+  CONSTANTS :  co_id   TYPE zparam_table-id_name VALUE 'ZSD_CHLPATH',
+               co_name TYPE string VALUE 'SALESREPORT'.
+
+  REFRESH : lt_line.
+  CLEAR   : wa_line,wa_final.
+
+  CLEAR : lv_file.
+
+  IF chk = abap_true AND rd2 = abap_true.
+
+    SELECT SINGLE param_name
+                 INTO @DATA(gv_name)
+    FROM zparam_table
+    WHERE id_name = @co_id .
+
+    SELECT SINGLE * FROM zparam_table INTO @DATA(wa_zparam)
+    WHERE id_name = @co_id AND
+    param_name NE ''.
+
+    IF sy-subrc IS NOT INITIAL.
+      MESSAGE 'Path for AL11 not maintained' TYPE 'I'.
+    ENDIF.
+    IF gv_name IS NOT INITIAL.
+
+      lv_file = |{ wa_zparam-param_name }{ '\' }{ co_name }_{ sy-datlo }_{ sy-uzeit }{ '.csv' }|.
+
+      OPEN DATASET lv_file IN TEXT MODE FOR OUTPUT ENCODING DEFAULT.
+      PERFORM get_layout.
+*  PERFORM delete_no_out.
+*
+**  DATA: lv_leng TYPE i.
+*  IF lwa_sftp_head IS NOT INITIAL.
+*    lv_leng =  strlen( lwa_sftp_head ).
+*    lwa_sftp_head = lwa_sftp_head+1(lv_leng).
+*  ENDIF.
+*  TRANSFER lwa_sftp_head TO lv_file.
+*  CLEAR: lwa_sftp_head.
+
+      DELETE lta_fc WHERE no_out = 'X'.
+      DATA: wa_key  TYPE ltdxkey,
+            ta_ltdx TYPE TABLE OF ltdxdata.
+
+      wa_key-report   = sy-repid.
+      wa_key-variant  = p_var.
+      wa_key-type     = 'F'.
+
+      CALL FUNCTION 'LT_DBDATA_READ_FROM_LTDX'
+        EXPORTING
+          i_tool       = 'LT'
+          is_varkey    = wa_key
+        TABLES
+          t_dbfieldcat = ta_ltdx
+        EXCEPTIONS
+          not_found    = 1
+          wrong_relid  = 2
+          OTHERS       = 3.
+
+      DELETE ta_ltdx WHERE param NE 'NO_OUT'.
+      DELETE ta_ltdx WHERE value EQ abap_true.
+
+      lta_heads1 = ta_field1[].
+      SORT lta_heads1 BY fieldname.
+      DELETE lta_heads1 WHERE no_out = 'X'.
+
+      LOOP AT ta_ltdx INTO DATA(lwa_ltdx).
+        CONDENSE: lwa_ltdx-key1.
+        READ TABLE lta_heads1 INTO DATA(lwa_heads1) WITH KEY fieldname = lwa_ltdx-key1 BINARY SEARCH.
+        IF sy-subrc = 0.
+          ASSIGN COMPONENT 'SELTEXT_M' OF STRUCTURE lwa_heads1 TO <fs_val>.
+          IF sy-subrc = 0.
+            lv_str = CONV #( <fs_val> ). CONDENSE lv_str.
+            lwa_sftp = |{ lwa_sftp }{ lv_str }{ lc_tab }|.
+            UNASSIGN: <fs_val>.
+          ENDIF.
+        ENDIF.
+      ENDLOOP.
+
+      "" ON APPENDING THE RECORD
+      CONDENSE lwa_sftp.
+      IF lwa_sftp IS NOT INITIAL.
+        lv_len = strlen( lwa_sftp ) - 1.
+        lwa_sftp = lwa_sftp+0(lv_len).
+        TRANSFER lwa_sftp TO lv_file.
+        CLEAR: lv_str,lwa_sftp.
+      ENDIF.
+
+      FIELD-SYMBOLS: <fs_record> TYPE any.
+      FIELD-SYMBOLS: <fs_comp> TYPE any.
+      DATA :lwa_field(50000) TYPE c.
+      DATA : c_lv_line      TYPE string.
+      DATA : c_lv_buf      TYPE string.
+
+      LOOP AT it_vbrp ASSIGNING <fs_record>.
+        LOOP AT lta_fc INTO DATA(wa_fc_out).
+          ASSIGN COMPONENT wa_fc_out-fieldname OF STRUCTURE <fs_record> TO <fs_val>.
+          IF sy-subrc <> 0.
+            EXIT.
+          ENDIF.
+          lv_str = CONV #( <fs_val> ). CONDENSE lv_str.
+          lwa_sftp = |{ lwa_sftp }{ lv_str }{ lc_tab }|.
+          c_lv_line = CONV string( <fs_val> ).
+          UNASSIGN: <fs_val>.
+          IF sy-index = 1.
+            lv_file1 = c_lv_buf.
+          ENDIF.
+          CLEAR c_lv_buf.
+        ENDLOOP.
+        CLEAR: lv_leng.
+        CONDENSE lwa_sftp.
+        IF lwa_sftp IS NOT INITIAL.
+          lv_len = strlen( lwa_sftp ) - 1.
+          lwa_sftp = lwa_sftp+0(lv_len).
+        ENDIF.
+        TRANSFER lwa_sftp TO lv_file.
+        CLEAR lwa_sftp.
+      ENDLOOP.
+      CLOSE DATASET lv_file.
+      MESSAGE 'File uploaded successfully'(005) TYPE 'S'.
+    ENDIF.
+  ENDIF.
+
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  CALL_VARIENT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM call_varient .
+  g_variant-variant = p_var.
+  g_variant-report = sy-repid.
+  CALL FUNCTION 'REUSE_ALV_VARIANT_F4'
+    EXPORTING
+      is_variant    = g_variant
+      i_save        = 'A'
+*     i_default     = 'X'
+    IMPORTING
+      es_variant    = g_variant
+    EXCEPTIONS
+      not_found     = 1
+      program_error = 2
+      OTHERS        = 3.
+  IF sy-subrc = 0.
+    p_var = g_variant-variant.
+  ELSE.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+            WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  GET_LAYOUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM get_layout .
+
+
+  p_layout = p_var.
+
+  CALL FUNCTION 'LVC_TRANSFER_FROM_SLIS'
+    EXPORTING
+      it_fieldcat_alv = ta_field1[]
+    IMPORTING
+      et_fieldcat_lvc = lta_fc[]
+*     ET_SORT_LVC     =
+*     ET_FILTER_LVC   =
+*     ES_LAYOUT_LVC   =
+    TABLES
+      it_data         = it_vbrp[]
+    EXCEPTIONS
+      it_data_missing = 1
+      OTHERS          = 2.
+  IF sy-subrc <> 0.
+* Implement suitable error handling here
+  ENDIF.
+
+
+  g_variant-variant = p_layout."alv_def."p_layout.
+  g_variant-report  = sy-repid.
+
+
+  CALL FUNCTION 'LVC_VARIANT_SELECT'
+    EXPORTING
+      i_dialog            = abap_false
+      i_user_specific     = abap_true
+*     I_DEFAULT           = 'X'
+      it_default_fieldcat = lta_fc[]
+    IMPORTING
+*     E_EXIT              =
+      et_fieldcat         = lta_fc[]
+*     ET_SORT             =
+*     ET_FILTER           =
+*     ES_LAYOUT           =
+    TABLES
+      it_data             = it_vbrp[]
+    CHANGING
+      cs_variant          = g_variant
+    EXCEPTIONS
+      wrong_input         = 1
+      fc_not_complete     = 2
+      not_found           = 3
+      program_error       = 4
+      data_missing        = 5
+      OTHERS              = 6.
+  IF sy-subrc <> 0.
+* Implement suitable error handling here
+  ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  GET_LAYOUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+*FORM delete_no_out.
+*  SORT ta_field1 BY col_pos.
+*  CLEAR: lwa_sftp_head.
+*  LOOP AT ta_field1 INTO wa_field1 WHERE no_out IS  INITIAL.
+**    CONCATENATE wa_ftp wa_fc-seltext INTO wa_ftp SEPARATED BY lc_tab.
+**_Add separator from selection screen if available
+*    CONCATENATE lwa_sftp_head wa_field1-seltext_m INTO lwa_sftp_head
+*    SEPARATED BY lc_tab.
+*  ENDLOOP.
+*ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  FILE_TO_FTP
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM download .
+  TYPES : BEGIN OF lty_line,
+            line(5000) TYPE c,
+          END OF lty_line.
+  DATA : lt_down TYPE TABLE OF string,
+         lv_head TYPE string.
+
+  DATA : lt_line       TYPE TABLE OF lty_line,
+         wa_line(5000) TYPE  c,
+         lv_file(128)  TYPE c,
+         lv_file1(128) TYPE c,
+         lv_for        TYPE char4.
+
+  DATA : lv_str          TYPE char2000,
+         lv_len          TYPE p,
+         lwa_sftp(50000) TYPE c.
+  DATA : g_variant   LIKE disvariant,
+         lv_name(22) TYPE c.
+  DATA: lv_tab TYPE char1 VALUE  cl_abap_char_utilities=>horizontal_tab.
+  DATA: lta_heads       TYPE slis_t_fieldcat_alv.
+  DATA: lv_filename TYPE string.
+
+  DATA: lv_leng TYPE i.
+
+  FIELD-SYMBOLS: <fs_val>.
+  CONSTANTS : lc_msg1(30) TYPE c VALUE 'File cannot be opened.'.
+
+  CONSTANTS :  co_id   TYPE zparam_table-id_name VALUE 'ZSD_CHLPATH',
+               co_name TYPE string VALUE 'SALESREPORT'.
+
+  REFRESH : lt_line.
+  CLEAR   : wa_line,wa_final.
+
+  CLEAR : lv_file.
+
+  IF chk = abap_true AND rd1 = abap_true.
+    IF path IS NOT INITIAL.
+      PERFORM get_layout.
+      DELETE lta_fc WHERE no_out = 'X'.
+
+      DATA: wa_key  TYPE ltdxkey,
+            ta_ltdx TYPE TABLE OF ltdxdata.
+
+      wa_key-report   = sy-repid.
+      wa_key-variant  = p_var.
+      wa_key-type     = 'F'.
+
+      CALL FUNCTION 'LT_DBDATA_READ_FROM_LTDX'
+        EXPORTING
+          i_tool       = 'LT'
+          is_varkey    = wa_key
+        TABLES
+          t_dbfieldcat = ta_ltdx
+        EXCEPTIONS
+          not_found    = 1
+          wrong_relid  = 2
+          OTHERS       = 3.
+
+      DELETE ta_ltdx WHERE param NE 'NO_OUT'.
+      DELETE ta_ltdx WHERE value EQ abap_true.
+
+      lta_heads = ta_field1[].
+      SORT lta_heads BY fieldname.
+      DELETE lta_heads WHERE no_out = 'X'.
+
+      LOOP AT ta_ltdx INTO DATA(lwa_ltdx).
+        CONDENSE: lwa_ltdx-key1.
+        READ TABLE lta_heads INTO DATA(lwa_heads) WITH KEY fieldname = lwa_ltdx-key1 BINARY SEARCH.
+        IF sy-subrc = 0.
+          ASSIGN COMPONENT 'SELTEXT_M' OF STRUCTURE lwa_heads TO <fs_val>.
+          IF sy-subrc = 0.
+            lv_str = CONV #( <fs_val> ). CONDENSE lv_str.
+            lwa_sftp = |{ lwa_sftp }{ lv_str }{ lc_tab }|.
+            UNASSIGN: <fs_val>.
+          ENDIF.
+        ENDIF.
+      ENDLOOP.
+
+      "" ON APPENDING THE RECORD
+      CONDENSE lwa_sftp.
+      IF lwa_sftp IS NOT INITIAL.
+        lv_len = strlen( lwa_sftp ) - 1.
+        lwa_sftp = lwa_sftp+0(lv_len).
+        APPEND lwa_sftp TO lt_down.
+        CLEAR: lv_str,lwa_sftp.
+      ENDIF.
+
+      FIELD-SYMBOLS: <fs_record> TYPE any.
+      FIELD-SYMBOLS: <fs_comp> TYPE any.
+*      DATA:lwa_sftp(50000) TYPE c.
+      DATA :lwa_field(50000) TYPE c.
+      DATA : c_lv_line      TYPE string.
+      DATA : c_lv_buf      TYPE string.
+
+      LOOP AT it_vbrp ASSIGNING <fs_record>.
+        LOOP AT lta_fc INTO DATA(wa_fc_out).
+          ASSIGN COMPONENT wa_fc_out-fieldname OF STRUCTURE <fs_record> TO <fs_val>.
+          IF sy-subrc <> 0.
+            EXIT.
+          ENDIF.
+          lv_str = CONV #( <fs_val> ). CONDENSE lv_str.
+          lwa_sftp = |{ lwa_sftp }{ lv_str }{ lc_tab }|.
+          c_lv_line = CONV string( <fs_val> ).
+          UNASSIGN: <fs_val>.
+
+          IF sy-index = 1.
+            lv_file1 = c_lv_buf.
+          ENDIF.
+
+        ENDLOOP.
+        CLEAR: lv_leng.
+        CONDENSE lwa_sftp.
+        IF lwa_sftp IS NOT INITIAL.
+          lv_leng =  strlen( lwa_sftp ).
+          lwa_sftp = lwa_sftp+1(lv_leng).
+        ENDIF.
+        APPEND lwa_sftp TO lt_down.
+        CLEAR lwa_sftp.
+        CLEAR c_lv_buf.
+      ENDLOOP.
+      CALL METHOD cl_gui_frontend_services=>gui_download
+        EXPORTING
+          filename                = path
+          filetype                = 'DAT'
+*         write_field_separator   = abap_true
+        CHANGING
+          data_tab                = lt_down
+        EXCEPTIONS
+          file_write_error        = 1
+          no_batch                = 2
+          gui_refuse_filetransfer = 3
+          invalid_type            = 4
+          no_authority            = 5
+          unknown_error           = 6
+          header_not_allowed      = 7
+          separator_not_allowed   = 8
+          filesize_not_allowed    = 9
+          header_too_long         = 10
+          dp_error_create         = 11
+          dp_error_send           = 12
+          dp_error_write          = 13
+          unknown_dp_error        = 14
+          access_denied           = 15
+          dp_out_of_memory        = 16
+          disk_full               = 17
+          dp_timeout              = 18
+          file_not_found          = 19
+          dataprovider_exception  = 20
+          control_flush_error     = 21
+          not_supported_by_gui    = 22
+          error_no_gui            = 23
+          OTHERS                  = 24.
+      IF sy-subrc <> 0.                                     "#EC NEEDED
+* Implement suitable error handling here
+      ENDIF.
+      MESSAGE 'File downloaded successfully'(005) TYPE 'S'.
+    ENDIF.
+  ENDIF.
+
+
+ENDFORM.
+*eoc by aditya:8000004626:11.11.2025

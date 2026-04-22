@@ -1,0 +1,175 @@
+*&---------------------------------------------------------------------*
+*&  Include           ZPP_SCM_ANALYTICS_PO_STO
+*&---------------------------------------------------------------------*
+*&      Form  ALL_PO_STO
+*&---------------------------------------------------------------------*
+FORM all_po_sto .
+TYPES: BEGIN OF ty_ftp_posto,
+       line(300),
+       END OF ty_ftp_posto.
+
+DATA: wa_ftp_posto TYPE ty_ftp_posto,
+      ta_ftp_posto TYPE TABLE OF ty_ftp_posto.
+SELECT
+  ebeln,
+  RESWK,
+  aedat,
+  lifnr FROM ekko INTO TABLE @data(ta_ekko_posto)
+        WHERE ebeln IN @s_ebelnp AND
+              bsart IN @S_BSARTP AND
+              AEDAT IN @S_AEDATP.
+IF ta_ekko_posto[] IS NOT INITIAL.
+SELECT
+ebeln,
+ebelp,
+loekz,
+matnr,
+werks,
+menge,
+meins,
+*peinh,
+netwr,
+elikz,
+eglkz,
+zwaers  FROM ekpo INTO TABLE @data(ta_ekpo_posto)
+        for ALL ENTRIES IN @ta_ekko_posto
+        where ebeln = @ta_ekko_posto-ebeln  AND
+            ebelp in @s_ebelpp  AND
+            MATNR in @s_matnrp AND
+            WERKS in @s_werksp.
+IF ta_ekpo_posto[] IS NOT INITIAL.
+SELECT
+  ebeln,
+  ebelp,
+  etenr,
+  EINDT,
+  menge FROM EKET INTO TABLE @data(ta_eket_posto)
+        for ALL ENTRIES IN @ta_ekpo_posto
+        WHERE ebeln = @ta_ekpo_posto-ebeln AND
+              ebelp = @ta_ekpo_posto-ebelp.
+ENDIF.
+ENDIF.
+
+LOOP AT ta_eket_posto INTO data(wa_eket_posto).
+wa_po_sto-ebeln = wa_eket_posto-ebeln.
+wa_po_sto-ebelp = wa_eket_posto-ebelp.
+wa_po_sto-etenr = wa_eket_posto-etenr.
+CONCATENATE wa_eket_posto-EINDT+6(2) wa_eket_posto-EINDT+4(2) wa_eket_posto-EINDT+0(4) INTO wa_po_sto-EINDT.
+wa_po_sto-menge = wa_eket_posto-menge.
+
+READ TABLE ta_ekko_posto INTO DATA(wa_ekko_posto) WITH KEY ebeln = wa_eket_posto-ebeln.
+IF sy-subrc EQ 0.
+wa_po_sto-RESWK = wa_ekko_posto-RESWK.
+wa_po_sto-lifnr = wa_ekko_posto-lifnr. SHIFT wa_po_sto-lifnr LEFT DELETING LEADING '0'.
+CONCATENATE wa_ekko_posto-AEDAT+6(2) wa_ekko_posto-AEDAT+4(2) wa_ekko_posto-AEDAT+0(4) INTO wa_po_sto-AEDAT.
+ENDIF.
+READ TABLE ta_ekpo_posto INTO DATA(wa_ekpo_posto)
+  WITH KEY ebeln = wa_eket_posto-ebeln
+           ebelp = wa_eket_posto-ebelp.
+IF sy-subrc EQ 0.
+wa_po_sto-MATNR = wa_ekpo_posto-MATNR.
+wa_po_sto-ebeln = wa_ekpo_posto-ebeln.
+wa_po_sto-ebelp = wa_ekpo_posto-ebelp.
+wa_po_sto-loekz = wa_ekpo_posto-LOEKZ.
+wa_po_sto-ELIKZ = wa_ekpo_posto-ELIKZ.
+wa_po_sto-EGLKZ = wa_ekpo_posto-EGLKZ.
+wa_po_sto-WERKS = wa_ekpo_posto-WERKS.
+wa_po_sto-meins = wa_ekpo_posto-meins.
+wa_po_sto-peinh = wa_ekpo_posto-zwaers.
+IF wa_ekpo_posto-menge IS NOT INITIAL.
+wa_po_sto-NETWR = ( wa_eket_posto-menge / wa_ekpo_posto-menge ) * wa_ekpo_posto-NETWR.
+else.
+wa_po_sto-NETWR = '0.000'.
+ENDIF.
+
+ENDIF.
+CONDENSE: wa_po_sto-netwr, wa_po_sto-peinh, wa_po_sto-menge.
+SHIFT wa_po_sto-MATNR LEFT DELETING LEADING '0'.
+APPEND wa_po_sto to TA_PO_STO.
+CLEAR: wa_po_sto, wa_ekpo_posto, wa_ekko_posto, wa_eket_posto.
+ENDLOOP.
+
+***********************************************************************************************
+************************** " Begin of Process to Send file on FTP Server***********************
+***********************************************************************************************
+IF TA_PO_STO[] IS NOT INITIAL.
+CLEAR: wa_ftp_posto, ta_ftp_posto[], lv_file.
+
+CONCATENATE
+'mat_code'
+'po_num'
+'po_itm'
+'po_sch'
+'po_del'
+'po_delv_cmplt'
+'po_fin_delv'
+'po_create_dt'
+'sppl_plnt'
+'vend_code'
+'delv_plnt'
+'exp_delv_dt'
+'net_val'
+'curr'
+'ord_sch_qty'
+'buom' into wa_ftp_posto SEPARATED BY lv_tab. " wa_ftp has been replaced by wa_ftp_posto against ticket no.8000004920
+APPEND wa_ftp_posto to ta_ftp_posto." wa_ftp has been replaced by wa_ftp_posto and ta_ftp by ta_ftp_posto against ticket no.8000004920
+CLEAR wa_ftp_posto.
+LOOP AT TA_PO_STO INTO wa_po_sto.
+CONCATENATE
+wa_po_sto-MATNR
+wa_po_sto-EBELN
+wa_po_sto-EBELP
+wa_po_sto-ETENR
+wa_po_sto-LOEKZ
+wa_po_sto-ELIKZ
+wa_po_sto-EGLKZ
+wa_po_sto-AEDAT
+wa_po_sto-RESWK
+wa_po_sto-LIFNR
+wa_po_sto-WERKS
+wa_po_sto-EINDT
+wa_po_sto-NETWR
+wa_po_sto-PEINH
+wa_po_sto-MENGE
+wa_po_sto-MEINS INTO wa_ftp_posto SEPARATED BY lv_tab. " wa_ftp has been replaced by wa_ftp_posto against ticket no.8000004920
+append wa_ftp_posto to ta_ftp_posto. " wa_ftp has been replaced by wa_ftp_posto against ticket no.8000004920
+CLEAR wa_ftp_posto.
+ENDLOOP.
+
+PERFORM connect_2_ftp USING g_dest CHANGING g_hdl exp5.
+CLEAR: wa_ftp_posto,lv_file.
+
+IF exp5 IS INITIAL AND ta_ftp_posto[] IS NOT INITIAL.
+  IF PO_R1 = 'X'.
+    CONCATENATE lv_file1 'sto_po.txt' INTO lv_file.
+   ELSEIF PO_R2 = 'X'.
+     CONCATENATE lv_file1 'sto_po_' sy-datum+4(2) sy-datum+0(4) '.txt' INTO lv_file.
+   ELSEIF PO_R3 = 'X'.
+     CONCATENATE lv_file1 'sto_po_' sy-datum+6(2) sy-datum+4(2) sy-datum+0(4) '.txt' INTO lv_file.
+  ENDIF.
+
+IF lv_file IS NOT INITIAL.
+*PERFORM send_2_ftp USING lv_file.
+CALL FUNCTION 'FTP_R3_TO_SERVER'
+    EXPORTING
+      handle         = g_hdl
+      fname          = lv_file "p_lv_file          "file path of destination system
+      character_mode = 'X'
+    TABLES
+      text           = ta_ftp_posto
+    EXCEPTIONS
+      tcpip_error    = 1
+      command_error  = 2
+      data_error     = 3
+      OTHERS         = 4.
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+    WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4
+    RAISING invalid_output_file.
+  ENDIF.
+ENDIF.
+ENDIF.
+PERFORM disconnect_ftp USING g_hdl g_dest.
+************************** " End of Process to Send file on FTP Server***********************
+ENDIF.
+ENDFORM.

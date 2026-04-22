@@ -1,0 +1,155 @@
+*&---------------------------------------------------------------------*
+*&  Include           ZPP_VEND_MAST_SCM
+*&---------------------------------------------------------------------*
+*&      Form  VEND_MASTER
+*&---------------------------------------------------------------------*
+*       Vendor Master
+*----------------------------------------------------------------------*
+FORM vend_master .
+TYPES: BEGIN OF ty_vend,
+       line(200),
+       END OF ty_vend.
+DATA: wa_ftp_vend TYPE ty_vend,
+      ta_ftp_vend TYPE TABLE OF ty_vend.
+SELECT
+  lifnr,
+  name1,
+  land1,
+  regio,
+  pstlz,
+  ktokk FROM LFA1 INTO TABLE @data(ta_lfa1_vend)
+        where lifnr IN @s_lifnr   AND
+              ktokk IN @s_ktokk   AND
+              loevm = ''          AND
+              spras = 'E'.
+IF ta_lfa1_vend[] IS NOT INITIAL.
+SELECT LAND1, LANDX FROM t005t INTO TABLE @data(ta_t005t_vend)
+  for ALL ENTRIES IN @ta_lfa1_vend
+  WHERE spras = 'E' AND
+        LAND1 = @ta_lfa1_vend-LAND1.
+SELECT LAND1, bland, BEZEI FROM t005u INTO TABLE @data(ta_t005u_vend)
+  for ALL ENTRIES IN @ta_lfa1_vend
+  WHERE spras = 'E' AND
+        LAND1 = @ta_lfa1_vend-LAND1 AND
+        bland = @ta_lfa1_vend-REGIO.
+SELECT ktokk, txt30 FROM t077y INTO TABLE @data(ta_t077y_vend)
+  for ALL ENTRIES IN @ta_lfa1_vend
+  WHERE spras = 'E' AND
+        ktokk = @ta_lfa1_vend-KTokk.
+ENDIF.
+
+LOOP AT ta_lfa1_vend INTO data(wa_lfa1_vend).
+ wa_vend_mast-lifnr        = wa_lfa1_vend-lifnr.
+ wa_vend_mast-name1        = wa_lfa1_vend-NAME1.
+ wa_vend_mast-land1        = wa_lfa1_vend-LAND1.
+ wa_vend_mast-regio        = wa_lfa1_vend-REGIO.
+ wa_vend_mast-pstlz        = wa_lfa1_vend-PSTLZ.
+ wa_vend_mast-ktokk        = wa_lfa1_vend-ktokk.
+
+ READ TABLE ta_t005t_vend INTO DATA(wa_t005t_vend) WITH KEY LAND1 = wa_lfa1_vend-LAND1.
+ IF sy-subrc EQ 0.
+   wa_vend_mast-landx        = wa_t005t_vend-landx.
+   CLEAR: wa_t005t_vend.
+ ENDIF.
+ READ TABLE ta_t005u_vend INTO data(wa_t005u_vend)
+  WITH KEY LAND1  = wa_lfa1_vend-LAND1
+           bland  = wa_lfa1_vend-regio.
+ IF sy-subrc EQ 0.
+   wa_vend_mast-bezei_t005u  = wa_t005u_vend-bezei.
+   CLEAR: wa_t005u_vend.
+ ENDIF.
+ READ TABLE ta_t077y_vend INTO data(wa_t077y_vend) WITH KEY ktokk = wa_lfa1_vend-ktokk.
+ IF sy-subrc EQ 0.
+   wa_vend_mast-txt30        = wa_t077y_vend-txt30.
+   CLEAR: wa_t077y_vend.
+ ENDIF.
+ SHIFT wa_vend_mast-lifnr LEFT DELETING LEADING '0'.
+ APPEND wa_vend_mast TO ta_vend_mast.
+ CLEAR wa_vend_mast.
+ENDLOOP.
+
+*************"Process to Send Vendor Master File on FTP Server*********************
+IF ta_vend_mast[] IS NOT INITIAL.
+CLEAR: wa_ftp_vend, ta_ftp_vend[], lv_file.
+CONCATENATE
+'vend_code'
+'vend_name'
+'country_code'
+'country_name'
+'reg_code'
+'reg_name'
+'postl_code'
+'acc_grp'
+'acc_grp_name' INTO wa_ftp_vend SEPARATED BY lv_tab. " wa_ftp has been replaced by wa_ftp_vend against ticket number 8000004920
+APPEND wa_ftp_vend to ta_ftp_vend. " wa_ftp has been replaced by wa_ftp_vend and ta_ftp by ta_ftp_vend against ticket number 8000004920
+CLEAR wa_ftp_vend.
+CLEAR wa_vend_mast.
+LOOP AT ta_vend_mast INTO wa_vend_mast.
+CONCATENATE
+wa_vend_mast-LIFNR
+wa_vend_mast-NAME1
+wa_vend_mast-LAND1
+wa_vend_mast-LANDX
+wa_vend_mast-REGIO
+wa_vend_mast-bezei_t005u
+wa_vend_mast-PSTLZ
+wa_vend_mast-KTOKK
+wa_vend_mast-TXT30 INTO wa_ftp_vend SEPARATED BY lv_tab. " wa_ftp has been replaced by wa_ftp_vend against ticket number 8000004920
+APPEND wa_ftp_vend to ta_ftp_vend. " " wa_ftp has been replaced by wa_ftp_vend and ta_ftp by ta_ftp_vend against ticket number 8000004920
+CLEAR: wa_ftp_vend, wa_vend_mast.
+ENDLOOP.
+
+PERFORM connect_2_ftp USING g_dest CHANGING g_hdl exp5.
+CLEAR: wa_ftp_vend, lv_file.
+
+IF exp5 IS INITIAL AND ta_ftp_vend[] IS NOT INITIAL.
+CONCATENATE lv_file1 'vendor_master.txt' INTO lv_file.
+IF lv_file IS NOT INITIAL.
+*****data lv_command(100) type c.
+*****DATA:lv_dest  TYPE rfcdes-rfcdest VALUE 'SAPFTPA'.
+*****data: lta_data TYPE TABLE OF datab.
+*****CONSTANTS lc_del(3) VALUE 'del'.
+*****BREAK abap4.
+*****lv_command =  |{ lc_del } { lv_file1 }{ '' }{ 'vendor_master.txt'} |.
+*****CALL FUNCTION 'FTP_COMMAND'
+*****  EXPORTING
+*****   HANDLE                = g_hdl
+*****    command               = lv_command
+*****   COMPRESS              =
+*****   RFC_DESTINATION       = lv_dest
+*****  tables
+*****    data                  = lta_data
+***** EXCEPTIONS
+*****   TCPIP_ERROR           = 1
+*****   COMMAND_ERROR         = 2
+*****   DATA_ERROR            = 3
+*****   OTHERS                = 4.
+*FTP_R3_TO_SERVER:used to transfer the internal table data as a file to other system in the character mode.
+  CALL FUNCTION 'FTP_R3_TO_SERVER'
+    EXPORTING
+      handle         = g_hdl
+      fname          = lv_file "p_lv_file          "file path of destination system
+      character_mode = 'X'
+    TABLES
+      text           = ta_ftp_vend
+    EXCEPTIONS
+      tcpip_error    = 1
+      command_error  = 2
+      data_error     = 3
+      OTHERS         = 4.
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+    WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4
+    RAISING invalid_output_file.
+  ENDIF.
+*PERFORM send_2_ftp USING lv_file.
+
+ENDIF.
+ENDIF.
+PERFORM disconnect_ftp USING g_hdl g_dest.
+************************** " End of Process to Send file on FTP Server***********************
+
+
+ENDIF.
+
+ENDFORM.

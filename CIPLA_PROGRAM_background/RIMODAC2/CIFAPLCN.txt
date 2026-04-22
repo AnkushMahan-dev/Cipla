@@ -1,0 +1,16 @@
+
+* This include holds constants for various application situations
+* which require a synchronous RFC to an APO system with dialogs.
+* These constants are used as parameters for function module
+* CIF_GET_RFCDES
+
+* these constants must match the fixed values of domain CIFAPP
+CONSTANTS:
+* ATP check in APO
+  CIFAPP_ATP_CHECK_CON   LIKE CIFRFCDES-CIFAPP VALUE 'AC',
+* display of APO's application log
+  CIFAPP_REMOTE_LOG_CON  LIKE CIFRFCDES-CIFAPP VALUE 'RL',
+* display of APO's qRFC monitor
+  CIFAPP_REMOTE_QRF_CON  LIKE CIFRFCDES-CIFAPP VALUE 'RQ',
+* special RFC destination fpor debugging
+  CIFAPP_DEBUGGING_CON  LIKE CIFRFCDES-CIFAPP VALUE 'DG'.

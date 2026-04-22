@@ -1,0 +1,670 @@
+*&---------------------------------------------------------------------*
+*&  Include           ZPP_SCM_ANALYTICS_BOM
+*&---------------------------------------------------------------------*
+*&      Form  BOM
+*&---------------------------------------------------------------------*
+*----------------------------------------------------------------------*
+*  T Y P E S                                                           *
+*----------------------------------------------------------------------*
+TYPES : BEGIN OF ty_mara,
+          matnr TYPE mara-matnr,
+          lvorm TYPE mara-lvorm,
+          mtart TYPE mara-mtart,
+          matkl TYPE mara-matkl,
+          labor TYPE mara-labor,
+        END OF ty_mara.
+
+TYPES : BEGIN OF ty_mast,
+          matnr TYPE mast-matnr,
+          werks TYPE mast-werks,
+          stlan TYPE mast-stlan,
+          stlnr TYPE mast-stlnr,
+          stlal TYPE mast-stlal,
+        END OF ty_mast.
+
+TYPES : BEGIN OF ty_marc,
+          matnr TYPE marc-matnr,
+          werks TYPE marc-werks,
+          pstat TYPE marc-pstat,
+          lvorm TYPE marc-lvorm,
+        END OF ty_marc.
+
+TYPES : BEGIN OF ty_mkal,
+          matnr  TYPE mkal-matnr,
+          werks  TYPE mkal-werks,
+          verid  TYPE mkal-verid,
+          bdatu  TYPE mkal-bdatu,
+          adatu  TYPE mkal-adatu,
+          stlal  TYPE mkal-stlal,
+          stlan  TYPE mkal-stlan,
+          prfg_f TYPE mkal-prfg_f,
+          mksp   TYPE mkal-mksp,
+        END OF ty_mkal.
+
+TYPES : BEGIN OF ty_stko,
+          stlty TYPE stko-stlty,
+          stlnr TYPE stko-stlnr,
+          stlal TYPE stko-stlal,
+          stkoz TYPE stko-stkoz,
+          datuv TYPE stko-datuv,
+          bmein TYPE stko-bmein,
+          bmeng TYPE stko-bmeng,
+        END OF ty_stko.
+
+TYPES : BEGIN OF ty_stas,
+          stlty TYPE stas-stlty,
+          stlnr TYPE stas-stlnr,
+          stlal TYPE stas-stlal,
+          stlkn TYPE stas-stlkn,
+          stasz TYPE stas-stasz,
+          datuv TYPE stas-datuv,
+        END OF ty_stas.
+
+TYPES : BEGIN OF ty_stpo,
+          stlty TYPE stpo-stlty,
+          stlnr TYPE stpo-stlnr,
+          stlkn TYPE stpo-stlkn,
+          stpoz TYPE stpo-stpoz,
+          idnrk TYPE stpo-idnrk,
+          meins TYPE stpo-meins,
+          menge TYPE stpo-menge,
+          alprf TYPE stpo-alprf,
+          alpgr TYPE stpo-alpgr,
+        END OF ty_stpo.
+
+TYPES : BEGIN OF ty_makt,
+          matnr TYPE makt-matnr,
+          spras TYPE makt-spras,
+          maktx TYPE makt-maktx,
+        END OF ty_makt.
+
+TYPES : BEGIN OF ty_mbew,
+          matnr TYPE mbew-matnr,
+          bwkey TYPE mbew-bwkey,
+          bwtar TYPE mbew-bwtar,
+          lvorm TYPE mbew-lvorm,
+          verpr TYPE mbew-verpr,
+          stprs TYPE mbew-stprs,
+          peinh TYPE mbew-peinh,
+        END OF ty_mbew.
+
+TYPES : BEGIN OF ty_t001w,
+          werks TYPE t001w-werks,
+          name1 TYPE t001w-name1,
+        END OF ty_t001w,
+
+        BEGIN OF ty_final,
+          matnr      TYPE string,
+          maktx      TYPE string,
+          bmeng      TYPE string,
+          bmein      TYPE string,
+          werks      TYPE string,
+          name1      TYPE string,
+          idnrk      TYPE string,
+          maktx_comp TYPE string,
+          meins      TYPE string,
+          menge      TYPE string,
+          verpr      TYPE string,
+          peinh      TYPE string,
+          alpgr      TYPE string,
+          alprf      TYPE string,
+        END OF ty_final,
+        "Ticket No: #8000004510 started by CM 28JULY2025 TR CRDK996865
+        BEGIN OF ty_bom_stb,
+          matnr      TYPE matnr,
+          idnrk      TYPE matnr,
+          werks      TYPE werks_d,
+          ekgrp      TYPE ekgrp,
+          mtart      TYPE mtart,
+          rwpro      TYPE marc-rwpro,
+          rw1tg      TYPE t438r-rw1tg,
+          eisbe      TYPE marc-eisbe,
+          eknam      TYPE t024-eknam,
+          meins      TYPE meins,
+          maktx      TYPE makt-maktx,
+          bmeng      TYPE menge_d,
+          bmein      TYPE meins,
+          name1      TYPE name1,
+          maktx_comp TYPE maktx,
+          menge      TYPE menge_d,
+          verpr      TYPE verpr,
+          peinh      TYPE peinh,
+          cmp_pri    TYPE cs_alprf,
+
+        END OF ty_bom_stb,
+        "Ticket No: #8000004510 ended by CM 28JULY2025 TR CRDK996865
+        BEGIN OF ty_final_vars,
+          text(500) TYPE c,
+        END OF ty_final_vars.
+
+*----------------------------------------------------------------------*
+*  D A T A                                                             *
+*----------------------------------------------------------------------*
+DATA : ta_mara TYPE STANDARD TABLE OF ty_mara,
+       wa_mara TYPE ty_mara.
+
+DATA : ta_mast     TYPE STANDARD TABLE OF ty_mast,
+       ta_mast_chk TYPE STANDARD TABLE OF ty_mast,
+       wa_mast     TYPE ty_mast.
+
+DATA : ta_marc TYPE STANDARD TABLE OF ty_marc,
+       wa_marc TYPE ty_marc.
+
+DATA : ta_t001w TYPE STANDARD TABLE OF ty_t001w,
+       wa_t001w TYPE ty_t001w.
+
+DATA : ta_makt  TYPE STANDARD TABLE OF ty_makt,
+       wa_makt  TYPE ty_makt,
+       ta_maktc TYPE STANDARD TABLE OF ty_makt,
+       wa_maktc TYPE ty_makt.
+
+DATA : ta_mbew       TYPE STANDARD TABLE OF ty_mbew,
+       wa_mbew       TYPE ty_mbew,
+
+       ta_stpo       TYPE STANDARD TABLE OF ty_stpo,
+       ta_stpo_chk   TYPE STANDARD TABLE OF ty_stpo,
+       wa_stpo       TYPE ty_stpo,
+
+       ta_stas       TYPE STANDARD TABLE OF ty_stas,
+       wa_stas       TYPE ty_stas,
+
+       ta_stko       TYPE STANDARD TABLE OF ty_stko,
+       wa_stko       TYPE ty_stko,
+
+       ta_mkal       TYPE STANDARD TABLE OF ty_mkal,
+       wa_mkal       TYPE ty_mkal,
+
+       ta_final      TYPE TABLE OF ty_final,
+       ta_final_ftp  TYPE TABLE OF ty_final,
+       wa_final      TYPE ty_final,
+       wa_final1     TYPE ty_final,
+       wa_final_sla  TYPE ty_final1,
+       wa_final_ftp  TYPE ty_final,
+
+
+       ta_final_vars TYPE TABLE OF ty_final_vars,
+       wa_final_vars TYPE ty_final_vars,
+
+       ta_stb        TYPE TABLE OF stpox,
+       ta_bom_stb    TYPE TABLE OF ty_bom_stb, "added by CM 28JULY2025 TR CRDK996865 #8000004510
+       ta_bom        TYPE TABLE OF zmm_bom_aop, "added by CM 28JULY2025 TR CRDK996865 #8000004510
+       ta_stb_chk    TYPE TABLE OF stpox,
+       wa_stb        TYPE stpox,
+       wa_bom_stb    TYPE ty_bom_stb, "added by CM 28JULY2025 TR CRDK996865 #8000004510
+       wa_topmat     TYPE cstmat,
+
+       gv_client     TYPE zparam_table-param_name,
+       g_menge       TYPE stpox-menge.
+RANGES: lr_alprf FOR stpox-alprf, "added by CM 28JULY2025 TR CRDK996865 #8000004510
+        lr_mtart FOR mara-mtart. "added by CM 28JULY2025 TR CRDK996865 #8000004510
+FORM bom .
+  PERFORM : get_data,
+            process_data.
+
+  IF ta_final_vars[] IS NOT INITIAL.
+    PERFORM file_to_ftp.
+  ENDIF.
+
+ENDFORM.
+FORM get_data .
+*BREAK abap4.
+  CLEAR ta_mara.
+  SELECT matnr
+         lvorm
+         mtart
+         matkl
+         labor
+    FROM mara CLIENT SPECIFIED
+    INTO TABLE ta_mara
+    WHERE mandt EQ sy-mandt
+      AND lvorm EQ zqdom_co_blank
+      AND mtart EQ zqdom_co_zfgs
+      AND labor IN s_laborb."(zqdom_co_loc,zqdom_co_bth).
+
+  IF sy-subrc EQ 0.
+    CLEAR ta_makt.
+    SELECT matnr
+           spras
+           maktx
+      FROM makt CLIENT SPECIFIED
+      INTO TABLE ta_makt
+      FOR ALL ENTRIES IN ta_mara
+      WHERE mandt EQ sy-mandt
+        AND matnr EQ ta_mara-matnr.
+
+    CLEAR ta_mast.
+    SELECT matnr
+           werks
+           stlan
+           stlnr
+           stlal
+      FROM mast CLIENT SPECIFIED
+      INTO TABLE ta_mast
+      FOR ALL ENTRIES IN ta_mara
+      WHERE mandt EQ sy-mandt
+        AND matnr EQ ta_mara-matnr.
+
+    IF sy-subrc EQ 0.
+      ta_mast_chk[] = ta_mast[].
+      SORT ta_mast_chk BY werks.
+      DELETE ADJACENT DUPLICATES FROM ta_mast_chk COMPARING werks.
+
+      SELECT werks name1
+        FROM t001w
+        INTO TABLE ta_t001w
+        FOR ALL ENTRIES IN ta_mast_chk
+        WHERE werks EQ ta_mast_chk-werks.
+
+      CLEAR ta_marc.
+      SELECT matnr
+             werks
+             pstat
+             lvorm
+        FROM marc CLIENT SPECIFIED
+        INTO TABLE ta_marc
+        FOR ALL ENTRIES IN ta_mast
+        WHERE mandt EQ sy-mandt
+          AND matnr EQ ta_mast-matnr
+          AND werks EQ ta_mast-werks
+          AND lvorm EQ zqdom_co_blank.
+      IF sy-subrc EQ 0.
+        CLEAR ta_mkal.
+        SELECT matnr
+               werks
+               verid
+               bdatu
+               adatu
+               stlal
+               stlan
+               prfg_f
+               mksp
+          FROM mkal CLIENT SPECIFIED
+          INTO TABLE ta_mkal
+          FOR ALL ENTRIES IN ta_marc
+          WHERE mandt EQ sy-mandt
+            AND matnr EQ ta_marc-matnr
+            AND mksp  EQ zqdom_co_blank.
+***            AND prfg_f <> 3.
+
+        IF sy-subrc EQ 0.
+          DELETE ta_mkal WHERE prfg_f EQ zqdom_co_prfg_f.
+          SORT ta_mkal BY matnr werks stlal.
+          DELETE ADJACENT DUPLICATES FROM ta_mkal COMPARING matnr werks.
+        ENDIF.
+
+      ENDIF.
+
+      SELECT stlty
+             stlnr
+             stlal
+             stkoz
+             datuv
+             bmein
+             bmeng
+        FROM stko CLIENT SPECIFIED
+        INTO TABLE ta_stko
+        FOR ALL ENTRIES IN ta_mast
+        WHERE mandt EQ sy-mandt
+          AND stlnr EQ ta_mast-stlnr
+          AND stlal EQ ta_mast-stlal.
+
+      SELECT stlty
+             stlnr
+             stlal
+             stlkn
+             stasz
+             datuv
+       FROM stas CLIENT SPECIFIED
+       INTO TABLE ta_stas
+        FOR ALL ENTRIES IN ta_mast
+
+        WHERE mandt EQ sy-mandt
+          AND stlnr EQ ta_mast-stlnr
+          AND stlal EQ ta_mast-stlal.
+
+    ENDIF.
+  ENDIF.
+ENDFORM.                    " GET_DATA
+
+FORM process_data.
+
+  DATA : l_tabix TYPE sy-tabix.
+
+  SORT : ta_t001w BY werks,
+         ta_stas  BY stlnr stlkn,
+         ta_stko  BY stlnr stlal,
+         ta_mast  BY stlnr stlal,
+         ta_makt  BY matnr,
+         ta_maktc BY matnr.
+
+**********************************************************************
+  "This code will only work when BOM checkbox data is selected and job is running in background
+  "to update custom table which is needed for BOM data analysis same as SFTP data
+  "Ticket No: #8000004510 started by CM 28JULY2025 TR CRDK996865
+
+  IF p_bom = abap_true AND sy-batch = abap_true.
+    SELECT 'I' AS sign, 'EQ' AS option, param_name AS low FROM zparam_table INTO TABLE @lr_mtart WHERE id_name = 'BWAPOMTART'.
+    SELECT 'I' AS sign, 'EQ' AS option, CAST( param_name AS NUMC( 2 ) ) AS low FROM zparam_table INTO TABLE @lr_alprf WHERE id_name = 'BWAPOCMPPR'.
+  ENDIF.
+  "Ticket No: #8000004510 Ended by CM 28JULY2025 TR CRDK996865
+**********************************************************************
+  LOOP AT ta_mkal INTO wa_mkal.
+    PERFORM bom_explosion USING wa_mkal-matnr
+                                wa_mkal-stlal
+                                wa_mkal-werks
+                                wa_mkal-verid.
+
+  ENDLOOP.
+
+  IF ta_final[] IS NOT INITIAL.
+    " heading
+    CONCATENATE
+    'mat_code'
+    'mat_desc'
+    'mat_qty'
+    'mat_buom'
+    'plnt_code'
+    'plnt_name'
+    'cmp_code'
+    'cmp_name'
+    'cmp_buom'
+    'cmp_qty'
+*    'cmp_val'
+*    'cmp_currency'
+    'cmp_grp'
+    'cmp_priority' INTO wa_final_vars-text SEPARATED BY zqdom_co_pipe.
+    APPEND wa_final_vars TO ta_final_vars.
+    CLEAR wa_final_vars.
+    ta_final_ftp[] = ta_final[].
+    SORT : ta_final     BY matnr werks idnrk,
+           ta_final_ftp DESCENDING BY matnr werks idnrk alprf.
+    DELETE ADJACENT DUPLICATES FROM ta_final_ftp COMPARING matnr werks idnrk.
+**********************************************************************
+    "This code will only work when BOM checkbox data is selected and job is running in background
+    "to update custom table which is needed for BOM data analysis same as SFTP data
+    "Ticket No: #8000004510 started by CM 28JULY2025 TR CRDK996865
+    IF p_bom = abap_true AND sy-batch = abap_true.
+      IF ta_bom_stb[] IS NOT INITIAL.
+        SELECT c~matnr, c~werks, c~rwpro, t438r~rw1tg, c~eisbe,
+               c~ekgrp, t024~eknam
+          FROM marc AS c
+            LEFT OUTER JOIN t438r AS t438r ON t438r~rwpro = c~rwpro
+                                          AND t438r~werks = c~werks
+            LEFT OUTER JOIN t024 AS t024 ON t024~ekgrp = c~ekgrp
+*                                  AND c~werks = @ta_final_ftp-werks
+          FOR ALL ENTRIES IN @ta_bom_stb
+          WHERE c~matnr = @ta_bom_stb-idnrk
+            AND c~werks = @ta_bom_stb-werks
+          INTO TABLE @DATA(lt_marc).
+
+        ta_bom[] = VALUE #( FOR ls_d IN ta_bom_stb
+                              LET ls_marc = VALUE #( lt_marc[ matnr = ls_d-idnrk werks = ls_d-werks ] OPTIONAL )
+                              IN
+                              (
+                                 mat_code      = ls_d-matnr
+                                 cmp_code      = ls_d-idnrk
+                                 plnt_code     = ls_d-werks
+                                 mat_desc      = ls_d-maktx
+                                 plnt_name     = ls_d-name1
+                                 cmp_name      = ls_d-maktx_comp
+                                 cmp_qty       = REDUCE #( INIT lv_m TYPE menge_d FOR ls_da IN ta_bom_stb WHERE ( matnr = ls_d-matnr AND idnrk = ls_d-idnrk AND werks = ls_d-werks )
+                                                          NEXT lv_m = lv_m + ls_da-menge )
+                                 cmp_buom      = ls_d-meins
+                                 mat_qty       = ls_d-bmeng
+                                 mat_type      = ls_d-mtart
+                                 covrg_profile = ls_marc-rwpro
+                                 covrg_value   = ls_marc-rw1tg
+                                 safety_stock  = ls_marc-eisbe
+                                 pur_grp       = ls_marc-ekgrp
+                                 pur_grp_des   = ls_marc-eknam
+                                 meins         = ls_d-meins
+
+                           ) ).
+      ENDIF.
+      SORT ta_bom BY mat_code cmp_code plnt_code  .
+      DELETE ADJACENT DUPLICATES FROM ta_bom COMPARING mat_code cmp_code plnt_code.
+      IF ta_bom[] IS NOT INITIAL.
+        DELETE FROM zmm_bom_aop.
+        MODIFY zmm_bom_aop FROM TABLE ta_bom.
+      ENDIF.
+    ENDIF.
+    "Ticket No: #8000004510 Ended by CM 28JULY2025 TR CRDK996865
+**********************************************************************
+    LOOP AT ta_final_ftp INTO wa_final_ftp.
+
+      READ TABLE ta_final TRANSPORTING NO FIELDS WITH KEY matnr = wa_final_ftp-matnr
+                                                          werks = wa_final_ftp-werks
+                                                          idnrk = wa_final_ftp-idnrk.
+      IF sy-subrc EQ 0.
+        l_tabix = sy-tabix.
+        LOOP AT ta_final INTO wa_final1 FROM l_tabix.
+          IF wa_final1-matnr NE wa_final_ftp-matnr  OR wa_final1-werks NE wa_final_ftp-werks OR wa_final1-idnrk NE wa_final_ftp-idnrk.
+            EXIT.
+          ENDIF.
+          wa_final = wa_final1.
+          CLEAR wa_final-menge.
+          g_menge = g_menge + wa_final1-menge.
+        ENDLOOP.
+
+      ENDIF.
+
+      PERFORM rem_zeros : USING wa_final-matnr CHANGING wa_final-matnr,
+                          USING wa_final-idnrk CHANGING wa_final-idnrk.
+
+      wa_final-menge = g_menge.
+      PERFORM :condense,
+               concatenate.
+      CLEAR : l_tabix,wa_final,wa_final_ftp,g_menge.
+    ENDLOOP.
+  ENDIF.
+ENDFORM.
+
+FORM add_zeros USING l_a TYPE any CHANGING l_b TYPE any.
+  CALL FUNCTION 'CONVERSION_EXIT_ALPHA_INPUT'
+    EXPORTING
+      input  = l_a
+    IMPORTING
+      output = l_b.
+ENDFORM.
+
+
+FORM rem_zeros USING l_a1 TYPE any CHANGING l_b1 TYPE any.
+  CALL FUNCTION 'CONVERSION_EXIT_ALPHA_OUTPUT'
+    EXPORTING
+      input  = l_a1
+    IMPORTING
+      output = l_b1.
+ENDFORM.
+
+FORM bom_explosion USING l_matnr TYPE mara-matnr
+                         l_stlal TYPE stko-stlal
+                         l_werks TYPE mkal-werks
+                         l_verid TYPE mkal-verid.
+
+  DATA : lv_mngko TYPE p DECIMALS 3.
+
+  CLEAR   : ta_stb[],wa_topmat,ta_mbew[].
+  REFRESH : ta_stb[],ta_mbew.
+
+  CALL FUNCTION 'CS_BOM_EXPL_MAT_V2'
+    EXPORTING
+      capid                 = zqdom_co_capid
+      datuv                 = sy-datum
+      mktls                 = zqdom_co_x
+      mehrs                 = zqdom_co_x
+      mtnrv                 = l_matnr
+      stlal                 = l_stlal
+      svwvo                 = zqdom_co_x
+      werks                 = l_werks
+      verid                 = l_verid
+      vrsvo                 = zqdom_co_x
+    IMPORTING
+      topmat                = wa_topmat
+    TABLES
+      stb                   = ta_stb[]
+    EXCEPTIONS
+      alt_not_found         = 1
+      call_invalid          = 2
+      material_not_found    = 3
+      missing_authorization = 4
+      no_bom_found          = 5
+      no_plant_data         = 6
+      no_suitable_bom_found = 7
+      conversion_error      = 8
+      OTHERS                = 9.
+  IF sy-subrc <> 0.
+* Implement suitable error handling here
+  ENDIF.
+
+  IF ta_stb[] IS NOT INITIAL.
+    SELECT matnr
+           bwkey
+           bwtar
+           lvorm
+           verpr
+           stprs
+           peinh
+      FROM mbew CLIENT SPECIFIED
+      INTO TABLE ta_mbew
+      FOR ALL ENTRIES IN ta_stb
+      WHERE mandt EQ sy-mandt
+        AND matnr EQ ta_stb-idnrk
+        AND bwkey EQ ta_stb-werks
+        AND bwtar EQ ''.
+    IF sy-subrc EQ 0.
+
+      SORT ta_mbew BY matnr bwkey.
+
+    ENDIF.
+  ENDIF.
+
+  LOOP AT ta_stb INTO wa_stb.
+    wa_final-bmeng = wa_topmat-bmeng.
+    wa_final-bmein = wa_topmat-bmein.
+    wa_final-matnr = wa_topmat-matnr.
+    wa_final-maktx = wa_topmat-maktx.
+
+    READ TABLE ta_t001w INTO wa_t001w WITH KEY werks = wa_stb-werks.
+    IF sy-subrc EQ 0.
+      wa_final-werks = wa_t001w-werks.
+      wa_final-name1 = wa_t001w-name1.
+    ENDIF.
+
+    wa_final-idnrk = wa_stb-idnrk.
+
+    lv_mngko = wa_stb-mngko. "/ zqdom_co_10.
+    wa_final-menge = lv_mngko .
+
+    wa_final-meins = wa_stb-meins.
+    wa_final-alpgr = wa_stb-alpgr.
+    wa_final-alprf = wa_stb-alprf.
+
+    wa_final-maktx_comp = wa_stb-ojtxp.
+
+    READ TABLE ta_mbew INTO wa_mbew WITH KEY matnr = wa_stb-idnrk bwkey = wa_stb-werks BINARY SEARCH.
+    IF sy-subrc EQ 0.
+*      wa_final-verpr = wa_mbew-verpr.
+*      wa_final-peinh = wa_mbew-peinh.
+
+    ENDIF.
+**********************************************************************
+    "This code will only work when BOM checkbox data is selected and job is running in background
+    "to update custom table which is needed for BOM data analysis same as SFTP data
+    "Ticket No: #8000004510 started by CM 28JULY2025 TR CRDK996865
+    IF p_bom = abap_true AND sy-batch = abap_true.
+      wa_bom_stb-matnr = wa_final-matnr.
+      wa_bom_stb-idnrk = wa_final-idnrk.
+      wa_bom_stb-werks = wa_final-werks.
+      wa_bom_stb-mtart = wa_stb-mtart.
+      wa_bom_stb-ekgrp = wa_stb-ekgrp.
+      wa_bom_stb-meins = wa_stb-mmein.
+      wa_bom_stb-maktx      =  wa_final-maktx     .
+      wa_bom_stb-bmeng      =  wa_final-bmeng     .
+      wa_bom_stb-bmein      =  wa_final-bmein     .
+      wa_bom_stb-name1      =  wa_final-name1     .
+      wa_bom_stb-maktx_comp =  wa_final-maktx_comp.
+      wa_bom_stb-menge      =  wa_final-menge     .
+      wa_bom_stb-verpr      =  wa_final-verpr     .
+      wa_bom_stb-peinh      =  wa_final-peinh     .
+      IF wa_final-alprf IN lr_alprf AND wa_bom_stb-mtart IN lr_mtart.
+        APPEND wa_bom_stb TO ta_bom_stb.
+      ENDIF.
+      CLEAR wa_bom_stb.
+    ENDIF.
+    "Ticket No: #8000004510 Ended by CM 28JULY2025 TR CRDK996865
+**********************************************************************
+    SHIFT: wa_final-matnr LEFT DELETING LEADING '0',
+           wa_final-idnrk LEFT DELETING LEADING '0'.
+    APPEND wa_final TO ta_final.
+    CLEAR : wa_final,wa_mbew.
+  ENDLOOP.
+ENDFORM.
+FORM condense.
+
+  CONDENSE : wa_final-matnr,
+             wa_final-maktx,
+             wa_final-bmeng,
+             wa_final-bmein,
+             wa_final-werks,
+             wa_final-name1,
+             wa_final-idnrk,
+             wa_final-maktx_comp,
+             wa_final-meins,
+             wa_final-menge,
+             wa_final-verpr,
+             wa_final-peinh,
+             wa_final-alpgr,
+             wa_final-alprf.
+
+ENDFORM.
+
+FORM file_to_ftp.
+  DATA:lv_dest  TYPE rfcdes-rfcdest VALUE 'SAPFTPA',
+       lv_hdl   TYPE i,
+       lv_exp5  TYPE c,
+*       lv_file  TYPE char300,
+*       lv_file1 TYPE char300,
+       lv_fname TYPE string.
+*BREAK abap4.
+*  lv_file1 = '/Discover/SAP_Integration/SAP_SD/exports/'.
+*  PERFORM ftp_connect USING lv_dest CHANGING lv_hdl lv_exp5.
+  PERFORM connect_2_ftp USING g_dest CHANGING g_hdl exp5.
+
+  IF lv_exp5 IS INITIAL.
+    CONCATENATE lv_file1 'bill_of_materials.txt' INTO lv_file.
+
+    CALL FUNCTION 'FTP_R3_TO_SERVER'
+      EXPORTING
+        handle         = g_hdl "lv_hdl
+        fname          = lv_file          "file path of destination system
+        character_mode = 'X'
+      TABLES
+        text           = ta_final_vars
+      EXCEPTIONS
+        tcpip_error    = 1
+        command_error  = 2
+        data_error     = 3
+        OTHERS         = 4.
+    IF sy-subrc <> 0.
+    ENDIF.
+  ENDIF.
+  PERFORM disconnect_ftp USING g_hdl g_dest.
+ENDFORM.
+
+FORM concatenate.
+  CONCATENATE wa_final-matnr
+              wa_final-maktx
+              wa_final-bmeng
+              wa_final-bmein
+              wa_final-werks
+              wa_final-name1
+              wa_final-idnrk
+              wa_final-maktx_comp
+              wa_final-meins
+              wa_final-menge
+*              wa_final-verpr
+*              wa_final-peinh
+              wa_final_ftp-alpgr
+              wa_final_ftp-alprf INTO wa_final_vars-text SEPARATED BY zqdom_co_pipe.
+  APPEND wa_final_vars TO ta_final_vars.
+ENDFORM.

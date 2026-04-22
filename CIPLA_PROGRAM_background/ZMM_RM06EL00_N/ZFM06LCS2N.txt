@@ -1,0 +1,34 @@
+*&---------------------------------------------------------------------*
+*&  Include           ZFM06LCS2N
+*&---------------------------------------------------------------------*
+*TABLES : ekko.
+*----------------------------------------------------------------------*
+* Modification Information
+* Date            : 30.10.2019
+* Author          : Charitha S
+* Change request  : 8000005879
+* Transport number: <CRDK965214>
+* Description     : Addition of selection screen parameters
+*                   - Deletion indicator & Doc. process status
+*-----------------------------------------------------------------------*
+
+DATA:    BEGIN OF COMMON PART fm06lcs2.
+SELECT-OPTIONS: s_ebeln FOR ekko-ebeln MODIF ID doc MATCHCODE OBJECT mekk,
+                s_lifnr FOR ekko-lifnr MATCHCODE OBJECT kred,
+                s_reswk FOR ekko-reswk,
+                s_matnr FOR ekpo-matnr MATCHCODE OBJECT mat1,
+                s_matkl FOR ekpo-matkl,
+                s_bedat FOR ekko-bedat,
+                s_ean11 FOR ekpo-ean11,
+                s_idnlf FOR ekpo-idnlf,
+                s_ltsnr FOR ekpo-ltsnr,
+                s_aktnr FOR ekpo-aktnr,
+                s_saiso FOR ekpo-saiso,
+                s_saisj FOR ekpo-saisj,
+                s_prsta FOR ekko-procstat NO INTERVALS,  "Added by Charitha as per FS_MM_428 on 25.10.2019 for CR# 8000005879
+                s_loekz FOR ekpo-loekz NO INTERVALS.  "Added by Charitha as per FS_MM_428 on 25.10.2019 for CR# 8000005879
+
+PARAMETERS:    p_txz01 LIKE ekpo-txz01,
+               p_name1 LIKE addr1_data-name1.
+
+DATA:    END OF COMMON PART.

@@ -1,0 +1,865 @@
+*&---------------------------------------------------------------------*
+*&  Include           ZRM06EPOHN
+*&---------------------------------------------------------------------*
+CLASS lcl_test_runner DEFINITION.
+  PUBLIC SECTION.
+    CONSTANTS: mc_list_variant TYPE string VALUE 'BEST'.    "#EC NOTEXT
+
+    TYPES:
+      BEGIN OF ty_itab_list,
+        rfcsize   TYPE  rfcsize,
+        rfcrecord TYPE  rfcrecord_,
+      END OF ty_itab_list .
+    TYPES:
+      tty_itab_list TYPE STANDARD TABLE OF ty_itab_list .
+    TYPES:
+      BEGIN OF ty_vlist,
+             filler(100)   TYPE c,
+             END OF ty_vlist .
+    TYPES:
+      tty_vlist TYPE STANDARD TABLE OF ty_vlist .
+    TYPES:
+      tty_rsparams TYPE STANDARD TABLE OF rsparams .
+    TYPES:
+      BEGIN OF ty_result,
+                  ebeln TYPE ekbe-ebeln,
+                  ebelp TYPE ekbe-ebelp,
+       END OF ty_result .
+    TYPES:
+      tt_result TYPE STANDARD TABLE OF ty_result .
+    TYPES:
+      tty_ebeln TYPE STANDARD TABLE OF string .
+
+    METHODS constructor
+      IMPORTING
+        !iv_rtype TYPE string DEFAULT if_mmpur_poh_dbsys_opt=>gc_po_history
+        !iv_vendor TYPE string OPTIONAL
+        !it_rspar TYPE tty_rsparams OPTIONAL
+        !iv_final TYPE abap_bool DEFAULT 'X'
+        !iv_zero TYPE abap_bool DEFAULT 'X' .
+    CLASS-METHODS convert_to_rspar
+      IMPORTING
+        !it_ebeln TYPE tty_ebeln
+      EXPORTING
+        VALUE(et_spar) TYPE tty_rsparams .
+
+    CLASS-METHODS is_dev_system RETURNING VALUE(rv_dev_system) TYPE abap_bool.
+    CLASS-METHODS is_hdb_system RETURNING VALUE(rv_hdb_system) TYPE abap_bool.
+
+    CLASS-METHODS create
+      IMPORTING
+        !iv_rtype TYPE string OPTIONAL
+        !iv_vendor TYPE string OPTIONAL
+        !it_ebeln TYPE tty_ebeln OPTIONAL
+        !iv_final TYPE abap_bool DEFAULT 'X'
+        !iv_zero TYPE abap_bool DEFAULT space
+      RETURNING
+        VALUE(ro_instance) TYPE REF TO lcl_test_runner .
+
+    METHODS run_test
+      IMPORTING
+        !iv_listvariant TYPE string DEFAULT mc_list_variant
+        !iv_devsys_test TYPE abap_bool DEFAULT 'X'
+        !iv_user TYPE xubname DEFAULT space
+        !iv_sel_object_name TYPE ust12-objct DEFAULT 'M_BEST_EKO' . "#EC NOTEXT
+  PRIVATE SECTION.
+    DATA: mt_rspar TYPE tty_rsparams .
+
+    METHODS get_vendor
+        IMPORTING iv_rtype TYPE string DEFAULT if_mmpur_poh_dbsys_opt=>gc_po_history
+         RETURNING VALUE(rv_vendor) TYPE lifnr.
+
+    METHODS set_test_data
+        IMPORTING iv_rtype TYPE string
+                  iv_vendor TYPE string
+                  it_rspar  TYPE tty_rsparams OPTIONAL
+        EXPORTING et_rspar TYPE tty_rsparams.
+
+
+ENDCLASS.               "lcl_test_runner
+
+CLASS lcl_test_runner IMPLEMENTATION.
+
+
+* <SIGNATURE>---------------------------------------------------------------------------------------+
+* | Instance Public Method lcl_test_runner->CONSTRUCTOR
+* +-------------------------------------------------------------------------------------------------+
+* | [--->] IV_RTYPE                       TYPE        STRING (default =IF_MMPUR_POH_DBSYS_OPT=>GC_PO_HISTORY)
+* | [--->] IV_VENDOR                      TYPE        STRING(optional)
+* | [--->] IT_RSPAR                       TYPE        TTY_RSPARAMS(optional)
+* | [--->] IV_FINAL                       TYPE        ABAP_BOOL (default ='X')
+* | [--->] IV_ZERO                        TYPE        ABAP_BOOL (default =SPACE)
+* +--------------------------------------------------------------------------------------</SIGNATURE>
+  METHOD constructor.
+
+    IF iv_vendor IS SUPPLIED OR iv_rtype IS SUPPLIED.
+      set_test_data( EXPORTING iv_rtype = iv_rtype
+                               iv_vendor = iv_vendor
+                     IMPORTING et_rspar = mt_rspar ).
+    ENDIF.
+
+    APPEND LINES OF it_rspar TO mt_rspar.
+
+  ENDMETHOD.                    "constructor
+
+
+* <SIGNATURE>---------------------------------------------------------------------------------------+
+* | Static Public Method lcl_test_runner=>CONVERT_TO_RSPAR
+* +-------------------------------------------------------------------------------------------------+
+* | [--->] IT_EBELN                       TYPE        TTY_EBELN
+* | [<---] ET_SPAR                        TYPE        TTY_RSPARAMS
+* +--------------------------------------------------------------------------------------</SIGNATURE>
+  METHOD convert_to_rspar.
+
+    CLEAR et_spar.
+    IF lines( it_ebeln ) = 2.
+
+      APPEND INITIAL LINE TO et_spar ASSIGNING FIELD-SYMBOL(<fs_rspar>).
+      <fs_rspar>-selname = 'S_EBELN'.
+      <fs_rspar>-kind = 'P'.
+      <fs_rspar>-sign = 'I'.
+      <fs_rspar>-option = 'BT'.
+
+      LOOP AT it_ebeln INTO DATA(ls_ebeln).
+        IF sy-tabix = 1.
+          <fs_rspar>-low =  ls_ebeln.
+        ELSE.
+          <fs_rspar>-high = ls_ebeln.
+        ENDIF.
+      ENDLOOP.
+
+      IF <fs_rspar>-low > <fs_rspar>-high.
+        ls_ebeln = <fs_rspar>-high.
+        <fs_rspar>-high = <fs_rspar>-low.
+        <fs_rspar>-low = ls_ebeln.
+      ENDIF.
+
+    ELSE.
+
+      LOOP AT it_ebeln INTO ls_ebeln.
+        APPEND INITIAL LINE TO et_spar ASSIGNING <fs_rspar>.
+        <fs_rspar>-selname = 'S_EBELN'.
+        <fs_rspar>-kind = 'P'.
+        <fs_rspar>-sign = 'I'.
+        <fs_rspar>-option = 'EQ'.
+        <fs_rspar>-low =  ls_ebeln.
+      ENDLOOP.
+
+    ENDIF.
+  ENDMETHOD.                    "convert_to_rspar
+
+
+  METHOD is_dev_system.
+    IF sy-sysid = 'EBJ'." AND ( sy-mandt = '003' OR sy-mandt = '001' ).
+      rv_dev_system = abap_true.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD is_hdb_system.
+    IF cl_db_sys=>dbsys_type = 'HDB'.
+      rv_hdb_system = abap_true.
+    ENDIF.
+  ENDMETHOD.
+
+* <SIGNATURE>---------------------------------------------------------------------------------------+
+* | Static Public Method lcl_test_runner=>CREATE
+* +-------------------------------------------------------------------------------------------------+
+* | [--->] IV_RTYPE                       TYPE        STRING(optional)
+* | [--->] IV_VENDOR                      TYPE        STRING(optional)
+* | [--->] IT_EBELN                       TYPE        TTY_EBELN(optional)
+* | [--->] IV_FINAL                       TYPE        ABAP_BOOL (default ='X')
+* | [--->] IV_ZERO                        TYPE        ABAP_BOOL (default =SPACE)
+* | [<-()] RO_INSTANCE                    TYPE REF TO lcl_test_runner
+* +--------------------------------------------------------------------------------------</SIGNATURE>
+  METHOD create.
+    IF it_ebeln IS SUPPLIED.
+      DATA lt_spar TYPE tty_rsparams.
+      convert_to_rspar( EXPORTING it_ebeln = it_ebeln IMPORTING et_spar = lt_spar ).
+      ro_instance = NEW lcl_test_runner( it_rspar = lt_spar iv_final = iv_final iv_zero = iv_zero ).
+    ELSEIF iv_vendor IS SUPPLIED AND iv_rtype IS SUPPLIED.
+      ro_instance = NEW lcl_test_runner( iv_vendor = iv_vendor iv_rtype = iv_rtype iv_final = iv_final iv_zero = iv_zero ).
+    ELSEIF iv_vendor IS SUPPLIED.
+      ro_instance = NEW lcl_test_runner( iv_vendor = iv_vendor  iv_final = iv_final iv_zero = iv_zero ).
+    ELSEIF iv_rtype IS SUPPLIED..
+      ro_instance = NEW lcl_test_runner( iv_rtype = iv_rtype iv_final = iv_final iv_zero = iv_zero ) .
+    ELSE.
+      ro_instance = NEW lcl_test_runner( iv_final = iv_final iv_zero = iv_zero ) .
+    ENDIF.
+  ENDMETHOD.                    "create
+
+
+* <SIGNATURE>---------------------------------------------------------------------------------------+
+* | Instance Private Method lcl_test_runner->GET_VENDOR
+* +-------------------------------------------------------------------------------------------------+
+* | [--->] IV_RTYPE                       TYPE        STRING (default =IF_MMPUR_POH_DBSYS_OPT=>GC_PO_HISTORY)
+* | [<-()] RV_VENDOR                      TYPE        LIFNR
+* +--------------------------------------------------------------------------------------</SIGNATURE>
+  METHOD get_vendor.
+
+    CONSTANTS: lc_maxrow        TYPE i VALUE 8,
+               lc_max_doc_count TYPE i VALUE 0,
+               lc_po_history_considered
+                                TYPE abap_bool VALUE abap_true.
+
+    DATA:      lt_parm_lifnr    TYPE tt_rsdsselopt .
+    DATA:      ls_parm_lifnr    TYPE rsdsselopt."rsparams.
+
+    TYPES:
+     BEGIN OF lty_ekko_stat,
+        doc_count TYPE i,
+        lifnr TYPE ekko-lifnr,
+        bstyp TYPE ekko-bstyp,
+        purch_history_count TYPE i,
+       END OF lty_ekko_stat.
+
+    TYPES:
+     BEGIN OF lty_purch_history,
+        purch_history_count TYPE i,
+        lifnr TYPE ekko-lifnr,
+        bstyp TYPE ekko-bstyp,
+       END OF lty_purch_history.
+
+    DATA   lt_ekko_stat     TYPE STANDARD TABLE OF lty_ekko_stat WITH KEY lifnr.
+    DATA   lt_purch_history TYPE STANDARD TABLE OF lty_purch_history WITH KEY lifnr.
+
+    SELECT  COUNT(*) AS doc_count
+            lifnr
+            bstyp
+            COUNT(*) AS purch_history_count "as initial value will be overwritten
+            INTO TABLE lt_ekko_stat "CORRESPONDING FIELDS OF TABLE
+            FROM ekko UP TO lc_maxrow ROWS
+            WHERE bstyp = 'F' "OR bstyp = 'L'
+              AND lifnr <> ''
+            GROUP BY lifnr bstyp
+*           HAVING COUNT(*) > 1
+            ORDER BY doc_count DESCENDING lifnr bstyp.
+
+    DELETE lt_ekko_stat WHERE lifnr = space.
+    IF lc_maxrow IS INITIAL AND lc_max_doc_count > 0.      "#EC BOOL_OK
+      DELETE lt_ekko_stat WHERE doc_count > lc_max_doc_count OR doc_count = 1.
+    ENDIF.
+
+    LOOP AT lt_ekko_stat INTO DATA(ls_ekko_stat).
+      CLEAR ls_parm_lifnr.
+      ls_parm_lifnr-low    = ls_ekko_stat-lifnr.
+      ls_parm_lifnr-option = 'EQ'.
+      ls_parm_lifnr-sign   = 'I'.
+      APPEND ls_parm_lifnr TO lt_parm_lifnr.
+    ENDLOOP.
+
+    IF lc_po_history_considered = abap_true.
+
+* Determine purch_history_count for each vendor collected
+      CASE iv_rtype.
+        WHEN if_mmpur_poh_dbsys_opt=>gc_po_history.
+
+          SELECT COUNT(*) AS purch_history_count ekko~lifnr AS lifnr bstyp
+                  FROM ekko AS ekko INNER JOIN ekbe AS ekbe ON ekbe~ebeln = ekko~ebeln
+                     INTO TABLE lt_purch_history
+                     WHERE ekko~lifnr IN lt_parm_lifnr
+                     GROUP BY ekko~lifnr bstyp.
+
+        WHEN if_mmpur_poh_dbsys_opt=>gc_po_history_ma.
+          SELECT COUNT(*) AS purch_history_count ekko~lifnr AS lifnr bstyp
+                  FROM ekko AS ekko INNER JOIN ekbe_ma AS ekbe_ma ON ekbe_ma~ebeln = ekko~ebeln
+                     INTO TABLE lt_purch_history
+                     WHERE ekko~lifnr IN lt_parm_lifnr
+                     GROUP BY ekko~lifnr bstyp.
+
+        WHEN if_mmpur_poh_dbsys_opt=>gc_freight_cost.
+          SELECT COUNT(*) AS purch_history_count ekko~lifnr AS lifnr bstyp
+                  FROM ekko AS ekko INNER JOIN ekbz AS ekbz ON ekbz~ebeln = ekko~ebeln
+                     INTO TABLE lt_purch_history
+                     WHERE ekko~lifnr IN lt_parm_lifnr
+                     GROUP BY ekko~lifnr bstyp.
+
+        WHEN if_mmpur_poh_dbsys_opt=>gc_freight_cost_ma.
+          SELECT COUNT(*) AS purch_history_count ekko~lifnr AS lifnr bstyp
+                  FROM ekko AS ekko INNER JOIN ekbz_ma AS ekbz_ma ON ekbz_ma~ebeln = ekko~ebeln
+                     INTO TABLE lt_purch_history
+                     WHERE ekko~lifnr IN lt_parm_lifnr
+                     GROUP BY ekko~lifnr bstyp.
+        WHEN OTHERS.
+          CLEAR lt_purch_history.
+      ENDCASE.
+
+* Update purch_history_count for each vendor collected
+      SORT lt_purch_history BY lifnr bstyp."to enable binary search
+      LOOP AT lt_ekko_stat ASSIGNING FIELD-SYMBOL(<fs_ekko_stat>).
+        READ TABLE lt_purch_history ASSIGNING FIELD-SYMBOL(<fs_purch_history>)
+          WITH KEY lifnr = <fs_ekko_stat>-lifnr
+                   bstyp = <fs_ekko_stat>-bstyp
+                   BINARY SEARCH.
+        CHECK sy-subrc IS INITIAL.
+        <fs_ekko_stat>-purch_history_count = <fs_purch_history>-purch_history_count.
+      ENDLOOP.
+      SORT lt_ekko_stat BY purch_history_count DESCENDING.
+    ENDIF.
+
+* Return the top vendor
+    READ TABLE lt_ekko_stat INTO ls_ekko_stat INDEX 1.
+    IF sy-subrc IS INITIAL.
+      rv_vendor = ls_ekko_stat-lifnr.
+    ENDIF.
+
+  ENDMETHOD.                    "get_vendor
+
+
+* <SIGNATURE>---------------------------------------------------------------------------------------+
+* | Instance Public Method lcl_test_runner->RUN_TEST
+* +-------------------------------------------------------------------------------------------------+
+* | [--->] IV_DEVSYS_TEST                 TYPE        ABAP_BOOL (default ='X')
+* | [--->] IV_USER                        TYPE        XUBNAME (default =SPACE)
+* | [--->] IV_SEL_OBJECT_NAME             TYPE        UST12-OBJCT (default ='M_BEST_EKO')
+* +--------------------------------------------------------------------------------------</SIGNATURE>
+  METHOD   run_test.
+
+    DATA:
+      lv_strindex            TYPE string,
+      lt_itab_list           TYPE tty_itab_list,
+      ls_rspar               TYPE rsparams,
+      lt_vlist_optimized     TYPE tty_vlist,
+      lt_vlist_noptimized    TYPE tty_vlist,
+      ls_vlist_optimized     TYPE ty_vlist,
+      ls_vlist_noptimized    TYPE ty_vlist,
+      lt_rspar               TYPE tty_rsparams,
+      lv_lines_opt           TYPE i,
+      lv_lines_nopt          TYPE i,
+      lv_index               TYPE i.
+
+    DATA:
+       lv_sys                TYPE string,
+       lv_dbsys              TYPE string,
+       lv_client             TYPE string.
+
+* Check if HDB system is available
+    lv_sys = sy-sysid.
+    lv_client = sy-mandt.
+    lv_dbsys  = sy-dbsys.
+
+    IF is_hdb_system( ) IS INITIAL.
+      cl_abap_unit_assert=>fail(
+                    msg = 'No HDB system found'             "#EC NOTEXT
+                    detail = lv_sys && '/' && lv_client && '(' && lv_dbsys && ')'
+                    quit = if_aunit_constants=>no
+                    level = if_aunit_constants=>tolerable ).
+    ENDIF.
+
+    IF is_dev_system( ) IS INITIAL.
+      IF iv_devsys_test = abap_true.
+        cl_abap_unit_assert=>fail(
+                      msg = 'No DEV system used'            "#EC NOTEXT
+                      detail = lv_sys && '/' && lv_client && '(' && lv_dbsys && ')'
+                      quit = if_aunit_constants=>no
+                      level = if_aunit_constants=>tolerable ).
+        cl_abap_unit_assert=>assert_true( act = abap_true ).
+      ENDIF.
+    ENDIF.
+
+*--------------------------------------------------------------------*
+* Run report optimized
+
+    APPEND LINES OF mt_rspar TO lt_rspar.
+*SELECT * from T160O
+
+    ls_rspar-selname = 'LISTU'.                             "#EC NOTEXT
+    ls_rspar-kind = 'P'. " = 'P' or 'S'
+    ls_rspar-sign = 'I'.
+    ls_rspar-option = 'EQ'.                                 "#EC NOTEXT
+    ls_rspar-low =  mc_list_variant. "'ALLES'."
+    APPEND ls_rspar TO lt_rspar.
+
+
+*   Set report dark parameter to 'eXecute optimization'
+    ls_rspar-selname = 'P_AUT'.                             "#EC NOTEXT
+    ls_rspar-kind = 'P'. " = 'P' or 'S'
+    ls_rspar-sign = 'I'.
+    ls_rspar-option = 'EQ'.                                 "#EC NOTEXT
+    ls_rspar-low =  cl_mm_pur_aut_master=>gc_aut_optimization_on.
+    APPEND ls_rspar TO lt_rspar.
+
+*   Run optimized report
+    SUBMIT rm06el00 WITH SELECTION-TABLE lt_rspar
+          EXPORTING LIST TO MEMORY
+            AND RETURN.
+    IF NOT sy-subrc IS INITIAL.
+      "
+      cl_abap_unit_assert=>fail(
+                    msg = 'run time error while Optimized report is executed (maybe due to missing user authorization)' "#EC NOTEXT
+                    detail = lv_sys && '/' && lv_client && '(' && lv_dbsys && ')'
+*                    quit = if_aunit_constants=>no
+*                    level = if_aunit_constants=>tolerable
+                    ).
+    ENDIF.
+
+    CALL FUNCTION 'LIST_FROM_MEMORY'
+      TABLES
+        listobject = lt_itab_list
+      EXCEPTIONS
+        not_found  = 4
+        OTHERS     = 8.
+    IF sy-subrc IS INITIAL.
+      "
+    ENDIF.
+
+    CALL FUNCTION 'LIST_TO_ASCI'
+      EXPORTING
+        list_index         = -1
+      TABLES
+        listasci           = lt_vlist_optimized
+        listobject         = lt_itab_list
+      EXCEPTIONS
+        empty_list         = 1
+        list_index_invalid = 2
+        OTHERS             = 3.
+    IF sy-subrc IS INITIAL.
+      "
+    ENDIF.
+
+    DESCRIBE TABLE lt_vlist_optimized LINES lv_lines_opt.
+    IF lv_lines_opt < 7 .
+
+
+      RETURN.
+*      cl_abap_unit_assert=>fail(
+*                    msg = 'No test data found'              "#EC NOTEXT
+*                    detail = lv_sys && '/' && lv_client && '(' && lv_dbsys && ')'
+**                    quit = if_aunit_constants=>no
+**                    level = if_aunit_constants=>tolerable
+*                    ).
+    ENDIF.
+*    IF sy-subrc NE '0'.
+*      WRITE:/ 'LIST_TO_ASCI error !! ', sy-subrc.
+*    ENDIF.
+*--------------------------------------------------------------------*
+* Run report not optimized
+
+    CLEAR: lt_itab_list[],
+           lt_rspar[].
+
+    APPEND LINES OF mt_rspar TO lt_rspar.
+
+    ls_rspar-selname = 'LISTU'.                             "#EC NOTEXT
+    ls_rspar-kind = 'P'. " = 'P' or 'S'
+    ls_rspar-sign = 'I'.
+    ls_rspar-option = 'EQ'.                                 "#EC NOTEXT
+    ls_rspar-low =  mc_list_variant. "'ALLES'."
+    APPEND ls_rspar TO lt_rspar.
+
+*   Set report dark parameter to not execute optimization
+    ls_rspar-selname = 'P_AUT'.                             "#EC NOTEXT
+    ls_rspar-kind = 'P'. " = 'P' or 'S'
+    ls_rspar-sign = 'I'.
+    ls_rspar-option = 'EQ'.                                 "#EC NOTEXT
+    ls_rspar-low =  cl_mm_pur_aut_master=>gc_aut_optimization_off.
+    APPEND ls_rspar TO lt_rspar.
+
+*   Run optimized report
+    SUBMIT rm06el00 WITH SELECTION-TABLE lt_rspar
+          EXPORTING LIST TO MEMORY
+            AND RETURN.
+    IF NOT sy-subrc IS INITIAL.
+      "
+      cl_abap_unit_assert=>fail(
+                    msg = 'run time error while UNoptimized report is executed (maybe due to missing user authorization)' "#EC NOTEXT
+                    detail = lv_sys && '/' && lv_client && '(' && lv_dbsys && ')'
+*                    quit = if_aunit_constants=>no
+*                    level = if_aunit_constants=>tolerable
+                    ).
+    ENDIF.
+
+
+    CALL FUNCTION 'LIST_FROM_MEMORY'
+      TABLES
+        listobject = lt_itab_list
+      EXCEPTIONS
+        not_found  = 4
+        OTHERS     = 8.
+    IF sy-subrc IS INITIAL.
+      "
+    ENDIF.
+
+    CALL FUNCTION 'LIST_TO_ASCI'
+      EXPORTING
+        list_index         = -1
+      TABLES
+        listasci           = lt_vlist_noptimized
+        listobject         = lt_itab_list
+      EXCEPTIONS
+        empty_list         = 1
+        list_index_invalid = 2
+        OTHERS             = 3.
+    IF sy-subrc IS INITIAL.
+      "
+    ENDIF.
+
+*    IF sy-subrc NE '0'.
+*      WRITE:/ 'LIST_TO_ASCI error !! ', sy-subrc.
+*    ENDIF.
+
+*--------------------------------------------------------------------*
+* Compare results: optimized versus not-optimized
+
+    DESCRIBE TABLE lt_vlist_noptimized LINES lv_lines_nopt.
+    IF iv_user IS INITIAL OR to_upper( iv_user ) = to_upper( cl_abap_syst=>get_user_name( ) ).
+      IF lv_lines_nopt < 7 .
+
+        cl_abap_unit_assert=>assert_equals( exp = lv_lines_opt
+                                            act = lv_lines_nopt
+                                            msg = lv_sys && '/' && lv_client && '(' && lv_dbsys && ')'
+                                            level = if_aunit_constants=>critical ).
+*
+*        cl_abap_unit_assert=>fail(
+*                      msg = 'No test data found'            "#EC NOTEXT
+*                      detail = lv_sys && '/' && lv_client && '(' && lv_dbsys && ')'
+*                      quit = if_aunit_constants=>no
+*                      level = if_aunit_constants=>tolerable
+*                      ).
+      ENDIF.
+    ENDIF.
+
+* assert message: WRITE: 'Different number of result lines with
+*  (', lv_lines_opt, ') and w/o (', lv_lines_nopt, ') optimization.'
+
+
+    CONSTANTS
+          c_docnum_regex TYPE string VALUE '[1-9][0-9]{9}'. "#EC NOTEXT
+    DATA: lv_doc_number TYPE ekko-ebeln,
+          lv_doc_number_str TYPE string.
+
+    LOOP AT lt_vlist_optimized INTO ls_vlist_optimized.
+
+      lv_strindex = lv_index = sy-tabix.
+      READ TABLE lt_vlist_noptimized INDEX lv_index INTO ls_vlist_noptimized.
+      IF NOT sy-subrc IS INITIAL.
+        EXIT.
+      ENDIF.
+
+      lv_doc_number_str = substring_from( val   = substring( val = ls_vlist_noptimized-filler off = 1 len = 10 )
+                                          regex = c_docnum_regex  ).
+      IF NOT lv_doc_number_str IS INITIAL.
+        lv_doc_number = lv_doc_number_str.
+      ENDIF.
+
+      cl_abap_unit_assert=>assert_initial( act = sy-subrc
+                                           msg = 'not optimized report line ' && lv_strindex && ' not found for line:' && ls_vlist_optimized-filler "#EC NOTEXT
+                                           level = if_aunit_constants=>critical ).
+      CHECK sy-subrc IS INITIAL AND
+            ls_vlist_optimized <> ls_vlist_noptimized.
+
+      cl_abap_unit_assert=>assert_equals(  exp = ls_vlist_noptimized
+                                           act = ls_vlist_optimized
+                                           msg = lv_sys && '/' && lv_client && '(' && lv_dbsys && ' at doc: ' && lv_doc_number &&  ')'
+                                           level = if_aunit_constants=>critical ).
+
+    ENDLOOP.
+    RETURN.
+
+  ENDMETHOD.                    "run_test
+
+
+* <SIGNATURE>---------------------------------------------------------------------------------------+
+* | Instance Private Method lcl_test_runner->SET_TEST_DATA
+* +-------------------------------------------------------------------------------------------------+
+* | [--->] IV_RTYPE                       TYPE        STRING
+* | [--->] IV_VENDOR                      TYPE        STRING
+* | [--->] IV_METHOD                      TYPE        STRING (default =MC_METHOD_STANDARD)
+* | [--->] IT_RSPAR                       TYPE        TTY_RSPARAMS(optional)
+* | [<---] ET_RSPAR                       TYPE        TTY_RSPARAMS
+* +--------------------------------------------------------------------------------------</SIGNATURE>
+  METHOD set_test_data.
+
+    CONSTANTS:          max_uptorow           TYPE i VALUE 16.
+
+    DATA:               lr_badi               TYPE REF TO mmpur_dbsysopt_poh,
+                        lt_poh                TYPE tt_pohval,
+                        lt_lifnr              TYPE tt_rsdsselopt,
+
+                        ls_rspar              TYPE rsparams,
+                        lt_rspar              TYPE tty_rsparams,
+                        lv_hdb_vendor         TYPE lifnr,
+                        lv_vendor             TYPE string,
+                        lt_filter             TYPE rsds_where_tab.
+
+    CLEAR et_rspar.
+
+* Make sure that the selected "default" supplier existst in the system
+    IF NOT iv_vendor IS INITIAL.
+      SELECT SINGLE lifnr FROM lfa1 INTO lv_hdb_vendor WHERE lifnr = iv_vendor.
+      IF sy-subrc IS INITIAL.
+        lv_vendor = lv_hdb_vendor.
+      ELSE.
+        "Set other top vendor that exists
+        lv_vendor = get_vendor( iv_rtype ).
+      ENDIF.
+
+      APPEND INITIAL LINE TO lt_lifnr ASSIGNING FIELD-SYMBOL(<fs>).
+      <fs>-sign   = 'I'.
+      <fs>-option = 'EQ'.
+      <fs>-low = lv_vendor.
+
+*   Set vendor
+      ls_rspar-selname = 'EL_LIFNR'.                        "#EC NOTEXT
+      ls_rspar-kind = 'P'. " = 'P' or 'S'
+      ls_rspar-sign = 'I'.
+      ls_rspar-option = 'EQ'.
+      ls_rspar-low = lv_vendor.
+      APPEND ls_rspar TO lt_rspar.
+    ENDIF.
+
+    IF NOT iv_rtype IS INITIAL.
+      APPEND INITIAL LINE TO lt_filter ASSIGNING FIELD-SYMBOL(<fs_filter>).
+      <fs_filter>-line = ' ( RTYPE = ''' && iv_rtype && ''' ) '. "#EC NOTEXT
+    ENDIF.
+
+    TRY.
+* Try to create BAdI instance to retrieve aggregated PO history values
+        GET BADI lr_badi
+          FILTERS
+            dbsys_type = cl_db_sys=>dbsys_type.
+
+* Get the data from HDB into the internal buffer
+        CALL BADI lr_badi->get_po_history_values
+          EXPORTING
+            it_lifnr    = lt_lifnr
+            it_filter   = lt_filter
+            iv_rowcount = max_uptorow
+          IMPORTING
+            et_result   = lt_poh.
+
+        LOOP AT lt_poh ASSIGNING FIELD-SYMBOL(<fs_poh>).
+          APPEND INITIAL LINE TO lt_rspar ASSIGNING FIELD-SYMBOL(<fs_rspar>).
+          <fs_rspar>-kind = 'P'. " = 'P' or 'S'
+          <fs_rspar>-sign = 'I'.
+          <fs_rspar>-option = 'EQ'.
+          <fs_rspar>-selname = 'S_EBELN'.                   "#EC NOTEXT
+          <fs_rspar>-low = <fs_poh>-ebeln.
+        ENDLOOP.
+
+        et_rspar = lt_rspar.
+
+      CATCH cx_mmpur_hdb_error
+        cx_badi_not_implemented
+        cx_badi_multiply_implemented
+        cx_badi_filter_error
+        cx_badi .
+
+        CLEAR et_rspar.
+    ENDTRY.
+
+  ENDMETHOD.                    "set_test_data
+ENDCLASS.                    "lcl_test
+
+*----------------------------------------------------------------------*
+* Unit Test
+*--------------------------------------------------------------------*
+*----------------------------------------------------------------------*
+*       CLASS ltc_po_history_values DEFINITION
+*----------------------------------------------------------------------*
+CLASS ltc_po_history_values DEFINITION FINAL FOR TESTING
+  DURATION MEDIUM
+  RISK LEVEL HARMLESS.
+
+  PUBLIC SECTION.
+    TYPES: ltt_string TYPE TABLE OF string.
+    CLASS-METHODS create
+          IMPORTING iv_listvariant TYPE string OPTIONAL
+                    iv_rtype  TYPE string OPTIONAL
+                    iv_vendor TYPE string OPTIONAL
+                    it_ebeln  TYPE ltt_string OPTIONAL
+                    iv_final  TYPE abap_bool DEFAULT 'X'
+                    iv_zero   TYPE abap_bool DEFAULT space
+                    iv_devsys_test TYPE abap_bool DEFAULT abap_true
+          RETURNING VALUE(ro_instance) TYPE REF TO ltc_po_history_values .
+
+  PRIVATE SECTION.
+    CONSTANTS mc_std_vendor   TYPE string VALUE 'CTRM_CU_01' . "#EC NOTEXT
+    CONSTANTS mc_dummy_vendor TYPE string VALUE '000010000' . "#EC NOTEXT
+
+    METHODS test_failed_docs FOR TESTING RAISING cx_static_check .
+    METHODS test_pure_po_history FOR TESTING RAISING cx_static_check .
+    METHODS test_po_history_ma FOR TESTING RAISING cx_static_check .
+    METHODS test_freight_cost FOR TESTING RAISING cx_static_check .
+    METHODS test_freight_cost_ma FOR TESTING RAISING cx_static_check .
+    METHODS test_service FOR TESTING RAISING cx_static_check .
+    METHODS test_invoice_plan FOR TESTING RAISING cx_static_check .
+*    METHODS test_final_indicator FOR TESTING RAISING cx_static_check .
+*    METHODS test_zero FOR TESTING RAISING cx_static_check .
+*   METHODS test_failed_docs FOR TESTING RAISING cx_static_check .
+
+ENDCLASS.                    "ltc_po_history_values DEFINITION
+*
+*
+**----------------------------------------------------------------------*
+**       CLASS ltc_po_history_values IMPLEMENTATION
+**----------------------------------------------------------------------*
+**
+**----------------------------------------------------------------------*
+CLASS ltc_po_history_values IMPLEMENTATION.
+
+  METHOD create.
+    "ro_instance = NEW ltc_po_history_values( ).
+
+    cl_mm_pur_aut_master=>set_rtype( iv_rtype ).
+
+* Delegate execution to the test runner
+    IF it_ebeln IS SUPPLIED.
+      lcl_test_runner=>create( it_ebeln = it_ebeln iv_final = iv_final iv_zero = iv_zero )->run_test( iv_listvariant = iv_listvariant iv_devsys_test = iv_devsys_test ).
+    ELSEIF iv_vendor IS SUPPLIED AND iv_rtype IS SUPPLIED.
+      lcl_test_runner=>create( iv_vendor = iv_vendor iv_rtype = iv_rtype iv_final = iv_final iv_zero = iv_zero )->run_test( iv_listvariant = iv_listvariant iv_devsys_test = iv_devsys_test ).
+    ELSEIF iv_vendor IS SUPPLIED.
+      lcl_test_runner=>create( iv_vendor = iv_vendor iv_final = iv_final iv_zero = iv_zero )->run_test( iv_listvariant = iv_listvariant iv_devsys_test = iv_devsys_test ).
+    ELSEIF iv_rtype IS SUPPLIED.
+      lcl_test_runner=>create( iv_rtype = iv_rtype iv_final = iv_final iv_zero = iv_zero )->run_test( iv_listvariant = iv_listvariant iv_devsys_test = iv_devsys_test ).
+    ELSE.
+      lcl_test_runner=>create( iv_final = iv_final iv_zero = iv_zero )->run_test( iv_listvariant = iv_listvariant iv_devsys_test = iv_devsys_test ).
+    ENDIF.
+
+  ENDMETHOD.                    "constructor
+*
+  METHOD test_pure_po_history.
+    IF lcl_test_runner=>is_dev_system( ) IS INITIAL.
+      ltc_po_history_values=>create( iv_vendor = mc_dummy_vendor iv_rtype = if_mmpur_poh_dbsys_opt=>gc_po_history iv_devsys_test = space ).
+    ELSE.
+      ltc_po_history_values=>create(  iv_vendor = mc_std_vendor
+                                      iv_rtype = if_mmpur_poh_dbsys_opt=>gc_po_history iv_devsys_test = space ).
+    ENDIF.
+  ENDMETHOD.                    "test_pure_po_history
+*
+  METHOD test_po_history_ma.
+*    IF lcl_test_runner=>is_dev_system( ) IS INITIAL.
+*      ltc_po_history_values=>create( iv_vendor = mc_dummy_vendor iv_devsys_test = space iv_rtype = if_mmpur_poh_dbsys_opt=>gc_po_history_ma ).
+*    ELSE.
+*      ltc_po_history_values=>create( iv_vendor = mc_std_vendor iv_rtype = if_mmpur_poh_dbsys_opt=>gc_po_history_ma ).
+*    ENDIF.
+  ENDMETHOD.                    "test_po_history_ma
+*
+  METHOD test_freight_cost.
+*    IF lcl_test_runner=>is_dev_system( ) IS INITIAL.
+*      ltc_po_history_values=>create( iv_vendor = mc_dummy_vendor iv_devsys_test = space iv_rtype = if_mmpur_poh_dbsys_opt=>gc_freight_cost ).
+*    ELSE.
+*      ltc_po_history_values=>create( iv_vendor = mc_std_vendor iv_rtype = if_mmpur_poh_dbsys_opt=>gc_freight_cost ).
+*    ENDIF.
+  ENDMETHOD.                    "test_freight_cost
+*
+  METHOD test_freight_cost_ma.
+*    IF lcl_test_runner=>is_dev_system( ) IS INITIAL.
+*      ltc_po_history_values=>create( iv_vendor = mc_dummy_vendor iv_devsys_test = space iv_rtype = if_mmpur_poh_dbsys_opt=>gc_freight_cost_ma ).
+*    ELSE.
+*      ltc_po_history_values=>create( iv_vendor = mc_std_vendor iv_rtype = if_mmpur_poh_dbsys_opt=>gc_freight_cost_ma ).
+*    ENDIF.
+  ENDMETHOD.                    "test_freight_cost_ma
+*
+
+  METHOD test_service. "if not item-pstyp = '1' or '9' is initial
+
+    DATA lt_ebeln      TYPE ltt_string.
+    DATA lt_ebeln_ekpo TYPE TABLE OF ebeln.
+
+    SELECT DISTINCT ebeln FROM ekpo AS ekpo
+         INTO TABLE lt_ebeln_ekpo
+         UP TO 128 ROWS
+         WHERE pstyp = '1' OR pstyp = '9'
+           AND EXISTS ( SELECT ebelp FROM ekbe AS ekbe WHERE ekbe~ebeln = ekpo~ebeln )
+        ORDER BY ebeln.
+    APPEND LINES OF lt_ebeln_ekpo TO lt_ebeln.
+
+    CLEAR lt_ebeln_ekpo.
+
+    IF NOT lt_ebeln IS INITIAL.
+      ltc_po_history_values=>create( iv_listvariant = 'BEST'  it_ebeln = lt_ebeln iv_final = abap_true iv_zero = abap_false iv_devsys_test = abap_true ).
+      ltc_po_history_values=>create( iv_listvariant = 'ALLES' it_ebeln = lt_ebeln iv_final = abap_true iv_zero = abap_false iv_devsys_test = abap_true ).
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD test_invoice_plan. "if not item-fplnr is initial
+
+    DATA lt_ebeln      TYPE ltt_string.
+    DATA lt_ebeln_ekpo TYPE TABLE OF ebeln.
+
+    SELECT DISTINCT ebeln FROM ekpo AS ekpo
+         INTO TABLE lt_ebeln_ekpo
+         UP TO 128 ROWS
+         WHERE NOT fplnr = ''
+           AND EXISTS ( SELECT ebelp FROM ekbe AS ekbe WHERE ekbe~ebeln = ekpo~ebeln )
+        ORDER BY ebeln.
+    APPEND LINES OF lt_ebeln_ekpo TO lt_ebeln.
+
+    CLEAR lt_ebeln_ekpo.
+
+    IF NOT lines( lt_ebeln ) IS INITIAL.
+      ltc_po_history_values=>create( iv_listvariant = 'BEST'  it_ebeln = lt_ebeln iv_final = abap_true iv_zero = abap_false iv_devsys_test = abap_true ).
+      ltc_po_history_values=>create( iv_listvariant = 'ALLES' it_ebeln = lt_ebeln iv_final = abap_true iv_zero = abap_false iv_devsys_test = abap_true ).
+    ENDIF.
+  ENDMETHOD.
+
+*  METHOD test_final_indicator.
+*  ENDMETHOD.                    "test_final_indicator
+
+*  METHOD test_zero ."test for cleared items
+*  ENDMETHOD.                    "test_zero
+*
+  METHOD test_failed_docs.
+    IF lcl_test_runner=>is_dev_system( ) IS INITIAL OR
+       lcl_test_runner=>is_hdb_system( ) IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    DATA lt_ebeln TYPE ltt_string.
+
+    APPEND '4500002856' TO lt_ebeln."test for clearing of lines
+    APPEND '4500002857' TO lt_ebeln."test for clearing of lines
+
+    APPEND '4500002876' TO lt_ebeln."test for clearing of lines
+
+    APPEND '4500002878' TO lt_ebeln."test for clearing of lines
+    APPEND '4500002898' TO lt_ebeln."test for clearing of lines
+
+    APPEND '4500003204' TO lt_ebeln."test for clearing of lines
+    APPEND '4500003205' TO lt_ebeln."test for clearing of lines
+
+    APPEND '4500003206' TO lt_ebeln."test for clearing of lines
+    APPEND '4500003207' TO lt_ebeln."test for clearing of lines
+    APPEND '4500003208' TO lt_ebeln."test for clearing of lines
+    APPEND '4500003209' TO lt_ebeln."test for clearing of lines
+
+    APPEND '4500003249' TO lt_ebeln."test for clearing of lines
+    APPEND '4500003372' TO lt_ebeln."test for clearing of lines
+
+    DATA(lv_faileddoc) = '4500002078'."QI3 002 document
+    APPEND lv_faileddoc TO lt_ebeln.
+
+    ltc_po_history_values=>create( iv_listvariant = 'BEST'  it_ebeln = lt_ebeln iv_final = abap_true iv_zero = abap_false iv_devsys_test = abap_true ).
+    ltc_po_history_values=>create( iv_listvariant = 'ALLES' it_ebeln = lt_ebeln iv_final = abap_true iv_zero = abap_false iv_devsys_test = abap_true ).
+  ENDMETHOD.                    "test_failed_docs
+*
+ENDCLASS.                    "ltc_po_history_values IMPLEMENTATION
+
+*----------------------------------------------------------------------*
+* Unit Test
+*--------------------------------------------------------------------*
+CLASS ltc_po_history_values_all DEFINITION FINAL FOR TESTING
+  DURATION LONG "MEDIUM
+  RISK LEVEL HARMLESS.
+  PRIVATE SECTION.
+*   METHODS test_fulldb FOR TESTING RAISING cx_static_check .
+    METHODS test_fulldb_best FOR TESTING RAISING cx_static_check .
+    METHODS test_fulldb_alles FOR TESTING RAISING cx_static_check .
+ENDCLASS.                    "ltc_po_history_values DEFINITION
+*----------------------------------------------------------------------*
+*       CLASS ltc_po_history_values_all IMPLEMENTATION
+*----------------------------------------------------------------------*
+*
+*----------------------------------------------------------------------*
+CLASS ltc_po_history_values_all IMPLEMENTATION.
+  METHOD test_fulldb_best.
+    ltc_po_history_values=>create( iv_listvariant = 'BEST' iv_devsys_test = space iv_final = abap_true iv_zero = abap_true ).
+  ENDMETHOD.
+
+  METHOD test_fulldb_alles.
+    ltc_po_history_values=>create( iv_listvariant = 'ALLES' iv_devsys_test = space iv_final = abap_true iv_zero = abap_true ).
+  ENDMETHOD.
+
+  "test_fulldb
+ENDCLASS.                    "ltc_po_history_values_all IMPLEMENTATION

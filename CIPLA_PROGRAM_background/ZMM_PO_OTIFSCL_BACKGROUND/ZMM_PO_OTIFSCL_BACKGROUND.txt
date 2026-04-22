@@ -1,0 +1,240 @@
+*----------------------------------------------------------------------*
+* Program         ZMM_PO_OTIFSCL_BACKGROUND
+* Title           : Program to Upload data in ZMM_PO_OTIFSCL
+* Author          : Nikita Khanekar/ Nilesh
+* Program Type    : Upload Program
+* Creation Date   : 07-19-2019 /23.12.2020/28.12.2020
+* Transaction     : ZMM_PO_OTIFSCL1
+* Functional design: FS_MM_239_OTIF
+* Technical design: <document with technical specifications>
+* Change request : <change request number>
+* Transport number: CRDK963592/CRDK975333/CRDK975417
+* Ticket no       : 8000005577
+* Description     : Program to Upload data in ZMM_PO_OTIFSCL
+*----------------------------------------------------------------------*
+**----------------------------------------------------------------------*
+* Program         ZMM_PO_OTIFSCL_BACKGROUND
+* Title           : Program to Upload data in ZMM_PO_OTIFSCL
+* Author          : PRATIK DAS
+* Program Type    : Upload Program
+* Creation Date   : 18-08-2021
+* Transaction     : ZMM_PO_OTIFSCL1
+* Functional design: FS_MM_239_OTIF
+* Technical design:
+* Change request : <change request number>
+* Transport number: CRDK979663
+* Ticket no       : 8000007439
+* Description     : ADD SELECTION SCREEN BASED ON THE COMPANY CODE AND PO DOCUMENT TYPE
+*----------------------------------------------------------------------*
+** Modification Information
+* Date            : 06.07.2023
+* Author          : fatima zia
+* Transport number: CRDK987470
+* Description     : Performance Tunning
+*----------------------------------------------------------------------*
+** Modification Information
+* Date            : 09.08.2023
+* Author          : fatima zia
+* Ticket no       : 8000009210
+* Transport number: CRDK987867 CRDK987914 CRDK987914
+* Description     : otif impact issue
+*----------------------------------------------------------------------*
+
+
+REPORT zmm_po_otifscl_background.
+
+TABLES ekko.
+TYPES : BEGIN OF ty_ekko,
+          ebeln TYPE ekko-ebeln,
+          ebelp TYPE ekpo-ebelp,
+        END OF ty_ekko.
+
+TYPES : BEGIN OF ty_eket,
+          ebeln  TYPE eket-ebeln,
+          ebelp  TYPE eket-ebelp,
+          etenr  TYPE eket-etenr,
+          eindt  TYPE eket-eindt,
+          ebeln1 TYPE cdpos-objectid, "added By Nilesh 29.12.2020 8000005577
+        END OF ty_eket.
+
+*----------------------------------------------------------------------*
+*  D A T A                                                             *
+*----------------------------------------------------------------------*
+
+DATA: ta_table TYPE TABLE OF zmm_po_otifscl,
+      wa_table TYPE zmm_po_otifscl.
+
+DATA : ta_ekko TYPE TABLE OF ty_ekko,
+       wa_ekko TYPE ty_ekko.
+
+DATA : ta_eket TYPE TABLE OF ty_eket,
+       wa_eket TYPE ty_eket.
+
+DATA: ta_data TYPE TABLE OF zmm_po_otifscl,
+      wa_data TYPE zmm_po_otifscl.
+
+*SOC By Nilesh 22.12.2020 8000005577
+DATA : lv_date  TYPE sy-datum,
+       lv_date1 TYPE zparam_table-param_name.
+*EOC By Nilesh 22.12.2020 8000005577
+
+*SOC added By Nilesh 29.12.2020 8000005577
+DATA : tabkey TYPE cdpos-tabkey .
+
+CONSTANTS :co_zmm_otif4 TYPE zparam_table-id_name VALUE 'ZMM_OTIF4',
+           co_obj       TYPE cdpos-objectclas  VALUE 'EINKBELEG',
+           co_eket      TYPE cdpos-tabname VALUE 'EKET',
+           co_fname     TYPE cdpos-fname VALUE 'EINDT',
+           co_u         TYPE cdpos-chngind VALUE 'U'.
+*SOC By  PRATIK DAS DAT-18-08-21 8000007439.
+SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE text-001.
+SELECT-OPTIONS: s_bukrs FOR ekko-bukrs OBLIGATORY .
+SELECT-OPTIONS: s_bsart FOR ekko-bsart OBLIGATORY.
+SELECTION-SCREEN END OF BLOCK b1.
+
+*EOC BY PRATIK DAS DAT-18-08-21 8000007439.
+
+
+*EOC added By Nilesh 29.12.2020 8000005577
+*---------------------------------------------------------------------*
+* I N I T I A L I Z A T I O N                                         *
+*---------------------------------------------------------------------*
+INITIALIZATION.
+
+*---------------------------------------------------------------------*
+* S T A R T - O F - S E L E C T I O N                                 *
+*---------------------------------------------------------------------*
+START-OF-SELECTION.
+
+*SOC By Nilesh 22.12.2020 8000005577
+
+  CLEAR : lv_date, lv_date1.
+  SELECT SINGLE param_name
+      INTO lv_date1
+    FROM zparam_table
+    WHERE id_name EQ co_zmm_otif4
+     AND param_name NE ' '.
+  IF sy-subrc EQ 0.
+
+    CALL FUNCTION 'CONVERT_DATE_TO_INTERNAL'
+      EXPORTING
+        date_external            = lv_date1
+*       ACCEPT_INITIAL_DATE      =
+      IMPORTING
+        date_internal            = lv_date
+      EXCEPTIONS
+        date_external_is_invalid = 1
+        OTHERS                   = 2.
+    IF sy-subrc <> 0.
+* Implement suitable error handling here
+    ENDIF.
+
+    SELECT a~ebeln b~ebelp "c~eindt c~etenr
+          FROM ekko AS a
+          INNER JOIN ekpo AS b
+          ON b~ebeln EQ a~ebeln
+          CLIENT SPECIFIED
+          INTO CORRESPONDING FIELDS OF TABLE ta_ekko
+          WHERE" a~mandt EQ sy-mandt
+*       a~aedat EQ sy-datum "loc code commnetd By nilesh 23.12.2020 8000005577
+           a~bedat GT lv_date "added by Nilesh 23.12.2020 8000005577
+      AND  a~bukrs IN s_bukrs "added by PRATIK DAS 18-08-2021.
+      AND  a~bsart IN s_bsart. "added by PRATIK DAS 18-08-2021.
+
+    IF sy-subrc EQ 0.
+      SORT ta_ekko BY ebeln ebelp.
+    ENDIF.
+  ENDIF. "LOC added By Nilesh 22.12.2020 8000005577
+
+  IF ta_ekko IS NOT INITIAL.
+    SELECT ebeln ebelp etenr eindt
+      FROM eket
+      INTO CORRESPONDING FIELDS OF TABLE ta_eket
+      FOR ALL ENTRIES IN ta_ekko
+      WHERE ebeln EQ ta_ekko-ebeln
+      AND   ebelp EQ ta_ekko-ebelp.
+
+*SOC By Nilesh 29.12.2020  8000005577
+    IF sy-subrc EQ 0.
+      LOOP AT ta_eket ASSIGNING FIELD-SYMBOL(<fs_eket>).
+        <fs_eket>-ebeln1 = <fs_eket>-ebeln.
+      ENDLOOP.
+
+      SELECT objectclas,
+             objectid,
+             changenr,
+             tabname,
+             tabkey,
+             fname,
+             chngind,
+             value_old
+        FROM cdpos
+        INTO TABLE @DATA(ta_cdpos)
+        FOR ALL ENTRIES IN @ta_eket
+        WHERE objectclas = @co_obj
+          AND objectid = @ta_eket-ebeln1
+          AND tabname = @co_eket
+          AND fname = @co_fname
+          AND chngind = @co_u.
+    ENDIF.
+*EOC By Nilesh 29.12.2020  8000005577
+  ENDIF.
+
+  SORT : ta_ekko BY ebeln ebelp.
+  SORT : ta_eket BY ebeln ebelp.
+
+  "SOC BY FATIMA FOR 8000008803: PERFORMANCE TUNNING ON 06.07.2023.
+  SORT ta_cdpos BY objectid ASCENDING tabkey ASCENDING changenr ASCENDING.
+*  CLEAR wa_ekko.
+*  LOOP AT ta_ekko INTO wa_ekko.
+  CLEAR wa_eket.
+*    LOOP AT ta_eket INTO wa_eket WHERE ebeln EQ wa_ekko-ebeln
+*                                  AND  ebelp EQ wa_ekko-ebelp.
+  LOOP AT ta_eket INTO wa_eket.
+    MOVE :   wa_eket-ebeln TO wa_data-ebeln,
+             wa_eket-ebelp TO wa_data-ebelp,
+             wa_eket-etenr TO wa_data-etenr.
+
+*Soc By Nilesh 29.12.2020 8000005577
+*    CONCATENATE sy-mandt wa_ekko-ebeln wa_ekko-ebelp wa_eket-etenr INTO tabkey.
+
+    CONCATENATE sy-mandt wa_eket-ebeln wa_eket-ebelp wa_eket-etenr INTO tabkey.        "changed by fatima on 09.08.2023 for 8000009210
+
+*    READ TABLE ta_cdpos INTO DATA(wa_cdpos) WITH KEY objectid = wa_ekko-ebeln
+*                                                     tabkey = tabkey BINARY SEARCH.
+
+    READ TABLE ta_cdpos INTO DATA(wa_cdpos) WITH KEY objectid = wa_eket-ebeln
+                                                     tabkey = tabkey.    "changed by fatima on 09.08.2023 for 8000009210
+
+    IF sy-subrc EQ 0.
+      wa_data-eindt =  wa_cdpos-value_old.
+    ELSE.
+      wa_data-eindt = wa_eket-eindt.
+    ENDIF.
+*Eoc By Nilesh 29.12.2020 8000005577
+
+    APPEND wa_data TO ta_data.
+    CLEAR :wa_data, wa_cdpos, tabkey,wa_eket." adeed By Nilesh 29.12.2020
+  ENDLOOP.
+*ENDLOOP.
+
+  "commented by fatima
+*IF ta_data IS NOT INITIAL.
+*  LOOP AT ta_data INTO wa_data.
+*    MOVE : wa_data-ebeln TO wa_table-ebeln,
+*           wa_data-ebelp TO wa_table-ebelp,
+*           wa_data-eindt TO wa_table-eindt,
+*           wa_data-etenr TO wa_table-etenr.
+*    APPEND wa_table TO ta_table.
+*    CLEAR : wa_table,wa_data.
+*  ENDLOOP.
+*ENDIF.
+*
+*IF ta_table[] IS NOT INITIAL.
+*  MODIFY zmm_po_otifscl FROM TABLE ta_table.
+  IF ta_data[] IS NOT INITIAL.
+    MODIFY zmm_po_otifscl FROM TABLE ta_data.
+    IF sy-subrc = 0.
+      MESSAGE s028(zmm) DISPLAY LIKE 'E'.
+    ENDIF.
+  ENDIF.

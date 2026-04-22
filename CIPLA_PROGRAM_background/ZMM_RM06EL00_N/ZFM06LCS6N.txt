@@ -1,0 +1,10 @@
+*&---------------------------------------------------------------------*
+*&  Include           ZFM06LCS6N
+*&---------------------------------------------------------------------*
+data:    begin of common part fm06lcs6.
+
+
+select-options: s_memtyp for ekko-memorytype.
+
+
+data:    end of common part.

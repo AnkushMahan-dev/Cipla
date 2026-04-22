@@ -1,0 +1,1508 @@
+*&---------------------------------------------------------------------*
+*&  Include           ZPPC_CLASSMETHODS
+*&---------------------------------------------------------------------*
+CLASS zcl_ppc_fetchdata DEFINITION.
+  PUBLIC SECTION.
+    METHODS:  fetch_data,
+      disp_data.
+ENDCLASS.
+
+CLASS zcl_ppc_fetchdata IMPLEMENTATION.
+  METHOD fetch_data.
+*************************Pegging against Stock***************************
+    SELECT a~vbeln  a~erdat a~auart a~vkbur a~kunnr b~posnr b~matnr b~abgru b~kwmeng b~vrkme b~werks b~route
+    FROM vbak AS a INNER JOIN vbap AS b ON a~vbeln = b~vbeln
+    INNER JOIN mara AS c ON b~matnr = c~matnr
+    INTO TABLE it_sales WHERE a~erdat IN s_erdat AND b~abgru = ''
+    AND auart = 'ZEXP' AND c~mtart = 'ZFGS'.
+    it_salesorg[] = it_sales[].
+    SORT it_salesorg BY vbeln.
+    IF it_sales  IS NOT INITIAL.
+      SELECT matnr werks webaz FROM marc INTO TABLE lt_marc FOR ALL ENTRIES IN it_sales
+      WHERE matnr = it_sales-matnr AND werks = it_sales-werks.
+      SELECT route traztd FROM tvro INTO TABLE lt_tvro FOR ALL ENTRIES IN it_sales
+      WHERE route = it_sales-route.
+      SELECT vkbur bezei FROM tvkbt INTO TABLE lt_tvkbt FOR ALL ENTRIES IN
+      it_sales WHERE vkbur = it_sales-vkbur AND spras = 'EN'.
+      SELECT vbeln posnr edatu FROM vbep INTO TABLE lt_vbep
+        FOR ALL ENTRIES IN it_sales WHERE vbeln =  it_sales-vbeln
+                               AND posnr = it_sales-posnr.
+      SORT lt_vbep BY vbeln posnr.
+      SELECT kunnr land1 name1 INTO TABLE lt_country FROM kna1
+        FOR ALL ENTRIES IN it_sales WHERE kunnr = it_sales-kunnr AND spras = 'EN'.
+      SORT lt_country BY kunnr land1.
+      SELECT vbeln posnr parvw land1 FROM vbpa INTO TABLE lt_vbpa
+        FOR ALL ENTRIES IN it_sales WHERE
+               vbeln = it_sales-vbeln  AND parvw = 'WE'.
+      SORT lt_vbpa BY vbeln.
+      IF lt_vbpa IS NOT INITIAL.
+        SELECT land1 landx50 FROM t005t INTO TABLE lt_t005t
+          FOR ALL ENTRIES IN lt_vbpa WHERE land1 = lt_vbpa-land1
+                                     AND   spras = 'EN'.
+        SORT lt_t005t BY land1.
+      ENDIF.
+
+      SELECT vbeln posnr vsart     " VSARTTR
+        FROM vbkd INTO TABLE lt_vbkd FOR ALL ENTRIES IN it_sales WHERE vbeln = it_sales-vbeln AND
+          vsart IN ( '04', '06' ).
+      SORT lt_vbkd BY vbeln.
+      IF lt_vbkd IS NOT INITIAL.
+        SELECT vsart lead_time FROM zsd_ship_days INTO TABLE lt_zsd_ship_days FOR ALL ENTRIES IN
+         lt_vbkd WHERE vsart = lt_vbkd-vsart.
+        SORT lt_zsd_ship_days BY vsart.
+      ENDIF.
+      SELECT matnr maktg FROM makt INTO TABLE lt_makt
+        FOR ALL ENTRIES IN it_sales WHERE matnr = it_sales-matnr AND spras = 'EN'.
+      SORT lt_makt BY matnr.
+      SELECT werks name1 FROM t001w INTO TABLE lt_t001w.
+*        FOR ALL ENTRIES IN it_sales WHERE werks = it_sales-werks.
+      SORT lt_t001w BY werks.
+
+      SELECT vbeln posnr vgbel vgpos lgmng FROM lips INTO TABLE lt_lips
+      FOR ALL ENTRIES IN it_sales WHERE vgbel = it_sales-vbeln
+                       AND vgpos = it_sales-posnr.
+      SELECT werks charg vbeln posnr kalab kains ersda FROM mska INTO TABLE
+      lt_mska FOR ALL ENTRIES IN it_sales WHERE
+               vbeln = it_sales-vbeln AND posnr = it_sales-posnr.
+*               AND werks = it_sales-werks.
+      SELECT werks tdays FROM zpp_mrploc INTO TABLE lt_zmrploc
+         FOR ALL ENTRIES IN it_sales WHERE
+          werks = it_sales-werks.
+      SELECT domname domvalue_l ddtext FROM dd07v INTO TABLE lt_text
+            WHERE domname = 'DELKZ' AND ddlanguage = 'EN'.
+      SELECT locno loctype cust_attr3 FROM /ibp/loc_ext INTO TABLE lt_/ibp/loc_ext
+      WHERE loctype = 'P' AND cust_attr3 = 'ED'.
+*****************Pegging against process order
+      SELECT a~aufnr a~posnr a~matnr a~dgltp a~webaz a~kdauf a~kdpos a~psmng
+        a~dwerk b~objnr FROM afpo AS a INNER JOIN aufk AS b ON
+        a~aufnr EQ b~aufnr INTO TABLE
+        lt_afpo FOR ALL ENTRIES IN it_sales WHERE
+        matnr = it_sales-matnr. " and a~dgltp  IN s_erdat.
+      IF lt_afpo IS NOT INITIAL.
+        SELECT werks fabkl FROM t001w INTO TABLE lt_t001wfact FOR ALL ENTRIES IN
+          lt_afpo WHERE werks = lt_afpo-dwerk.
+        SELECT objnr stat inact FROM jest INTO TABLE
+          lt_jest FOR ALL ENTRIES IN lt_afpo
+          WHERE objnr = lt_afpo-objnr AND inact = ''.  "
+        FIELD-SYMBOLS: <fs_afpo> TYPE ty_afpo.
+        LOOP AT lt_jest INTO wa_jest.
+          READ TABLE lt_afpo ASSIGNING <fs_afpo> WITH KEY objnr = wa_jest-objnr.
+          IF sy-subrc = 0.
+            IF  wa_jest-stat = 'I0012' OR wa_jest-stat  = 'I0013' OR wa_jest-stat  = 'I0045'
+              OR wa_jest-stat  = 'I0046'  OR wa_jest-stat  = 'I0047'.
+              DELETE lt_afpo WHERE objnr = wa_jest-objnr.
+            ENDIF.
+          ENDIF.
+        ENDLOOP.
+        SELECT aufnr vbeln posnr matnr werks pegqty FROM zppt_proso_bck INTO TABLE
+          lt_protoso FOR ALL ENTRIES IN lt_afpo
+          WHERE aufnr = lt_afpo-aufnr. "  and vbeln = it_sales-vbeln and posnr = it_sales-posnr.
+        SELECT werks tdays FROM zpp_mrploc INTO TABLE lt_mrploc
+          FOR ALL ENTRIES IN lt_afpo WHERE werks = lt_afpo-dwerk.
+      ENDIF.
+*************Pegging against in-transit stock
+      SELECT ebeln ebelp loekz vbeln vbelp FROM ekkn INTO TABLE
+        lt_ekkn FOR ALL ENTRIES IN it_salesorg
+        WHERE vbeln = it_salesorg-vbeln AND
+              vbelp = it_salesorg-posnr AND loekz = ''.
+      SELECT ebeln bstyp loekz reswk FROM ekko
+        INTO TABLE lt_ekko FOR ALL ENTRIES IN lt_ekkn
+        WHERE ebeln = lt_ekkn-ebeln.
+
+      LOOP AT lt_ekko INTO wa_ekko.
+        IF wa_ekko-bstyp <> 'F' OR wa_ekko-loekz <> '' OR wa_ekko-reswk = ''.
+          READ TABLE lt_ekkn INTO wa_ekkn WITH KEY ebeln = wa_ekko-ebeln.
+          IF sy-subrc = 0.
+            DELETE lt_ekkn WHERE ebeln = wa_ekkn-ebeln.
+            DELETE lt_ekko WHERE ebeln = wa_ekko-ebeln.
+          ENDIF.
+        ENDIF.
+      ENDLOOP.
+      CLEAR wa_ekko.
+
+      SELECT ebeln ebelp loekz matnr elikz FROM ekpo INTO TABLE
+        lt_ekpo FOR ALL ENTRIES IN lt_ekkn WHERE
+        ebeln = lt_ekkn-ebeln AND ebelp = lt_ekkn-ebelp.
+
+      CLEAR wa_ekpo.
+      LOOP AT lt_ekpo INTO wa_ekpo.
+        IF wa_ekpo-loekz <> ' ' AND wa_ekpo-elikz <> ''.
+          READ TABLE lt_ekkn INTO wa_ekkn WITH KEY ebeln = wa_ekpo-ebeln
+                                               ebelp = wa_ekpo-ebelp.
+          DELETE lt_ekkn WHERE ebeln = wa_ekkn-ebeln.
+          DELETE lt_ekpo WHERE ebeln = wa_ekpo-ebeln AND ebelp = wa_ekpo-ebelp.
+        ENDIF.
+      ENDLOOP.
+      CLEAR wa_ekpo.
+
+      SELECT ebeln ebelp wemng wamng wadat FROM eket INTO TABLE
+        lt_eket FOR ALL ENTRIES IN lt_ekkn WHERE
+       ebeln = lt_ekkn-ebeln AND ebelp = lt_ekkn-ebelp.
+      LOOP AT lt_eket INTO wa_eket.
+        READ TABLE lt_ekpo INTO wa_ekpo WITH KEY ebeln = wa_eket-ebeln
+                                     ebelp = wa_eket-ebelp.
+        IF sy-subrc = 0.
+          wa_mixpieket-ebeln = wa_ekpo-ebeln.
+          wa_mixpieket-matnr = wa_ekpo-matnr.
+          wa_mixpieket-ebelp = wa_ekpo-ebelp.
+          wa_mixpieket-wemng = wa_eket-wemng.
+          wa_mixpieket-wamng = wa_eket-wamng.
+          wa_mixpieket-wadat = wa_eket-wadat.
+          APPEND wa_mixpieket TO lt_mixpieket.
+        ENDIF.
+      ENDLOOP.
+      SELECT werks tdays FROM zpp_mrploc INTO TABLE lt_mrplocsto
+         FOR ALL ENTRIES IN lt_ekko WHERE werks = lt_ekko-reswk.
+    ENDIF.
+    LOOP AT lt_eket ASSIGNING <fs_eket>.
+      IF ( <fs_eket>-wamng - <fs_eket>-wemng ) <= 0.
+        DELETE lt_eket INDEX sy-tabix.
+      ENDIF.
+    ENDLOOP.
+*************************************Pegging against Stock Code**************************************
+    SORT lt_mrploc BY werks.
+    SORT lt_protoso BY aufnr.
+    SORT lt_afpo BY matnr.
+    SORT lt_mska BY vbeln werks posnr.
+    SORT lt_lips BY vgbel vgpos.
+    SORT lt_zmrploc BY werks.
+    SORT it_sales BY vbeln werks posnr.
+    LOOP AT it_sales ASSIGNING <fs_sales>.
+      wa_itab-matnr = <fs_sales>-matnr.
+      wa_itab-vbeln = <fs_sales>-vbeln.
+      wa_itab-posnr = <fs_sales>-posnr.
+*      wa_itab-werks = <fs_sales>-werks.
+*    wa_itab-kwmeng =  <fs_sales>-kwmeng.
+      wa_itab-meins =  <fs_sales>-vrkme.  " zieme.
+*        wa_itab-edatu = sy-datum.
+*      wa_itab-dat00 = sy-datum.
+      wa_itab-vkbur = <fs_sales>-vkbur.
+      CLEAR wa_tvkbt.
+      READ TABLE lt_tvkbt INTO wa_tvkbt WITH KEY vkbur = <fs_sales>-vkbur.
+      wa_itab-bezei = wa_tvkbt-bezei.
+      CLEAR wa_tvkbt.
+      wa_itab-kunnr = <fs_sales>-kunnr.
+      CLEAR: lv_lgmng, wa_lips.
+*      READ TABLE lt_lips INTO wa_lips WITH KEY vgbel = <fs_sales>-vbeln
+*                      vgpos = <fs_sales>-posnr BINARY SEARCH.
+      LOOP AT lt_lips INTO wa_lips WHERE vgbel = <fs_sales>-vbeln AND
+                      vgpos = <fs_sales>-posnr.
+        lv_lgmng = lv_lgmng + wa_lips-lgmng.
+      ENDLOOP.
+      wa_itab-kwmeng =  <fs_sales>-kwmeng - lv_lgmng.  "   wa_lips-lgmng. "so qnt
+      CLEAR lv_lgmng.
+      IF wa_itab-kwmeng > '0'.
+*          append wa_itab to it_salesfin.
+        wa_salesfin-vbeln = <fs_sales>-vbeln.
+        wa_salesfin-erdat  = <fs_sales>-erdat.
+        wa_salesfin-auart  = <fs_sales>-auart.
+        wa_salesfin-vkbur   = <fs_sales>-vkbur.
+        wa_salesfin-kunnr  =  <fs_sales>-kunnr.
+        wa_salesfin-posnr  =   <fs_sales>-posnr.
+        wa_salesfin-matnr   =  <fs_sales>-matnr.
+        wa_salesfin-abgru   =  <fs_sales>-abgru.
+        wa_salesfin-kwmeng  =  <fs_sales>-kwmeng.
+*          wa_salesfin-zieme   = <fs_sales>-vrkme. " zieme.
+        wa_salesfin-vrkme   = <fs_sales>-vrkme. " zieme.
+        wa_salesfin-werks   = <fs_sales>-werks.
+        APPEND wa_salesfin TO it_salesfin.
+      ENDIF.
+      CLEAR wa_lips.
+*      ENDIF.
+
+*****      clear wa_/ibp/loc_ext.
+*****      read table lt_/ibp/loc_ext into wa_/ibp/loc_ext with key LOCNO = <fs_sales>-werks
+*****                        LOCTYPE = 'P' CUST_ATTR3 = 'ED'.
+*****      if sy-subrc = 0.
+*****         wa_itab-dat00 = ''.
+*****          wa_itab-rdate = ''.
+*****        else.
+*****      CLEAR wa_zmrploc.
+*****      READ TABLE lt_zmrploc INTO wa_zmrploc WITH KEY werks = <fs_sales>-werks BINARY SEARCH.
+*****      IF wa_zmrploc-tdays = '0'.
+*****        wa_itab-rdate = sy-datum.
+*****      ELSE.
+*****        wa_itab-rdate = wa_zmrploc-tdays + sy-datum.
+*****      ENDIF.
+*****      wa_itab-dat00 = sy-datum.
+*****      CLEAR wa_zmrploc.
+*****      endif.
+*****
+*****      CLEAR wa_vbep.
+*****      READ TABLE lt_vbep INTO wa_vbep WITH KEY vbeln = <fs_sales>-vbeln
+*****                      posnr = <fs_sales>-posnr BINARY SEARCH.
+*****      if sy-subrc = 0.
+*****      clear wa_vbkd.
+*****      read table lt_vbkd into wa_vbkd with key vbeln = wa_vbep-vbeln posnr = wa_vbep-posnr BINARY SEARCH.
+*****      if sy-subrc = 0.
+*****      clear wa_zsd_ship_days.
+*****      read table lt_zsd_ship_days into wa_zsd_ship_days with key vsart = wa_vbkd-vsart.
+*****      clear wa_tvro.
+*****      read table lt_tvro into wa_tvro with key route = <fs_sales>-route.
+*****      CALL FUNCTION 'CONVERSION_EXIT_TSTRG_OUTPUT'
+*****        EXPORTING
+*****          input         = wa_tvro-TRAZTD
+*****       IMPORTING
+*****         OUTPUT        = wa_tvro-TRAZTD .
+*****      endif.
+*****      endif.
+*****      wa_itab-edatu = wa_vbep-edatu + wa_zsd_ship_days-lead_time - wa_tvro-TRAZTD.
+*****      CLEAR: wa_country, wa_vbep, wa_zsd_ship_days, wa_tvro.
+*      READ TABLE lt_country INTO wa_country WITH KEY kunnr = <fs_sales>-kunnr BINARY SEARCH.
+*      IF sy-subrc = 0.
+*        wa_itab-name1 = wa_country-name1.
+**        wa_itab-landx50 = wa_country-landx50.
+*      ENDIF.
+      CLEAR wa_vbpa.
+      READ TABLE lt_vbpa INTO wa_vbpa WITH KEY vbeln = <fs_sales>-vbeln BINARY SEARCH.
+*      wa_itab-landx50 = wa_vbpa-land1.
+      CLEAR:wa_t005t.
+      READ TABLE lt_t005t INTO wa_t005t WITH KEY land1 = wa_vbpa-land1 BINARY SEARCH.
+      IF sy-subrc EQ 0.
+        CLEAR wa_country.
+        READ TABLE lt_country INTO wa_country WITH KEY kunnr = <fs_sales>-kunnr BINARY SEARCH.
+
+        IF sy-subrc = 0.
+          wa_itab-name1 = wa_country-name1.
+          wa_itab-landx50 = wa_t005t-landx50.
+*        wa_itab-landx50 = wa_country-landx50.
+        ENDIF.
+      ENDIF.
+      CLEAR wa_vbpa.
+
+
+
+      CLEAR wa_makt.
+      READ TABLE lt_makt INTO wa_makt WITH KEY matnr = <fs_sales>-matnr BINARY SEARCH.
+      IF sy-subrc = 0.
+        wa_itab-maktg = wa_makt-maktg.
+      ENDIF.
+      CLEAR wa_t001w.
+      READ TABLE lt_t001w INTO wa_t001w WITH KEY werks = <fs_sales>-werks BINARY SEARCH.
+      IF sy-subrc = 0.
+        wa_itab-pltdesc = wa_t001w-name1.
+      ENDIF.
+      CLEAR wa_mska.
+      LOOP AT lt_mska INTO wa_mska WHERE vbeln = <fs_sales>-vbeln
+                       AND posnr = <fs_sales>-posnr. "  AND werks = <fs_sales>-werks.  "finet
+        wa_itab-menge = wa_mska-kalab .
+        wa_itab-bdekz  = 'WB'.
+        wa_itab-bdelnr = wa_mska-charg.
+*     wa_itab-kains  = lv_kains.
+*     wa_itab-EDATU = sy-datum.
+        READ TABLE lt_text INTO wa_text WITH KEY domvalue_l = wa_itab-bdekz.
+        IF sy-subrc = 0.
+          wa_itab-ddtext = wa_text-ddtext.
+        ENDIF.
+        CLEAR wa_text.
+**************
+        CLEAR wa_/ibp/loc_ext.
+        READ TABLE lt_/ibp/loc_ext INTO wa_/ibp/loc_ext WITH KEY locno = wa_mska-werks " <fs_sales>-werks
+                          loctype = 'P' cust_attr3 = 'ED'.
+        IF sy-subrc = 0.
+          wa_itab-dat00 = ''.
+          wa_itab-rdate = ''.
+        ELSE.
+          CLEAR wa_zmrploc.
+          READ TABLE lt_zmrploc INTO wa_zmrploc WITH KEY werks = wa_mska-werks BINARY SEARCH.
+          IF wa_zmrploc-tdays = '0'.
+            wa_itab-rdate = sy-datum.
+          ELSE.
+            wa_itab-rdate = wa_zmrploc-tdays + sy-datum.
+          ENDIF.
+          wa_itab-dat00 = sy-datum.
+          CLEAR wa_zmrploc.
+        ENDIF.
+
+        CLEAR wa_vbep.
+        READ TABLE lt_vbep INTO wa_vbep WITH KEY vbeln = <fs_sales>-vbeln
+                        posnr = <fs_sales>-posnr BINARY SEARCH.
+        IF sy-subrc = 0.
+          CLEAR wa_vbkd.
+          READ TABLE lt_vbkd INTO wa_vbkd WITH KEY vbeln = wa_vbep-vbeln BINARY SEARCH.
+          IF sy-subrc = 0.
+            CLEAR wa_zsd_ship_days.
+            READ TABLE lt_zsd_ship_days INTO wa_zsd_ship_days WITH KEY vsart = wa_vbkd-vsart.
+            CLEAR wa_tvro.
+            READ TABLE lt_tvro INTO wa_tvro WITH KEY route = <fs_sales>-route.
+            CALL FUNCTION 'CONVERSION_EXIT_TSTRG_OUTPUT'
+              EXPORTING
+                input  = wa_tvro-traztd
+              IMPORTING
+                output = wa_tvro-traztd.
+          ENDIF.
+        ENDIF.
+        wa_itab-edatu = wa_vbep-edatu + wa_zsd_ship_days-lead_time - wa_tvro-traztd.
+        CLEAR: wa_country, wa_vbep, wa_zsd_ship_days, wa_tvro.
+        wa_itab-werks = wa_mska-werks.
+
+
+
+
+
+*****************
+        APPEND wa_itab TO itab.
+*           if wa_itab-kwmeng = '0' or wa_itab-menge = '0'.
+        IF wa_itab-kwmeng = '0' OR wa_itab-menge = '0'.
+          DELETE it_salesorg WHERE vbeln = wa_itab-vbeln.
+        ENDIF.
+        DELETE itab WHERE kwmeng = '0' OR menge = '0'.
+***************************
+        wa_itab-bdekz  = 'QM'.
+        wa_itab-bdelnr = wa_mska-charg.
+        wa_itab-menge  = wa_mska-kains.  " lv_kains.
+        IF wa_itab-menge = '0'.
+          CONTINUE.
+        ENDIF.
+        READ TABLE lt_text INTO wa_text WITH KEY domvalue_l = wa_itab-bdekz. " <fs_sales>-bdekz.
+        IF sy-subrc = 0.
+          wa_itab-ddtext = wa_text-ddtext.
+        ENDIF.
+        CLEAR wa_text.
+*        modify zppt_commitment from wa_itab.
+
+
+*****        CLEAR wa_marc.
+*****        READ TABLE lt_marc INTO wa_marc WITH KEY matnr = <fs_sales>-matnr
+*****                                                 werks = <fs_sales>-werks.
+*****        CLEAR wa_t001wfact.
+*****        READ TABLE lt_t001wfact INTO wa_t001wfact WITH KEY werks = <fs_sales>-werks.
+*****        CLEAR: lv_desptchdate, lv_ret, lv_webaz, lv_dgltp.
+*****        lv_dgltp = wa_mska-ersda.
+*****        lv_webaz = wa_marc-webaz.
+*****        CALL FUNCTION 'FKK_ADD_WORKINGDAY'
+*****          EXPORTING
+*****            i_date      = lv_dgltp
+*****            i_days      = lv_webaz
+*****            i_calendar1 = wa_t001wfact-fabkl " 'KU'
+*****            i_calendar2 = wa_t001wfact-fabkl "'KU'
+*****          IMPORTING
+*****            e_date      = lv_desptchdate
+*****            e_return    = lv_ret.
+*****
+*****        IF lv_ret = 0.
+******          CLEAR wa_mrploc.
+******          READ TABLE lt_mrploc INTO wa_mrploc WITH KEY werks = <fs_afpo>-dwerk BINARY SEARCH.
+******          wa_itabpo-rdate = lv_desptchdate + wa_mrploc-tdays.
+*****          wa_itab-dat00 = lv_desptchdate.
+*****          CLEAR: lv_ret, lv_desptchdate.
+*****        ENDIF.
+*****        CLEAR: lv_desptchdate, lv_ret, lv_webaz, lv_dgltp.
+
+        CLEAR wa_/ibp/loc_ext.
+        READ TABLE lt_/ibp/loc_ext INTO wa_/ibp/loc_ext WITH KEY locno = wa_mska-werks " <fs_sales>-werks
+                          loctype = 'P' cust_attr3 = 'ED'.
+        IF sy-subrc = 0.
+          wa_itab-dat00 = ''.
+          wa_itab-rdate = ''.
+        ELSE.
+
+
+          CLEAR wa_marc.
+          READ TABLE lt_marc INTO wa_marc WITH KEY matnr = <fs_sales>-matnr
+                                                   werks = <fs_sales>-werks.
+          CLEAR wa_t001wfact.
+          READ TABLE lt_t001wfact INTO wa_t001wfact WITH KEY werks = <fs_sales>-werks.
+          CLEAR: lv_desptchdate, lv_ret, lv_webaz, lv_dgltp.
+          lv_dgltp = wa_mska-ersda.
+          lv_webaz = wa_marc-webaz.
+          CALL FUNCTION 'FKK_ADD_WORKINGDAY'
+            EXPORTING
+              i_date      = lv_dgltp
+              i_days      = lv_webaz
+              i_calendar1 = wa_t001wfact-fabkl " 'KU'
+              i_calendar2 = wa_t001wfact-fabkl "'KU'
+            IMPORTING
+              e_date      = lv_desptchdate
+              e_return    = lv_ret.
+
+          IF lv_ret = 0.
+*          CLEAR wa_mrploc.
+*          READ TABLE lt_mrploc INTO wa_mrploc WITH KEY werks = <fs_afpo>-dwerk BINARY SEARCH.
+*          wa_itabpo-rdate = lv_desptchdate + wa_mrploc-tdays.
+            wa_itab-dat00 = lv_desptchdate.
+            CLEAR: lv_ret, lv_desptchdate.
+          ENDIF.
+          CLEAR: lv_desptchdate, lv_ret, lv_webaz, lv_dgltp.
+
+
+
+
+          CLEAR wa_zmrploc.
+          READ TABLE lt_zmrploc INTO wa_zmrploc WITH KEY werks = wa_mska-werks BINARY SEARCH.
+          IF wa_zmrploc-tdays = '0'.
+            wa_itab-rdate = wa_itab-dat00.
+          ELSE.
+            wa_itab-rdate = wa_zmrploc-tdays + wa_itab-dat00.
+          ENDIF.
+*      wa_itab-dat00 = sy-datum.
+          CLEAR wa_zmrploc.
+        ENDIF.
+
+
+
+
+
+        APPEND wa_itab TO itab.
+        IF wa_itab-kwmeng = '0' OR wa_itab-menge = '0'.
+          DELETE it_salesorg WHERE vbeln = wa_itab-vbeln.
+        ENDIF.
+        DELETE itab WHERE kwmeng = '0' OR menge = '0'.
+***********************
+        CLEAR: wa_itab, wa_mska.
+      ENDLOOP.
+    ENDLOOP.
+**************************Pegging against process order************************
+    SORT it_salesorg BY vbeln posnr. "  matnr. " vbeln posnr.
+    SORT lt_jest BY objnr.
+    SORT lt_mrploc BY werks.
+    SORT lt_afpo BY aufnr matnr objnr.
+    SORT lt_protoso BY aufnr vbeln posnr matnr werks.
+    LOOP AT lt_afpo ASSIGNING <fs_afpo>.
+      CLEAR wa_sales.
+      READ TABLE it_salesorg INTO wa_sales WITH KEY matnr = <fs_afpo>-matnr.
+      IF sy-subrc <> 0.
+        CONTINUE.
+      ENDIF.
+      CLEAR wa_jest.
+      READ TABLE lt_jest INTO wa_jest WITH KEY objnr = <fs_afpo>-objnr BINARY SEARCH.
+      IF sy-subrc = 0 AND wa_jest = ''.
+        DELETE lt_afpo INDEX sy-tabix.
+        CONTINUE.
+      ENDIF.
+*      LOOP AT lt_protoso INTO wa_protoso WHERE     Begin of Change by Tapas Das
+*              aufnr = <fs_afpo>-aufnr. "
+      READ TABLE lt_protoso INTO wa_protoso WITH KEY aufnr = <fs_afpo>-aufnr
+                                                     vbeln = <fs_afpo>-kdauf
+                                                     posnr = <fs_afpo>-kdpos
+                                                     matnr = <fs_afpo>-matnr
+                                                     werks = <fs_afpo>-dwerk BINARY SEARCH.
+      IF sy-subrc EQ 0 AND wa_protoso-pegqty IS NOT INITIAL.
+        wa_itabpo-vbeln = wa_protoso-vbeln.
+        wa_itabpo-posnr = wa_protoso-posnr.
+        wa_itabpo-matnr = wa_protoso-matnr.
+        wa_itabpo-werks = wa_protoso-werks.
+        wa_itabpo-menge = wa_protoso-pegqty.
+        wa_itabpo-kwmeng = wa_sales-kwmeng.
+        wa_itabpo-meins = wa_sales-vrkme.  " zieme.
+        wa_itabpo-bdelnr = wa_protoso-aufnr.
+        wa_itabpo-bdekz  = 'BR'.
+        lv_dgltp = <fs_afpo>-dgltp.
+        lv_webaz = <fs_afpo>-webaz.
+        CLEAR wa_t001wfact.
+        READ TABLE lt_t001wfact INTO wa_t001wfact WITH KEY werks = wa_itabpo-werks.
+        CALL FUNCTION 'FKK_ADD_WORKINGDAY'
+          EXPORTING
+            i_date      = lv_dgltp
+            i_days      = lv_webaz
+            i_calendar1 = wa_t001wfact-fabkl " 'KU'
+            i_calendar2 = wa_t001wfact-fabkl "'KU'
+          IMPORTING
+            e_date      = lv_desptchdate
+            e_return    = lv_ret.
+        CLEAR: lv_dgltp, lv_webaz.
+        IF lv_ret = 0.
+          CLEAR wa_mrploc.
+          READ TABLE lt_mrploc INTO wa_mrploc WITH KEY werks = <fs_afpo>-dwerk BINARY SEARCH.
+          wa_itabpo-rdate = lv_desptchdate + wa_mrploc-tdays.
+          wa_itabpo-dat00 = lv_desptchdate.
+          CLEAR: lv_ret, lv_desptchdate.
+        ENDIF.
+        CLEAR wa_text.
+        READ TABLE lt_text INTO wa_text WITH KEY domvalue_l = 'BR'.
+        IF sy-subrc = 0.
+          wa_itabpo-ddtext = wa_text-ddtext.
+        ENDIF.
+        CLEAR wa_sales.
+        READ TABLE it_salesorg INTO wa_sales WITH KEY  vbeln = wa_itabpo-vbeln
+                              posnr = wa_itabpo-posnr BINARY SEARCH..
+        IF sy-subrc = 0.
+          wa_itabpo-vkbur = wa_sales-vkbur.
+          CLEAR wa_tvkbt.
+          READ TABLE lt_tvkbt INTO wa_tvkbt WITH KEY vkbur = wa_sales-vkbur.
+          wa_itabpo-bezei = wa_tvkbt-bezei.
+          CLEAR wa_tvkbt.
+          wa_itabpo-kunnr = wa_sales-kunnr.
+          CLEAR wa_vbep.
+          READ TABLE lt_vbep INTO wa_vbep WITH KEY vbeln = wa_itabpo-vbeln
+                          posnr = wa_itabpo-posnr BINARY SEARCH.
+          IF sy-subrc = 0.
+            CLEAR wa_vbkd.
+            READ TABLE lt_vbkd INTO wa_vbkd WITH KEY vbeln = wa_vbep-vbeln  BINARY SEARCH.
+            IF sy-subrc = 0.
+              CLEAR wa_zsd_ship_days.
+              READ TABLE lt_zsd_ship_days INTO wa_zsd_ship_days WITH KEY vsart = wa_vbkd-vsart.
+
+              CLEAR wa_tvro.
+              READ TABLE lt_tvro INTO wa_tvro WITH KEY route = wa_sales-route.
+              CALL FUNCTION 'CONVERSION_EXIT_TSTRG_OUTPUT'
+                EXPORTING
+                  input  = wa_tvro-traztd
+                IMPORTING
+                  output = wa_tvro-traztd.
+
+
+            ENDIF.
+          ENDIF.
+          wa_itabpo-edatu  = wa_vbep-edatu + wa_zsd_ship_days-lead_time - wa_tvro-traztd.
+*          wa_itabpo-edatu = wa_vbep-edatu.
+          CLEAR: wa_country, wa_vbep, wa_zsd_ship_days, wa_tvro.
+*****          READ TABLE lt_country INTO wa_country WITH KEY kunnr = wa_sales-kunnr BINARY SEARCH.
+*****          IF sy-subrc = 0.
+*****            wa_itabpo-name1 = wa_country-name1.
+******            wa_itabpo-landx50 = wa_country-landx50.
+*****          ENDIF.
+*****          CLEAR wa_vbpa.
+*****          READ TABLE lt_vbpa INTO wa_vbpa WITH KEY vbeln = wa_itabpo-vbeln BINARY SEARCH.
+*****          wa_itabpo-landx50 = wa_vbpa-land1.
+          CLEAR wa_vbpa.
+          READ TABLE lt_vbpa INTO wa_vbpa WITH KEY vbeln = wa_sales-vbeln BINARY SEARCH.
+          CLEAR: wa_t005t.
+          READ TABLE lt_t005t INTO wa_t005t WITH KEY land1 = wa_vbpa-land1 BINARY SEARCH.
+          IF sy-subrc EQ 0.
+
+*      wa_itab-landx50 = wa_vbpa-land1.
+            CLEAR wa_country.
+            READ TABLE lt_country INTO wa_country WITH KEY kunnr = wa_sales-kunnr.
+
+            IF sy-subrc = 0.
+              wa_itabpo-name1 = wa_country-name1.
+              wa_itabpo-landx50 = wa_t005t-landx50.
+*        wa_itab-landx50 = wa_country-landx50.
+            ENDIF.
+          ENDIF.
+          CLEAR wa_vbpa.
+
+          CLEAR wa_makt.
+          READ TABLE lt_makt INTO wa_makt WITH KEY matnr = wa_itabpo-matnr BINARY SEARCH.
+          IF sy-subrc = 0.
+            wa_itabpo-maktg = wa_makt-maktg.
+          ENDIF.
+          CLEAR wa_t001w.
+          READ TABLE lt_t001w INTO wa_t001w WITH KEY werks = wa_itabpo-werks BINARY SEARCH.
+          IF sy-subrc = 0.
+            wa_itabpo-pltdesc = wa_t001w-name1.
+          ENDIF.
+*          modify zppt_commitment from wa_itabpo.
+          APPEND wa_itabpo TO itab.
+        ENDIF.
+        IF wa_itabpo-kwmeng = '0' OR wa_itabpo-menge = '0'.
+          DELETE it_salesorg WHERE vbeln = wa_itabpo-vbeln.
+        ENDIF.
+        DELETE itab WHERE kwmeng = '0' OR menge = '0'.
+
+        CLEAR wa_itabpo.
+      ELSE.
+        wa_itabpo-vbeln = <fs_afpo>-kdauf.
+        wa_itabpo-posnr = <fs_afpo>-kdpos.
+        wa_itabpo-matnr = <fs_afpo>-matnr.
+        wa_itabpo-werks = <fs_afpo>-dwerk.
+        wa_itabpo-menge = <fs_afpo>-psmng.
+        wa_itabpo-kwmeng = wa_sales-kwmeng.
+        wa_itabpo-meins = wa_sales-vrkme.  " zieme.
+        wa_itabpo-bdelnr = <fs_afpo>-aufnr.
+        wa_itabpo-bdekz  = 'BR'.
+        lv_dgltp = <fs_afpo>-dgltp.
+        lv_webaz = <fs_afpo>-webaz.
+        CLEAR wa_t001wfact.
+        READ TABLE lt_t001wfact INTO wa_t001wfact WITH KEY werks = wa_itabpo-werks.
+        IF sy-subrc EQ 0.
+          CALL FUNCTION 'FKK_ADD_WORKINGDAY'
+            EXPORTING
+              i_date      = lv_dgltp
+              i_days      = lv_webaz
+              i_calendar1 = wa_t001wfact-fabkl " 'KU'
+              i_calendar2 = wa_t001wfact-fabkl "'KU'
+            IMPORTING
+              e_date      = lv_desptchdate
+              e_return    = lv_ret.
+          CLEAR: lv_dgltp, lv_webaz.
+          IF lv_ret = 0.
+            CLEAR wa_mrploc.
+            READ TABLE lt_mrploc INTO wa_mrploc WITH KEY werks = <fs_afpo>-dwerk BINARY SEARCH.
+            IF sy-subrc EQ 0.
+              wa_itabpo-rdate = lv_desptchdate + wa_mrploc-tdays.
+              wa_itabpo-dat00 = lv_desptchdate.
+              CLEAR: lv_ret, lv_desptchdate.
+            ENDIF.
+          ENDIF.
+        ENDIF.
+        CLEAR wa_text.
+        READ TABLE lt_text INTO wa_text WITH KEY domvalue_l = 'BR'.
+        IF sy-subrc = 0.
+          wa_itabpo-ddtext = wa_text-ddtext.
+        ENDIF.
+        CLEAR wa_sales.
+        READ TABLE it_salesorg INTO wa_sales WITH KEY  vbeln = wa_itabpo-vbeln
+                              posnr = wa_itabpo-posnr BINARY SEARCH..
+        IF sy-subrc = 0.
+          wa_itabpo-vkbur = wa_sales-vkbur.
+          CLEAR wa_tvkbt.
+          READ TABLE lt_tvkbt INTO wa_tvkbt WITH KEY vkbur = wa_sales-vkbur.
+          IF sy-subrc EQ 0.
+            wa_itabpo-bezei = wa_tvkbt-bezei.
+            CLEAR wa_tvkbt.
+          ENDIF.
+          wa_itabpo-kunnr = wa_sales-kunnr.
+          CLEAR wa_vbep.
+          READ TABLE lt_vbep INTO wa_vbep WITH KEY vbeln = wa_itabpo-vbeln
+                          posnr = wa_itabpo-posnr BINARY SEARCH.
+          IF sy-subrc = 0.
+            CLEAR wa_vbkd.
+            READ TABLE lt_vbkd INTO wa_vbkd WITH KEY vbeln = wa_vbep-vbeln  BINARY SEARCH.
+            IF sy-subrc = 0.
+              CLEAR wa_zsd_ship_days.
+              READ TABLE lt_zsd_ship_days INTO wa_zsd_ship_days WITH KEY vsart = wa_vbkd-vsart.
+              IF sy-subrc EQ 0.
+
+                CLEAR wa_tvro.
+                READ TABLE lt_tvro INTO wa_tvro WITH KEY route = wa_sales-route.
+                IF sy-subrc EQ 0.
+                  CALL FUNCTION 'CONVERSION_EXIT_TSTRG_OUTPUT'
+                    EXPORTING
+                      input  = wa_tvro-traztd
+                    IMPORTING
+                      output = wa_tvro-traztd.
+                ENDIF.
+              ENDIF.
+            ENDIF.
+
+
+            wa_itabpo-edatu  = wa_vbep-edatu + wa_zsd_ship_days-lead_time - wa_tvro-traztd.
+*          wa_itabpo-edatu = wa_vbep-edatu.
+            CLEAR: wa_country, wa_vbep, wa_zsd_ship_days, wa_tvro.
+          ENDIF.
+*****          READ TABLE lt_country INTO wa_country WITH KEY kunnr = wa_sales-kunnr BINARY SEARCH.
+*****          IF sy-subrc = 0.
+*****            wa_itabpo-name1 = wa_country-name1.
+******            wa_itabpo-landx50 = wa_country-landx50.
+*****          ENDIF.
+*****          CLEAR wa_vbpa.
+*****          READ TABLE lt_vbpa INTO wa_vbpa WITH KEY vbeln = wa_itabpo-vbeln BINARY SEARCH.
+*****          wa_itabpo-landx50 = wa_vbpa-land1.
+          CLEAR wa_vbpa.
+          READ TABLE lt_vbpa INTO wa_vbpa WITH KEY vbeln = wa_sales-vbeln BINARY SEARCH.
+          IF sy-subrc EQ 0.
+            CLEAR: wa_t005t.
+            READ TABLE lt_t005t INTO wa_t005t WITH KEY land1 = wa_vbpa-land1 BINARY SEARCH.
+            IF sy-subrc EQ 0.
+
+*      wa_itab-landx50 = wa_vbpa-land1.
+              CLEAR wa_country.
+              READ TABLE lt_country INTO wa_country WITH KEY kunnr = wa_sales-kunnr.
+
+              IF sy-subrc = 0.
+                wa_itabpo-name1 = wa_country-name1.
+                wa_itabpo-landx50 = wa_t005t-landx50.
+*        wa_itab-landx50 = wa_country-landx50.
+              ENDIF.
+            ENDIF.
+            CLEAR wa_vbpa.
+          ENDIF.
+
+          CLEAR wa_makt.
+          READ TABLE lt_makt INTO wa_makt WITH KEY matnr = wa_itabpo-matnr BINARY SEARCH.
+          IF sy-subrc = 0.
+            wa_itabpo-maktg = wa_makt-maktg.
+          ENDIF.
+          CLEAR wa_t001w.
+          READ TABLE lt_t001w INTO wa_t001w WITH KEY werks = wa_itabpo-werks BINARY SEARCH.
+          IF sy-subrc = 0.
+            wa_itabpo-pltdesc = wa_t001w-name1.
+          ENDIF.
+*          modify zppt_commitment from wa_itabpo.
+          APPEND wa_itabpo TO itab.
+        ENDIF.
+        IF wa_itabpo-kwmeng = '0' OR wa_itabpo-menge = '0'.
+          DELETE it_salesorg WHERE vbeln = wa_itabpo-vbeln.
+        ENDIF.
+        DELETE itab WHERE kwmeng = '0' OR menge = '0'.
+
+        CLEAR wa_itabpo.
+
+      ENDIF.
+*      End of changes Tapas das
+    ENDLOOP.
+****************************Pegging against in-transit stock****************************
+    CLEAR wa_itabpo.
+    SORT lt_ekkn BY ebeln.
+    SORT lt_ekko BY ebeln.
+    SORT lt_mixpieket BY ebeln.
+    DELETE ADJACENT DUPLICATES FROM lt_ekkn COMPARING ebeln.
+    LOOP AT lt_ekkn INTO wa_ekkn.
+      CLEAR wa_ekko.
+      READ TABLE lt_ekko INTO wa_ekko WITH KEY ebeln = wa_ekkn-ebeln BINARY SEARCH.  " RESWK
+      IF sy-subrc = 0.
+        LOOP AT lt_mixpieket INTO wa_mixpieket WHERE ebeln = wa_ekkn-ebeln.
+          wa_mixpieket2 = wa_mixpieket.
+          lv_wemng = lv_wemng + wa_mixpieket-wemng.
+          lv_wamng = lv_wamng + wa_mixpieket-wamng.
+          AT END OF ebelp.
+            wa_itabpo-bdekz = 'WA'.
+            wa_itabpo-bdelnr = wa_ekkn-ebeln.
+            wa_itabpo-menge = ( lv_wamng - lv_wemng ).
+            wa_itabpo-matnr = wa_mixpieket-matnr.
+            wa_itabpo-werks = wa_ekko-reswk.
+            wa_itabpo-vbeln = wa_ekkn-vbeln.
+            wa_itabpo-posnr = wa_ekkn-vbelp.
+            wa_itabpo-dat00 = wa_mixpieket2-wadat.
+            CLEAR wa_sales.
+            READ TABLE it_salesorg INTO wa_sales WITH KEY vbeln = wa_ekkn-vbeln
+                                             posnr = wa_ekkn-ebelp
+                                             matnr = wa_mixpieket-matnr.
+            wa_itabpo-vkbur = wa_sales-vkbur.
+            CLEAR wa_tvkbt.
+            READ TABLE lt_tvkbt INTO wa_tvkbt WITH KEY vkbur = wa_sales-vkbur.
+            wa_itabpo-bezei = wa_tvkbt-bezei.
+            CLEAR wa_tvkbt.
+            wa_itabpo-kunnr = wa_sales-kunnr.
+            CLEAR: lv_lgmng, wa_lips.
+*            READ TABLE lt_lips INTO wa_lips WITH KEY vgbel = wa_sales-vbeln
+*                            vgpos = wa_sales-posnr BINARY SEARCH.
+            LOOP AT lt_lips INTO wa_lips WHERE vgbel = wa_sales-vbeln AND
+                            vgpos = wa_sales-posnr.
+              lv_lgmng = lv_lgmng + wa_lips-lgmng.
+
+            ENDLOOP.
+            wa_itabpo-kwmeng =  wa_sales-kwmeng - lv_lgmng.  "  wa_lips-lgmng.
+            CLEAR lv_lgmng.
+            wa_itabpo-meins = wa_sales-vrkme.  "zieme.
+
+            CLEAR wa_vbep.
+            READ TABLE lt_vbep INTO wa_vbep WITH KEY vbeln = wa_sales-vbeln
+                            posnr = wa_sales-posnr BINARY SEARCH.
+            IF sy-subrc = 0.
+              CLEAR wa_vbkd.
+              READ TABLE lt_vbkd INTO wa_vbkd WITH KEY vbeln = wa_vbep-vbeln BINARY SEARCH.
+              IF sy-subrc = 0.
+                CLEAR wa_zsd_ship_days.
+                READ TABLE lt_zsd_ship_days INTO wa_zsd_ship_days WITH KEY vsart = wa_vbkd-vsart.
+                CLEAR wa_tvro.
+                READ TABLE lt_tvro INTO wa_tvro WITH KEY route = wa_sales-route.
+                CALL FUNCTION 'CONVERSION_EXIT_TSTRG_OUTPUT'
+                  EXPORTING
+                    input  = wa_tvro-traztd
+                  IMPORTING
+                    output = wa_tvro-traztd.
+
+
+              ENDIF.
+            ENDIF.
+            wa_itabpo-edatu  = wa_vbep-edatu + wa_zsd_ship_days-lead_time.
+*            wa_itabpo-edatu = wa_vbep-edatu.
+            CLEAR: wa_country, wa_vbep, wa_zsd_ship_days, wa_tvro.
+*****            READ TABLE lt_country INTO wa_country WITH KEY kunnr = wa_sales-kunnr BINARY SEARCH.
+*****            IF sy-subrc = 0.
+*****              wa_itabpo-name1 = wa_country-name1.
+******              wa_itabpo-landx50 = wa_country-landx50.
+*****            ENDIF.
+*****            CLEAR wa_vbpa.
+*****            READ TABLE lt_vbpa INTO wa_vbpa WITH KEY vbeln = wa_sales-vbeln.
+*****            wa_itabpo-landx50 = wa_vbpa-land1.
+            CLEAR wa_vbpa.
+            READ TABLE lt_vbpa INTO wa_vbpa WITH KEY vbeln = wa_sales-vbeln BINARY SEARCH.
+*      wa_itab-landx50 = wa_vbpa-land1.
+            IF sy-subrc EQ 0.
+              READ TABLE lt_t005t INTO wa_t005t WITH KEY land1 = wa_vbpa-land1 BINARY SEARCH.
+              IF sy-subrc EQ 0.
+                CLEAR wa_country.
+                READ TABLE lt_country INTO wa_country WITH KEY kunnr = wa_sales-kunnr.
+
+                IF sy-subrc = 0.
+                  wa_itabpo-name1 = wa_country-name1.
+                  wa_itabpo-landx50 = wa_t005t-landx50.
+*        wa_itab-landx50 = wa_country-landx50.
+                ENDIF.
+              ENDIF.
+              CLEAR wa_vbpa.
+            ENDIF.
+
+            CLEAR wa_makt.
+            READ TABLE lt_makt INTO wa_makt WITH KEY matnr = wa_sales-matnr BINARY SEARCH.
+            IF sy-subrc = 0.
+              wa_itabpo-maktg = wa_makt-maktg.
+            ENDIF.
+            CLEAR wa_t001w.
+            READ TABLE lt_t001w INTO wa_t001w WITH KEY werks = wa_itabpo-werks BINARY SEARCH.
+            IF sy-subrc = 0.
+              wa_itabpo-pltdesc = wa_t001w-name1.
+            ENDIF.
+            CLEAR wa_mrploc.
+            READ TABLE lt_mrplocsto INTO wa_mrploc WITH KEY werks = wa_ekko-reswk.
+            CLEAR wa_text.
+            READ TABLE lt_text INTO wa_text WITH KEY domvalue_l = 'WA'.
+            IF sy-subrc = 0.
+              wa_itabpo-ddtext = wa_text-ddtext.
+            ENDIF.
+            wa_itabpo-rdate = wa_mixpieket2-wadat + wa_mrploc-tdays.
+*            modify zppt_commitment from wa_itabpo.
+            APPEND wa_itabpo TO itab.
+            CLEAR wa_itabpo.
+            DELETE itab WHERE kwmeng = '0' OR menge = '0'. "
+            CLEAR: lv_wemng, lv_wamng, wa_mixpieket, wa_mixpieket2.
+          ENDAT.
+
+        ENDLOOP.
+      ENDIF.
+      CLEAR wa_ekkn.
+    ENDLOOP.
+***************************Pegging against planned order****************
+    IF it_salesfin IS NOT INITIAL.
+      SELECT plnum matnr pwwrk gsmng psttr pedtr plscn verid webaz avmng FROM plaf INTO TABLE
+            lt_plaf FOR ALL ENTRIES IN it_salesfin WHERE
+            matnr = it_salesfin-matnr AND paart = 'LA' AND
+            beskz = 'E' OR beskz = 'X' AND
+            sobes = 'E' AND avmng = '0' AND
+            gsmng > '0' AND plscn = '000' AND
+            verid <> ''.
+      DELETE lt_plaf WHERE plscn  <> '000' OR verid = '' OR avmng <> '0'.
+      SORT lt_plafsel BY matnr pwwrk psttr.
+      SELECT aufnr vbeln posnr matnr werks pegqty manual_yloss_qty auto_yloss_qty
+          FROM zppt_proso_bck INTO TABLE lt_mdprotoso FOR ALL ENTRIES IN
+          lt_plaf WHERE matnr = lt_plaf-matnr AND werks = lt_plaf-pwwrk.
+*********
+      SELECT ebeln ebelp vbeln vbelp FROM ekkn INTO TABLE
+        lt_ekknmd FOR ALL ENTRIES IN it_salesfin
+        WHERE vbeln = it_salesfin-vbeln AND
+              vbelp = it_salesfin-posnr.  "  AND loekz = ''.
+      SELECT ebeln   " bstyp loekz
+        reswk FROM ekko
+        INTO TABLE lt_ekkomd FOR ALL ENTRIES IN lt_ekknmd
+        WHERE ebeln = lt_ekknmd-ebeln.
+
+      CLEAR wa_ekko.
+      SELECT ebeln ebelp eglkz FROM ekpo INTO TABLE
+        lt_ekpomd FOR ALL ENTRIES IN lt_ekkomd WHERE
+        ebeln = lt_ekkomd-ebeln.
+    ENDIF.
+*********
+    SORT it_salesfin BY vbeln posnr.
+    REFRESH: lt_mdstock[].
+    CLEAR  : wa_ekkn.
+    lt_plaftemp[] = lt_plaf[].
+    DELETE ADJACENT DUPLICATES FROM lt_plaf COMPARING matnr pwwrk.
+    lt_plafsel[] = lt_plaf[].
+    CLEAR wa_plafsel.
+    LOOP AT lt_plafsel INTO wa_plafsel.
+      CALL FUNCTION 'MD_STOCK_REQUIREMENTS_LIST_API'
+        EXPORTING
+          matnr                    = wa_plafsel-matnr
+          werks                    = wa_plafsel-pwwrk
+        TABLES
+*         mdpsx                    = lt_mdpsx
+          mdezx                    = lt_mdezx
+*         mdsux                    = lt_mdsux
+        EXCEPTIONS
+          material_plant_not_found = 1
+          plant_not_found          = 2
+          OTHERS                   = 3.
+      IF sy-subrc <> 0.
+* Implement suitable error handling here
+      ENDIF.
+      DELETE lt_mdezx WHERE kunnr = '' OR planr = ''.
+*      sort lt_mdezx by planr delkz.
+
+      LOOP AT lt_mdezx ASSIGNING FIELD-SYMBOL(<ls_mdezx>).
+        AT END OF planr.
+          IF <ls_mdezx>-mng02 < 0.
+            READ TABLE lt_mdezx ASSIGNING FIELD-SYMBOL(<ls_mdezx1>) WITH KEY planr = <ls_mdezx>-planr
+                                                                            delkz = 'U1' BINARY SEARCH.
+            IF sy-subrc = 0.
+              wa_mdstock-etd = <ls_mdezx1>-dat01.
+            ELSE.
+              READ TABLE lt_mdezx ASSIGNING <ls_mdezx1> WITH KEY planr = <ls_mdezx>-planr
+                                                                              delkz = 'U2' BINARY SEARCH.
+              IF sy-subrc = 0.
+                wa_mdstock-etd = <ls_mdezx1>-dat01.
+              ENDIF.
+            ENDIF.
+            wa_mdstock-vbeln  = <ls_mdezx>-planr+0(10).
+            wa_mdstock-posnr  = <ls_mdezx>-planr+10(6).
+            wa_mdstock-kunnr  = <ls_mdezx>-kunnr.
+            wa_mdstock-mng02  = <ls_mdezx>-mng02 * ( -1 ).
+            wa_mdstock-werks  = wa_plafsel-pwwrk.
+            wa_mdstock-matnr  = wa_plafsel-matnr.
+*        ga_accassign-meins  = ga_output-meins.
+            CLEAR wa_sales.
+            READ TABLE it_salesfin INTO wa_sales WITH KEY  vbeln = wa_mdstock-vbeln
+                                  posnr = wa_mdstock-posnr BINARY SEARCH..
+            IF sy-subrc = 0.
+              CLEAR wa_ekkn.
+*        loop at lt_ekknmd into wa_ekkn where
+*                               ebeln = wa_sales-vbeln and
+*                               vbelp = wa_sales-posnr.
+              READ TABLE lt_ekknmd INTO wa_ekkn WITH KEY
+                                      ebeln = wa_sales-vbeln
+                                      vbelp = wa_sales-posnr.
+              IF sy-subrc = 0.
+                CLEAR lt_ekko.
+                READ TABLE lt_ekkomd INTO wa_ekko WITH KEY
+                                  ebeln = wa_ekkn-ebeln.
+                IF sy-subrc = 0 AND wa_ekko-reswk = wa_plafsel-pwwrk.
+                  LOOP AT lt_ekpomd INTO wa_ekpomd WHERE
+                              ebeln = wa_ekko-ebeln.           " ebelp = lt_ekknmd-ebelp.
+                    IF wa_ekpomd-eglkz <> ''.
+                      lv_flag = 'X'.
+                    ENDIF.
+                  ENDLOOP.
+                  IF lv_flag <> 'X'.
+                    APPEND wa_mdstock TO lt_mdstock.
+                    CLEAR: lv_flag, wa_mdstock.
+                  ENDIF.
+                ENDIF.
+              ELSE.
+                APPEND wa_mdstock TO lt_mdstock.
+                CLEAR: lv_flag, wa_mdstock.
+              ENDIF.
+            ENDIF.
+            CLEAR: lv_flag, wa_mdstock.
+          ENDIF.
+        ENDAT.
+      ENDLOOP.
+      CLEAR wa_plafsel.
+    ENDLOOP.
+    SORT lt_mdstock BY vbeln posnr matnr werks.
+    SORT lt_mdprotoso BY vbeln posnr matnr werks.
+    CLEAR wa_mdstock.
+    LOOP AT lt_mdstock ASSIGNING FIELD-SYMBOL(<fs_mdstock>).
+      CLEAR wa_mdprotoso.
+      READ TABLE lt_mdprotoso INTO wa_mdprotoso WITH KEY
+                                  vbeln = <fs_mdstock>-vbeln
+                                  posnr = <fs_mdstock>-posnr
+                                  matnr = <fs_mdstock>-matnr
+                                  werks = <fs_mdstock>-werks.
+      IF sy-subrc = 0.
+        LOOP AT lt_mdprotoso INTO wa_mdprotoso WHERE
+                                   vbeln = <fs_mdstock>-vbeln AND
+                                   posnr = <fs_mdstock>-posnr AND
+                                   matnr = <fs_mdstock>-matnr AND
+                                   werks = <fs_mdstock>-werks.
+          lv_qntmerge = wa_mdprotoso-manual_yloss_qty + wa_mdprotoso-auto_yloss_qty.
+          AT END OF werks.
+            <fs_mdstock>-mng02 = <fs_mdstock>-mng02 - lv_qntmerge.
+            CLEAR lv_qntmerge.
+          ENDAT.
+          CLEAR wa_mdprotoso.
+        ENDLOOP.
+      ENDIF.
+    ENDLOOP.
+    DELETE lt_mdstock WHERE mng02 = '0'.
+    DELETE lt_mdstock WHERE mng02 < 0.
+    SORT lt_mdstock BY matnr werks etd.
+    lt_plaf[] = lt_plaftemp[].
+    IF NOT lt_plaf IS INITIAL.
+      REFRESH:  lt_t001w[].
+      SELECT werks name1 fabkl FROM t001w INTO TABLE lt_t001w FOR ALL ENTRIES IN
+        lt_plaf WHERE werks = lt_plaf-pwwrk.
+      SELECT werks tdays FROM zpp_mrploc INTO TABLE lt_mrplocmd
+      FOR ALL ENTRIES IN lt_plaf  WHERE werks = lt_plaf-pwwrk.
+      SORT lt_t001w BY werks.
+      SORT lt_mrplocmd BY werks.
+    ENDIF.
+    SORT lt_plaf BY matnr pwwrk psttr.
+    SORT it_salesfin BY vbeln posnr.
+    CLEAR: lv_flag,  wa_itabpo.
+    LOOP AT lt_plaf ASSIGNING FIELD-SYMBOL(<fs_plaf>) FROM 1.
+      LOOP AT lt_mdstock ASSIGNING FIELD-SYMBOL(<fs_mdproso>) FROM 1
+                      WHERE matnr = <fs_plaf>-matnr AND
+                            werks = <fs_plaf>-pwwrk.
+*      IF sy-subrc = 0.
+        IF <fs_mdproso> IS ASSIGNED AND <fs_plaf> IS ASSIGNED.
+          IF <fs_plaf>-gsmng > <fs_mdproso>-mng02 OR
+               <fs_plaf>-gsmng = <fs_mdproso>-mng02.  " sumqnt.
+            IF  <fs_plaf>-gsmng = <fs_mdproso>-mng02.
+              lv_flag = 'X'.
+            ENDIF.
+            <fs_plaf>-gsmng = <fs_plaf>-gsmng - <fs_mdproso>-mng02. " sumqnt.
+            wa_itabpo-matnr = <fs_plaf>-matnr.
+            wa_itabpo-werks = <fs_plaf>-pwwrk.
+            wa_itabpo-bdekz = 'PA'.
+            wa_itabpo-bdelnr = <fs_plaf>-plnum.
+            wa_itabpo-menge = <fs_mdproso>-mng02.  " <fs_mdproso>-sumqnt.
+            wa_itabpo-vbeln = <fs_mdproso>-vbeln.
+            wa_itabpo-posnr = <fs_mdproso>-posnr.
+*          lt_mixpieket
+*    wa_itabpo-dat00 = .
+*************
+            CLEAR wa_sales.
+            READ TABLE it_salesfin INTO wa_sales WITH KEY  vbeln = wa_itabpo-vbeln
+                                    posnr = wa_itabpo-posnr  matnr = wa_itabpo-matnr BINARY SEARCH.
+            wa_itabpo-vkbur = wa_sales-vkbur.
+            CLEAR wa_tvkbt.
+            READ TABLE lt_tvkbt INTO wa_tvkbt WITH KEY vkbur = wa_sales-vkbur.
+            wa_itabpo-bezei = wa_tvkbt-bezei.
+            CLEAR wa_tvkbt.
+            wa_itabpo-kunnr = wa_sales-kunnr.
+            CLEAR wa_vbep.
+            READ TABLE lt_vbep INTO wa_vbep WITH KEY vbeln = wa_sales-vbeln
+                            posnr = wa_sales-posnr BINARY SEARCH.
+            IF sy-subrc = 0.
+              CLEAR wa_vbkd.
+              READ TABLE lt_vbkd INTO wa_vbkd WITH KEY vbeln = wa_vbep-vbeln BINARY SEARCH.
+              IF sy-subrc = 0.
+                CLEAR wa_zsd_ship_days.
+                READ TABLE lt_zsd_ship_days INTO wa_zsd_ship_days WITH KEY vsart = wa_vbkd-vsart.
+                CLEAR wa_tvro.
+                READ TABLE lt_tvro INTO wa_tvro WITH KEY route = wa_sales-route.
+                CALL FUNCTION 'CONVERSION_EXIT_TSTRG_OUTPUT'
+                  EXPORTING
+                    input  = wa_tvro-traztd
+                  IMPORTING
+                    output = wa_tvro-traztd.
+
+              ENDIF.
+            ENDIF.
+            wa_itabpo-edatu  = wa_vbep-edatu + wa_zsd_ship_days-lead_time - wa_tvro-traztd.
+*            wa_itabpo-edatu = wa_vbep-edatu.
+            CLEAR: lv_lgmng,  wa_lips.
+            CLEAR: wa_country, wa_vbep, wa_zsd_ship_days, wa_tvro.
+*            READ TABLE lt_lips INTO wa_lips WITH KEY vgbel = wa_sales-vbeln
+*                            vgpos = wa_sales-posnr BINARY SEARCH.
+            LOOP AT lt_lips INTO wa_lips WHERE vgbel = wa_sales-vbeln AND
+                            vgpos = wa_sales-posnr.
+              lv_lgmng = lv_lgmng + wa_lips-lgmng.
+            ENDLOOP.
+            wa_itabpo-kwmeng =  wa_sales-kwmeng - lv_lgmng.  "  wa_lips-lgmng.
+            CLEAR lv_lgmng.
+            wa_itabpo-meins = wa_sales-vrkme.  " zieme.
+*****            CLEAR wa_country.
+*****            READ TABLE lt_country INTO wa_country WITH KEY kunnr = wa_sales-kunnr BINARY SEARCH.
+*****            IF sy-subrc = 0.
+*****              wa_itabpo-name1 = wa_country-name1.
+******              wa_itabpo-landx50 = wa_country-landx50.
+*****            ENDIF.
+*****            CLEAR wa_vbpa.
+*****            READ TABLE lt_vbpa INTO wa_vbpa WITH KEY vbeln = wa_sales-vbeln.
+*****            wa_itabpo-landx50 = wa_vbpa-land1.
+            CLEAR wa_vbpa.
+            READ TABLE lt_vbpa INTO wa_vbpa WITH KEY vbeln = wa_sales-vbeln BINARY SEARCH.
+*      wa_itab-landx50 = wa_vbpa-land1.
+            CLEAR: wa_t005t.
+            READ TABLE lt_t005t INTO wa_t005t WITH KEY land1 = wa_vbpa-land1 BINARY SEARCH.
+            IF sy-subrc EQ 0.
+
+*      wa_itab-landx50 = wa_vbpa-land1.
+              CLEAR wa_country.
+              READ TABLE lt_country INTO wa_country WITH KEY kunnr = wa_sales-kunnr.
+
+              IF sy-subrc = 0.
+                wa_itabpo-name1 = wa_country-name1.
+                wa_itabpo-landx50 = wa_t005t-landx50.
+*        wa_itab-landx50 = wa_country-landx50.
+              ENDIF.
+            ENDIF.
+            CLEAR wa_vbpa.
+
+            CLEAR wa_makt.
+            READ TABLE lt_makt INTO wa_makt WITH KEY matnr = wa_itabpo-matnr BINARY SEARCH.
+            IF sy-subrc = 0.
+              wa_itabpo-maktg = wa_makt-maktg.
+            ENDIF.
+            CLEAR wa_t001w.
+            READ TABLE lt_t001w INTO wa_t001w WITH KEY werks = wa_itabpo-werks BINARY SEARCH.
+            IF sy-subrc = 0.
+              wa_itabpo-pltdesc = wa_t001w-name1.
+            ENDIF.
+            CLEAR wa_text.
+            READ TABLE lt_text INTO wa_text WITH KEY domvalue_l = 'PA'.
+            IF sy-subrc = 0.
+              wa_itabpo-ddtext = wa_text-ddtext.
+            ENDIF.
+            CLEAR: lv_ret, lv_desptchdate, lv_dgltp, lv_webaz.
+            lv_dgltp = <fs_plaf>-pedtr.
+            lv_webaz = <fs_plaf>-webaz.
+            CALL FUNCTION 'FKK_ADD_WORKINGDAY'
+              EXPORTING
+                i_date      = lv_dgltp
+                i_days      = lv_webaz
+                i_calendar1 = wa_t001w-fabkl
+                i_calendar2 = wa_t001w-fabkl
+              IMPORTING
+                e_date      = lv_desptchdate
+                e_return    = lv_ret.
+            CLEAR: lv_dgltp, lv_webaz.
+            IF lv_ret = 0.
+              CLEAR wa_mrploc.
+              READ TABLE lt_mrplocmd INTO wa_mrploc WITH KEY werks = <fs_plaf>-pwwrk BINARY SEARCH.
+              wa_itabpo-rdate = lv_desptchdate + wa_mrploc-tdays.
+              wa_itabpo-dat00 = lv_desptchdate.
+              CLEAR: lv_ret, lv_desptchdate.
+            ENDIF.
+
+***********
+            APPEND wa_itabpo TO itab.
+            CLEAR wa_itabpo.
+            DELETE lt_mdstock WHERE vbeln = <fs_mdproso>-vbeln AND
+              posnr = <fs_mdproso>-posnr AND matnr = <fs_mdproso>-matnr AND
+              werks = <fs_mdproso>-werks.
+            IF  lv_flag = 'X'.
+              DELETE lt_plaf WHERE plnum = <fs_plaf>-plnum AND
+              matnr = <fs_plaf>-matnr AND pwwrk = <fs_plaf>-pwwrk.
+              lv_flag = ' '.
+            ENDIF.
+          ELSEIF <fs_plaf>-gsmng < <fs_mdproso>-mng02.
+            <fs_mdproso>-mng02 = <fs_mdproso>-mng02 - <fs_plaf>-gsmng.
+            wa_itabpo-matnr = <fs_plaf>-matnr.
+            wa_itabpo-werks = <fs_plaf>-pwwrk.
+            wa_itabpo-bdekz = 'PA'.
+            wa_itabpo-bdelnr = <fs_plaf>-plnum.
+            wa_itabpo-menge = <fs_plaf>-gsmng.
+            wa_itabpo-vbeln = <fs_mdproso>-vbeln.
+            wa_itabpo-posnr = <fs_mdproso>-posnr.
+*    wa_itabpo-dat00 = .
+*************
+            CLEAR wa_sales.
+            READ TABLE it_salesfin INTO wa_sales WITH KEY  vbeln = wa_itabpo-vbeln
+                                    posnr = wa_itabpo-posnr matnr = wa_itabpo-matnr BINARY SEARCH.
+            wa_itabpo-vkbur = wa_sales-vkbur.
+            CLEAR wa_tvkbt.
+            READ TABLE lt_tvkbt INTO wa_tvkbt WITH KEY vkbur = wa_sales-vkbur.
+            wa_itabpo-bezei = wa_tvkbt-bezei.
+            CLEAR wa_tvkbt.
+            wa_itabpo-kunnr = wa_sales-kunnr.
+            CLEAR wa_vbep.
+            READ TABLE lt_vbep INTO wa_vbep WITH KEY vbeln = wa_sales-vbeln
+                            posnr = wa_sales-posnr BINARY SEARCH.
+            IF sy-subrc = 0.
+              CLEAR wa_vbkd.
+              READ TABLE lt_vbkd INTO wa_vbkd WITH KEY vbeln = wa_vbep-vbeln  BINARY SEARCH.
+              IF sy-subrc = 0.
+                CLEAR wa_zsd_ship_days.
+                READ TABLE lt_zsd_ship_days INTO wa_zsd_ship_days WITH KEY vsart = wa_vbkd-vsart.
+                CLEAR wa_tvro.
+                READ TABLE lt_tvro INTO wa_tvro WITH KEY route = wa_sales-route.
+                CALL FUNCTION 'CONVERSION_EXIT_TSTRG_OUTPUT'
+                  EXPORTING
+                    input  = wa_tvro-traztd
+                  IMPORTING
+                    output = wa_tvro-traztd.
+
+              ENDIF.
+            ENDIF.
+            wa_itabpo-edatu  = wa_vbep-edatu + wa_zsd_ship_days-lead_time - wa_tvro-traztd.
+            CLEAR: wa_country, wa_vbep, wa_zsd_ship_days, wa_tvro.
+*            wa_itabpo-edatu = wa_vbep-edatu.
+            CLEAR: lv_lgmng, wa_lips.
+*            READ TABLE lt_lips INTO wa_lips WITH KEY vgbel = wa_sales-vbeln
+*                            vgpos = wa_sales-posnr BINARY SEARCH.
+            LOOP AT lt_lips INTO wa_lips WHERE vgbel = wa_sales-vbeln AND
+                            vgpos = wa_sales-posnr.
+              lv_lgmng = lv_lgmng + wa_lips-lgmng.
+            ENDLOOP.
+            wa_itabpo-kwmeng =  wa_sales-kwmeng - lv_lgmng. "  wa_lips-lgmng.
+            CLEAR lv_lgmng.
+            wa_itabpo-meins = wa_sales-vrkme. " zieme.
+*****            CLEAR wa_country.
+*****            READ TABLE lt_country INTO wa_country WITH KEY kunnr = wa_sales-kunnr BINARY SEARCH.
+*****            IF sy-subrc = 0.
+*****              wa_itabpo-name1 = wa_country-name1.
+******              wa_itabpo-landx50 = wa_country-landx50.
+*****            ENDIF.
+*****            CLEAR wa_vbpa.
+*****            READ TABLE lt_vbpa INTO wa_vbpa WITH KEY vbeln = wa_sales-vbeln BINARY SEARCH.
+*****            wa_itabpo-landx50 = wa_vbpa-land1.
+            CLEAR wa_vbpa.
+            READ TABLE lt_vbpa INTO wa_vbpa WITH KEY vbeln = wa_sales-vbeln BINARY SEARCH.
+*      wa_itab-landx50 = wa_vbpa-land1.
+            CLEAR: wa_t005t.
+            READ TABLE lt_t005t INTO wa_t005t WITH KEY land1 = wa_vbpa-land1 BINARY SEARCH.
+            IF sy-subrc EQ 0.
+
+*      wa_itab-landx50 = wa_vbpa-land1.
+              CLEAR wa_country.
+              READ TABLE lt_country INTO wa_country WITH KEY kunnr = wa_sales-kunnr.
+
+              IF sy-subrc = 0.
+                wa_itabpo-name1 = wa_country-name1.
+                wa_itabpo-landx50 = wa_t005t-landx50.
+*        wa_itab-landx50 = wa_country-landx50.
+              ENDIF.
+            ENDIF.
+            CLEAR wa_vbpa.
+
+
+            CLEAR wa_makt.
+            READ TABLE lt_makt INTO wa_makt WITH KEY matnr = wa_itabpo-matnr BINARY SEARCH.
+            IF sy-subrc = 0.
+              wa_itabpo-maktg = wa_makt-maktg.
+            ENDIF.
+            CLEAR wa_t001w.
+            READ TABLE lt_t001w INTO wa_t001w WITH KEY werks = wa_itabpo-werks BINARY SEARCH.
+            IF sy-subrc = 0.
+              wa_itabpo-pltdesc = wa_t001w-name1.
+            ENDIF.
+            CLEAR wa_text.
+            READ TABLE lt_text INTO wa_text WITH KEY domvalue_l = 'PA'.
+            IF sy-subrc = 0.
+              wa_itabpo-ddtext = wa_text-ddtext.
+            ENDIF.
+            CLEAR: lv_ret, lv_desptchdate, lv_dgltp, lv_webaz.
+
+            lv_dgltp = <fs_plaf>-pedtr.
+            lv_webaz = <fs_plaf>-webaz.
+            CALL FUNCTION 'FKK_ADD_WORKINGDAY'
+              EXPORTING
+                i_date      = lv_dgltp
+                i_days      = lv_webaz
+                i_calendar1 = wa_t001w-fabkl
+                i_calendar2 = wa_t001w-fabkl
+              IMPORTING
+                e_date      = lv_desptchdate
+                e_return    = lv_ret.
+            CLEAR: lv_dgltp, lv_webaz.
+            IF lv_ret = 0.
+              CLEAR wa_mrploc.
+              READ TABLE lt_mrplocmd INTO wa_mrploc WITH KEY werks = <fs_plaf>-pwwrk BINARY SEARCH.
+              wa_itabpo-rdate = lv_desptchdate + wa_mrploc-tdays.
+              wa_itabpo-dat00 = lv_desptchdate.
+              CLEAR: lv_ret, lv_desptchdate.
+            ENDIF.
+***********
+            APPEND wa_itabpo TO itab.
+            CLEAR wa_itabpo.
+            DELETE lt_plaf WHERE plnum = <fs_plaf>-plnum AND
+              matnr = <fs_plaf>-matnr AND pwwrk = <fs_plaf>-pwwrk.
+          ENDIF.
+        ENDIF.
+      ENDLOOP.
+    ENDLOOP.
+
+******************************************************************************
+    IF NOT itab IS INITIAL.
+      SELECT * FROM zppt_commitment INTO TABLE lt_all.
+      DELETE zppt_commitment FROM TABLE lt_all.
+      MODIFY zppt_commitment FROM TABLE itab.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD disp_data.
+    CALL SCREEN 9001.
+  ENDMETHOD.
+ENDCLASS.
+*&---------------------------------------------------------------------*
+*&      Module  STATUS_9001  OUTPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE status_9001 OUTPUT.
+  SET PF-STATUS 'SO_PPC'.
+  SET TITLEBAR 'SO_TITLC'.
+  CALL FUNCTION 'LVC_FIELDCATALOG_MERGE'
+    EXPORTING
+      i_structure_name       = 'zppt_commitment' " 'ZSO_COMMIT_STR'
+    CHANGING
+      ct_fieldcat            = fieldcat
+    EXCEPTIONS
+      inconsistent_interface = 1
+      program_error          = 2
+      OTHERS                 = 3.
+  DATA: lw_fldcat   TYPE LINE OF lvc_t_fcat.
+  LOOP AT fieldcat INTO lw_fldcat.
+
+    IF lw_fldcat-fieldname = 'MATNR'.
+      lw_fldcat-col_pos = '2'.
+      MODIFY fieldcat FROM lw_fldcat INDEX sy-tabix TRANSPORTING col_pos. " reptext scrtext_m  scrtext_s scrtext_l.
+    ENDIF.
+
+    IF lw_fldcat-fieldname = 'MAKTG'.
+      lw_fldcat-col_pos = '3'.
+      lw_fldcat-reptext = 'Material Description'.
+      lw_fldcat-scrtext_m = 'Material Description'.
+      lw_fldcat-scrtext_s = 'Material Description'.
+      lw_fldcat-scrtext_l = 'Material Description'.
+      MODIFY fieldcat FROM lw_fldcat INDEX sy-tabix TRANSPORTING col_pos reptext scrtext_m  scrtext_s scrtext_l.
+      w_layout-col_opt = 'X'.
+    ENDIF.
+    IF lw_fldcat-fieldname = 'WERKS'.
+      lw_fldcat-col_pos = '4'.
+      MODIFY fieldcat FROM lw_fldcat INDEX sy-tabix TRANSPORTING col_pos. " reptext scrtext_m  scrtext_s scrtext_l.
+    ENDIF.
+
+    IF lw_fldcat-fieldname = 'PLTDESC'.
+      lw_fldcat-col_pos = '5'.
+      lw_fldcat-reptext = 'Plant Description'.
+      lw_fldcat-scrtext_m = 'Plant Description'.
+      lw_fldcat-scrtext_s = 'Plant Description'.
+      lw_fldcat-scrtext_l = 'Plant Description'.
+      MODIFY fieldcat FROM lw_fldcat INDEX sy-tabix TRANSPORTING col_pos reptext scrtext_m  scrtext_s scrtext_l.
+    ENDIF.
+    IF lw_fldcat-fieldname = 'VBELN'.
+      lw_fldcat-col_pos = '6'.
+      MODIFY fieldcat FROM lw_fldcat INDEX sy-tabix TRANSPORTING col_pos. " reptext scrtext_m  scrtext_s scrtext_l.
+    ENDIF.
+
+    IF lw_fldcat-fieldname = 'POSNR'.
+      lw_fldcat-col_pos = '7'.
+      MODIFY fieldcat FROM lw_fldcat INDEX sy-tabix TRANSPORTING col_pos. " reptext scrtext_m  scrtext_s scrtext_l.
+    ENDIF.
+
+    IF lw_fldcat-fieldname = 'BDEKZ'.
+      lw_fldcat-col_pos = '8'.
+      lw_fldcat-scrtext_m = 'Pegged MRP Element'.
+      lw_fldcat-scrtext_s = 'Pegged MRP Element'.
+      MODIFY fieldcat FROM lw_fldcat INDEX sy-tabix TRANSPORTING col_pos scrtext_m  scrtext_s.
+    ENDIF.
+
+    IF lw_fldcat-fieldname = 'DDTEXT'.
+      lw_fldcat-col_pos = '9'.
+      lw_fldcat-scrtext_m = 'Element Description'.
+      lw_fldcat-scrtext_s = 'Element Description'.
+      MODIFY fieldcat FROM lw_fldcat INDEX sy-tabix TRANSPORTING col_pos scrtext_m  scrtext_s.
+    ENDIF.
+    IF lw_fldcat-fieldname = 'BDELNR'.
+      lw_fldcat-col_pos = '10'.
+      lw_fldcat-scrtext_m = 'Element Number'.
+      lw_fldcat-scrtext_s = 'Element Number'.
+      MODIFY fieldcat FROM lw_fldcat INDEX sy-tabix TRANSPORTING col_pos scrtext_m  scrtext_s.
+    ENDIF.
+
+    IF lw_fldcat-fieldname = 'MENGE'.
+      lw_fldcat-col_pos = '11'.
+      lw_fldcat-reptext = 'Pegged Qty'.
+      lw_fldcat-scrtext_m = 'Pegged Qty'.
+      lw_fldcat-scrtext_s = 'Pegged Qty'.
+      lw_fldcat-scrtext_l = 'Pegged Qty'.
+      MODIFY fieldcat FROM lw_fldcat INDEX sy-tabix TRANSPORTING col_pos reptext scrtext_m  scrtext_s scrtext_l .
+    ENDIF.
+
+    IF lw_fldcat-fieldname = 'KWMENG'.
+      lw_fldcat-col_pos = '12'.
+      lw_fldcat-reptext = 'SO Qty'.
+      lw_fldcat-scrtext_m = 'SO Qty'.
+      lw_fldcat-scrtext_s = 'SO Qty'.
+      lw_fldcat-scrtext_l =  'SO Qty'.
+      MODIFY fieldcat FROM lw_fldcat INDEX sy-tabix TRANSPORTING col_pos reptext scrtext_m  scrtext_s scrtext_l .
+    ENDIF.
+
+    IF lw_fldcat-fieldname = 'MEINS'.
+      lw_fldcat-col_pos = '13'.
+*      lw_fldcat-reptext = 'SO Qty'.
+*      lw_fldcat-scrtext_m = 'SO Qty'.
+*      lw_fldcat-scrtext_s = 'SO Qty'.
+*      lw_fldcat-scrtext_l =  'SO Qty'.
+      MODIFY fieldcat FROM lw_fldcat INDEX sy-tabix TRANSPORTING col_pos. " reptext scrtext_m  scrtext_s scrtext_l .
+    ENDIF.
+
+    IF lw_fldcat-fieldname = 'EDATU'.
+      lw_fldcat-col_pos = '14'.
+      lw_fldcat-reptext = 'ETD'.
+      lw_fldcat-scrtext_m = 'ETD'.
+      lw_fldcat-scrtext_s = 'ETD'.
+      lw_fldcat-scrtext_l =  'ETD'.
+      MODIFY fieldcat FROM lw_fldcat INDEX sy-tabix TRANSPORTING col_pos reptext scrtext_m  scrtext_s  scrtext_l.
+    ENDIF.
+    IF lw_fldcat-fieldname = 'VKBUR'.
+      lw_fldcat-col_pos = '15'.
+*      lw_fldcat-reptext = 'SO Qty'.
+*      lw_fldcat-scrtext_m = 'SO Qty'.
+*      lw_fldcat-scrtext_s = 'SO Qty'.
+*      lw_fldcat-scrtext_l =  'SO Qty'.
+      MODIFY fieldcat FROM lw_fldcat INDEX sy-tabix TRANSPORTING col_pos. " reptext scrtext_m  scrtext_s scrtext_l .
+    ENDIF.
+    IF lw_fldcat-fieldname = 'BEZEI'.
+      lw_fldcat-col_pos = '16'.
+*      lw_fldcat-reptext = 'SO Qty'.
+*      lw_fldcat-scrtext_m = 'SO Qty'.
+*      lw_fldcat-scrtext_s = 'SO Qty'.
+*      lw_fldcat-scrtext_l =  'SO Qty'.
+      MODIFY fieldcat FROM lw_fldcat INDEX sy-tabix TRANSPORTING col_pos. " reptext scrtext_m  scrtext_s scrtext_l .
+    ENDIF.
+    IF lw_fldcat-fieldname = 'KUNNR'.
+      lw_fldcat-col_pos = '17'.
+*      lw_fldcat-reptext = 'SO Qty'.
+*      lw_fldcat-scrtext_m = 'SO Qty'.
+*      lw_fldcat-scrtext_s = 'SO Qty'.
+*      lw_fldcat-scrtext_l =  'SO Qty'.
+      MODIFY fieldcat FROM lw_fldcat INDEX sy-tabix TRANSPORTING col_pos. " reptext scrtext_m  scrtext_s scrtext_l .
+    ENDIF.
+    IF lw_fldcat-fieldname = 'NAME1'.
+      lw_fldcat-col_pos = '18'.
+      lw_fldcat-reptext = 'Customer Description'.
+      lw_fldcat-scrtext_m = 'Customer Description'.
+      lw_fldcat-scrtext_s = 'Customer Description'.
+      lw_fldcat-scrtext_l = 'Customer Description'.
+      MODIFY fieldcat FROM lw_fldcat INDEX sy-tabix TRANSPORTING col_pos reptext scrtext_m  scrtext_s scrtext_l.
+    ENDIF.
+    IF lw_fldcat-fieldname = 'LANDX50'.
+      lw_fldcat-col_pos = '19'.
+      lw_fldcat-reptext = 'Ship Country'.
+      lw_fldcat-scrtext_m = 'Ship Country'.
+      lw_fldcat-scrtext_s = 'Ship Country'.
+      lw_fldcat-scrtext_l = 'Ship Country'.
+      MODIFY fieldcat FROM lw_fldcat INDEX sy-tabix TRANSPORTING col_pos reptext scrtext_m  scrtext_s scrtext_l.
+    ENDIF.
+
+    IF lw_fldcat-fieldname = 'DAT00'.
+      lw_fldcat-col_pos = '20'.
+      lw_fldcat-reptext = 'Dispatch date'.
+      lw_fldcat-scrtext_m = 'Dispatch date'.
+      lw_fldcat-scrtext_s = 'Dispatch date'.
+      lw_fldcat-scrtext_l =  'Dispatch date'.
+      MODIFY fieldcat FROM lw_fldcat INDEX sy-tabix TRANSPORTING col_pos reptext scrtext_m  scrtext_s  scrtext_l.
+    ENDIF.
+
+    IF lw_fldcat-fieldname = 'RDATE'.
+      lw_fldcat-col_pos = '21'.
+      lw_fldcat-reptext = 'Receiving Date'.
+      lw_fldcat-scrtext_m = 'Receiving Date'.
+      lw_fldcat-scrtext_s = 'Receiving Date'.
+      lw_fldcat-scrtext_l =  'Receiving Date'.
+      MODIFY fieldcat FROM lw_fldcat INDEX sy-tabix TRANSPORTING  col_pos reptext scrtext_m  scrtext_s  scrtext_l.
+    ENDIF.
+  ENDLOOP.
+
+  IF o_alv IS INITIAL.
+    CREATE OBJECT o_alv
+      EXPORTING
+        i_parent = cl_gui_custom_container=>screen0.
+  ENDIF.
+  w_layout-cwidth_opt = 'X'.
+*  col_opt = ''.
+  CALL METHOD o_alv->set_table_for_first_display
+    EXPORTING
+      is_layout       = w_layout
+      i_save          = 'A'
+      is_variant      = x_variant
+    CHANGING
+      it_outtab       = itab
+      it_fieldcatalog = fieldcat.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_9001  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE user_command_9001 INPUT.
+  CALL METHOD cl_gui_cfw=>dispatch.
+  DATA: lv_ucomm TYPE sy-ucomm.
+  lv_ucomm = sy-ucomm.
+  CASE lv_ucomm.
+    WHEN 'BACK'.
+      PERFORM obj_refresh.
+      SET SCREEN '0'.
+      LEAVE SCREEN.
+*      LEAVE TO SCREEN 0.
+    WHEN 'CANCEL'.
+      PERFORM obj_refresh.
+      LEAVE PROGRAM.
+    WHEN 'EXIT'.
+      PERFORM obj_refresh.
+      LEAVE PROGRAM.
+  ENDCASE.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Form  OBJ_REFRESH
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM obj_refresh .
+  CALL METHOD o_alv->free
+    EXCEPTIONS
+      cntl_error        = 1
+      cntl_system_error = 2
+      OTHERS            = 3.
+
+ENDFORM.

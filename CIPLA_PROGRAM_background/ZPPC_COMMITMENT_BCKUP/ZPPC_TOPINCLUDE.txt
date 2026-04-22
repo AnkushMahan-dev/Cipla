@@ -1,0 +1,329 @@
+*&---------------------------------------------------------------------*
+*&  Include           ZPPC_TOPINCLUDE
+*&---------------------------------------------------------------------*
+CLASS   ZCL_PPC_FETCHDATA DEFINITION DEFERRED.
+tables: vbap, kna1, vbpa, vbak.
+data:   GO_OBJ type ref to ZCL_PPC_FETCHDATA,
+        fieldcat type  lvc_t_fcat,
+        itab type STANDARD TABLE OF ZSO_COMMIT_STR, "zppt_commitment,
+        itabpo type STANDARD TABLE OF ZSO_COMMIT_STR,
+        wa_itab type ZSO_COMMIT_STR,
+        wa_itabpo type ZSO_COMMIT_STR,
+*        wa_itabpo2 type ZSO_COMMIT_STR,
+        o_alv TYPE REF TO cl_gui_alv_grid,
+        w_layout type lvc_s_layo,
+        x_variant type disvariant.
+        x_variant-report = sy-repid.
+FIELD-SYMBOLS: <fs_itab> type ZSO_COMMIT_STR.
+types: begin of ty_sales,
+       vbeln type vbeln,
+       erdat type erdat,
+       auart type auart,
+       vkbur type vkbur,
+       kunnr type kunag,
+       posnr type posnr,
+       matnr type matnr,
+       abgru type abgru,
+       kwmeng type kwmeng,
+*       ZIEME type DZIEME,
+       vrkme type vrkme,
+       werks type werks_d,
+       route type route,
+       end of ty_sales.
+data:  it_sales type standard table of ty_sales,
+       it_salesorg type standard table of ty_sales,
+       wa_sales type ty_sales.
+types: begin of ty_lips,
+       VBELN type VBELN_VL,
+       POSNR type POSNR_VL,
+       vgbel type vgbel,
+       vgpos type vgpos,
+       lgmng type lgmng,
+       end of ty_lips.
+data:  lt_lips type standard table of ty_lips,
+       wa_lips type ty_lips.
+FIELD-SYMBOLS: <fs_lips> type ty_lips.
+types: begin of ty_mska,
+       werks type werks_d,
+       charg type CHARG_D,
+       vbeln  type vbeln,
+       posnr  type posnr,
+       kalab  type labst,
+       kains type insme,
+       ersda type ersda,
+       end of ty_mska.
+data:  lt_mska type standard table of ty_mska,
+       wa_mska type ty_mska.
+types: BEGIN OF ty_zmrploc,
+       werks type werks_d,
+       tdays type ZTDAYS,
+       end of ty_zmrploc.
+data:  lt_zmrploc type STANDARD TABLE OF ty_zmrploc,
+       wa_zmrploc type ty_zmrploc.
+FIELD-SYMBOLS: <fs_sales> type ty_sales.
+TYPES:  BEGIN OF ty_text,
+        domname    TYPE domname,
+        domvalue_l TYPE domvalue_l,
+        ddtext     TYPE ddtext,
+        END OF ty_text.
+DATA:  lt_text TYPE STANDARD TABLE OF ty_text,
+       wa_text TYPE ty_text.
+DATA:  lv_qnt type KWMENG,
+       lv_kains type insme.
+types: BEGIN OF ty_afpo,
+       AUFNR type aufnr,
+       posnr type CO_POSNR,
+       matnr type matnr,
+       DGLTP type CO_GLTRP,
+       WEBAZ type PLWEZ,
+       kdauf TYPE CO_KDAUF,
+       kdpos TYPE CO_KDPOS,
+       psmng TYPE CO_PSMNG,
+       DWERK type WERKS_D,
+       objnr type j_objnr,
+       end of ty_afpo.
+data:  lt_afpo type STANDARD TABLE OF ty_afpo,
+       wa_afpo type ty_afpo.
+
+types: BEGIN OF ty_jest,
+       objnr type j_objnr,
+       stat type j_status,
+       inact type j_inact,
+       end of ty_jest.
+data:  lt_jest type STANDARD TABLE OF ty_jest,
+       wa_jest type ty_jest.
+types: begin of ty_protoso,
+       aufnr type aufnr,
+       vbeln type vbeln,
+       posnr type posnr,
+       matnr type matnr,
+       werks type werks_d,
+       PEGQTY type VRFMG,
+       end of ty_protoso.
+data:  lt_protoso type STANDARD TABLE OF ty_protoso,
+       wa_protoso type ty_protoso.
+
+types: BEGIN OF ty_MRPLOC,
+       werks type werks_d,
+       TDAYS type ZTDAYS,
+       end of ty_mrploc.
+data:  lt_mrploc type STANDARD TABLE OF ty_mrploc,
+       lt_mrplocsto type STANDARD TABLE OF ty_mrploc,
+       lt_mrplocmd type STANDARD TABLE OF ty_mrploc,
+       wa_mrploc type ty_mrploc.
+FIELD-SYMBOLS: <fs_afpo> type ty_afpo.
+DATA: lv_desptchdate type sy-datum,
+      lv_DGLTP type sy-datum,
+      lv_WEBAZ type i,
+      lv_ret type sy-subrc.
+
+types: BEGIN OF ty_ekkn,
+       ebeln type ebeln,
+       ebelp  type ebelp,
+       loekz  type KLOEK,
+       vbeln  type VBELN_CO,
+       vbelp type VBELN_CO,
+       end of ty_ekkn.
+data:  lt_ekkn type STANDARD TABLE OF ty_ekkn,
+       lt_ekknmd type STANDARD TABLE OF ty_ekkn,
+       wa_ekkn type ty_ekkn.
+types: BEGIN OF ty_ekko,
+       ebeln type ebeln,
+       bstyp type EBSTYP,
+       loekz type ELOEK,
+       reswk type reswk,
+       end of ty_ekko.
+data:  lt_ekko type STANDARD TABLE OF ty_ekko,
+       lt_ekkomd type STANDARD TABLE OF ty_ekko,
+       wa_ekko type ty_ekko.
+types: BEGIN OF ty_ekpo,
+       EBELN type EBELN,
+       EBELP type ebelp,
+       LOEKZ type loekz,
+       MATNR type matnr,
+       ELIKZ type elikz,
+       end of ty_ekpo.
+data:  lt_ekpo type STANDARD TABLE OF ty_ekpo,
+       wa_ekpo type ty_ekpo.
+types: BEGIN OF ty_ekpomd,
+       EBELN type EBELN,
+       EBELP type ebelp,
+       EGLKZ  type EGLKZ,
+       end of ty_ekpomd.
+data:  lt_ekpomd type STANDARD TABLE OF ty_ekpomd,
+       wa_ekpomd type ty_ekpomd.
+types: begin of ty_eket,
+       ebeln type ebeln,
+       ebelp type ebelp,
+       WEMNG type wemng,
+       WAMNG type wamng,
+       WADAT type wadat,
+       end of ty_eket.
+data:  lt_eket type STANDARD TABLE OF ty_eket,
+       wa_eket type ty_eket,
+       wa_eketfin type ty_eket.
+data:  lv_wemng type wemng,
+       lv_wamng type wamng.
+
+types: BEGIN OF ty_mixpieket,
+       ebeln type ebeln,
+       MATNR type matnr,
+       ebelp type ebelp,
+       WEMNG type wemng,
+       WAMNG type wamng,
+       WADAT type wadat,
+*       MATNR type matnr,
+*       LOEKZ type loekz,
+*       ELIKZ type elikz,
+       end of ty_mixpieket.
+data: lt_mixpieket type STANDARD TABLE OF ty_mixpieket,
+      wa_mixpieket type ty_mixpieket,
+      wa_mixpieket2 type ty_mixpieket.
+*VBELN POSNR EDATU from vbep into table lt_vbep
+types: BEGIN OF ty_vbep,
+      VBELN  type vbeln,
+      POSNR  type posnr,
+      EDATU  type edatu,
+      END OF ty_vbep.
+data: lt_vbep type STANDARD TABLE OF ty_vbep,
+      wa_vbep type ty_vbep.
+types: BEGIN OF ty_country,
+       kunnr type kugnr,
+       land1 type land1,
+       NAME1 type NAME1_GP,
+       landx50 type landx50,
+       end of ty_country.
+data:  lt_country type STANDARD TABLE OF ty_country,
+       wa_country type ty_country.
+types: BEGIN OF ty_vbap,
+       VBELN type VBELN,
+       POSNR  type POSNR,
+       PARVW type  PARVW,
+       LAND1 type  LAND1,
+       end of ty_vbap.
+data:  lt_vbpa type standard table of ty_vbap,
+       wa_vbpa type ty_vbap.
+types: BEGIN OF ty_makt,
+       matnr type matnr,
+       maktg type maktg,
+       end of ty_makt.
+data:  lt_makt type STANDARD TABLE OF ty_makt,
+       wa_makt type ty_makt.
+types: BEGIN OF ty_t001w,
+       werks type werks_d,
+       name1 type name1,
+       fabkl type fabkl,
+       end of ty_t001w.
+data:  lt_t001w type STANDARD TABLE OF ty_t001w,
+       wa_t001w type ty_t001w.
+data:  it_salesfin type standard table of ty_sales,
+       wa_salesfin type ty_sales.
+types: begin of ty_plaf,
+       plnum type plnum,
+       matnr type plmat,
+       pwwrk type pwwrk,
+       gsmng type gsmng,
+       psttr type psttr,
+       pedtr type pedtr,
+       plscn type plscn,
+       verid type verid,
+       webaz type plwez,
+       avmng type avmng,
+       end of ty_plaf.
+data:  lt_plaf type STANDARD TABLE OF ty_plaf,
+       lt_plafsel type STANDARD TABLE OF ty_plaf,
+       lt_plaftemp type STANDARD TABLE OF ty_plaf,
+       wa_plafsel type ty_plaf,
+       wa_plaf type ty_plaf.
+types:  BEGIN OF ty_mdstock,
+        vbeln type vbeln,
+        posnr type posnr,
+        werks type werks_d,
+        matnr type matnr,
+        kunnr type kunag,
+        ETD type datum,
+        mng02 type VRFMG,
+        end of ty_mdstock.
+data:   lt_mdstock type STANDARD TABLE OF ty_mdstock,
+        wa_mdstock type ty_mdstock.
+types: begin of ty_mdprotoso,
+       aufnr type aufnr,
+       vbeln type vbeln,
+       posnr type posnr,
+       matnr type matnr,
+       werks type werks_d,
+       PEGQTY type VRFMG,
+       manual_yloss_qty	type zman_yloss_qty,
+       auto_yloss_qty	type zauto_yloss_qty,
+       sumqnt type VRFMG,
+       ETD type DATUM,
+       end of ty_mdprotoso.
+data:  lt_mdprotoso type STANDARD TABLE OF ty_mdprotoso,
+       lt_mdprotosofin type STANDARD TABLE OF ty_mdprotoso,
+       lt_mdprotosofinal type STANDARD TABLE OF ty_mdprotoso,
+       wa_mdprotoso type ty_mdprotoso,
+*       lt_mdpsx TYPE STANDARD TABLE OF mdps,
+        lt_mdezx TYPE STANDARD TABLE OF mdez.
+*       lt_mdsux TYPE STANDARD TABLE OF mdsu.
+data: lv_sumqt type VRFMG.
+data:  lv_flag type c,
+       lv_flag2 type c,
+       lv_qntmerge type VRFMG.
+types: BEGIN OF ty_t001wfact,
+       werks type werks_d,
+       fabkl type fabkl,
+       end of ty_t001wfact.
+data:  lt_t001wfact type STANDARD TABLE OF ty_t001wfact,
+       wa_t001wfact type ty_t001wfact.
+data:  lt_all type STANDARD TABLE OF ZPPT_COMMITMENT.
+types: BEGIN OF ty_TVKBT,
+       VKBUR type vkbur,
+       BEZEI type bezei,
+       end of ty_tvkbt.
+data:  lt_tvkbt type standard table of ty_tvkbt,
+       wa_tvkbt type ty_tvkbt.
+data:  lv_lgmng type lgmng.
+types: BEGIN OF ty_vbkd,
+       vbeln type vbeln,
+       posnr type posnr,
+       vsart type VSARTTR,
+       end of ty_vbkd.
+data:  lt_vbkd type STANDARD TABLE OF ty_vbkd,
+       wa_vbkd type ty_vbkd.
+types: BEGIN OF ty_zsd_ship_days,
+       VSART type VSARTTR,
+       LEAD_TIME type ZLEAD_TIME,
+       end of ty_zsd_ship_days.
+data:  lt_zsd_ship_days type STANDARD TABLE OF ty_zsd_ship_days,
+       wa_zsd_ship_days type ty_zsd_ship_days.
+TYPES: BEGIN OF TY_/IBP/LOC_EXT,
+       LOCNO TYPE /IBP/LOCNO,
+       LOCTYPE TYPE /IBP/LOCTYPE,
+       CUST_ATTR3 TYPE /IBP/CUST_ATTR10_3,
+       END OF TY_/IBP/LOC_EXT.
+DATA:  LT_/IBP/LOC_EXT TYPE STANDARD TABLE OF TY_/IBP/LOC_EXT,
+       WA_/IBP/LOC_EXT TYPE TY_/IBP/LOC_EXT.
+types: BEGIN OF ty_tvro,
+       route type route,
+       traztd type traztd,
+       end of ty_tvro.
+data:  lt_tvro type STANDARD TABLE OF ty_tvro,
+       wa_tvro type ty_tvro.
+types: BEGIN OF ty_marc,
+       matnr type matnr,
+       werks type werks,
+       webaz type webaz,
+       end of ty_marc.
+data:  lt_marc type STANDARD TABLE OF ty_marc,
+       wa_marc type ty_marc.
+TYPES: BEGIN OF ty_t005t,
+       land1 TYPE t005t-land1,
+       landx50 TYPE t005t-landx50,
+       END OF ty_t005t.
+ DATA :lt_t005t TYPE STANDARD TABLE OF ty_t005t,
+       wa_t005t TYPE ty_t005t.
+
+FIELD-SYMBOLS: <fs_eket> type ty_eket.
+SELECTION-SCREEN : BEGIN OF BLOCK BLOCK1 WITH FRAME TITLE TEXT-001.
+SELECT-OPTIONS:  s_erdat for vbak-erdat OBLIGATORY.
+SELECTION-SCREEN : END OF BLOCK BLOCK1.

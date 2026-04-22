@@ -1,0 +1,313 @@
+*&---------------------------------------------------------------------*
+*&  Include           ZPP_SCM_ANALYTICS_D2D
+*&---------------------------------------------------------------------*
+FORM ZPP_D2D.
+IF LV_FLAG NE 'X'.
+DATA:   number           TYPE tbtcjob-jobcount,
+        name             TYPE tbtcjob-jobname VALUE 'JOB_D2D',
+        list_tab         TYPE TABLE OF ABAPLIST.
+
+CALL FUNCTION 'JOB_OPEN'
+    EXPORTING
+      jobname          = name
+    IMPORTING
+      jobcount         = number
+    EXCEPTIONS
+      cant_create_job  = 1
+      invalid_job_data = 2
+      jobname_missing  = 3
+      OTHERS           = 4.
+  IF sy-subrc = 0.
+
+  SUBMIT ZPP_RPO0001" TO SAP-SPOOL
+      VIA JOB NAME   NUMBER NUMBER
+      WITH  S_WERKS     IN D_WERKS
+      WITH  S_MATNR     IN D_MATNR
+      WITH  S_CHARG     IN D_CHARG
+      WITH  S_BFGMAT    IN D_BFGMAT
+      WITH  S_BFGCHA    IN D_BFGCHA
+      WITH  S_BUDAT     IN D_BUDAT
+      AND RETURN.
+
+    IF sy-subrc = 0.
+      CALL FUNCTION 'JOB_CLOSE'
+        EXPORTING
+          jobcount             = number
+          jobname              = name
+          strtimmed            = 'X'
+        EXCEPTIONS
+          cant_start_immediate = 1
+          invalid_startdate    = 2
+          jobname_missing      = 3
+          job_close_failed     = 4
+          job_nosteps          = 5
+          job_notex            = 6
+          lock_failed          = 7
+          OTHERS               = 8.
+   ENDIF.
+  ENDIF.
+*********************************" Reading data from spool********************
+DATA: lv_repid TYPE sy-REPID VALUE 'ZPP_RPO0001',
+      lv_rqident  TYPE tsp01-RQIDENT,
+      lv_pages    TYPE C.
+
+**SELECT * FROM TBTCP INTO TABLE @data(ta_tbtcp)
+**  where jobname   = 'JOB_D2D'   AND
+**        PROGNAME  = @lv_repid   AND
+**        SDLUNAME  = @sy-UNAME.
+**SORT ta_tbtcp DESCENDING by LISTIDENT.
+**READ TABLE ta_tbtcp INTO data(LV_SPOOL_NO) INDEX 1.
+**lv_rqident = LV_SPOOL_NO-LISTIDENT.
+**SELECT SINGLE * FROM tsp01 INTO @data(wa_tsp01) WHERE rqident = @lv_rqident.
+**TYPES: BEGIN OF ITAB,
+**        LV(8000),
+**       END OF ITAB.
+**
+**DATA: ITAB_D2D TYPE TABLE OF ITAB,
+**      TA_D2D   TYPE TABLE OF ABAPLIST,
+**      lv_dat_d2d(8).
+**
+**SUBMIT RSPOLST2 EXPORTING LIST TO MEMORY AND RETURN
+**WITH RQIDENT = lv_rqident
+**WITH FIRST = '1'
+**WITH pages = wa_tsp01-rqapprule.
+**lv_pages = wa_tsp01-rqapprule.
+**CALL FUNCTION 'RSPO_RETURN_ABAP_SPOOLJOB'
+**  EXPORTING
+**    rqident                    = lv_rqident
+**   FIRST_LINE                 = 1
+***   LAST_LINE                  =
+**   PAGES                      = lv_pages
+**  tables
+**    buffer                     = ITAB_D2D
+** EXCEPTIONS
+**   NO_SUCH_JOB                = 1
+**   NOT_ABAP_LIST              = 2
+**   JOB_CONTAINS_NO_DATA       = 3
+**   SELECTION_EMPTY            = 4
+**   NO_PERMISSION              = 5
+**   CAN_NOT_ACCESS             = 6
+**   READ_ERROR                 = 7
+**   OTHERS                     = 8.
+**IF sy-subrc EQ 0.
+**
+**IF ITAB_D2D[] IS NOT INITIAL.
+**DESCRIBE TABLE ITAB_D2D LINES DATA(LV_LINES).
+**
+**LOOP AT ITAB_D2D INTO DATA(WA).
+**IF SY-TABIX LE 13 OR SY-TABIX = LV_LINES.
+**WA-LV = ''.
+**MODIFY ITAB_D2D FROM WA.
+**ENDIF.
+**ENDLOOP.
+**ENDIF.
+**
+**DELETE ITAB_D2D WHERE LV = ''.
+**DESCRIBE TABLE ITAB_D2D LINES LV_LINES.
+**SORT ITAB_D2D.
+**LOOP AT ITAB_D2D INTO wa.
+**find ALL OCCURRENCES OF '|' in wa MATCH COUNT DATA(lv_count).
+**IF lv_count LT 30.
+**wa-LV = ''.
+**MODIFY ITAB_D2D FROM WA.
+**ENDIF.
+**ENDLOOP.
+**DELETE ITAB_D2D WHERE LV = ''.
+**IF ITAB_D2D[] IS NOT INITIAL.
+**CLEAR: wa_ftp, ta_ftp[], lv_file.
+**CONCATENATE
+**'plnt_code'
+**'fg_mat_code'
+**'fg_mat_desc'
+**'fg_batch'
+**'po_no'
+**'so_num'
+**'po_qty'
+**'fg_dispatch_qty'
+**'fg_dispatch_dt'
+**'fg_process_ord'
+**'fg_dispense_dt'
+**'fg_gr_dt'
+**'fg_ud_dt'
+**'bfg_process_ord'
+**'bfg_mat_code'
+**'bfg_batch'
+**'bfg_dispense_dt'
+**'bfg_gr_dt'
+**'bfg_ud_dt'
+**'bfg_int_process_ord'
+**'bfg_int_mat_code'
+**'bfg_int_batch'
+**'bfg_int_dispense_dt'
+**'bfg_int_gr_dt'
+**'bfg_int_ud_dt'
+**'d2d_lt'
+**'dosage_desc'
+**'country_desc'
+**'fg_dispatch_dt'
+**'num_pack'
+**'dispatch_qty' INTO wa_ftp SEPARATED BY lv_tab.
+**APPEND wa_ftp to ta_ftp.
+**CLEAR wa_ftp.
+**
+**LOOP AT ITAB_D2D INTO data(wa_d2d).
+**REPLACE FIRST OCCURRENCE OF '|' in wa_d2d WITH ''.
+**REPLACE ALL OCCURRENCES OF ',' in wa_d2d WITH ''.
+**SPLIT wa_d2d AT '|' INTO
+**   wa_char-LV_CHAR1
+**   wa_char-LV_CHAR2
+**   wa_char-LV_CHAR3
+**   wa_char-LV_CHAR4
+**   wa_char-LV_CHAR5
+**   wa_char-LV_CHAR6
+**   wa_char-LV_CHAR7
+**   wa_char-LV_CHAR8
+**   wa_char-LV_CHAR9
+**   wa_char-LV_CHAR10
+**   wa_char-LV_CHAR11
+**   wa_char-LV_CHAR12
+**   wa_char-LV_CHAR13
+**   wa_char-LV_CHAR14
+**   wa_char-LV_CHAR15
+**   wa_char-LV_CHAR16
+**   wa_char-LV_CHAR17
+**   wa_char-LV_CHAR18
+**   wa_char-LV_CHAR19
+**   wa_char-LV_CHAR20
+**   wa_char-LV_CHAR21
+**   wa_char-LV_CHAR22
+**   wa_char-LV_CHAR23
+**   wa_char-LV_CHAR24
+**   wa_char-LV_CHAR25
+**   wa_char-LV_CHAR26
+**   wa_char-LV_CHAR27
+**   wa_char-LV_CHAR28
+**   wa_char-LV_CHAR29
+**   wa_char-LV_CHAR30
+**   wa_char-LV_CHAR31.
+**   CONCATENATE wa_char-LV_CHAR9+3(2) wa_char-LV_CHAR9+0(2)  wa_char-LV_CHAR9+6(4) INTO lv_dat_d2d.
+**   CLEAR wa_char-LV_CHAR9.
+**   wa_char-LV_CHAR9 = lv_dat_d2d.
+**   CLEAR lv_dat_d2d.
+**   CONCATENATE wa_char-LV_CHAR11+3(2) wa_char-LV_CHAR11+0(2)  wa_char-LV_CHAR11+6(4) INTO lv_dat_d2d.
+**   CLEAR wa_char-LV_CHAR11.
+**   wa_char-LV_CHAR11 = lv_dat_d2d.
+**   CLEAR lv_dat_d2d.
+**   CONCATENATE wa_char-LV_CHAR12+3(2) wa_char-LV_CHAR12+0(2)  wa_char-LV_CHAR12+6(4) INTO lv_dat_d2d.
+**   CLEAR wa_char-LV_CHAR12.
+**   wa_char-LV_CHAR12 = lv_dat_d2d.
+**   CLEAR lv_dat_d2d.
+**   CONCATENATE wa_char-LV_CHAR13+3(2) wa_char-LV_CHAR13+0(2)  wa_char-LV_CHAR13+6(4) INTO lv_dat_d2d.
+**   CLEAR wa_char-LV_CHAR13.
+**   wa_char-LV_CHAR13 = lv_dat_d2d.
+**   CLEAR lv_dat_d2d.
+**   CONCATENATE wa_char-LV_CHAR17+3(2) wa_char-LV_CHAR17+0(2)  wa_char-LV_CHAR17+6(4) INTO lv_dat_d2d.
+**   CLEAR wa_char-LV_CHAR17.
+**   wa_char-LV_CHAR17 = lv_dat_d2d.
+**   CLEAR lv_dat_d2d.
+**   CONCATENATE wa_char-LV_CHAR18+3(2) wa_char-LV_CHAR18+0(2)  wa_char-LV_CHAR18+6(4) INTO lv_dat_d2d.
+**   CLEAR wa_char-LV_CHAR18.
+**   wa_char-LV_CHAR18 = lv_dat_d2d.
+**   CLEAR lv_dat_d2d.
+**   CONCATENATE wa_char-LV_CHAR19+3(2) wa_char-LV_CHAR19+0(2)  wa_char-LV_CHAR19+6(4) INTO lv_dat_d2d.
+**   CLEAR wa_char-LV_CHAR19.
+**   wa_char-LV_CHAR19 = lv_dat_d2d.
+**   CLEAR lv_dat_d2d.
+**   CONCATENATE wa_char-LV_CHAR23+3(2) wa_char-LV_CHAR23+0(2)  wa_char-LV_CHAR23+6(4) INTO lv_dat_d2d.
+**   CLEAR wa_char-LV_CHAR23.
+**   wa_char-LV_CHAR23 = lv_dat_d2d.
+**   CLEAR lv_dat_d2d.
+**   CONCATENATE wa_char-LV_CHAR24+3(2) wa_char-LV_CHAR24+0(2)  wa_char-LV_CHAR24+6(4) INTO lv_dat_d2d.
+**   CLEAR wa_char-LV_CHAR24.
+**   wa_char-LV_CHAR24 = lv_dat_d2d.
+**   CLEAR lv_dat_d2d.
+**   CONCATENATE wa_char-LV_CHAR25+3(2) wa_char-LV_CHAR25+0(2)  wa_char-LV_CHAR25+6(4) INTO lv_dat_d2d.
+**   CLEAR wa_char-LV_CHAR25.
+**   wa_char-LV_CHAR25 = lv_dat_d2d.
+**   CLEAR lv_dat_d2d.
+**   CONCATENATE wa_char-LV_CHAR29+3(2) wa_char-LV_CHAR29+0(2)  wa_char-LV_CHAR29+6(4) INTO lv_dat_d2d.
+**   CLEAR wa_char-LV_CHAR29.
+**   wa_char-LV_CHAR29 = lv_dat_d2d.
+**   CLEAR lv_dat_d2d.
+**
+**   condense wa_char-LV_CHAR1   .
+**   condense wa_char-LV_CHAR2   .
+**   condense wa_char-LV_CHAR3   .
+**   condense wa_char-LV_CHAR4   .
+**   condense wa_char-LV_CHAR5   .
+**   condense wa_char-LV_CHAR6   .
+**   condense wa_char-LV_CHAR7   .
+**   condense wa_char-LV_CHAR8   .
+**   condense wa_char-LV_CHAR9   .
+**   condense wa_char-LV_CHAR10  .
+**   condense wa_char-LV_CHAR11  .
+**   condense wa_char-LV_CHAR12  .
+**   condense wa_char-LV_CHAR13  .
+**   condense wa_char-LV_CHAR14  .
+**   condense wa_char-LV_CHAR15  .
+**   condense wa_char-LV_CHAR16  .
+**   condense wa_char-LV_CHAR17  .
+**   condense wa_char-LV_CHAR18  .
+**   condense wa_char-LV_CHAR19  .
+**   condense wa_char-LV_CHAR20  .
+**   condense wa_char-LV_CHAR21  .
+**   condense wa_char-LV_CHAR22  .
+**   condense wa_char-LV_CHAR23  .
+**   condense wa_char-LV_CHAR24  .
+**   condense wa_char-LV_CHAR25  .
+**   condense wa_char-LV_CHAR26  .
+**   condense wa_char-LV_CHAR27  .
+**   condense wa_char-LV_CHAR28  .
+**   condense wa_char-LV_CHAR29  .
+**   condense wa_char-LV_CHAR30  .
+**   condense wa_char-LV_CHAR31  .
+**   CONCATENATE
+**    wa_char-LV_CHAR1
+**    wa_char-LV_CHAR2
+**    wa_char-LV_CHAR3
+**    wa_char-LV_CHAR4
+**    wa_char-LV_CHAR5
+**    wa_char-LV_CHAR6
+**    wa_char-LV_CHAR7
+**    wa_char-LV_CHAR8
+**    wa_char-LV_CHAR9
+**    wa_char-LV_CHAR10
+**    wa_char-LV_CHAR11
+**    wa_char-LV_CHAR12
+**    wa_char-LV_CHAR13
+**    wa_char-LV_CHAR14
+**    wa_char-LV_CHAR15
+**    wa_char-LV_CHAR16
+**    wa_char-LV_CHAR17
+**    wa_char-LV_CHAR18
+**    wa_char-LV_CHAR19
+**    wa_char-LV_CHAR20
+**    wa_char-LV_CHAR21
+**    wa_char-LV_CHAR22
+**    wa_char-LV_CHAR23
+**    wa_char-LV_CHAR24
+**    wa_char-LV_CHAR25
+**    wa_char-LV_CHAR26
+**    wa_char-LV_CHAR27
+**    wa_char-LV_CHAR28
+**    wa_char-LV_CHAR29
+**    wa_char-LV_CHAR30
+**    wa_char-LV_CHAR31 INTO wa_ftp SEPARATED BY lv_tab.
+**    APPEND wa_ftp to ta_ftp.
+**    CLEAR wa_ftp.
+**ENDLOOP.
+**PERFORM connect_2_ftp USING g_dest CHANGING g_hdl exp5.
+**CLEAR: wa_ftp,lv_file.
+**
+**IF exp5 IS INITIAL AND ta_ftp[] IS NOT INITIAL.
+**CONCATENATE lv_file1 'dispense_to_dispatch_' sy-datum+6(2) sy-datum+4(2) sy-datum+0(4) sy-uzeit '.txt' INTO lv_file.
+**IF lv_file IS NOT INITIAL.
+**PERFORM send_2_ftp USING lv_file.
+**ENDIF.
+**ENDIF.
+**PERFORM disconnect_ftp USING g_hdl g_dest.
+**************************** " End of Process to Send file on FTP Server***********************
+**ENDIF.
+**ENDIF.
+ENDIF.
+ENDFORM.

@@ -1,0 +1,997 @@
+*----------------------------------------------------------------------*
+*   INCLUDE CIFTOOLS                                                   *
+*----------------------------------------------------------------------*
+CONSTANTS:
+* Constants for messages and application log
+  g_msgty_error_con TYPE c VALUE 'E',
+  g_msgty_warning_con TYPE c VALUE 'W',
+  g_msgty_information_con TYPE c VALUE 'I',
+* BEGIN NOTE 505482
+  g_msgty_abort_con TYPE c VALUE 'A',
+* END NOTE 505482
+* special exceptions
+  g_except_error_message_con TYPE i VALUE 98,
+  g_except_others_con TYPE i VALUE 99.
+CONSTANTS:
+* special message number (of class xc)
+* detected in ct_return it triggers restart_of_background_task
+      msgno_obj_locked  LIKE sy-msgno VALUE 088.
+
+DATA:
+* the logical system, where CIFG was started in
+  gv_ciftools_own_logical_system LIKE tbdls-logsys.
+
+INCLUDE cifconst.
+
+INCLUDE cifuctls.
+
+************************************************************************
+** Setzt enqueue Zähler zurück
+FORM counter_reset.
+  CALL FUNCTION 'CIF_GEN_COUNTER_RESET'.
+ENDFORM.                    "COUNTER_RESET
+
+************************************************************************
+** Überprüft Überschreitung des Enqueue Counters
+** Prüft ob Zähler überschritten ist, wenn ja wird durch
+** Benutzerinteraktion (natürlich nicht im Batch-Modus!)
+** entschieden ob abgebrochen oder fortgefahren wird
+** Achtung: wirft u.U. Exception PROCESSING_ABORTED
+FORM counter_exceeded
+  USING iv_enqueue_args.
+
+  CALL FUNCTION 'CIF_GEN_COUNTER_EXCEEDED'
+    EXPORTING
+      iv_enqueue_args = iv_enqueue_args.
+
+ENDFORM.                    "COUNTER_EXCEEDED
+
+************************************************************************
+************************************************************************
+** Formroutinen für Sperranforderungen
+* Setzt Sperre für einen CIF_IMOD -Block
+* Ist iv_wait = 'X' wird gewartet
+* liefert ev_subrc = '1' für foreign lock, sonst ' '
+FORM enqueue_block
+  USING  iv_mode LIKE dd26e-enqmode
+         iv_waitmode LIKE gc_waitmode_nowait
+         is_enqueue_args STRUCTURE cif_imod
+  CHANGING ev_subrc.
+  DATA lv_wait VALUE 'X'.
+  CLEAR ev_subrc.
+
+* reset waitflag for mode nowait
+  IF iv_waitmode = gc_waitmode_nowait.
+    CLEAR lv_wait.
+  ENDIF.
+
+  PERFORM counter_reset.
+  DO.
+    PERFORM  counter_exceeded  USING is_enqueue_args.
+
+* BEGIN NOTE 783483
+*   if CRTIME(1) holds a block-within-block number, use it as an
+*   enqueue argument, otherwise use old logic
+
+    IF  is_enqueue_args-crtime(1) GE '1'
+    AND is_enqueue_args-crtime(1) LE '7'
+    AND is_enqueue_args-crtime+1 IS INITIAL.
+
+      CALL FUNCTION 'ENQUEUE_ECIF_IMOD'
+        EXPORTING
+           mode_cif_imod  = iv_mode
+           modelname      = is_enqueue_args-modelname
+           logsys         = is_enqueue_args-logsys
+*        APOAPP holds the unique number of an initial download
+           apoapp         = is_enqueue_args-apoapp
+           imtyp          = is_enqueue_args-imtyp
+           segment        = is_enqueue_args-segment
+           status         = is_enqueue_args-status
+           blockno        = is_enqueue_args-blockno
+           crtime        = is_enqueue_args-crtime
+*        _scope         = '3'
+           _wait          = lv_wait
+         EXCEPTIONS
+           foreign_lock   = 1.
+
+    ELSE.
+* END NOTE 783483
+
+      CALL FUNCTION 'ENQUEUE_ECIF_IMOD'
+        EXPORTING
+           mode_cif_imod  = iv_mode
+           modelname      = is_enqueue_args-modelname
+           logsys         = is_enqueue_args-logsys
+*        APOAPP holds the unique number of an initial download
+           apoapp         = is_enqueue_args-apoapp
+           imtyp          = is_enqueue_args-imtyp
+           segment        = is_enqueue_args-segment
+           status         = is_enqueue_args-status
+           blockno        = is_enqueue_args-blockno
+*        _scope         = '3'
+           _wait          = lv_wait
+         EXCEPTIONS
+           foreign_lock   = 1.                              "#EC *
+
+* BEGIN NOTE 783483
+    ENDIF.
+* END NOTE 783483
+
+    ev_subrc = sy-subrc.
+
+    IF ev_subrc <> 1 AND ev_subrc <> 0.
+      MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+               WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+    ENDIF.
+
+*    OK
+    IF sy-subrc = 0.
+      EXIT.
+    ENDIF.
+
+*    foreign lock and not endless wait
+    IF sy-subrc = 1 AND iv_waitmode <> gc_waitmode_endless.
+      ev_subrc = 1.
+      EXIT.
+    ENDIF.
+
+*    ... continue
+
+  ENDDO.
+ENDFORM.                    "ENQUEUE_BLOCK
+************************************************************************
+* release enqueue blocks (multiple rows)
+FORM dequeue_blocks
+  TABLES
+    it_enqueue_args STRUCTURE cif_imod
+  USING
+    iv_mode LIKE dd26e-enqmode.
+
+  LOOP AT it_enqueue_args.
+    PERFORM dequeue_block USING iv_mode it_enqueue_args.
+  ENDLOOP.
+
+ENDFORM.                    "DEQUEUE_BLOCKS
+************************************************************************
+* release locked block (one row)
+FORM dequeue_block
+  USING
+    iv_mode LIKE dd26e-enqmode
+    is_enqueue_args STRUCTURE cif_imod.
+
+* BEGIN NOTE 783483
+*   if CRTIME(1) holds a block-within-block number, use it as an
+*   enqueue argument, otherwise use old logic
+
+  IF  is_enqueue_args-crtime(1) GE '1'
+  AND is_enqueue_args-crtime(1) LE '7'
+  AND is_enqueue_args-crtime+1 IS INITIAL.
+
+    CALL FUNCTION 'DEQUEUE_ECIF_IMOD'
+         EXPORTING
+              mode_cif_imod = iv_mode
+              modelname     = is_enqueue_args-modelname
+              logsys        = is_enqueue_args-logsys
+*        APOAPP holds the unique number of an initial download
+              apoapp         = is_enqueue_args-apoapp
+              imtyp         = is_enqueue_args-imtyp
+              segment       = is_enqueue_args-segment
+              status        = is_enqueue_args-status
+              blockno       = is_enqueue_args-blockno
+              crtime        = is_enqueue_args-crtime
+              _synchron     = 'X'.
+  ELSE.
+* END NOTE 783483
+
+    CALL FUNCTION 'DEQUEUE_ECIF_IMOD'
+         EXPORTING
+              mode_cif_imod = iv_mode
+              modelname     = is_enqueue_args-modelname
+              logsys        = is_enqueue_args-logsys
+*        APOAPP holds the unique number of an initial download
+              apoapp         = is_enqueue_args-apoapp
+              imtyp         = is_enqueue_args-imtyp
+              segment       = is_enqueue_args-segment
+              status        = is_enqueue_args-status
+              blockno       = is_enqueue_args-blockno
+              _synchron     = 'X'.
+
+* BEGIN NOTE 783483
+  ENDIF.
+* END NOTE 783483
+
+ENDFORM.                    "DEQUEUE_BLOCK
+***********************************************************************
+* dequeue_block with previously commit
+FORM commit_dequeue_block
+  USING
+    iv_mode LIKE dd26e-enqmode
+    is_enqueue_args STRUCTURE cif_imod.
+
+* froze all updates (e.g. DELTAMODEL)
+  COMMIT WORK.
+
+* dequeue block
+  PERFORM dequeue_block
+    USING
+      iv_mode
+      is_enqueue_args.
+
+ENDFORM.                    "COMMIT_DEQUEUE_BLOCK
+
+************************************************************************
+FORM enqueue_opmode
+  USING
+    iv_waitmode LIKE gc_waitmode_nowait
+    iv_logsys LIKE cifopmode-logsys
+  CHANGING
+    ev_subrc LIKE sy-subrc.
+
+  DATA lv_wait VALUE 'X'.
+  CLEAR ev_subrc.
+
+* reset for mode nowait
+  IF iv_waitmode = gc_waitmode_nowait.
+    CLEAR lv_wait.
+  ENDIF.
+
+  PERFORM counter_reset.
+  DO.
+    PERFORM counter_exceeded USING iv_logsys.
+
+    CALL FUNCTION 'ENQUEUE_ECIFOPMODE'
+      EXPORTING
+        logsys       = iv_logsys
+        _wait        = lv_wait
+      EXCEPTIONS
+        foreign_lock = 1.
+
+*    OK
+    IF sy-subrc = 0.
+      EXIT.
+    ENDIF.
+
+*    foreign lock and not endless wait
+    IF sy-subrc = 1 AND iv_waitmode <> gc_waitmode_endless.
+      ev_subrc = 1.
+      EXIT.
+    ENDIF.
+
+*    ... continue
+  ENDDO.
+ENDFORM.                    "ENQUEUE_OPMODE
+************************************************************************
+FORM dequeue_opmode
+  USING iv_logsys LIKE cifopmode-logsys.
+
+  CALL FUNCTION 'DEQUEUE_ECIFOPMODE'
+    EXPORTING
+      logsys    = iv_logsys
+      _synchron = 'X'.
+ENDFORM.                    "DEQUEUE_OPMODE
+************************************************************************
+************************************************************************
+** Log Makros
+FORM  open_log
+  USING iv_subobject LIKE balhdr-subobject.
+
+  CALL FUNCTION 'CIF_GEN_LOG_OPEN'
+    EXPORTING
+      iv_logobject           = g_logobj_cif_con
+      iv_logsubobject        = iv_subobject
+      iv_clear_max_probclass = g_false_con.
+
+ENDFORM.                    "OPEN_LOG
+************************************************************************
+FORM close_log
+  TABLES ct_return STRUCTURE bapiret2.
+
+  CALL FUNCTION 'CIF_GEN_LOG_CLOSE'
+    EXPORTING
+      iv_write_to_db = g_true_con
+    TABLES
+      ct_return      = ct_return.
+
+ENDFORM.                    "CLOSE_LOG
+************************************************************************
+FORM open_log_ctrl
+  TABLES
+    et_return STRUCTURE bapiret2
+   USING
+    p_controlparams    LIKE cifctrlpar
+    value(p_logsubobj) LIKE balhdr-subobject
+   CHANGING
+    p_subrc            LIKE sy-subrc.
+
+* p_controlparams wird ab PI2000 ignoriert!
+  PERFORM open_log_pi00
+      TABLES et_return
+      USING p_logsubobj
+      CHANGING p_subrc.
+ENDFORM.                    "OPEN_LOG_CTRL
+************************************************************************
+* logging wird lokal aus Benutzerparametern ermittelt
+FORM open_log_pi00
+  TABLES
+    et_return STRUCTURE bapiret2
+  USING
+    value(p_logsubobj) LIKE balhdr-subobject
+   CHANGING
+    p_subrc            LIKE sy-subrc.
+
+  DATA: ls_params LIKE cifgenpara,
+        ls_old_params LIKE cifgenpara,
+        lv_logging_on TYPE c,
+*        ls_message like balmi,
+        lv_msgv1 LIKE sy-msgv1,
+        lv_msgv2 LIKE sy-msgv2,
+        lv_msgv3 LIKE sy-msgv3,
+        lv_msgv4 LIKE sy-msgv4,
+        lv_tid LIKE arfctid,
+        lv_extnumber LIKE balhdr-extnumber.
+
+  CLEAR p_subrc.
+
+* get user params
+  CALL FUNCTION 'CIF_GEN_PARAM_GET'
+    IMPORTING
+      es_params = ls_params.
+
+* loggin mode set?
+  IF NOT ls_params-logging IS INITIAL.
+    lv_logging_on = g_true_con.
+  ENDIF.
+
+* open log
+  IF NOT lv_logging_on IS INITIAL.
+
+*   get tid
+    CALL FUNCTION 'ARFC_GET_RECEIVER_TID'
+      IMPORTING
+        tid = lv_tid.
+
+    lv_extnumber = lv_tid.
+    CALL FUNCTION 'CIF_GEN_LOG_OPEN'
+      EXPORTING
+        iv_logsubobject   = p_logsubobj
+        iv_extnumber      = lv_extnumber
+      EXCEPTIONS
+        initialize_failed = 1
+        error_message     = g_except_error_message_con
+        OTHERS            = g_except_others_con.
+    IF sy-subrc <> 0.
+      PERFORM fill_bapiret2
+        TABLES et_return
+        USING
+          sy-msgty sy-msgid sy-msgno
+          sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+      MESSAGE  ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+        WITH sy-msgv1 sy-msgv2.
+    ENDIF.
+
+    DATA:
+      lv_fname LIKE arfcrstate-arfcfnam,
+      lv_s_user LIKE sy-uname,
+      lv_s_host LIKE arfcrstate-arfcrhost,
+      lv_s_tcode LIKE sy-tcode.
+
+    CALL FUNCTION 'TRFC_RECEIVER_INFO'
+      IMPORTING
+*       TRFCTYPE       =
+*       MODE           =
+*       TID            =
+       fname          = lv_fname
+*       S_DATE         =
+*       S_TIME         =
+*       S_CLIENT       =
+       s_user         = lv_s_user
+       s_host         = lv_s_host
+*       S_PROG         =
+       s_tcode        = lv_s_tcode
+              .
+
+    lv_msgv1 = lv_s_host.
+    lv_msgv2 = lv_s_user.
+    lv_msgv3 = lv_s_tcode.
+    lv_msgv4 = lv_fname.
+
+    CALL FUNCTION 'CIF_GEN_LOG_WRITE'
+      EXPORTING
+        iv_msgty      = g_msgty_information_con
+        iv_msgid      = g_msgid_cif_con
+        iv_msgno      = 051
+        iv_msgv1      = lv_msgv1
+        iv_msgv2      = lv_msgv2
+        iv_msgv3      = lv_msgv3
+        iv_msgv4      = lv_msgv4
+      EXCEPTIONS
+        error_message = g_except_error_message_con
+        OTHERS        = g_except_others_con.
+    IF sy-subrc <> 0.
+      PERFORM fill_bapiret2
+        TABLES et_return
+        USING
+         sy-msgty sy-msgid sy-msgno
+         sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+
+      MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+        WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+    ENDIF.
+  ENDIF.
+
+
+ENDFORM.                               " OPEN_LOG
+DEFINE cif_flush_log.
+  call function 'CIF_GEN_LOG_CLOSE'
+    exporting
+      iv_write_to_db = g_true_con
+    exceptions
+      others         = 0.
+END-OF-DEFINITION.
+************************************************************************
+DEFINE cif_send_log.
+  call function 'CIF_GEN_LOG_SEND'
+    exporting
+      is_ctrlparams   = &1
+      iv_functionname = &2.
+END-OF-DEFINITION.
+************************************************************************
+DEFINE cif_send_log1.
+  call function 'CIF_GEN_LOG_SEND'
+    exporting
+      is_ctrlparams   = is_ctrlparams
+      iv_functionname = &1.
+END-OF-DEFINITION.
+************************************************************************
+DEFINE cif_send_log2.
+  call function 'CIF_GEN_LOG_SEND'
+    exporting
+      is_ctrlparams   = is_ctrlparams
+      iv_functionname = &1
+      iv_1            = '&2'
+    tables
+      it_1            = &2.
+END-OF-DEFINITION.
+************************************************************************
+DEFINE cif_send_log3.
+  call function 'CIF_GEN_LOG_SEND'
+    exporting
+      is_ctrlparams   = is_ctrlparams
+      iv_functionname = &1
+      iv_1            = '&2'
+      iv_2            = '&3'
+    tables
+      it_1            = &2
+      it_2            = &3.
+END-OF-DEFINITION.
+************************************************************************
+DEFINE cif_send_log4.
+  call function 'CIF_GEN_LOG_SEND'
+    exporting
+      is_ctrlparams   = is_ctrlparams
+      iv_functionname = &1
+      iv_1            = '&2'
+      iv_2            = '&3'
+      iv_3            = '&4'
+    tables
+      it_1            = &2
+      it_2            = &3
+      it_3            = &4.
+END-OF-DEFINITION.
+************************************************************************
+DEFINE cif_send_log5.
+  call function 'CIF_GEN_LOG_SEND'
+    exporting
+      is_ctrlparams   = is_ctrlparams
+      iv_functionname = &1
+      iv_1            = '&2'
+      iv_2            = '&3'
+      iv_3            = '&4'
+      iv_4            = '&5'
+    tables
+      it_1            = &2
+      it_2            = &3
+      it_3            = &4
+      it_4            = &5.
+END-OF-DEFINITION.
+************************************************************************
+DEFINE cif_send_log6.
+  call function 'CIF_GEN_LOG_SEND'
+    exporting
+      is_ctrlparams   = is_ctrlparams
+      iv_functionname = &1
+      iv_1            = '&2'
+      iv_2            = '&3'
+      iv_3            = '&4'
+      iv_4            = '&5'
+      iv_5            = '&6'
+    tables
+      it_1            = &2
+      it_2            = &3
+      it_3            = &4
+      it_4            = &5
+      it_5            = &6.
+END-OF-DEFINITION.
+************************************************************************
+DEFINE cif_send_log7.
+  call function 'CIF_GEN_LOG_SEND'
+    exporting
+      is_ctrlparams   = is_ctrlparams
+      iv_functionname = &1
+      iv_1            = '&2'
+      iv_2            = '&3'
+      iv_3            = '&4'
+      iv_4            = '&5'
+      iv_5            = '&6'
+      iv_6            = '&7'
+    tables
+      it_1            = &2
+      it_2            = &3
+      it_3            = &4
+      it_4            = &5
+      it_5            = &6
+      it_6            = &7.
+END-OF-DEFINITION.
+************************************************************************
+DEFINE cif_send_log8.
+  call function 'CIF_GEN_LOG_SEND'
+    exporting
+      is_ctrlparams   = is_ctrlparams
+      iv_functionname = &1
+      iv_1            = '&2'
+      iv_2            = '&3'
+      iv_3            = '&4'
+      iv_4            = '&5'
+      iv_5            = '&6'
+      iv_6            = '&7'
+      iv_7            = '&8'
+    tables
+      it_1            = &2
+      it_2            = &3
+      it_3            = &4
+      it_4            = &5
+      it_5            = &6
+      it_6            = &7
+      it_7            = &8.
+END-OF-DEFINITION.
+************************************************************************
+DEFINE cif_send_log9.
+  call function 'CIF_GEN_LOG_SEND'
+    exporting
+      is_ctrlparams   = is_ctrlparams
+      iv_functionname = &1
+      iv_1            = '&2'
+      iv_2            = '&3'
+      iv_3            = '&4'
+      iv_4            = '&5'
+      iv_5            = '&6'
+      iv_6            = '&7'
+      iv_7            = '&8'
+      iv_8            = '&9'
+    tables
+      it_1            = &2
+      it_2            = &3
+      it_3            = &4
+      it_4            = &5
+      it_5            = &6
+      it_6            = &7
+      it_7            = &8
+      it_8            = &9.
+END-OF-DEFINITION.
+************************************************************************
+DEFINE cif_gen_initialize.
+  call function 'CIF_GEN_INITIALIZE'.
+END-OF-DEFINITION.
+
+************************************************************************
+FORM handle_callerror
+  USING iv_function_module LIKE sy-msgv1
+        iv_logsys LIKE cifctrlpar-logdestsys
+        iv_message TYPE c.
+
+  CALL FUNCTION 'CIF_GEN_HANDLE_CALLERROR'
+    EXPORTING
+      iv_function_module = iv_function_module
+      iv_logsys          = iv_logsys
+      iv_message         = iv_message.
+
+ENDFORM.                    "HANDLE_CALLERROR
+
+************************************************************************
+
+FORM fill_bapiret2
+     TABLES
+       ct_return STRUCTURE bapiret2
+     USING
+       iv_msgty LIKE sy-msgty
+       iv_msgid LIKE sy-msgid
+       iv_msgno LIKE sy-msgno
+       iv_msgv1 LIKE sy-msgv1
+       iv_msgv2 LIKE sy-msgv2
+       iv_msgv3 LIKE sy-msgv3
+       iv_msgv4 LIKE sy-msgv4.
+
+* data ls_ret like bapireturn.
+  CALL FUNCTION 'BALW_BAPIRETURN_GET2'
+    EXPORTING
+      type   = iv_msgty
+      cl     = iv_msgid
+      number = iv_msgno
+      par1   = iv_msgv1
+      par2   = iv_msgv2
+      par3   = iv_msgv3
+      par4   = iv_msgv4
+    IMPORTING
+      return = ct_return.
+
+  IF gv_ciftools_own_logical_system IS INITIAL.
+    CALL FUNCTION 'OWN_LOGICAL_SYSTEM_GET'
+      IMPORTING
+        own_logical_system             = gv_ciftools_own_logical_system
+      EXCEPTIONS
+        own_logical_system_not_defined = 0
+        OTHERS                         = 0.
+  ENDIF.
+  ct_return-system = gv_ciftools_own_logical_system.
+
+  APPEND ct_return.
+ENDFORM.                    "FILL_BAPIRET2
+************************************************************************
+FORM handle_error
+  TABLES
+    ct_return STRUCTURE bapiret2
+  USING
+    p_controlparams LIKE  cifctrlpar
+    p_sy LIKE syst
+    p_exception_type TYPE c
+    p_logsubobj  LIKE balhdr-subobject
+  CHANGING
+    p_subrc LIKE sy-subrc.
+
+
+  CALL FUNCTION 'CIF_GEN_HANDLE_ERROR'
+    EXPORTING
+      iv_logsubobject   = p_logsubobj
+      is_syst           = p_sy
+      is_ctrlparams     = p_controlparams
+      iv_exception_type = p_exception_type
+    TABLES
+      ct_return         = ct_return
+    CHANGING
+      cv_subrc          = p_subrc.
+
+ENDFORM.                               " HANDLE_ERROR
+
+************************************************************************
+*---------------------------------------------------------------------*
+*       FORM MESSAGE_OR_LOG                                           *
+*---------------------------------------------------------------------*
+*       ........                                                      *
+*---------------------------------------------------------------------*
+*  -->  MSGID                                                         *
+*  -->  MSGTY                                                         *
+*  -->  MSGNO                                                         *
+*  -->  MSGV1                                                         *
+*  -->  MSGV2                                                         *
+*  -->  MSGV3                                                         *
+*  -->  MSGV4                                                         *
+*---------------------------------------------------------------------*
+FORM message_or_log
+  USING
+    p_dark
+    p_msgid
+    p_msgty
+    p_msgno
+    p_msgv1
+    p_msgv2
+    p_msgv3
+    p_msgv4.
+
+  DATA: lt_bapiret2 LIKE bapiret2 OCCURS 0 WITH HEADER LINE,
+        l_msgid LIKE sy-msgid,
+        l_msgty LIKE sy-msgty,
+        l_msgno LIKE sy-msgno,
+        l_msgv1 LIKE sy-msgv1,
+        l_msgv2 LIKE sy-msgv2,
+        l_msgv3 LIKE sy-msgv3,
+        l_msgv4 LIKE sy-msgv4.
+
+  l_msgid = p_msgid.
+  l_msgty = p_msgty.
+  l_msgno = p_msgno.
+  l_msgv1 = p_msgv1.
+  l_msgv2 = p_msgv2.
+  l_msgv3 = p_msgv3.
+  l_msgv4 = p_msgv4.
+
+  IF p_dark IS INITIAL.
+    MESSAGE ID l_msgid TYPE l_msgty NUMBER l_msgno
+    WITH l_msgv1 l_msgv2 l_msgv3 l_msgv4.
+  ELSE.
+    PERFORM open_log USING g_logsubobj_initial_con.
+    PERFORM fill_bapiret2
+      TABLES
+        lt_bapiret2
+      USING
+        l_msgty l_msgid l_msgno
+        l_msgv1 l_msgv2 l_msgv3 l_msgv4.
+    PERFORM close_log
+      TABLES
+        lt_bapiret2.
+    IF l_msgty = 'E' OR l_msgty = 'A'.
+      MESSAGE ID l_msgid TYPE l_msgty NUMBER l_msgno
+      WITH l_msgv1 l_msgv2 l_msgv3 l_msgv4.
+    ENDIF.
+  ENDIF.
+
+*  leave program.
+
+ENDFORM.                    "MESSAGE_OR_LOG
+*&---------------------------------------------------------------------*
+*&      Form  check_existing_partially_active_imod
+*&---------------------------------------------------------------------*
+*       Check whether partially active IMO exists
+*----------------------------------------------------------------------*
+*      -->IS_CTRLPARAM  text
+*      -->EV_EXIST      text
+*----------------------------------------------------------------------*
+FORM  chk_existing_part_act_imod
+       USING    is_ctrlparams   TYPE cifctrlpar
+       CHANGING ev_exist        TYPE boolean.
+
+  DATA: ls_imod TYPE cif_imod.
+
+  CLEAR ev_exist.
+
+  SELECT SINGLE * FROM cif_imod_temp INTO ls_imod
+         WHERE modelname = is_ctrlparams-modelname
+         AND logsys    = is_ctrlparams-logdestsys
+         AND apoapp    = is_ctrlparams-apoapp
+         AND active    = 'P'.
+
+  IF sy-subrc EQ 0.
+    ev_exist = g_true_con.
+  ENDIF.
+
+ENDFORM.                    "check_existing_partially_active_imod
+
+*&---------------------------------------------------------------------*
+*&      Form  copy_activated_imod
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->IS_CTRLPARAMS  text
+*----------------------------------------------------------------------*
+FORM copy_activated_imod
+  USING    is_ctrlparams   TYPE cifctrlpar.
+
+  DATA:    lt_cif_imod           TYPE STANDARD TABLE OF cif_imod,
+           lt_new_inactive_imod  TYPE STANDARD TABLE OF cif_imod,
+           ls_cif_imod           TYPE cif_imod,
+           lv_time               LIKE sy-uzeit.
+
+  FIELD-SYMBOLS: <fs_imod_line>  LIKE LINE OF lt_new_inactive_imod.
+
+  SELECT * FROM cif_imod
+     INTO TABLE lt_new_inactive_imod[]
+     WHERE modelname = is_ctrlparams-modelname
+       AND logsys    = is_ctrlparams-logdestsys
+       AND apoapp    = is_ctrlparams-apoapp
+       AND crdate    = is_ctrlparams-crdate
+       AND crtime    = is_ctrlparams-crtime.
+
+  IF sy-subrc NE 0.
+    "Error
+  ENDIF.
+
+* Set it to inactive
+  LOOP AT lt_new_inactive_imod[] ASSIGNING <fs_imod_line>.
+    <fs_imod_line>-active = ' '.
+    <fs_imod_line>-crdate = sy-datum.
+    IF lv_time IS INITIAL.
+      lv_time = sy-uzeit.
+    ENDIF.
+    <fs_imod_line>-crtime = lv_time.
+    <fs_imod_line>-active = ' '.
+  ENDLOOP.
+
+  TRY .
+    INSERT cif_imod_temp FROM TABLE lt_new_inactive_imod[].
+  CATCH CX_SY_OPEN_SQL_DB.
+    MODIFY cif_imod_temp FROM TABLE lt_new_inactive_imod[].
+  ENDTRY.
+
+
+  IF sy-subrc NE 0.
+    RAISE db_update_failed.
+  ENDIF.
+
+ENDFORM.                    "copy_activated_imod
+*&---------------------------------------------------------------------*
+*&      Form  chg_partially_to_active
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->LS_CTRLPARAMS  text
+*----------------------------------------------------------------------*
+FORM chg_partially_to_active
+  TABLES it_change_models STRUCTURE cif_imod
+         it_delta_mod_apokz STRUCTURE cif_imod
+  USING is_ctrlparams TYPE cifctrlpar.
+
+  DATA:
+        lt_partially_active_imod TYPE STANDARD TABLE OF cif_imod,
+        lt_inactive_model        TYPE STANDARD TABLE OF cif_imod,
+        lt_delta_mod_apokz       TYPE STANDARD TABLE OF cif_imod.
+
+  FIELD-SYMBOLS:
+        <fs_imod>             TYPE cif_imod,
+        <fs_partially_imod>   TYPE cif_imod,
+        <fs_delta_mod_apokz>  TYPE cif_imod.
+
+  SELECT * FROM cif_imod_temp INTO TABLE lt_partially_active_imod
+     WHERE modelname = is_ctrlparams-modelname
+       AND logsys    = is_ctrlparams-logdestsys
+       AND apoapp    = is_ctrlparams-apoapp
+       AND active    = 'P'.
+
+  LOOP AT it_change_models ASSIGNING <fs_imod>
+    WHERE modelname = is_ctrlparams-modelname
+      AND logsys    = is_ctrlparams-logdestsys
+      AND apoapp    = is_ctrlparams-apoapp
+      AND crdate    = is_ctrlparams-crdate
+      AND crtime    = is_ctrlparams-crtime.
+
+    READ TABLE lt_partially_active_imod ASSIGNING <fs_partially_imod>
+      WITH KEY imtyp   = <fs_imod>-imtyp
+               segment = <fs_imod>-segment.
+
+    <fs_imod>-data = <fs_partially_imod>-data.
+
+*   Adjust APOKZ update model
+    IF <fs_imod>-imtyp = 'T_MAT' AND
+      it_delta_mod_apokz[] IS NOT INITIAL.
+        READ TABLE it_delta_mod_apokz ASSIGNING <fs_delta_mod_apokz>
+          WITH KEY IMTYP   = <fs_imod>-imtyp
+                   SEGMENT = <fs_imod>-segment.
+      IF SY-SUBRC = 0.
+        CALL FUNCTION 'CIF_BIT_AND'
+          EXPORTING
+            u_vec1len      = <fs_imod>-ldata
+            u_vec1         = <fs_imod>-data
+            u_vec2len      = <fs_delta_mod_apokz>-ldata
+            u_vec2         = <fs_delta_mod_apokz>-data
+          CHANGING
+            c_resultveclen = <fs_delta_mod_apokz>-ldata
+            c_resultvec    = <fs_delta_mod_apokz>-data
+          EXCEPTIONS
+            OTHERS         = 0.
+      ENDIF.
+    ENDIF.
+
+  ENDLOOP.
+
+  "Insert the Imodel which was not activated into CIF_IMOD
+
+  SELECT * FROM cif_imod_temp INTO TABLE lt_inactive_model[]
+       WHERE modelname = is_ctrlparams-modelname
+         AND logsys    = is_ctrlparams-logdestsys
+         AND apoapp    = is_ctrlparams-apoapp
+         AND active    = ' '.
+
+    INSERT cif_imod FROM TABLE lt_inactive_model[].
+
+* CleanUp temporary DB table.
+    DELETE FROM cif_imod_temp
+       WHERE modelname = is_ctrlparams-modelname
+         AND logsys    = is_ctrlparams-logdestsys
+         AND apoapp    = is_ctrlparams-apoapp.
+
+
+  ENDFORM.                    "chg_partially_to_active
+
+
+************************************************************************
+  TABLES: cifalogcnf.                    " outside of macro
+* macro for writing configurable log
+  DEFINE cif_log_custom_write.
+
+    statics:
+        s_initialized value space,
+        st_cifalogcnf like cifalogcnf occurs 0 with header line,
+        st_importing like cifalogcnf-paramname occurs 0 with header line,
+        st_tables like cifalogcnf-paramname occurs 0 with header line.
+
+    data:
+        l_impparamname like cifalogcnf-paramname,
+        l_tabparamname like cifalogcnf-paramname,
+        tabname(50) type c,
+        lv_firstcall type c value 'X'.
+
+    field-symbols: <fs_imp>, <fs_tab> type table.
+
+* loggin switched on?
+    if not is_ctrlparams-logging is initial.
+
+* load information about which parameters and fields are supposed to be
+* logged for this function
+      if s_initialized is initial.
+        select * from cifalogcnf into table st_cifalogcnf
+              where funcname = &1.
+
+*     write message about not configured log
+        if sy-subrc <> 0.
+          call function 'CIF_GEN_LOG_SEND_CONF'
+            exporting
+              iv_functionname = &1
+              is_ctrlparams   = is_ctrlparams
+            tables
+              it_cifalogcnf   = st_cifalogcnf
+            changing
+              cv_firstcall    = lv_firstcall
+            exceptions
+              others          = 1.                          "#EC *
+*     If an error occurs here, let it dump!
+        endif.
+
+        sort st_cifalogcnf by logorder.
+
+*     identify IMPORTING parameters
+        loop at st_cifalogcnf where paramtype = 'I'.
+          move st_cifalogcnf-paramname to st_importing.
+          collect st_importing.
+        endloop.
+
+*     identify TABLES parameters
+        loop at st_cifalogcnf where paramtype = 'T'.
+          move st_cifalogcnf-paramname to st_tables.
+          collect st_tables.
+        endloop.
+
+        s_initialized = g_true_con.
+      endif.                               " INITIALIZED
+
+      if not st_cifalogcnf[] is initial.
+
+*   log fields of IMPORTING parameters via function module
+        loop at st_importing into l_impparamname.
+          assign (l_impparamname) to <fs_imp>.
+          call function 'CIF_GEN_LOG_SEND_CONF'
+            exporting
+              iv_functionname        = &1
+              is_ctrlparams          = is_ctrlparams
+              iv_importing_paramname = l_impparamname
+              is_importing_param     = <fs_imp>
+            tables
+              it_cifalogcnf          = st_cifalogcnf
+            changing
+              cv_firstcall           = lv_firstcall
+            exceptions
+              others                 = 1.                   "#EC *
+*     If an error occurs here, let it dump!
+        endloop.
+
+*   log fields of TABLES parameters via function module
+        loop at st_tables into l_tabparamname.
+          concatenate l_tabparamname '[]' into tabname.
+          assign (tabname) to <fs_tab>.
+          call function 'CIF_GEN_LOG_SEND_CONF'
+            exporting
+              iv_functionname     = &1
+              is_ctrlparams       = is_ctrlparams
+              iv_tables_paramname = l_tabparamname
+            tables
+              it_cifalogcnf       = st_cifalogcnf
+              it_tables_param     = <fs_tab>
+            changing
+              cv_firstcall        = lv_firstcall
+            exceptions
+              others              = 1.                      "#EC *
+*     If an error occurs here, let it dump!
+        endloop.
+
+      endif.                               " INITIALIZED
+
+    endif.                                 " LOGGING TURNED ON
+
+  END-OF-DEFINITION.

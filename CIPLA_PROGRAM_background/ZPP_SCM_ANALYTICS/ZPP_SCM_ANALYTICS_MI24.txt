@@ -1,0 +1,271 @@
+*&---------------------------------------------------------------------*
+*&  Include           ZPP_SCM_ANALYTICS_MI24
+*&---------------------------------------------------------------------*
+FORM ZPP_SCM_MI24.
+IF LV_FLAG NE 'X'.
+DATA:   number           TYPE tbtcjob-jobcount,
+        name             TYPE tbtcjob-jobname VALUE 'JOB_MI24',
+        list_tab         TYPE TABLE OF ABAPLIST,
+        wa_ctuparams     TYPE ctu_params..
+
+CALL FUNCTION 'JOB_OPEN'
+    EXPORTING
+      jobname          = name
+    IMPORTING
+      jobcount         = number
+    EXCEPTIONS
+      cant_create_job  = 1
+      invalid_job_data = 2
+      jobname_missing  = 3
+      OTHERS           = 4.
+  IF sy-subrc = 0.
+      DATA: wa_BAPIDEFAUL TYPE BAPIDEFAUL,
+          username      TYPE BAPIBNAME-BAPIBNAME,
+          TA_RET        TYPE TABLE OF BAPIRET2.
+    username = sy-UNAME.
+    CALL FUNCTION 'BAPI_USER_GET_DETAIL'
+      EXPORTING
+        username             = USERNAME
+*       CACHE_RESULTS        = 'X'
+     IMPORTING
+       DEFAULTS             = WA_BAPIDEFAUL
+     tables
+      return               = TA_RET.
+      SUBMIT RM07IDIF USING SELECTION-SET IM_VARI
+      VIA JOB NAME   NUMBER NUMBER
+      WITH  IM_MATNR    IN IM_MATNR
+      WITH  IM_WERKS    IN IM_WERKS
+      WITH  ZLDAT       IN IM_ZLDAT
+      AND RETURN.
+    IF sy-subrc = 0.
+      CALL FUNCTION 'JOB_CLOSE'
+        EXPORTING
+          jobcount             = number
+          jobname              = name
+          strtimmed            = 'X'
+        EXCEPTIONS
+          cant_start_immediate = 1
+          invalid_startdate    = 2
+          jobname_missing      = 3
+          job_close_failed     = 4
+          job_nosteps          = 5
+          job_notex            = 6
+          lock_failed          = 7
+          OTHERS               = 8.
+   ENDIF.
+  ENDIF.
+**********************************" Reading data from spool********************
+*DATA: lv_repid TYPE sy-REPID VALUE 'RM07IDIF',
+*      lv_pages    TYPE C,
+*      lv_rqident  TYPE tsp01-RQIDENT.
+*
+*WAIT UP TO 5 SECONDS.
+*SELECT * FROM TBTCP INTO TABLE @data(ta_tbtcp)
+*  where jobname   = 'JOB_MI24'  AND
+*        PROGNAME  = @lv_repid   AND
+*        SDLUNAME  = @sy-UNAME.
+*SORT ta_tbtcp DESCENDING by LISTIDENT.
+*READ TABLE ta_tbtcp INTO data(LV_SPOOL_NO) INDEX 1.
+*lv_rqident = LV_SPOOL_NO-LISTIDENT.
+*SELECT SINGLE * FROM tsp01 INTO @data(wa_tsp01) WHERE rqident = @lv_rqident.
+*TYPES: BEGIN OF ITAB,
+*        LV(8000),
+*       END OF ITAB.
+*
+*DATA: ITAB_MI24 TYPE TABLE OF ITAB,
+*      TA_MI24   TYPE TABLE OF ABAPLIST,
+*      lv_dat_mi24(8).
+*
+*SUBMIT RSPOLST2 EXPORTING LIST TO MEMORY AND RETURN
+*WITH RQIDENT = lv_rqident
+*WITH FIRST = '1'
+*WITH pages = wa_tsp01-rqapprule.
+*lv_pages = wa_tsp01-rqapprule.
+*CONDENSE lv_pages.
+*CALL FUNCTION 'RSPO_RETURN_ABAP_SPOOLJOB'
+*  EXPORTING
+*    RQIDENT                    = lv_rqident
+*   FIRST_LINE                 = 1
+**   LAST_LINE                  =
+*   PAGES                      = lv_pages
+*  TABLES
+*    BUFFER                     = ITAB_MI24
+* EXCEPTIONS
+*   NO_SUCH_JOB                = 1
+*   NOT_ABAP_LIST              = 2
+*   JOB_CONTAINS_NO_DATA       = 3
+*   SELECTION_EMPTY            = 4
+*   NO_PERMISSION              = 5
+*   CAN_NOT_ACCESS             = 6
+*   READ_ERROR                 = 7
+*   OTHERS                     = 8.
+*IF SY-SUBRC EQ 0.
+*
+*IF ITAB_MI24[] IS NOT INITIAL.
+*DESCRIBE TABLE ITAB_MI24 LINES DATA(LV_LINES).
+*
+*LOOP AT ITAB_MI24 INTO DATA(WA).
+*IF SY-TABIX LE 3 OR SY-TABIX = LV_LINES.
+*WA-LV = ''.
+*MODIFY ITAB_MI24 FROM WA.
+*ENDIF.
+*ENDLOOP.
+*ENDIF.
+*DELETE ITAB_MI24 WHERE LV = ''.
+*
+*SORT ITAB_MI24.
+*DELETE ADJACENT DUPLICATES FROM ITAB_MI24.
+*DESCRIBE TABLE ITAB_MI24 LINES LV_LINES.
+*LOOP AT ITAB_MI24 INTO wa.
+*IF sy-TABIX = LV_LINES - 1.
+*wa-lv = ''.
+*MODIFY ITAB_MI24 FROM wa.
+*else.
+*FIND ALL OCCURRENCES OF '|' in wa MATCH COUNT data(lv_count).
+*IF lv_count LT 24.
+*wa-lv = ''.
+*MODIFY ITAB_MI24 FROM wa.
+*ENDIF.
+*ENDIF.
+*ENDLOOP.
+*delete ITAB_MI24 WHERE lv = ''.
+*IF ITAB_MI24[] IS NOT INITIAL.
+*CLEAR: wa_ftp, ta_ftp[], lv_file.
+*CONCATENATE
+*'phy_inv_doc'
+*'item'
+*'mat_code'
+*'batch'
+*'plnt_code'
+*'str_loc'
+*'phy_inv_stat'
+*'sp_stk'
+*'stock_type'
+*'inv_doc_txt'
+*'sales_ord'
+*'sales_itm'
+*'mat_doc'
+*'mat_doc_year'
+*'mat_doc_itm'
+*'count_dt'
+*'adj_pst_by'
+*'post_dt'
+*'book_qty'
+*'qty_count'
+*'diff_qty'
+*'buom'
+*'diff_amt'
+*'curr' INTO wa_ftp SEPARATED BY lv_tab.
+*APPEND wa_ftp to ta_ftp.
+*CLEAR wa_ftp.
+*
+*LOOP AT ITAB_MI24 INTO Data(wa_mi24).
+*REPLACE FIRST OCCURRENCE OF '|' in wa_mi24 WITH ''.
+*REPLACE all OCCURRENCES OF ',' in wa_mi24 WITH ''.
+*SPLIT wa_mi24 AT '|' INTO
+*   wa_char-LV_CHAR1
+*   wa_char-LV_CHAR2
+*   wa_char-LV_CHAR3
+*   wa_char-LV_CHAR4
+*   wa_char-LV_CHAR5
+*   wa_char-LV_CHAR6
+*   wa_char-LV_CHAR7
+*   wa_char-LV_CHAR8
+*   wa_char-LV_CHAR9
+*   wa_char-LV_CHAR10
+*   wa_char-LV_CHAR11
+*   wa_char-LV_CHAR12
+*   wa_char-LV_CHAR13
+*   wa_char-LV_CHAR14
+*   wa_char-LV_CHAR15
+*   wa_char-LV_CHAR16
+*   wa_char-LV_CHAR17
+*   wa_char-LV_CHAR18
+*   wa_char-LV_CHAR19
+*   wa_char-LV_CHAR20
+*   wa_char-LV_CHAR21
+*   wa_char-LV_CHAR22
+*   wa_char-LV_CHAR23
+*   wa_char-LV_CHAR24.
+*   CONCATENATE wa_char-LV_CHAR16+0(2) wa_char-LV_CHAR16+3(2) wa_char-LV_CHAR16+6(4) INTO lv_dat_mi24.
+*   CLEAR: wa_char-LV_CHAR16.
+*   wa_char-LV_CHAR16 = lv_dat_mi24.
+*   CONCATENATE wa_char-LV_CHAR18+0(2) wa_char-LV_CHAR18+3(2) wa_char-LV_CHAR18+6(4) INTO lv_dat_mi24.
+*   CLEAR: wa_char-LV_CHAR18.
+*   wa_char-LV_CHAR18 = lv_dat_mi24.
+*   REPLACE ALL OCCURRENCES OF '-' in  wa_char-LV_CHAR21 WITH ''.
+*   IF sy-subrc EQ 0.
+*     CONCATENATE '-' wa_char-LV_CHAR21 INTO wa_char-LV_CHAR21.
+*   ENDIF.
+*   REPLACE ALL OCCURRENCES OF '-' in  wa_char-LV_CHAR23 WITH ''.
+*   IF sy-subrc EQ 0.
+*     CONCATENATE '-' wa_char-LV_CHAR23 INTO wa_char-LV_CHAR23.
+*   ENDIF.
+*   condense wa_char-LV_CHAR1 .
+*   condense wa_char-LV_CHAR2 .
+*   condense wa_char-LV_CHAR3 .
+*   condense wa_char-LV_CHAR4 .
+*   condense wa_char-LV_CHAR5 .
+*   condense wa_char-LV_CHAR6 .
+*   condense wa_char-LV_CHAR7 .
+*   condense wa_char-LV_CHAR8 .
+*   condense wa_char-LV_CHAR9 .
+*   condense wa_char-LV_CHAR10.
+*   condense wa_char-LV_CHAR11.
+*   condense wa_char-LV_CHAR12.
+*   condense wa_char-LV_CHAR13.
+*   condense wa_char-LV_CHAR14.
+*   condense wa_char-LV_CHAR15.
+*   condense wa_char-LV_CHAR16.
+*   condense wa_char-LV_CHAR17.
+*   condense wa_char-LV_CHAR18.
+*   condense wa_char-LV_CHAR19.
+*   condense wa_char-LV_CHAR20.
+*   condense wa_char-LV_CHAR21.
+*   condense wa_char-LV_CHAR22.
+*   condense wa_char-LV_CHAR23.
+*   condense wa_char-LV_CHAR24.
+*
+*  CONCATENATE
+*  wa_char-LV_CHAR1
+*   wa_char-LV_CHAR2
+*   wa_char-LV_CHAR3
+*   wa_char-LV_CHAR4
+*   wa_char-LV_CHAR5
+*   wa_char-LV_CHAR6
+*   wa_char-LV_CHAR7
+*   wa_char-LV_CHAR8
+*   wa_char-LV_CHAR9
+*   wa_char-LV_CHAR10
+*   wa_char-LV_CHAR11
+*   wa_char-LV_CHAR12
+*   wa_char-LV_CHAR13
+*   wa_char-LV_CHAR14
+*   wa_char-LV_CHAR15
+*   wa_char-LV_CHAR16
+*   wa_char-LV_CHAR17
+*   wa_char-LV_CHAR18
+*   wa_char-LV_CHAR19
+*   wa_char-LV_CHAR20
+*   wa_char-LV_CHAR21
+*   wa_char-LV_CHAR22
+*   wa_char-LV_CHAR23
+*   wa_char-LV_CHAR24 INTO wa_ftp SEPARATED BY lv_tab.
+*    APPEND wa_ftp to ta_ftp.
+*CLEAR wa_ftp.
+*ENDLOOP.
+*PERFORM connect_2_ftp USING g_dest CHANGING g_hdl exp5.
+*CLEAR: wa_ftp,lv_file.
+*
+*IF exp5 IS INITIAL AND ta_ftp[] IS NOT INITIAL.
+*CONCATENATE lv_file1 'depot_loss_' sy-datum+6(2) sy-datum+4(2) sy-datum+0(4) sy-uzeit '.txt' INTO lv_file.
+*IF lv_file IS NOT INITIAL.
+*PERFORM send_2_ftp USING lv_file.
+*ENDIF.
+*ENDIF.
+*PERFORM disconnect_ftp USING g_hdl g_dest.
+*************************** " End of Process to Send file on FTP Server***********************
+*ENDIF.
+*ENDIF.
+ENDIF.
+ENDFORM.

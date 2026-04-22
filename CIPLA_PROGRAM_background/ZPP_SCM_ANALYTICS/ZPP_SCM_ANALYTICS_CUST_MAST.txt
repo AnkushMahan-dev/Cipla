@@ -1,0 +1,249 @@
+*----------------------------------------------------------------------*
+***INCLUDE ZPP_SCM_ANALYTICS_CUST_MAST.
+*----------------------------------------------------------------------*
+*&      Form  CUSTOMER_MASTER
+*&---------------------------------------------------------------------*
+FORM customer_master .
+TYPES: BEGIN OF ty_cust_mas,
+        line(500),
+       END OF TY_CUST_MAS.
+DATA: wa_ftp_cust_mas TYPE TY_CUST_MAS,
+      ta_ftp_cust_mas TYPE TABLE OF TY_CUST_MAS.
+SELECT
+  KUNNR,
+  NAME1,
+  LAND1,
+  REGIO,
+  PSTLZ FROM KNA1 INTO TABLE @data(ta_kna1_cust)
+        where KUNNR in @S_KUNNR AND
+              LAND1 in @s_landc.
+  IF ta_kna1_cust[] IS NOT INITIAL.
+    SELECT
+      KUNNR,
+      VKORG,
+      VTWEG,
+      SPART,
+      KDGRP,
+      BZIRK,
+      VKGRP,
+      VKBUR,
+      VWERK FROM KNVV INTO TABLE @data(ta_knvv_cust)
+            for ALL ENTRIES IN @ta_kna1_cust
+            WHERE KUNNR = @ta_kna1_cust-KUNNR AND
+                  VKORG IN @S_VKORG            AND
+                  VTWEG IN @S_VTWEG.
+      IF ta_knvv_cust[] IS NOT INITIAL.
+        SELECT vkorg, VTEXT FROM tvkot INTO TABLE @data(ta_tvkot)
+               for ALL ENTRIES IN @ta_knvv_cust
+                WHERE spras = 'E'                 AND
+                      vkorg = @ta_knvv_cust-VKORG.
+          SELECT vtweg, VTEXT FROM TVTWT INTO TABLE  @data(ta_tvtwt)
+            for ALL ENTRIES IN @ta_knvv_cust
+            WHERE spras = 'E' AND
+                  VTWEG = @ta_knvv_cust-VTWEG.
+          SELECT spart, VTEXT FROM tspat INTO TABLE @data(ta_tspat)
+            for ALL ENTRIES IN @ta_knvv_cust
+            WHERE spras = 'E'     AND
+                  SPART = @ta_knvv_cust-spart.
+          SELECT kdgrp, KTEXT FROM T151T INTO TABLE @data(ta_t151t)
+            for ALL ENTRIES IN @ta_knvv_cust
+            WHERE spras = 'E' AND
+                  KDGRP = @ta_knvv_cust-KDGRP.
+          SELECT bzirk, BZTXT FROM T171T INTO TABLE @data(ta_t171t)
+            for ALL ENTRIES IN @ta_knvv_cust
+            WHERE spras = 'E' AND
+                  BZIRK = @ta_knvv_cust-BZIRK.
+          SELECT vkgrp, BEZEI FROM TVGRT INTO TABLE @data(ta_tvgrt)
+            for ALL ENTRIES IN @ta_knvv_cust
+            WHERE spras = 'E' AND
+                  VKGRP = @ta_knvv_cust-VKGRP.
+           SELECT vkbur, BEZEI FROM tvkbt INTO TABLE @data(ta_tvkbt)
+             for ALL ENTRIES IN @ta_knvv_cust
+             WHERE spras = 'E' AND
+                    VKBUR = @ta_knvv_cust-VKBUR.
+      ENDIF.
+      SELECT LAND1, landx FROM t005t INTO TABLE @data(ta_t005t)
+        for ALL ENTRIES IN @ta_kna1_cust
+        WHERE spras = 'E' AND
+              LAND1 = @ta_kna1_cust-LAND1.
+        SELECT land1, bland, BEZEI FROM t005u INTO TABLE @data(ta_t005u)
+          for ALL ENTRIES IN @ta_kna1_cust
+          WHERE spras = 'E' AND
+                LAND1 = @ta_kna1_cust-LAND1 AND
+                bland = @ta_kna1_cust-REGIO.
+  ENDIF.
+
+  LOOP AT ta_knvv_cust INTO DATA(wa_knvv_cust).
+   wa_cust_mast-KUNNR         = wa_knvv_cust-KUNNR.
+   wa_cust_mast-VKORG         = wa_knvv_cust-vkorg .
+   wa_cust_mast-VTWEG         = wa_knvv_cust-VTWEG .
+   wa_cust_mast-SPART         = wa_knvv_cust-SPART .
+   wa_cust_mast-KDGRP         = wa_knvv_cust-kdgrp .
+   wa_cust_mast-BZIRK         = wa_knvv_cust-bzirk .
+   wa_cust_mast-VKGRP         = wa_knvv_cust-vkgrp .
+   wa_cust_mast-VKBUR         = wa_knvv_cust-vkbur .
+   wa_cust_mast-VWERK         = wa_knvv_cust-VWERK .
+
+   READ TABLE ta_tvkot INTO data(wa_tvkot) WITH KEY VKORG = wa_knvv_cust-VKORG.
+   IF sy-subrc EQ 0.
+     wa_cust_mast-VTEXT_VKORG   = wa_tvkot-vtext.
+     clear: wa_tvkot.
+   ENDIF.
+   READ TABLE ta_tvtwt INTO DATA(wa_tvtwt) WITH KEY VTWEG = wa_knvv_cust-VTWEG.
+   IF sy-subrc EQ 0.
+     wa_cust_mast-VTEXT_VTWEG   = wa_tvtwt-vtext.
+     CLEAR: wa_tvtwt.
+   ENDIF.
+   READ TABLE ta_tspat INTO DATA(wa_tspat) WITH KEY SPART = wa_knvv_cust-SPART.
+   IF sy-subrc EQ 0.
+     wa_cust_mast-VTEXT_SPART   = wa_tspat-vtext.
+     CLEAR: wa_tspat.
+   ENDIF.
+   READ TABLE ta_t151t INTO DATA(wa_t151t) WITH KEY KDGRP = wa_knvv_cust-KDGRP.
+   IF sy-subrc EQ 0.
+     wa_cust_mast-KTEXT         = wa_t151t-ktext.
+     CLEAR: wa_t151t.
+   ENDIF.
+   READ TABLE ta_t171t INTO DATA(wa_t171t) WITH KEY BZIRK = wa_knvv_cust-BZIRK.
+   IF sy-subrc EQ 0.
+     wa_cust_mast-BZTXT         = wa_t171t-bztxt.
+     CLEAR: wa_t171t.
+   ENDIF.
+   READ TABLE ta_tvgrt INTO DATA(wa_tvgrt)  WITH KEY VKGRP = wa_knvv_cust-VKGRP.
+   IF sy-subrc EQ 0.
+     wa_cust_mast-BEZEI_TVGRT   = wa_tvgrt-bezei.
+     CLEAR wa_tvgrt.
+   ENDIF.
+   READ TABLE ta_tvkbt INTO DATA(wa_tvkbt) WITH KEY VKBUR = wa_knvv_cust-VKBUR.
+   IF sy-subrc EQ 0.
+     wa_cust_mast-BEZEI_TVKBT   = wa_tvkbt-bezei .
+   ENDIF.
+   READ TABLE ta_kna1_cust INTO DATA(wa_kna1_cust) WITH KEY KUNNR = wa_knvv_cust-KUNNR.
+   IF sy-subrc EQ 0.
+      wa_cust_mast-NAME1         = wa_kna1_cust-name1 .
+      wa_cust_mast-LAND1         = wa_kna1_cust-LAND1 .
+      wa_cust_mast-REGIO         = wa_kna1_cust-regio .
+      wa_cust_mast-PSTLZ         = wa_kna1_cust-PSTLZ .
+      READ TABLE ta_t005t INTO DATA(wa_t005t) WITH KEY LAND1 = wa_kna1_cust-LAND1.
+      IF sy-subrc EQ 0.
+        wa_cust_mast-LANDX         = wa_t005t-landx.
+        CLEAR wa_t005t.
+      ENDIF.
+      READ TABLE ta_t005u INTO DATA(wa_t005u)
+        WITH KEY  LAND1 = wa_kna1_cust-LAND1
+                  bland = wa_kna1_cust-REGIO.
+      IF sy-subrc EQ 0.
+        wa_cust_mast-BEZEI_T005U   = wa_t005u-BEZEI .
+        CLEAR: wa_t005u.
+      ENDIF.
+   ENDIF.
+   SHIFT: WA_CUST_MAST-KUNNR LEFT DELETING LEADING '0'.
+   append WA_CUST_MAST TO TA_CUST_MAST.
+   CLEAR WA_CUST_MAST.
+  ENDLOOP.
+
+***********  " Process to send Customer Master file on FTP Server******************
+IF TA_CUST_MAST[] IS NOT INITIAL.
+CLEAR: lv_file, wa_ftp, ta_ftp[], WA_CUST_MAST.
+CONCATENATE
+'cust_code'
+'cust_name'
+'comp_code'
+'comp_name'
+'dist_chnl_code'
+'dist_chnl_name'
+'div_code'
+'div_name'
+'country_code'
+'country_name'
+'reg_code'
+'reg_name'
+'postl_code'
+'chnl_code'
+'chnl_name'
+'terr_code'
+'terr_name'
+'mini_reg_code'
+'mini_reg_name'
+'bu_code'
+'bu_name'
+'delv_plnt_code' INTO wa_ftp_cust_mas SEPARATED BY lv_tab. " wa_ftp has been replaced by wa_ftp_cust_mas agaisnt ticket no. 8000004920
+APPEND wa_ftp_cust_mas to ta_ftp_cust_mas." wa_ftp has been replaced by wa_ftp_cust_mas and ta_ftp by ta_ftp_cust_mas agaisnt ticket no. 8000004920
+CLEAR wa_ftp_cust_mas.
+LOOP AT TA_CUST_MAST INTO WA_CUST_MAST.
+CONCATENATE
+WA_CUST_MAST-KUNNR
+wa_cust_mast-NAME1
+wa_cust_mast-VKORG
+wa_cust_mast-VTEXT_VKORG
+wa_cust_mast-VTWEG
+wa_cust_mast-VTEXT_VTWEG
+wa_cust_mast-SPART
+wa_cust_mast-VTEXT_VTWEG
+wa_cust_mast-LAND1
+wa_cust_mast-LANDX
+wa_cust_mast-REGIO
+wa_cust_mast-BEZEI_T005U
+wa_cust_mast-PSTLZ
+wa_cust_mast-KDGRP
+wa_cust_mast-KTEXT
+wa_cust_mast-BZIRK
+wa_cust_mast-BZTXT
+wa_cust_mast-VKGRP
+wa_cust_mast-BEZEI_TVGRT
+wa_cust_mast-VKBUR
+wa_cust_mast-BEZEI_TVKBT
+wa_cust_mast-VWERK INTO wa_ftp_cust_mas SEPARATED BY lv_tab. " wa_ftp has been replaced by wa_ftp_cust_mas
+APPEND wa_ftp_cust_mas to ta_ftp_cust_mas.
+CLEAR: WA_CUST_MAST, wa_ftp_cust_mas.
+ENDLOOP.
+PERFORM connect_2_ftp USING g_dest CHANGING g_hdl exp5.
+CLEAR: wa_ftp,lv_file.
+
+IF exp5 IS INITIAL AND ta_ftp_cust_mas[] IS NOT INITIAL.
+CONCATENATE lv_file1 'customer_master.txt' INTO lv_file.
+IF lv_file IS NOT INITIAL.
+*****data lv_command(100) type c.
+*****DATA:lv_dest  TYPE rfcdes-rfcdest VALUE 'SAPFTPA'.
+*****data: lta_data TYPE TABLE OF datab.
+*****CONSTANTS lc_del(3) VALUE 'del'.
+*****BREAK abap4.
+*****lv_command =  |{ lc_del } { lv_file1 }{ '' }{ 'customer_master.txt'} |.
+*****CALL FUNCTION 'FTP_COMMAND'
+*****  EXPORTING
+*****   HANDLE                = g_hdl
+*****    command               = lv_command
+*****   COMPRESS              =
+*****   RFC_DESTINATION       = lv_dest
+*****  tables
+*****    data                  = lta_data
+***** EXCEPTIONS
+*****   TCPIP_ERROR           = 1
+*****   COMMAND_ERROR         = 2
+*****   DATA_ERROR            = 3
+*****   OTHERS                = 4.
+*PERFORM send_2_ftp USING lv_file.
+*FTP_R3_TO_SERVER:used to transfer the internal table data as a file to other system in the character mode.
+  CALL FUNCTION 'FTP_R3_TO_SERVER'
+    EXPORTING
+      handle         = g_hdl
+      fname          = lv_file "p_lv_file          "file path of destination system
+      character_mode = 'X'
+    TABLES
+      text           = ta_ftp_cust_mas
+    EXCEPTIONS
+      tcpip_error    = 1
+      command_error  = 2
+      data_error     = 3
+      OTHERS         = 4.
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+    WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4
+    RAISING invalid_output_file.
+  ENDIF.
+ENDIF.
+ENDIF.
+PERFORM disconnect_ftp USING g_hdl g_dest.
+************************** " End of Process to Send file on FTP Server***********************
+ENDIF.
+ENDFORM.

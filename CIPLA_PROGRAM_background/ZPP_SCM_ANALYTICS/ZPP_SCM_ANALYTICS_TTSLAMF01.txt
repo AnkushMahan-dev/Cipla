@@ -1,0 +1,91 @@
+*----------------------------------------------------------------------*
+***INCLUDE ZPP_SCM_ANALYTICS_TTSLAMF01.
+*&---------------------------------------------------------------------*
+*&      Form  TTSLAM
+*&---------------------------------------------------------------------*
+FORM ttslam .
+TYPES: BEGIN OF ty_ftp_ttsl,
+        line(50),
+       END OF ty_ftp_ttsl.
+DATA: wa_ftp_ttsl TYPE ty_ftp_ttsl,
+      ta_ftp_ttsl TYPE TABLE OF ty_ftp_ttsl.
+SELECT
+  SUP_PLANT
+  REC_PLANT
+  ROUTE
+  NDAYS FROM ZLR_TRANS INTO TABLE TA_TTSLAM
+         where  SUP_PLANT IN S_SWERK  AND
+                REC_PLANT IN s_rwerk  AND
+                route     IN S_ROUTE.
+" Process to send Transit time SLA Master file on FTP Server
+IF TA_TTSLAM[] IS NOT INITIAL.
+CLEAR: wa_ftp, ta_ftp[], lv_file.
+CONCATENATE
+'splnt_code'
+'rplnt_code'
+'route'
+'sla_days' INTO wa_ftp_ttsl SEPARATED BY lv_tab. " wa_ftp has been replaced by wa_ftp_ttsl against ticket no. 8000004920
+APPEND wa_ftp_ttsl to ta_ftp_ttsl. "" wa_ftp has been replaced by wa_ftp_ttsl and ta_ftp_ttsl against ticket no. 8000004920
+CLEAR wa_ftp_ttsl.
+LOOP AT TA_TTSLAM INTO data(WA_TTSLAM).
+SHIFT WA_TTSLAM-ZNDAYS LEFT DELETING LEADING '0'.
+CONCATENATE
+WA_TTSLAM-SUP_PLANT
+wa_ttslam-REC_PLANT
+wa_ttslam-ROUTE
+wa_ttslam-ZNDAYS INTO wa_ftp_ttsl SEPARATED BY lv_tab. " wa_ftp has been replaced by wa_ftp_ttsl against ticket no. 8000004920
+APPEND wa_ftp_ttsl to ta_ftp_ttsl. " wa_ftp has been replaced by wa_ftp_ttsl and ta_ftp by ta_ftp_ttsl against ticket no. 8000004920
+CLEAR wa_ftp_ttsl. " wa_ftp has been replaced by wa_ftp_ttsl against ticket no. 8000004920
+ENDLOOP.
+PERFORM connect_2_ftp USING g_dest CHANGING g_hdl exp5.
+CLEAR: wa_ftp,lv_file.
+
+IF exp5 IS INITIAL AND ta_ftp_ttsl[] IS NOT INITIAL.
+CONCATENATE lv_file1 'transit_sla_master.txt' INTO lv_file.
+IF lv_file IS NOT INITIAL.
+*****data lv_command(100) type c.
+*****DATA:lv_dest  TYPE rfcdes-rfcdest VALUE 'SAPFTPA'.
+*****data: lta_data TYPE TABLE OF datab.
+*****CONSTANTS lc_del(3) VALUE 'del'.
+*****BREAK abap4.
+*****lv_command =  |{ lc_del } { lv_file1 }{ '' }{ 'transit_sla_master.txt'} |.
+*****CALL FUNCTION 'FTP_COMMAND'
+*****  EXPORTING
+*****   HANDLE                = g_hdl
+*****    command               = lv_command
+*****   COMPRESS              =
+*****   RFC_DESTINATION       = lv_dest
+*****  tables
+*****    data                  = lta_data
+***** EXCEPTIONS
+*****   TCPIP_ERROR           = 1
+*****   COMMAND_ERROR         = 2
+*****   DATA_ERROR            = 3
+*****   OTHERS                = 4.
+
+*PERFORM send_2_ftp USING lv_file.
+
+*FTP_R3_TO_SERVER:used to transfer the internal table data as a file to other system in the character mode.
+  CALL FUNCTION 'FTP_R3_TO_SERVER'
+    EXPORTING
+      handle         = g_hdl
+      fname          = lv_file "p_lv_file          "file path of destination system
+      character_mode = 'X'
+    TABLES
+      text           = ta_ftp_ttsl
+    EXCEPTIONS
+      tcpip_error    = 1
+      command_error  = 2
+      data_error     = 3
+      OTHERS         = 4.
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+    WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4
+    RAISING invalid_output_file.
+  ENDIF.
+ENDIF.
+ENDIF.
+PERFORM disconnect_ftp USING g_hdl g_dest.
+************************** " End of Process to Send file on FTP Server***********************
+ENDIF.
+ENDFORM.

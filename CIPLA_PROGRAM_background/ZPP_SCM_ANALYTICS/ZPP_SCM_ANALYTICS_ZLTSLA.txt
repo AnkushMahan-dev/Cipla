@@ -1,0 +1,692 @@
+*&---------------------------------------------------------------------*
+*&  Include           ZPP_SCM_ANALYTICS_ZLTSLA
+*&---------------------------------------------------------------------*
+*&      Form  ZLT_SLA
+*&---------------------------------------------------------------------*
+* Modification Information
+* Date             : <10.04.2010>
+* Author           : <Nilesh dabhekar>
+* Transaction      : <ZPP_ANALYTICS >
+* Functional design: <FS_PP_206>
+* Technical design : <TS_PP_206>
+* Change request   : <CRDK969189>
+* Ticket number    : <8000006175>
+* Description      : <Data send to SFTP (Al11) folder>
+*&---------------------------------------------------------------------*
+FORM zlt_sla .
+  IF lv_flag NE 'X'.
+    DATA: lv_dat_ltsla(8).
+** will not display an ALV
+    CALL METHOD cl_salv_bs_runtime_info=>set
+      EXPORTING
+        display  = abap_false
+        metadata = abap_false
+        data     = abap_true
+*       structure      =
+*       structure_line =
+      .
+    SUBMIT zqm_lead_time_report_tmp" TO SAP-SPOOL
+*    VIA JOB name NUMBER number
+        WITH  s_werks    IN s_werksz  "   r_werksz
+        WITH  s_matnr    IN s_matnrz  "   r_matnrz
+        WITH  s_mtart    IN s_mtartz  "   r_mtartz
+        WITH  s_matkl    IN s_matklz  "   r_matklz
+        WITH  s_charg    IN s_chargz  "   r_chargz
+        WITH  s_inslot   IN s_inslot  "   r_inslot
+        WITH  s_art      IN s_art     "   r_art
+        WITH  s_vdatum   IN s_vdatum  "   r_vdatum
+        WITH  s_past     IN s_past    "   r_past
+        WITH  s_apgr     IN s_apgr    "   r_apgr
+        WITH  s_inco     IN s_inco    "   r_inco
+        WITH  p_r1       = 'X'
+        AND RETURN.
+
+    CLEAR : ta_final1[].
+** capture itab return from zsdror003 tcode report
+    TRY.
+        CALL METHOD cl_salv_bs_runtime_info=>get_data_ref
+          IMPORTING
+            r_data = ls_data.
+
+        ASSIGN ls_data->* TO <fs_data>.
+      CATCH cx_salv_bs_sc_runtime_info.
+
+    ENDTRY.
+
+    cl_salv_bs_runtime_info=>clear_all( ).
+
+    IF <fs_data> IS ASSIGNED.
+
+      ta_final1 = CORRESPONDING #( <fs_data> ).
+
+      UNASSIGN: <fs_data>, <fs_wa>.
+    ENDIF.
+    """"""""""&&&&&&&&&&&&&&&&&&&&&&&&&&&&""""""""""""""""""
+    TYPES: BEGIN OF ty_ftp_ltsla,
+             line(1500),
+           END OF ty_ftp_ltsla.
+    DATA: wa_ftp_ltsla TYPE ty_ftp_ltsla,
+          ta_ftp_ltsla TYPE TABLE OF ty_ftp_ltsla.
+    CLEAR: wa_ftp_ltsla, ta_ftp_ltsla[], lv_file.
+
+   CONSTANTS :lc_xsftp(2) TYPE c VALUE 'X'."LOC Added By Nilesh 16.04.2020 8000006115
+    if p_sftp ne lc_xsftp.   "LOC Added By Nilesh 16.04.2020 8000006115
+
+    CONCATENATE
+    'plnt_code'
+    'plnt_desc'
+    'mat_code'
+    'mat_type'
+    'mat_desc'
+    'dosage_code'
+    'dosage_desc'
+    'batch'
+    'insp_lotno'
+    'insp_type'
+    'insp_type_desc'
+    'lot_org'
+    'create_dt'
+    'rel_dt'
+    'apgr_dt'
+    'ar_no'
+    'smpl_dt'
+    'nxt_insp_dt'
+    'retest_dt'
+    'exp_dt'
+    'inco_dt'
+    'ud_dt'
+    'rel_apgr'
+    'rel_inco'
+    'apgr_inco'
+    'ud_inco'
+    'ud_init'
+    'ud_rel'
+    'ud_apgr'
+    'rel_init'
+    'var_apgr_ud'
+    'qc_time'
+    'var_apgr_inco'
+    'grn_dt'
+    'po_num'
+    'so_num'
+    'so_itm'
+    'mat_spec'
+    'ud_txt'
+    'tent_dt'
+    'usr_stat'
+    'usr_stat1'
+*'exsla_inco'
+    'exsla_ud'
+    'status'
+    'ud_desc'
+    'mfg_dt'
+    'procord_type'
+    'cust_name'
+    'country_name'
+    'po_stat' INTO wa_ftp_ltsla SEPARATED BY lv_tab. " wa_ftp has been replaced by wa_ftp_ltsla against ticket no. 8000004920
+    APPEND wa_ftp_ltsla TO ta_ftp_ltsla. " wa_ftp has been replaced by wa_ftp_ltsla against ticket no. 8000004920
+    CLEAR wa_ftp_ltsla.
+    LOOP AT ta_final1 INTO DATA(wa_zltsla1).
+      CONCATENATE wa_zltsla1-ersteldat+6(2) wa_zltsla1-ersteldat+4(2) wa_zltsla1-ersteldat+0(4) INTO lv_dat_ltsla.
+      CLEAR wa_zltsla1-ersteldat.
+      wa_zltsla1-ersteldat = lv_dat_ltsla.
+      CLEAR lv_dat_ltsla.
+      CONCATENATE wa_zltsla1-rel_date+6(2) wa_zltsla1-rel_date+4(2) wa_zltsla1-rel_date+0(4) INTO lv_dat_ltsla.
+      CLEAR wa_zltsla1-rel_date.
+      wa_zltsla1-rel_date = lv_dat_ltsla.
+      CLEAR lv_dat_ltsla.
+      CONCATENATE wa_zltsla1-apgr_date+6(2) wa_zltsla1-apgr_date+4(2) wa_zltsla1-apgr_date+0(4) INTO lv_dat_ltsla.
+      CLEAR wa_zltsla1-apgr_date.
+      wa_zltsla1-apgr_date = lv_dat_ltsla.
+      CLEAR lv_dat_ltsla.
+      CONCATENATE wa_zltsla1-sample_qty+6(2) wa_zltsla1-sample_qty+4(2) wa_zltsla1-sample_qty+0(4) INTO lv_dat_ltsla.
+      CLEAR wa_zltsla1-sample_qty.
+      wa_zltsla1-sample_qty = lv_dat_ltsla.
+      CLEAR lv_dat_ltsla.
+      CONCATENATE wa_zltsla1-reinspect+6(2) wa_zltsla1-reinspect+4(2) wa_zltsla1-reinspect+0(4) INTO lv_dat_ltsla.
+      CLEAR wa_zltsla1-reinspect.
+      wa_zltsla1-reinspect = lv_dat_ltsla.
+      CLEAR lv_dat_ltsla.
+      CONCATENATE wa_zltsla1-zretest_date+6(2) wa_zltsla1-zretest_date+4(2) wa_zltsla1-zretest_date+0(4) INTO lv_dat_ltsla.
+      CLEAR wa_zltsla1-zretest_date.
+      wa_zltsla1-zretest_date = lv_dat_ltsla.
+      CLEAR lv_dat_ltsla.
+      REPLACE ALL OCCURRENCES OF '.' IN wa_zltsla1-exp_date WITH ''.
+      CLEAR lv_dat_ltsla.
+      CONCATENATE wa_zltsla1-inco_date+6(2) wa_zltsla1-inco_date+4(2) wa_zltsla1-inco_date+0(4) INTO lv_dat_ltsla.
+      CLEAR wa_zltsla1-inco_date.
+      wa_zltsla1-inco_date = lv_dat_ltsla.
+      CLEAR lv_dat_ltsla.
+      CONCATENATE wa_zltsla1-vdatum+6(2) wa_zltsla1-vdatum+4(2) wa_zltsla1-vdatum+0(4) INTO lv_dat_ltsla.
+      CLEAR wa_zltsla1-vdatum.
+      wa_zltsla1-vdatum = lv_dat_ltsla.
+      CLEAR lv_dat_ltsla.
+      CONCATENATE wa_zltsla1-gr_date+6(2) wa_zltsla1-gr_date+4(2) wa_zltsla1-gr_date+0(4) INTO lv_dat_ltsla.
+      CLEAR wa_zltsla1-gr_date.
+      wa_zltsla1-gr_date = lv_dat_ltsla.
+      CLEAR lv_dat_ltsla.
+      CONCATENATE wa_zltsla1-tent_date+6(2) wa_zltsla1-tent_date+4(2) wa_zltsla1-tent_date+0(4) INTO lv_dat_ltsla.
+      CLEAR wa_zltsla1-tent_date.
+      wa_zltsla1-tent_date = lv_dat_ltsla.
+      CLEAR lv_dat_ltsla.
+      CONCATENATE wa_zltsla1-hsdat+6(2) wa_zltsla1-hsdat+4(2) wa_zltsla1-hsdat+0(4) INTO lv_dat_ltsla.
+      CLEAR wa_zltsla1-hsdat.
+      wa_zltsla1-hsdat = lv_dat_ltsla.
+      CLEAR lv_dat_ltsla.
+
+      """""" Shifting -ve sign from last to begining
+      REPLACE ALL OCCURRENCES OF '-' IN wa_zltsla1-apgr_ud_days WITH ''.
+      IF sy-subrc EQ 0.
+        CONDENSE wa_zltsla1-apgr_ud_days.
+        CONCATENATE '-' wa_zltsla1-apgr_ud_days INTO wa_zltsla1-apgr_ud_days.
+      ENDIF.
+      REPLACE ALL OCCURRENCES OF '-' IN wa_zltsla1-lead_time WITH ''.
+      IF sy-subrc EQ 0.
+        CONDENSE wa_zltsla1-lead_time.
+        CONCATENATE '-' wa_zltsla1-lead_time INTO wa_zltsla1-lead_time.
+      ENDIF.
+      REPLACE ALL OCCURRENCES OF '-' IN wa_zltsla1-rel_apgr_days WITH ''.
+      IF sy-subrc EQ 0.
+        CONDENSE wa_zltsla1-rel_apgr_days.
+        CONCATENATE '-' wa_zltsla1-rel_apgr_days INTO wa_zltsla1-rel_apgr_days.
+      ENDIF.
+      REPLACE ALL OCCURRENCES OF '-' IN wa_zltsla1-rel_inco_days WITH ''.
+      IF sy-subrc EQ 0.
+        CONDENSE wa_zltsla1-rel_inco_days.
+        CONCATENATE '-' wa_zltsla1-rel_inco_days INTO wa_zltsla1-rel_inco_days.
+      ENDIF.
+      REPLACE ALL OCCURRENCES OF '-' IN wa_zltsla1-apgr_inco_days WITH ''.
+      IF sy-subrc EQ 0.
+        CONDENSE wa_zltsla1-apgr_inco_days.
+        CONCATENATE '-' wa_zltsla1-apgr_inco_days INTO wa_zltsla1-apgr_inco_days.
+      ENDIF.
+      REPLACE ALL OCCURRENCES OF '-' IN wa_zltsla1-inco_ud_days WITH ''.
+      IF sy-subrc EQ 0.
+        CONDENSE wa_zltsla1-inco_ud_days.
+        CONCATENATE '-' wa_zltsla1-inco_ud_days INTO wa_zltsla1-inco_ud_days.
+      ENDIF.
+      REPLACE ALL OCCURRENCES OF '-' IN wa_zltsla1-ud_ersteldat_days WITH ''.
+      IF sy-subrc EQ 0.
+        CONDENSE wa_zltsla1-ud_ersteldat_days.
+        CONCATENATE '-' wa_zltsla1-ud_ersteldat_days INTO wa_zltsla1-ud_ersteldat_days.
+      ENDIF.
+      REPLACE ALL OCCURRENCES OF '-' IN wa_zltsla1-ud_rel_days WITH ''.
+      IF sy-subrc EQ 0.
+        CONDENSE wa_zltsla1-ud_rel_days.
+        CONCATENATE '-' wa_zltsla1-ud_rel_days INTO wa_zltsla1-ud_rel_days.
+      ENDIF.
+      REPLACE ALL OCCURRENCES OF '-' IN wa_zltsla1-ud_apgr_days WITH ''.
+      IF sy-subrc EQ 0.
+        CONDENSE wa_zltsla1-ud_apgr_days.
+        CONCATENATE '-' wa_zltsla1-ud_apgr_days INTO wa_zltsla1-ud_apgr_days.
+      ENDIF.
+      REPLACE ALL OCCURRENCES OF '-' IN wa_zltsla1-apgr_ud_days WITH ''.
+      IF sy-subrc EQ 0.
+        CONDENSE wa_zltsla1-apgr_ud_days.
+        CONCATENATE '-' wa_zltsla1-apgr_ud_days INTO wa_zltsla1-apgr_ud_days.
+      ENDIF.
+
+      wa_zltsla-lv_txt_1  = wa_zltsla1-werks                 . CONDENSE wa_zltsla-lv_txt_1  .
+      wa_zltsla-lv_txt_2  = wa_zltsla1-werks_name            . CONDENSE wa_zltsla-lv_txt_2  .
+      wa_zltsla-lv_txt_3  = wa_zltsla1-matnr                 . CONDENSE wa_zltsla-lv_txt_3  .
+      wa_zltsla-lv_txt_4  = wa_zltsla1-mtart                 . CONDENSE wa_zltsla-lv_txt_4  .
+      wa_zltsla-lv_txt_5  = wa_zltsla1-maktx                 . CONDENSE wa_zltsla-lv_txt_5  .
+      wa_zltsla-lv_txt_6  = wa_zltsla1-matkl                 . CONDENSE wa_zltsla-lv_txt_6  .
+      wa_zltsla-lv_txt_7  = wa_zltsla1-wgbez                 . CONDENSE wa_zltsla-lv_txt_7  .
+      wa_zltsla-lv_txt_8  = wa_zltsla1-charg                 . CONDENSE wa_zltsla-lv_txt_8  .
+      wa_zltsla-lv_txt_9  = wa_zltsla1-prueflos              . CONDENSE wa_zltsla-lv_txt_9  .
+      wa_zltsla-lv_txt_10 = wa_zltsla1-art                   . CONDENSE wa_zltsla-lv_txt_10 .
+      wa_zltsla-lv_txt_11 = wa_zltsla1-kurztext              . CONDENSE wa_zltsla-lv_txt_11 .
+      wa_zltsla-lv_txt_12 = wa_zltsla1-herkunft              . CONDENSE wa_zltsla-lv_txt_12 .
+      wa_zltsla-lv_txt_13 = wa_zltsla1-ersteldat             . CONDENSE wa_zltsla-lv_txt_13 .
+      wa_zltsla-lv_txt_14 = wa_zltsla1-rel_date              . CONDENSE wa_zltsla-lv_txt_14 .
+      wa_zltsla-lv_txt_15 = wa_zltsla1-apgr_date             . CONDENSE wa_zltsla-lv_txt_15 .
+      wa_zltsla-lv_txt_16 = wa_zltsla1-ar_no                 . CONDENSE wa_zltsla-lv_txt_16 .
+      wa_zltsla-lv_txt_17 = wa_zltsla1-sample_qty            . CONDENSE wa_zltsla-lv_txt_17 .
+      wa_zltsla-lv_txt_18 = wa_zltsla1-reinspect             . CONDENSE wa_zltsla-lv_txt_18 .
+      wa_zltsla-lv_txt_19 = wa_zltsla1-zretest_date          . CONDENSE wa_zltsla-lv_txt_19 .
+      wa_zltsla-lv_txt_20 = wa_zltsla1-exp_date              . CONDENSE wa_zltsla-lv_txt_20 .
+      wa_zltsla-lv_txt_21 = wa_zltsla1-inco_date             . CONDENSE wa_zltsla-lv_txt_21 .
+      wa_zltsla-lv_txt_22 = wa_zltsla1-vdatum                . CONDENSE wa_zltsla-lv_txt_22 .
+      wa_zltsla-lv_txt_23 = wa_zltsla1-rel_apgr_days         . CONDENSE wa_zltsla-lv_txt_23 .
+      wa_zltsla-lv_txt_24 = wa_zltsla1-rel_inco_days         . CONDENSE wa_zltsla-lv_txt_24 .
+      wa_zltsla-lv_txt_25 = wa_zltsla1-apgr_inco_days        . CONDENSE wa_zltsla-lv_txt_25 .
+      wa_zltsla-lv_txt_26 = wa_zltsla1-inco_ud_days          . CONDENSE wa_zltsla-lv_txt_26 .
+      wa_zltsla-lv_txt_27 = wa_zltsla1-ud_ersteldat_days     . CONDENSE wa_zltsla-lv_txt_27 .
+      wa_zltsla-lv_txt_28 = wa_zltsla1-ud_rel_days           . CONDENSE wa_zltsla-lv_txt_28 .
+      wa_zltsla-lv_txt_29 = wa_zltsla1-ud_apgr_days          . CONDENSE wa_zltsla-lv_txt_29 .
+      wa_zltsla-lv_txt_30 = wa_zltsla1-rel_ersteldat         . CONDENSE wa_zltsla-lv_txt_30 .
+      wa_zltsla-lv_txt_31 = wa_zltsla1-apgr_ud_days          . CONDENSE wa_zltsla-lv_txt_31 .
+      wa_zltsla-lv_txt_32 = wa_zltsla1-webaz                 . CONDENSE wa_zltsla-lv_txt_32 .
+      wa_zltsla-lv_txt_33 = wa_zltsla1-lead_time             . CONDENSE wa_zltsla-lv_txt_33 .
+      wa_zltsla-lv_txt_34 = wa_zltsla1-gr_date               . CONDENSE wa_zltsla-lv_txt_34 .
+      wa_zltsla-lv_txt_35 = wa_zltsla1-aufnr                 . CONDENSE wa_zltsla-lv_txt_35 .
+      wa_zltsla-lv_txt_36 = wa_zltsla1-kdauf                 . CONDENSE wa_zltsla-lv_txt_36 .
+      wa_zltsla-lv_txt_37 = wa_zltsla1-kdpos                 . CONDENSE wa_zltsla-lv_txt_37 .
+      wa_zltsla-lv_txt_38 = wa_zltsla1-selmatnr              . CONDENSE wa_zltsla-lv_txt_38 .
+      wa_zltsla-lv_txt_39 = wa_zltsla1-text                  . CONDENSE wa_zltsla-lv_txt_39 .
+      wa_zltsla-lv_txt_40 = wa_zltsla1-tent_date             . CONDENSE wa_zltsla-lv_txt_40 .
+      wa_zltsla-lv_txt_41 = wa_zltsla1-txt04                 . CONDENSE wa_zltsla-lv_txt_41 .
+      wa_zltsla-lv_txt_42 = wa_zltsla1-user_stat             . CONDENSE wa_zltsla-lv_txt_42 .
+*WA_ZLTSLA-LV_TXT_43 = wa_zltsla1-SLA_INCO              . CONDENSE WA_ZLTSLA-LV_TXT_43 .
+      wa_zltsla-lv_txt_44 = wa_zltsla1-sla_ud                . CONDENSE wa_zltsla-lv_txt_44 .
+      wa_zltsla-lv_txt_43 = wa_zltsla1-status               . CONDENSE wa_zltsla-lv_txt_43 .
+      wa_zltsla-lv_txt_45 = wa_zltsla1-ud_kurztext           . CONDENSE wa_zltsla-lv_txt_45 .
+      wa_zltsla-lv_txt_46 = wa_zltsla1-hsdat                 . CONDENSE wa_zltsla-lv_txt_46 .
+      wa_zltsla-lv_txt_47 = wa_zltsla1-txt                   . CONDENSE wa_zltsla-lv_txt_47 .
+      wa_zltsla-lv_txt_48 = wa_zltsla1-kunnr                 . CONDENSE wa_zltsla-lv_txt_48 .
+      wa_zltsla-lv_txt_49 = wa_zltsla1-landx                 . CONDENSE wa_zltsla-lv_txt_49 .
+      wa_zltsla-lv_txt_50 = wa_zltsla1-po_stat               . CONDENSE wa_zltsla-lv_txt_50 .
+
+      CONCATENATE
+      wa_zltsla-lv_txt_1
+      wa_zltsla-lv_txt_2
+      wa_zltsla-lv_txt_3
+      wa_zltsla-lv_txt_4
+      wa_zltsla-lv_txt_5
+      wa_zltsla-lv_txt_6
+      wa_zltsla-lv_txt_7
+      wa_zltsla-lv_txt_8
+      wa_zltsla-lv_txt_9
+      wa_zltsla-lv_txt_10
+      wa_zltsla-lv_txt_11
+      wa_zltsla-lv_txt_12
+      wa_zltsla-lv_txt_13
+      wa_zltsla-lv_txt_14
+      wa_zltsla-lv_txt_15
+      wa_zltsla-lv_txt_16
+      wa_zltsla-lv_txt_17
+      wa_zltsla-lv_txt_18
+      wa_zltsla-lv_txt_19
+      wa_zltsla-lv_txt_20
+      wa_zltsla-lv_txt_21
+      wa_zltsla-lv_txt_22
+      wa_zltsla-lv_txt_23
+      wa_zltsla-lv_txt_24
+      wa_zltsla-lv_txt_25
+      wa_zltsla-lv_txt_26
+      wa_zltsla-lv_txt_27
+      wa_zltsla-lv_txt_28
+      wa_zltsla-lv_txt_29
+      wa_zltsla-lv_txt_30
+      wa_zltsla-lv_txt_31
+      wa_zltsla-lv_txt_32
+      wa_zltsla-lv_txt_33
+      wa_zltsla-lv_txt_34
+      wa_zltsla-lv_txt_35
+      wa_zltsla-lv_txt_36
+      wa_zltsla-lv_txt_37
+      wa_zltsla-lv_txt_38
+      wa_zltsla-lv_txt_39
+      wa_zltsla-lv_txt_40
+      wa_zltsla-lv_txt_41
+      wa_zltsla-lv_txt_42
+      wa_zltsla-lv_txt_43
+      wa_zltsla-lv_txt_44
+      wa_zltsla-lv_txt_45
+      wa_zltsla-lv_txt_46
+      wa_zltsla-lv_txt_47
+      wa_zltsla-lv_txt_48
+      wa_zltsla-lv_txt_49
+      wa_zltsla-lv_txt_50 INTO wa_ftp_ltsla SEPARATED BY lv_tab. " wa_ftp has been replaced by wa_ftp_ltsla against ticket no. 8000004920
+      APPEND wa_ftp_ltsla TO ta_ftp_ltsla. " wa_ftp has been replaced by wa_ftp_ltsla against ticket no. 8000004920
+      CLEAR wa_ftp_ltsla.
+    ENDLOOP.
+    IF ta_ftp_ltsla[] IS NOT INITIAL. " ta_ftp has been replaced by ta_ftp_ltsla against ticket no. 8000004920
+      PERFORM connect_2_ftp USING g_dest CHANGING g_hdl exp5.
+      CLEAR: wa_ftp_ltsla,lv_file.
+
+      IF exp5 IS INITIAL AND ta_ftp_ltsla[] IS NOT INITIAL.
+        IF lt_r1 = 'X'.
+          CONCATENATE lv_file1 'zlt_sla.txt' INTO lv_file.
+        ELSEIF lt_r2 = 'X'.
+          CONCATENATE lv_file1 'zlt_sla_' sy-datum+4(2) sy-datum+0(4) '.txt' INTO lv_file.
+        ELSEIF lt_r3 = 'X'.
+          CONCATENATE lv_file1 'zlt_sla_' sy-datum+6(2) sy-datum+4(2) sy-datum+0(4) '.txt' INTO lv_file.
+        ENDIF.
+
+        IF lv_file IS NOT INITIAL.
+*PERFORM send_2_ftp USING lv_file.
+*FTP_R3_TO_SERVER:used to transfer the internal table data as a file to other system in the character mode.
+          CALL FUNCTION 'FTP_R3_TO_SERVER'
+            EXPORTING
+              handle         = g_hdl
+              fname          = lv_file "p_lv_file          "file path of destination system
+              character_mode = 'X'
+            TABLES
+              text           = ta_ftp_ltsla
+            EXCEPTIONS
+              tcpip_error    = 1
+              command_error  = 2
+              data_error     = 3
+              OTHERS         = 4.
+          IF sy-subrc <> 0.
+            MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+            WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4
+            RAISING invalid_output_file.
+          ENDIF.
+        ENDIF.
+      ENDIF.
+      PERFORM disconnect_ftp USING g_hdl g_dest.
+   endif.
+  endif."LOC added By Nilesh 16.04.2020 8000006175
+************************** " End of Process to Send file on FTP Server Nilesh***********************
+
+*********************** SOC export_file_to_al11 Ticket No:8000006175 by Nilesh 09.04.2020***********
+if p_sftp = lc_xsftp. "LOC added By Nilesh 16.04.2020 8000006175
+*----------------------------------------------------------------------------*
+*  data Decleration
+*----------------------------------------------------------------------------*
+      DATA : lv_sft_path     TYPE char200,
+             lwa_sftp(50000) TYPE c,
+             lv_str(500)     TYPE c,
+             lv_file_lt      TYPE char300.
+*----------------------------------------------------------------------------*
+*      Constant
+*----------------------------------------------------------------------------*
+      CONSTANTS : lc_zqm_path(20) TYPE c VALUE 'ZQM_LT_PAT',
+                  lc_sep          TYPE c VALUE '|',
+                  lc_x(1)         TYPE c VALUE 'X',
+                  lc_zltatext(30) TYPE c VALUE 'zlt_sla.txt',
+                  lc_zlt_sla(30)  TYPE c VALUE 'zlt_sla_',
+                  lc_txt(10)      TYPE c VALUE '.txt'.
+
+*----------------------------------------------------------------------------*
+*   Fetch data from Param table
+*----------------------------------------------------------------------------*
+      SELECT SINGLE param_name
+               FROM zparam_table
+               INTO @DATA(lv_sftp_path)
+               WHERE id_name EQ @lc_zqm_path.
+*----------------------------------------------------------------------------*
+*  File Path ad per timestamp
+*----------------------------------------------------------------------------*
+       IF lt_r1 = lc_x.
+           lv_file_lt = lc_zltatext.
+        ELSEIF lt_r2 = lc_x.
+          CONCATENATE lc_zlt_sla sy-datum+4(2) sy-datum+0(4) lc_txt INTO lv_file_lt.
+        ELSEIF lt_r3 = lc_x.
+          CONCATENATE lc_zlt_sla sy-datum+6(2) sy-datum+4(2) sy-datum+0(4) lc_txt INTO lv_file_lt.
+        ENDIF.
+
+      CLEAR lv_sft_path.
+      IF lv_sftp_path IS NOT INITIAL and lv_file_lt IS NOT INITIAL.
+        lv_sft_path = |{ lv_sftp_path }{ '\' }{ lv_file_lt }|.
+      ENDIF.
+
+*----------------------------------------------------------------------------*
+*   Send Data to SFTP (AL11) Path
+*----------------------------------------------------------------------------*
+      OPEN DATASET lv_sft_path FOR OUTPUT IN TEXT MODE ENCODING DEFAULT.
+
+      IF sy-subrc = 0.
+        CONCATENATE
+     'plnt_code'
+     'plnt_desc'
+     'mat_code'
+     'mat_type'
+     'mat_desc'
+     'dosage_code'
+     'dosage_desc'
+     'batch'
+     'insp_lotno'
+     'insp_type'
+     'insp_type_desc'
+     'lot_org'
+     'create_dt'
+     'rel_dt'
+     'apgr_dt'
+     'ar_no'
+     'smpl_dt'
+     'nxt_insp_dt'
+     'retest_dt'
+     'exp_dt'
+     'inco_dt'
+     'ud_dt'
+     'rel_apgr'
+     'rel_inco'
+     'apgr_inco'
+     'ud_inco'
+     'ud_init'
+     'ud_rel'
+     'ud_apgr'
+     'rel_init'
+     'var_apgr_ud'
+     'qc_time'
+     'var_apgr_inco'
+     'grn_dt'
+     'po_num'
+     'so_num'
+     'so_itm'
+     'mat_spec'
+     'ud_txt'
+     'tent_dt'
+     'usr_stat'
+     'usr_stat1'
+     'exsla_ud'
+     'status'
+     'ud_desc'
+     'mfg_dt'
+     'procord_type'
+     'cust_name'
+     'country_name'
+     'po_stat' INTO  lwa_sftp SEPARATED BY lc_sep .
+        TRANSFER lwa_sftp TO lv_sft_path.
+        CLEAR: lwa_sftp.
+        CLEAR :wa_zltsla1.
+        LOOP AT ta_final1 INTO wa_zltsla1.
+          CONCATENATE wa_zltsla1-ersteldat+6(2) wa_zltsla1-ersteldat+4(2) wa_zltsla1-ersteldat+0(4) INTO lv_dat_ltsla.
+          CLEAR wa_zltsla1-ersteldat.
+          wa_zltsla1-ersteldat = lv_dat_ltsla.
+          CLEAR lv_dat_ltsla.
+          CONCATENATE wa_zltsla1-rel_date+6(2) wa_zltsla1-rel_date+4(2) wa_zltsla1-rel_date+0(4) INTO lv_dat_ltsla.
+          CLEAR wa_zltsla1-rel_date.
+          wa_zltsla1-rel_date = lv_dat_ltsla.
+          CLEAR lv_dat_ltsla.
+          CONCATENATE wa_zltsla1-apgr_date+6(2) wa_zltsla1-apgr_date+4(2) wa_zltsla1-apgr_date+0(4) INTO lv_dat_ltsla.
+          CLEAR wa_zltsla1-apgr_date.
+          wa_zltsla1-apgr_date = lv_dat_ltsla.
+          CLEAR lv_dat_ltsla.
+          CONCATENATE wa_zltsla1-sample_qty+6(2) wa_zltsla1-sample_qty+4(2) wa_zltsla1-sample_qty+0(4) INTO lv_dat_ltsla.
+          CLEAR wa_zltsla1-sample_qty.
+          wa_zltsla1-sample_qty = lv_dat_ltsla.
+          CLEAR lv_dat_ltsla.
+          CONCATENATE wa_zltsla1-reinspect+6(2) wa_zltsla1-reinspect+4(2) wa_zltsla1-reinspect+0(4) INTO lv_dat_ltsla.
+          CLEAR wa_zltsla1-reinspect.
+          wa_zltsla1-reinspect = lv_dat_ltsla.
+          CLEAR lv_dat_ltsla.
+          CONCATENATE wa_zltsla1-zretest_date+6(2) wa_zltsla1-zretest_date+4(2) wa_zltsla1-zretest_date+0(4) INTO lv_dat_ltsla.
+          CLEAR wa_zltsla1-zretest_date.
+          wa_zltsla1-zretest_date = lv_dat_ltsla.
+          CLEAR lv_dat_ltsla.
+          REPLACE ALL OCCURRENCES OF '.' IN wa_zltsla1-exp_date WITH ''.
+          CLEAR lv_dat_ltsla.
+          CONCATENATE wa_zltsla1-inco_date+6(2) wa_zltsla1-inco_date+4(2) wa_zltsla1-inco_date+0(4) INTO lv_dat_ltsla.
+          CLEAR wa_zltsla1-inco_date.
+          wa_zltsla1-inco_date = lv_dat_ltsla.
+          CLEAR lv_dat_ltsla.
+          CONCATENATE wa_zltsla1-vdatum+6(2) wa_zltsla1-vdatum+4(2) wa_zltsla1-vdatum+0(4) INTO lv_dat_ltsla.
+          CLEAR wa_zltsla1-vdatum.
+          wa_zltsla1-vdatum = lv_dat_ltsla.
+          CLEAR lv_dat_ltsla.
+          CONCATENATE wa_zltsla1-gr_date+6(2) wa_zltsla1-gr_date+4(2) wa_zltsla1-gr_date+0(4) INTO lv_dat_ltsla.
+          CLEAR wa_zltsla1-gr_date.
+          wa_zltsla1-gr_date = lv_dat_ltsla.
+          CLEAR lv_dat_ltsla.
+          CONCATENATE wa_zltsla1-tent_date+6(2) wa_zltsla1-tent_date+4(2) wa_zltsla1-tent_date+0(4) INTO lv_dat_ltsla.
+          CLEAR wa_zltsla1-tent_date.
+          wa_zltsla1-tent_date = lv_dat_ltsla.
+          CLEAR lv_dat_ltsla.
+          CONCATENATE wa_zltsla1-hsdat+6(2) wa_zltsla1-hsdat+4(2) wa_zltsla1-hsdat+0(4) INTO lv_dat_ltsla.
+          CLEAR wa_zltsla1-hsdat.
+          wa_zltsla1-hsdat = lv_dat_ltsla.
+          CLEAR lv_dat_ltsla.
+
+          """""" Shifting -ve sign from last to begining
+          REPLACE ALL OCCURRENCES OF '-' IN wa_zltsla1-apgr_ud_days WITH ''.
+          IF sy-subrc EQ 0.
+            CONDENSE wa_zltsla1-apgr_ud_days.
+            CONCATENATE '-' wa_zltsla1-apgr_ud_days INTO wa_zltsla1-apgr_ud_days.
+          ENDIF.
+          REPLACE ALL OCCURRENCES OF '-' IN wa_zltsla1-lead_time WITH ''.
+          IF sy-subrc EQ 0.
+            CONDENSE wa_zltsla1-lead_time.
+            CONCATENATE '-' wa_zltsla1-lead_time INTO wa_zltsla1-lead_time.
+          ENDIF.
+          REPLACE ALL OCCURRENCES OF '-' IN wa_zltsla1-rel_apgr_days WITH ''.
+          IF sy-subrc EQ 0.
+            CONDENSE wa_zltsla1-rel_apgr_days.
+            CONCATENATE '-' wa_zltsla1-rel_apgr_days INTO wa_zltsla1-rel_apgr_days.
+          ENDIF.
+          REPLACE ALL OCCURRENCES OF '-' IN wa_zltsla1-rel_inco_days WITH ''.
+          IF sy-subrc EQ 0.
+            CONDENSE wa_zltsla1-rel_inco_days.
+            CONCATENATE '-' wa_zltsla1-rel_inco_days INTO wa_zltsla1-rel_inco_days.
+          ENDIF.
+          REPLACE ALL OCCURRENCES OF '-' IN wa_zltsla1-apgr_inco_days WITH ''.
+          IF sy-subrc EQ 0.
+            CONDENSE wa_zltsla1-apgr_inco_days.
+            CONCATENATE '-' wa_zltsla1-apgr_inco_days INTO wa_zltsla1-apgr_inco_days.
+          ENDIF.
+          REPLACE ALL OCCURRENCES OF '-' IN wa_zltsla1-inco_ud_days WITH ''.
+          IF sy-subrc EQ 0.
+            CONDENSE wa_zltsla1-inco_ud_days.
+            CONCATENATE '-' wa_zltsla1-inco_ud_days INTO wa_zltsla1-inco_ud_days.
+          ENDIF.
+          REPLACE ALL OCCURRENCES OF '-' IN wa_zltsla1-ud_ersteldat_days WITH ''.
+          IF sy-subrc EQ 0.
+            CONDENSE wa_zltsla1-ud_ersteldat_days.
+            CONCATENATE '-' wa_zltsla1-ud_ersteldat_days INTO wa_zltsla1-ud_ersteldat_days.
+          ENDIF.
+          REPLACE ALL OCCURRENCES OF '-' IN wa_zltsla1-ud_rel_days WITH ''.
+          IF sy-subrc EQ 0.
+            CONDENSE wa_zltsla1-ud_rel_days.
+            CONCATENATE '-' wa_zltsla1-ud_rel_days INTO wa_zltsla1-ud_rel_days.
+          ENDIF.
+          REPLACE ALL OCCURRENCES OF '-' IN wa_zltsla1-ud_apgr_days WITH ''.
+          IF sy-subrc EQ 0.
+            CONDENSE wa_zltsla1-ud_apgr_days.
+            CONCATENATE '-' wa_zltsla1-ud_apgr_days INTO wa_zltsla1-ud_apgr_days.
+          ENDIF.
+          REPLACE ALL OCCURRENCES OF '-' IN wa_zltsla1-apgr_ud_days WITH ''.
+          IF sy-subrc EQ 0.
+            CONDENSE wa_zltsla1-apgr_ud_days.
+            CONCATENATE '-' wa_zltsla1-apgr_ud_days INTO wa_zltsla1-apgr_ud_days.
+          ENDIF.
+
+          wa_zltsla-lv_txt_1  = wa_zltsla1-werks                 . CONDENSE wa_zltsla-lv_txt_1  .
+          wa_zltsla-lv_txt_2  = wa_zltsla1-werks_name            . CONDENSE wa_zltsla-lv_txt_2  .
+          wa_zltsla-lv_txt_3  = wa_zltsla1-matnr                 . CONDENSE wa_zltsla-lv_txt_3  .
+          wa_zltsla-lv_txt_4  = wa_zltsla1-mtart                 . CONDENSE wa_zltsla-lv_txt_4  .
+          wa_zltsla-lv_txt_5  = wa_zltsla1-maktx                 . CONDENSE wa_zltsla-lv_txt_5  .
+          wa_zltsla-lv_txt_6  = wa_zltsla1-matkl                 . CONDENSE wa_zltsla-lv_txt_6  .
+          wa_zltsla-lv_txt_7  = wa_zltsla1-wgbez                 . CONDENSE wa_zltsla-lv_txt_7  .
+          wa_zltsla-lv_txt_8  = wa_zltsla1-charg                 . CONDENSE wa_zltsla-lv_txt_8  .
+          wa_zltsla-lv_txt_9  = wa_zltsla1-prueflos              . CONDENSE wa_zltsla-lv_txt_9  .
+          wa_zltsla-lv_txt_10 = wa_zltsla1-art                   . CONDENSE wa_zltsla-lv_txt_10 .
+          wa_zltsla-lv_txt_11 = wa_zltsla1-kurztext              . CONDENSE wa_zltsla-lv_txt_11 .
+          wa_zltsla-lv_txt_12 = wa_zltsla1-herkunft              . CONDENSE wa_zltsla-lv_txt_12 .
+          wa_zltsla-lv_txt_13 = wa_zltsla1-ersteldat             . CONDENSE wa_zltsla-lv_txt_13 .
+          wa_zltsla-lv_txt_14 = wa_zltsla1-rel_date              . CONDENSE wa_zltsla-lv_txt_14 .
+          wa_zltsla-lv_txt_15 = wa_zltsla1-apgr_date             . CONDENSE wa_zltsla-lv_txt_15 .
+          wa_zltsla-lv_txt_16 = wa_zltsla1-ar_no                 . CONDENSE wa_zltsla-lv_txt_16 .
+          wa_zltsla-lv_txt_17 = wa_zltsla1-sample_qty            . CONDENSE wa_zltsla-lv_txt_17 .
+          wa_zltsla-lv_txt_18 = wa_zltsla1-reinspect             . CONDENSE wa_zltsla-lv_txt_18 .
+          wa_zltsla-lv_txt_19 = wa_zltsla1-zretest_date          . CONDENSE wa_zltsla-lv_txt_19 .
+          wa_zltsla-lv_txt_20 = wa_zltsla1-exp_date              . CONDENSE wa_zltsla-lv_txt_20 .
+          wa_zltsla-lv_txt_21 = wa_zltsla1-inco_date             . CONDENSE wa_zltsla-lv_txt_21 .
+          wa_zltsla-lv_txt_22 = wa_zltsla1-vdatum                . CONDENSE wa_zltsla-lv_txt_22 .
+          wa_zltsla-lv_txt_23 = wa_zltsla1-rel_apgr_days         . CONDENSE wa_zltsla-lv_txt_23 .
+          wa_zltsla-lv_txt_24 = wa_zltsla1-rel_inco_days         . CONDENSE wa_zltsla-lv_txt_24 .
+          wa_zltsla-lv_txt_25 = wa_zltsla1-apgr_inco_days        . CONDENSE wa_zltsla-lv_txt_25 .
+          wa_zltsla-lv_txt_26 = wa_zltsla1-inco_ud_days          . CONDENSE wa_zltsla-lv_txt_26 .
+          wa_zltsla-lv_txt_27 = wa_zltsla1-ud_ersteldat_days     . CONDENSE wa_zltsla-lv_txt_27 .
+          wa_zltsla-lv_txt_28 = wa_zltsla1-ud_rel_days           . CONDENSE wa_zltsla-lv_txt_28 .
+          wa_zltsla-lv_txt_29 = wa_zltsla1-ud_apgr_days          . CONDENSE wa_zltsla-lv_txt_29 .
+          wa_zltsla-lv_txt_30 = wa_zltsla1-rel_ersteldat         . CONDENSE wa_zltsla-lv_txt_30 .
+          wa_zltsla-lv_txt_31 = wa_zltsla1-apgr_ud_days          . CONDENSE wa_zltsla-lv_txt_31 .
+          wa_zltsla-lv_txt_32 = wa_zltsla1-webaz                 . CONDENSE wa_zltsla-lv_txt_32 .
+          wa_zltsla-lv_txt_33 = wa_zltsla1-lead_time             . CONDENSE wa_zltsla-lv_txt_33 .
+          wa_zltsla-lv_txt_34 = wa_zltsla1-gr_date               . CONDENSE wa_zltsla-lv_txt_34 .
+          wa_zltsla-lv_txt_35 = wa_zltsla1-aufnr                 . CONDENSE wa_zltsla-lv_txt_35 .
+          wa_zltsla-lv_txt_36 = wa_zltsla1-kdauf                 . CONDENSE wa_zltsla-lv_txt_36 .
+          wa_zltsla-lv_txt_37 = wa_zltsla1-kdpos                 . CONDENSE wa_zltsla-lv_txt_37 .
+          wa_zltsla-lv_txt_38 = wa_zltsla1-selmatnr              . CONDENSE wa_zltsla-lv_txt_38 .
+          wa_zltsla-lv_txt_39 = wa_zltsla1-text                  . CONDENSE wa_zltsla-lv_txt_39 .
+          wa_zltsla-lv_txt_40 = wa_zltsla1-tent_date             . CONDENSE wa_zltsla-lv_txt_40 .
+          wa_zltsla-lv_txt_41 = wa_zltsla1-txt04                 . CONDENSE wa_zltsla-lv_txt_41 .
+          wa_zltsla-lv_txt_42 = wa_zltsla1-user_stat             . CONDENSE wa_zltsla-lv_txt_42 .
+*WA_ZLTSLA-LV_TXT_43 = wa_zltsla1-SLA_INCO              . CONDENSE WA_ZLTSLA-LV_TXT_43 .
+          wa_zltsla-lv_txt_44 = wa_zltsla1-sla_ud                . CONDENSE wa_zltsla-lv_txt_44 .
+          wa_zltsla-lv_txt_43 = wa_zltsla1-status               . CONDENSE wa_zltsla-lv_txt_43 .
+          wa_zltsla-lv_txt_45 = wa_zltsla1-ud_kurztext           . CONDENSE wa_zltsla-lv_txt_45 .
+          wa_zltsla-lv_txt_46 = wa_zltsla1-hsdat                 . CONDENSE wa_zltsla-lv_txt_46 .
+          wa_zltsla-lv_txt_47 = wa_zltsla1-txt                   . CONDENSE wa_zltsla-lv_txt_47 .
+          wa_zltsla-lv_txt_48 = wa_zltsla1-kunnr                 . CONDENSE wa_zltsla-lv_txt_48 .
+          wa_zltsla-lv_txt_49 = wa_zltsla1-landx                 . CONDENSE wa_zltsla-lv_txt_49 .
+          wa_zltsla-lv_txt_50 = wa_zltsla1-po_stat               . CONDENSE wa_zltsla-lv_txt_50 .
+
+          CONCATENATE
+          wa_zltsla-lv_txt_1
+          wa_zltsla-lv_txt_2
+          wa_zltsla-lv_txt_3
+          wa_zltsla-lv_txt_4
+          wa_zltsla-lv_txt_5
+          wa_zltsla-lv_txt_6
+          wa_zltsla-lv_txt_7
+          wa_zltsla-lv_txt_8
+          wa_zltsla-lv_txt_9
+          wa_zltsla-lv_txt_10
+          wa_zltsla-lv_txt_11
+          wa_zltsla-lv_txt_12
+          wa_zltsla-lv_txt_13
+          wa_zltsla-lv_txt_14
+          wa_zltsla-lv_txt_15
+          wa_zltsla-lv_txt_16
+          wa_zltsla-lv_txt_17
+          wa_zltsla-lv_txt_18
+          wa_zltsla-lv_txt_19
+          wa_zltsla-lv_txt_20
+          wa_zltsla-lv_txt_21
+          wa_zltsla-lv_txt_22
+          wa_zltsla-lv_txt_23
+          wa_zltsla-lv_txt_24
+          wa_zltsla-lv_txt_25
+          wa_zltsla-lv_txt_26
+          wa_zltsla-lv_txt_27
+          wa_zltsla-lv_txt_28
+          wa_zltsla-lv_txt_29
+          wa_zltsla-lv_txt_30
+          wa_zltsla-lv_txt_31
+          wa_zltsla-lv_txt_32
+          wa_zltsla-lv_txt_33
+          wa_zltsla-lv_txt_34
+          wa_zltsla-lv_txt_35
+          wa_zltsla-lv_txt_36
+          wa_zltsla-lv_txt_37
+          wa_zltsla-lv_txt_38
+          wa_zltsla-lv_txt_39
+          wa_zltsla-lv_txt_40
+          wa_zltsla-lv_txt_41
+          wa_zltsla-lv_txt_42
+          wa_zltsla-lv_txt_43
+          wa_zltsla-lv_txt_44
+          wa_zltsla-lv_txt_45
+          wa_zltsla-lv_txt_46
+          wa_zltsla-lv_txt_47
+          wa_zltsla-lv_txt_48
+          wa_zltsla-lv_txt_49
+          wa_zltsla-lv_txt_50
+          INTO lwa_sftp SEPARATED BY lc_sep .
+          TRANSFER lwa_sftp TO lv_sft_path.
+          CLEAR: lwa_sftp,wa_ftp_ltsla.
+        ENDLOOP.
+
+       CLOSE DATASET lv_sft_path.
+      lv_str = |{ text-201 } { lv_sftp_path }|.
+      MESSAGE lv_str TYPE sy-abcde+18(1).
+    ENDIF.
+*********************** EOC export_file_to_al11 Ticket No:8000006175 09.04.2020******************************
+    ENDIF. "LOC added By Nilesh 16.04.2020 8000006175
+ endif.
+ENDFORM.

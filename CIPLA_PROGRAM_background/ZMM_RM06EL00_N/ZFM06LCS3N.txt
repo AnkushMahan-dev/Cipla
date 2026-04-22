@@ -1,0 +1,8 @@
+*&---------------------------------------------------------------------*
+*&  Include           ZFM06LCS3N
+*&---------------------------------------------------------------------*
+DATA:    BEGIN OF COMMON PART FM06LCS3.
+
+SELECT-OPTIONS: S_WERKS FOR EKPO-WERKS MEMORY ID WRK.
+
+DATA:    END OF COMMON PART.

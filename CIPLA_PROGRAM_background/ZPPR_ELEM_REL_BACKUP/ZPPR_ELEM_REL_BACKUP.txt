@@ -1,0 +1,705 @@
+*&---------------------------------------------------------------------*
+*& Report  ZPPR_ELEM_REL_BACKUP
+* Program           : Business to Procurement Report
+* Program Type      : Report
+* Creation Date     : 12.03.2017
+* Transaction       : ZPP_B2P
+* Functional design : Hariprasad
+* Technical design  : Koushik Majumder
+* Change request    : 8000003074
+* Transport number  : CRDK943024
+* Description       : This report has two functionalities wrt dynamic
+*                     pegging:
+*                     1. Top Down: Order tree for individual SO/STO is
+*                        displayed with two different views available.
+*                        - Material planner view: for API, PM, RM
+*                        - Unit planner view: for FG, BFG
+*                     2. Bottom Up: Reverse order tree (pegging) for
+*                        individual PR/PO is displayed.
+*	*----------------------------------------------------------------------*
+* Modification Information
+* Date            :
+* Author          :
+* Change request  :
+* Transport number:
+* Description     :
+*	*----------------------------------------------------------------------*
+
+REPORT zppr_elem_rel_backup
+MESSAGE-ID zmrp.
+
+**** data declarations ****
+TYPES: BEGIN OF gty_marc,
+         matnr TYPE matnr,
+         werks TYPE werks_d,
+       END OF gty_marc,
+
+       BEGIN OF gty_mtart,
+         matnr TYPE matnr,
+         mtart TYPE mtart,
+       END OF gty_mtart,
+
+       BEGIN OF gty_sto,
+         ebeln TYPE ebeln,
+         ebelp TYPE ebelp,
+         matnr TYPE matnr,
+         werks TYPE werks_d,
+         reswk TYPE werks_d,
+       END OF gty_sto,
+
+       BEGIN OF gty_so,
+         vbeln TYPE vbeln_va,
+         posnr TYPE posnr_va,
+         matnr TYPE matnr,
+         werks TYPE werks_d,
+         reswk TYPE werks_d,
+         pstyv TYPE pstyv,
+       END OF gty_so,
+
+       BEGIN OF gty_pld,
+         plnum TYPE plnum,
+         matnr TYPE matnr,
+         werks TYPE pwwrk,
+       END OF gty_pld,
+
+       BEGIN OF gty_prc,
+         aufnr TYPE aufnr,
+         matnr TYPE matnr,
+         werks TYPE pwwrk,
+       END OF gty_prc,
+
+       BEGIN OF gty_elements,
+         matnr TYPE matnr,
+         werks TYPE werks_d,
+         reswk TYPE werks_d,
+         delkz TYPE delkz,
+         delnr TYPE del12,
+         delps TYPE delps,
+         data  TYPE REF TO zcl_peg_rel_utilities,
+       END OF gty_elements,
+
+       BEGIN OF gty_tree_rel,
+         delkz     TYPE delkz,
+         delnr     TYPE del12,
+         delps     TYPE delps,
+         delet     TYPE delet,
+         elem_tree TYPE ztt_elem_tree_output,
+       END OF gty_tree_rel.
+
+DATA: gv_matnr TYPE matnr,
+      gv_werks TYPE werks_d.
+DATA: gt_output     TYPE ztt_elem_rel_output,
+      gt_elements   TYPE STANDARD TABLE OF gty_elements,
+      gt_tree_rel   TYPE STANDARD TABLE OF gty_tree_rel,
+      gt_marc       TYPE STANDARD TABLE OF gty_marc,
+      gt_mtart      TYPE STANDARD TABLE OF gty_mtart,
+      gt_so         TYPE STANDARD TABLE OF gty_so,
+      gt_sto        TYPE STANDARD TABLE OF gty_sto,
+      gt_pld        TYPE STANDARD TABLE OF gty_pld,
+      gt_prc        TYPE STANDARD TABLE OF gty_prc,
+      gt_backup     TYPE STANDARD TABLE OF zpp_b2p_backup,
+      gt_backup_old TYPE STANDARD TABLE OF zpp_b2p_backup.
+
+**** selection screen ****
+SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE text-s01.
+SELECT-OPTIONS: s_matnr FOR gv_matnr,
+                s_werks FOR gv_werks NO INTERVALS.
+SELECTION-SCREEN END OF BLOCK b1.
+
+**** data fetching ****
+START-OF-SELECTION.
+
+* fetch active material-plant combinations
+  PERFORM sub_fetch_master_data.
+* fetch the transactional data
+  PERFORM sub_fetch_trans_data.
+
+**** data processing ****
+END-OF-SELECTION.
+* update data in Backup Table
+  PERFORM sub_update_backup.
+
+*&---------------------------------------------------------------------*
+*&      Form  SUB_FETCH_MASTER_DATA
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM sub_fetch_master_data .
+
+  MESSAGE s067.
+  DATA: lt_mrploc TYPE STANDARD TABLE OF zpp_mrploc.
+
+* fetch active material-plant data
+  SELECT matnr werks FROM marc
+    INTO TABLE gt_marc
+    WHERE matnr IN s_matnr AND
+          werks IN s_werks AND
+          lvorm = '' AND  " active
+          beskz IN ('E' , 'X').
+  IF sy-subrc <> 0.
+    MESSAGE s044.
+    LEAVE LIST-PROCESSING.
+  ENDIF.
+* fetch plant data
+  SELECT * FROM zpp_mrploc
+    INTO TABLE lt_mrploc
+    WHERE werks IN s_werks.
+  IF sy-subrc = 0.
+    SORT lt_mrploc BY werks.
+  ENDIF.
+* fetch material types
+  SELECT matnr mtart FROM mara
+    INTO TABLE gt_mtart
+    FOR ALL ENTRIES IN gt_marc
+    WHERE matnr = gt_marc-matnr AND
+          lvorm = ''.
+  IF sy-subrc = 0.
+    SORT gt_mtart BY matnr.
+    DELETE ADJACENT DUPLICATES FROM gt_mtart COMPARING matnr.
+  ENDIF.
+  " cleanse the material-plant selection
+  LOOP AT gt_marc ASSIGNING FIELD-SYMBOL(<ls_marc>).
+    READ TABLE gt_mtart ASSIGNING FIELD-SYMBOL(<ls_mtart>) WITH KEY matnr = <ls_marc>-matnr BINARY SEARCH.
+    IF sy-subrc = 0.
+      READ TABLE lt_mrploc ASSIGNING FIELD-SYMBOL(<ls_mrploc>) WITH KEY werks = <ls_marc>-werks BINARY SEARCH.
+      IF sy-subrc = 0.
+        IF ( <ls_mrploc>-plnt_type = 'FG' AND <ls_mtart>-mtart = 'ZFGS'  ) OR
+           ( <ls_mrploc>-plnt_type = 'FG' AND <ls_mtart>-mtart = 'ZBFG'  ) OR
+           ( <ls_mrploc>-plnt_type = 'API' AND <ls_mtart>-mtart = 'ZAPI' ) OR
+           ( <ls_mrploc>-plnt_type = 'API' AND <ls_mtart>-mtart = 'ZINT' ).
+          " fine
+        ELSE.
+          CLEAR: <ls_marc>-matnr.
+        ENDIF.
+      ENDIF.
+    ENDIF.
+  ENDLOOP.
+  DELETE gt_marc WHERE matnr IS INITIAL.
+  SORT gt_marc BY matnr werks.
+
+  IF gt_marc[] IS INITIAL.
+    MESSAGE s001.
+    LEAVE LIST-PROCESSING.
+  ENDIF.
+ENDFORM.                    " SUB_FETCH_MASTER_DATA
+*&---------------------------------------------------------------------*
+*&      Form  SUB_FETCH_TRANS_DATA
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM sub_fetch_trans_data .
+  DATA: lv_delnr TYPE del12,
+        lv_delps TYPE delps,
+        lv_lines TYPE i.
+  DATA: lv_menge           TYPE menge_d,
+        lv_kwmeng          TYPE kwmeng,
+        lv_elikz           TYPE elikz,
+        lv_eglkz           TYPE eglkz,
+        lv_loekz           TYPE eloek,
+        lv_abgru           TYPE abgru_va,
+        lt_elem_temp       TYPE STANDARD TABLE OF gty_tree_rel,
+        lt_backup_old_temp TYPE STANDARD TABLE OF zpp_b2p_backup.
+* fetch the active MD04 related data
+  PERFORM sub_fetch_md04_data.
+
+  DESCRIBE TABLE gt_so LINES lv_lines.
+  MESSAGE s069 WITH lv_lines 'SO'.
+* for all the active Sales Order
+  LOOP AT gt_so ASSIGNING FIELD-SYMBOL(<ls_so>).
+    lv_delnr = <ls_so>-vbeln.
+    lv_delps = <ls_so>-posnr.
+* get the element relationship details
+    PERFORM sub_get_elem_rel_details USING <ls_so>-matnr
+                                           <ls_so>-werks
+                                           <ls_so>-reswk
+                                           lv_delnr
+                                           lv_delps
+                                           'VC'.
+    CLEAR: lv_delnr, lv_delps.
+  ENDLOOP.
+
+  CLEAR lv_lines.
+  DESCRIBE TABLE gt_sto LINES lv_lines.
+  MESSAGE s069 WITH lv_lines 'STO'.
+* for all the active Stock Transfer Order
+  LOOP AT gt_sto ASSIGNING FIELD-SYMBOL(<ls_sto>).
+    lv_delnr = <ls_sto>-ebeln.
+    CONCATENATE '0' <ls_sto>-ebelp INTO lv_delps.
+* get the element relationship details
+    PERFORM sub_get_elem_rel_details USING <ls_sto>-matnr
+                                           <ls_sto>-werks
+                                           <ls_sto>-reswk
+                                           lv_delnr
+                                           lv_delps
+                                           'U1'.
+    CLEAR: lv_delnr, lv_delps.
+  ENDLOOP.
+
+  CLEAR lv_lines.
+  DESCRIBE TABLE gt_pld LINES lv_lines.
+  MESSAGE s069 WITH lv_lines 'PlOrd'.
+* for all the active Stock Transfer Order
+  LOOP AT gt_pld ASSIGNING FIELD-SYMBOL(<ls_pld>).
+    lv_delnr = <ls_pld>-plnum.
+* get the element relationship details
+    PERFORM sub_get_elem_rel_details USING <ls_pld>-matnr
+                                           <ls_pld>-werks
+                                           <ls_pld>-werks
+                                           lv_delnr
+                                           lv_delps
+                                           'PA'.
+    CLEAR: lv_delnr, lv_delps.
+  ENDLOOP.
+
+  CLEAR lv_lines.
+  DESCRIBE TABLE gt_prc LINES lv_lines.
+  MESSAGE s069 WITH lv_lines 'PrcOrd'.
+* for all the active Stock Transfer Order
+  LOOP AT gt_prc ASSIGNING FIELD-SYMBOL(<ls_prc>).
+    lv_delnr = <ls_prc>-aufnr.
+* get the element relationship details
+    PERFORM sub_get_elem_rel_details USING <ls_prc>-matnr
+                                           <ls_prc>-werks
+                                           <ls_prc>-werks
+                                           lv_delnr
+                                           lv_delps
+                                           'BR'.
+    CLEAR: lv_delnr, lv_delps.
+  ENDLOOP.
+* clearing all previous records
+  SELECT * FROM zpp_b2p_backup
+    INTO TABLE gt_backup_old
+    WHERE fdelkz IN ('VC' , 'U1') AND
+          twerks = '' AND
+          fmatnr IN s_matnr AND
+          fwerks IN s_werks.
+  IF sy-subrc = 0.
+    DELETE gt_backup_old WHERE twerks IS NOT INITIAL.
+  ENDIF.
+  SELECT * FROM zpp_b2p_backup
+    APPENDING TABLE gt_backup_old
+    WHERE fdelkz IN ('VC' , 'U1') AND
+          fmatnr IN s_matnr AND
+          twerks IN s_werks.
+
+  SORT gt_backup BY fdelnr fdelps fdelet fdelkz.
+* delete the plord/prcord relationships
+  SELECT * FROM zpp_b2p_backup
+    INTO TABLE @DATA(lt_mford)
+    WHERE fdelkz IN ('PA' , 'BR') AND
+          fmatnr IN @s_matnr AND
+          fwerks IN @s_werks.
+  IF sy-subrc = 0.
+    DELETE zpp_b2p_backup FROM TABLE lt_mford.
+    COMMIT WORK AND WAIT.
+    WAIT UP TO 2 SECONDS.
+    MESSAGE s101.
+  ENDIF.
+
+** this process is to cleanse data
+  IF NOT gt_backup_old[] IS INITIAL.
+    " for closed orders, no need to process them further
+    lt_backup_old_temp[] = gt_backup_old[].
+    SORT lt_backup_old_temp BY fdelnr fdelps fdelet fdelkz.
+    DELETE ADJACENT DUPLICATES FROM lt_backup_old_temp COMPARING fdelnr fdelps fdelet fdelkz.
+    LOOP AT lt_backup_old_temp ASSIGNING FIELD-SYMBOL(<ls_old>).
+      IF ( <ls_old>-fdelet IS INITIAL AND <ls_old>-fdelkz = 'U1' ) OR
+         <ls_old>-fdelkz = 'PA' OR <ls_old>-fdelkz = 'BR'.
+        CONTINUE.
+      ENDIF.
+      READ TABLE gt_backup WITH KEY fdelnr = <ls_old>-fdelnr
+                                    fdelps = <ls_old>-fdelps
+                                    fdelet = <ls_old>-fdelet
+                                    fdelkz = <ls_old>-fdelkz
+                                    BINARY SEARCH TRANSPORTING NO FIELDS.
+      IF sy-subrc <> 0 AND <ls_old>-ordstat <> 'DISP' AND <ls_old>-ordstat <> 'DEL' AND <ls_old>-ordstat <> 'REJ'.
+        READ TABLE gt_marc WITH KEY matnr = <ls_old>-fmatnr TRANSPORTING NO FIELDS.
+        IF sy-subrc = 0.
+          APPEND INITIAL LINE TO gt_backup ASSIGNING FIELD-SYMBOL(<ls_new>).
+          <ls_new>-mandt = sy-mandt.
+          <ls_new>-fdelnr = <ls_old>-fdelnr.
+          <ls_new>-fdelps = <ls_old>-fdelps.
+          <ls_new>-fdelet = <ls_old>-fdelet.
+          <ls_new>-fdelkz = <ls_old>-fdelkz.
+          <ls_new>-fmatnr = <ls_old>-fmatnr.
+          <ls_new>-fwerks = <ls_old>-fwerks.
+          <ls_new>-fmng01 = <ls_old>-fmng01.
+          <ls_new>-fmeins = <ls_old>-fmeins.
+          <ls_new>-fdat00 = <ls_old>-fdat00.
+          <ls_new>-frsdat = <ls_old>-frsdat.
+          <ls_new>-vc_land1 = <ls_old>-vc_land1.
+          <ls_new>-vc_name1 = <ls_old>-vc_name1.
+          <ls_new>-crdat = sy-datum.
+          <ls_new>-crtim = sy-uzeit.
+          <ls_new>-crname = sy-uname.
+
+          CLEAR: lv_menge, lv_kwmeng, lv_abgru.
+          IF <ls_old>-fdelkz = 'VC'.  " SO
+* get delivered schedules data of SO
+            SELECT mblnr, mjahr, zeile, bwart, menge, meins
+              FROM mseg
+              INTO TABLE @DATA(lt_mseg_so)
+              WHERE bwart IN ('601' , '602') AND
+                    matnr = @<ls_old>-fmatnr AND
+                    kdauf = @<ls_old>-fdelnr(10) AND
+                    kdpos = @<ls_old>-fdelps.
+            IF sy-subrc = 0.
+              LOOP AT lt_mseg_so ASSIGNING FIELD-SYMBOL(<ls_mseg_so>).
+                IF <ls_mseg_so>-bwart = '601'.
+                  lv_menge = lv_menge + <ls_mseg_so>-menge.
+                ELSEIF <ls_mseg_so>-bwart = '602'.
+                  lv_menge = lv_menge - <ls_mseg_so>-menge.
+                ENDIF.
+              ENDLOOP.
+            ENDIF.
+* SO item data
+            SELECT SINGLE kwmeng abgru FROM vbap
+              INTO (lv_kwmeng , lv_abgru)
+              WHERE vbeln = <ls_old>-fdelnr(10) AND
+                    posnr = <ls_old>-fdelps.
+            IF sy-subrc = 0.
+              IF lv_abgru IS NOT INITIAL AND lv_abgru <> 'C3' AND lv_abgru <> '12'.
+                <ls_new>-ordstat = 'REJ'.  " Rejected
+              ELSEIF lv_abgru = 'C3' OR lv_abgru = '12'.
+                <ls_new>-ordstat = 'DISP'.  " Dispatched
+              ELSEIF lv_kwmeng = lv_menge.
+                <ls_new>-ordstat = 'DISP'.  " Dispatched
+              ENDIF.
+            ELSE.
+              <ls_new>-ordstat = 'DEL'.  " Deleted
+            ENDIF.
+          ELSEIF <ls_old>-fdelkz = 'U1'.  " STO
+* get delivered schedules data of sto
+            SELECT mblnr, mjahr, zeile, bwart, menge, meins
+              FROM mseg
+              INTO TABLE @DATA(lt_mseg_sto)
+              WHERE bwart IN ('641' , '642') AND
+                    matnr = @<ls_old>-fmatnr AND
+                    werks = @<ls_old>-fwerks AND
+                    ebeln = @<ls_old>-fdelnr(10) AND
+                    ebelp = @<ls_old>-fdelps+1(5).
+            IF sy-subrc = 0.
+              LOOP AT lt_mseg_sto ASSIGNING FIELD-SYMBOL(<ls_mseg_sto>).
+                IF <ls_mseg_sto>-bwart = '641'.
+                  lv_menge = lv_menge + <ls_mseg_sto>-menge.
+                ELSEIF <ls_mseg_sto>-bwart = '642'.
+                  lv_menge = lv_menge - <ls_mseg_sto>-menge.
+                ENDIF.
+              ENDLOOP.
+            ENDIF.
+* additional details of STO
+            SELECT SINGLE elikz eglkz loekz FROM ekpo
+              INTO (lv_elikz , lv_eglkz , lv_loekz)
+              WHERE ebeln = <ls_old>-fdelnr(10) AND
+                    ebelp = <ls_old>-fdelps+1(5).
+            IF sy-subrc = 0.
+              IF lv_loekz IS NOT INITIAL.
+                <ls_new>-ordstat = 'DEL'.  " Deleted
+              ELSEIF lv_elikz IS NOT INITIAL OR lv_eglkz IS NOT INITIAL.
+                <ls_new>-ordstat = 'DISP'.  " Dispatched
+              ENDIF.
+            ELSE.
+              <ls_new>-ordstat = 'DEL'.  " Deleted
+            ENDIF.
+          ENDIF.
+        ENDIF.
+      ELSE.
+        " delete the existing data from the table
+        APPEND INITIAL LINE TO lt_elem_temp ASSIGNING FIELD-SYMBOL(<ls_elem_temp>).
+        <ls_elem_temp>-delnr = <ls_old>-fdelnr.
+        <ls_elem_temp>-delps = <ls_old>-fdelps.
+        <ls_elem_temp>-delet = <ls_old>-fdelet.
+        <ls_elem_temp>-delkz = <ls_old>-fdelkz.
+      ENDIF.
+    ENDLOOP.
+  ENDIF.
+* sync data
+  IF lt_elem_temp[] IS NOT INITIAL.
+    SELECT * FROM zpp_b2p_backup
+      INTO TABLE @DATA(lt_b2p_temp)
+      FOR ALL ENTRIES IN @lt_elem_temp
+      WHERE fdelnr = @lt_elem_temp-delnr AND
+            fdelps = @lt_elem_temp-delps AND
+            fdelet = @lt_elem_temp-delet AND
+            fdelkz = @lt_elem_temp-delkz.
+    IF sy-subrc = 0.
+      DELETE zpp_b2p_backup FROM TABLE lt_b2p_temp.
+    ENDIF.
+  ENDIF.
+  DELETE gt_backup_old WHERE ordstat = 'DISP' OR ordstat = 'DEL' OR ordstat = 'REJ'.
+  COMMIT WORK.
+ENDFORM.                    " SUB_FETCH_TRANS_DATA
+*&---------------------------------------------------------------------*
+*&      Form  SUB_GET_ELEM_REL_DETAILS
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_<LS_MARC>_MATNR  text
+*      -->P_<LS_MARC>_WERKS  text
+*      -->P_<LS_MDPS>  text
+*----------------------------------------------------------------------*
+FORM sub_get_elem_rel_details  USING    p_matnr TYPE matnr
+                                        p_werks TYPE werks_d
+                                        p_reswk TYPE werks_d
+                                        p_delnr TYPE del12
+                                        p_delps TYPE delps
+                                        p_delkz TYPE delkz.
+  DATA: lt_tree       TYPE ztt_elem_tree_output,
+        lt_elem_rel   TYPE ztt_elem_rel_output,
+        lt_b2p_backup TYPE STANDARD TABLE OF zpp_b2p_backup,
+        lv_td         TYPE c,
+        lv_delnr      TYPE del12,
+        lv_delps      TYPE delps,
+        lv_delkz      TYPE delkz.
+
+* for SO/STO, it is top-down pegging
+  IF p_delkz = 'VC' OR p_delkz = 'U1' OR
+     p_delkz = 'PA' OR p_delkz = 'BR'.
+    lv_td = 'X'.
+  ENDIF.
+
+  APPEND INITIAL LINE TO gt_elements ASSIGNING FIELD-SYMBOL(<ls_elements>).
+  <ls_elements>-matnr = p_matnr.
+  <ls_elements>-werks = p_werks.
+  <ls_elements>-reswk = p_reswk.
+  <ls_elements>-delkz = p_delkz.
+  <ls_elements>-delnr = p_delnr.
+  <ls_elements>-delps = p_delps.
+
+* create reference object
+  CREATE OBJECT <ls_elements>-data.
+* get pegging details of the tree
+  CALL METHOD <ls_elements>-data->get_pegging_details
+    EXPORTING
+      i_delnr     = <ls_elements>-delnr
+      i_delps     = <ls_elements>-delps
+      i_delkz     = <ls_elements>-delkz
+      i_matnr     = <ls_elements>-matnr
+      i_werks     = <ls_elements>-werks
+      i_reswk     = <ls_elements>-reswk
+      is_top_down = lv_td.
+* get the data in output format
+  CALL METHOD <ls_elements>-data->get_view_data
+    EXPORTING
+      is_top_down = lv_td
+    IMPORTING
+      e_data      = lt_elem_rel.
+* get the tree details for SO/STO
+  IF lv_td = 'X'.
+    CALL METHOD <ls_elements>-data->get_tree_data
+      IMPORTING
+        e_tree = lt_tree.
+  ENDIF.
+
+  IF NOT lt_elem_rel[] IS INITIAL.  " captured in FK
+* get the data and process it accordingly
+    LOOP AT lt_elem_rel ASSIGNING FIELD-SYMBOL(<ls_elem_rel>).
+      APPEND INITIAL LINE TO gt_backup ASSIGNING FIELD-SYMBOL(<ls_backup>).
+      <ls_backup>-mandt = sy-mandt.
+      MOVE-CORRESPONDING <ls_elem_rel> TO <ls_backup>.
+      <ls_backup>-fdelnr = <ls_elem_rel>-fdelnr_nd.
+      <ls_backup>-fdelps = <ls_elem_rel>-fdelps_nd.
+      <ls_backup>-fdelet = <ls_elem_rel>-fdelet_nd.
+      <ls_backup>-fdelkz = <ls_elem_rel>-fdelkz_nd.
+      <ls_backup>-tdelnr = <ls_elem_rel>-tdelnr_nd.
+      <ls_backup>-tdelps = <ls_elem_rel>-tdelps_nd.
+      <ls_backup>-tdelet = <ls_elem_rel>-tdelet_nd.
+      <ls_backup>-tdelkz = <ls_elem_rel>-tdelkz_nd.
+      <ls_backup>-pdelnr = <ls_elem_rel>-pdelnr_nd.
+      <ls_backup>-pdelps = <ls_elem_rel>-pdelps_nd.
+      <ls_backup>-pdelet = <ls_elem_rel>-pdelet_nd.
+      <ls_backup>-pdelkz = <ls_elem_rel>-pdelkz_nd.
+      <ls_backup>-is_fk  = <ls_elem_rel>-is_fk.
+      " source element
+      READ TABLE <ls_elements>-data->gt_elem_master ASSIGNING FIELD-SYMBOL(<ls_elem_master>)
+       WITH KEY matnr = <ls_elem_rel>-fmatnr
+                werks = <ls_elem_rel>-fwerks
+                delkz = <ls_elem_rel>-fdelkz_nd
+                delnr = <ls_elem_rel>-fdelnr_nd
+                delps = <ls_elem_rel>-fdelps_nd
+                delet = <ls_elem_rel>-fdelet_nd.
+      IF sy-subrc = 0.
+        <ls_backup>-fmng01 = <ls_elem_master>-mng01.
+        <ls_backup>-fmeins = <ls_elem_master>-meins.
+        <ls_backup>-fdat00 = <ls_elem_master>-dat00.
+        <ls_backup>-frsdat = <ls_elem_master>-avail_date.
+      ENDIF.
+
+      <ls_backup>-tmng01 = <ls_elem_rel>-tmng01.
+      <ls_backup>-tpgmng = <ls_elem_rel>-tpgmng.
+      <ls_backup>-tmnglg = <ls_elem_rel>-tmnglg.
+      <ls_backup>-tmeins = <ls_elem_rel>-tmeins.
+      <ls_backup>-tdat00 = <ls_elem_rel>-tdat00.
+      <ls_backup>-trsdat = <ls_elem_rel>-trsdat.
+* end of change by Satarupa on 2.08.207 *
+* level determination
+      IF lv_td = 'X'.
+        READ TABLE lt_tree ASSIGNING FIELD-SYMBOL(<ls_tree>)
+         WITH KEY delkz = <ls_elem_rel>-pdelkz_nd
+                  delnr_nd = <ls_elem_rel>-pdelnr_nd
+                  delps_nd = <ls_elem_rel>-pdelps_nd.
+        IF sy-subrc = 0.
+          CONCATENATE <ls_tree>-lvl '+' INTO <ls_backup>-lvl.
+        ENDIF.
+      ENDIF.
+
+      <ls_backup>-crdat = sy-datum.
+      <ls_backup>-crtim = sy-uzeit.
+      <ls_backup>-crname = sy-uname.
+    ENDLOOP.
+  ENDIF.
+
+ENDFORM.                    " SUB_GET_ELEM_REL_DETAILS
+*&---------------------------------------------------------------------*
+*&      Form  SUB_FETCH_MD04_DATA
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM sub_fetch_md04_data .
+
+  DATA: lt_mrpdash_req TYPE STANDARD TABLE OF zmrpdash_req,
+        lt_mrpdash_pr  TYPE STANDARD TABLE OF zmrpdash_pr,
+        lt_mrpdash_po  TYPE STANDARD TABLE OF zmrpdash_po,
+        lt_ekkn        TYPE STANDARD TABLE OF ekkn.
+
+  MESSAGE s068.
+* get the requirements (STO/Direct SO)
+  SELECT * FROM zmrpdash_req
+    INTO TABLE lt_mrpdash_req
+    FOR ALL ENTRIES IN gt_marc
+    WHERE matnr = gt_marc-matnr AND
+          werks = gt_marc-werks AND
+          mrp_elemnt IN ('CusOrd' , 'Ord.DS') AND
+          type1 = ''.  " daily backup
+  IF sy-subrc = 0.
+    LOOP AT lt_mrpdash_req ASSIGNING FIELD-SYMBOL(<ls_mrpdash_req>).
+      READ TABLE gt_mtart ASSIGNING FIELD-SYMBOL(<ls_mtart>) WITH KEY matnr = <ls_mrpdash_req>-matnr BINARY SEARCH.
+      IF sy-subrc = 0.
+        IF <ls_mrpdash_req>-mrp_elemnt = 'Ord.DS'.
+          APPEND INITIAL LINE TO gt_sto ASSIGNING FIELD-SYMBOL(<ls_sto>).
+          <ls_sto>-ebeln = <ls_mrpdash_req>-mrp_no.
+          <ls_sto>-ebelp = <ls_mrpdash_req>-mrp_pos+1(5).
+          <ls_sto>-matnr = <ls_mrpdash_req>-matnr.
+          <ls_sto>-werks = <ls_mrpdash_req>-werks.
+          <ls_sto>-reswk = <ls_mrpdash_req>-werks.
+        ELSEIF <ls_mrpdash_req>-mrp_elemnt = 'CusOrd'.
+          APPEND INITIAL LINE TO gt_so ASSIGNING FIELD-SYMBOL(<ls_so>).
+          <ls_so>-vbeln = <ls_mrpdash_req>-mrp_no.
+          <ls_so>-posnr = <ls_mrpdash_req>-mrp_pos.
+          <ls_so>-matnr = <ls_mrpdash_req>-matnr.
+          <ls_so>-werks = <ls_mrpdash_req>-werks.
+          <ls_so>-reswk = <ls_mrpdash_req>-werks.
+        ENDIF.
+      ENDIF.
+    ENDLOOP.
+    IF NOT gt_sto[] IS INITIAL.
+* when SO is selected, with the STO fetch the SO from account assignment
+      SELECT * FROM ekkn
+        INTO TABLE lt_ekkn
+        FOR ALL ENTRIES IN gt_sto
+        WHERE ebeln = gt_sto-ebeln AND
+              ebelp = gt_sto-ebelp.
+      IF sy-subrc = 0.
+* get the SO details
+        SELECT vbeln posnr matnr werks pstyv
+          FROM vbap
+          APPENDING CORRESPONDING FIELDS OF TABLE gt_so
+          FOR ALL ENTRIES IN lt_ekkn
+          WHERE vbeln = lt_ekkn-vbeln AND
+                posnr = lt_ekkn-vbelp.
+        IF sy-subrc = 0.
+          DELETE gt_so WHERE pstyv = 'TANN'.
+          SORT gt_so BY vbeln posnr.
+          DELETE ADJACENT DUPLICATES FROM gt_so COMPARING vbeln posnr.
+          " assign the supplying plant!
+          LOOP AT gt_so ASSIGNING <ls_so>.
+            IF <ls_so>-reswk IS NOT INITIAL.
+              CONTINUE.
+            ENDIF.
+            " route it through a/c assignment STO
+            READ TABLE lt_ekkn ASSIGNING FIELD-SYMBOL(<ls_ekkn>)
+             WITH KEY vbeln = <ls_so>-vbeln vbelp = <ls_so>-posnr.
+            IF sy-subrc = 0.
+              " supplying plant of the STO
+              READ TABLE gt_sto ASSIGNING <ls_sto>
+               WITH KEY ebeln = <ls_ekkn>-ebeln ebelp = <ls_ekkn>-ebelp.
+              IF sy-subrc = 0.
+                <ls_so>-reswk = <ls_sto>-reswk.
+              ENDIF.
+            ENDIF.
+          ENDLOOP.
+        ENDIF.
+      ENDIF.
+    ENDIF.
+  ENDIF.
+* getting the planned orders
+  SELECT * FROM zmrpdash_pld
+    INTO TABLE @DATA(lt_pld)
+    FOR ALL ENTRIES IN @gt_marc
+    WHERE matnr = @gt_marc-matnr AND
+          werks = @gt_marc-werks AND
+          type1 = '' AND
+          delkz = 'PA'.
+  IF sy-subrc = 0.
+    DELETE lt_pld WHERE verid IS INITIAL AND stlfx IS NOT INITIAL.
+    DELETE lt_pld WHERE gsmng <= 0.
+
+    LOOP AT lt_pld ASSIGNING FIELD-SYMBOL(<ls_pld>).
+      APPEND INITIAL LINE TO gt_pld ASSIGNING FIELD-SYMBOL(<ls_gpld>).
+      MOVE-CORRESPONDING <ls_pld> TO <ls_gpld>.
+    ENDLOOP.
+  ENDIF.
+* getting the process orders
+  SELECT * FROM zmrpdash_prc
+    INTO TABLE @DATA(lt_prc)
+    FOR ALL ENTRIES IN @gt_marc
+    WHERE matnr = @gt_marc-matnr AND
+          werks = @gt_marc-werks AND
+          type1 = ''.
+  IF sy-subrc = 0.
+    DELETE lt_prc WHERE gamng <= 0.
+
+    LOOP AT lt_prc ASSIGNING FIELD-SYMBOL(<ls_prc>).
+      APPEND INITIAL LINE TO gt_prc ASSIGNING FIELD-SYMBOL(<ls_gprc>).
+      MOVE-CORRESPONDING <ls_prc> TO <ls_gprc>.
+    ENDLOOP.
+  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  SUB_UPDATE_BACKUP
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM sub_update_backup .
+
+  MESSAGE s070.
+
+  IF NOT gt_backup_old[] IS INITIAL.
+    DELETE zpp_b2p_backup FROM TABLE gt_backup_old.
+    COMMIT WORK AND WAIT.
+    WAIT UP TO 10 SECONDS.
+  ENDIF.
+  IF NOT gt_backup[] IS INITIAL.
+* entering the new data and updating the Backup Table
+    MODIFY zpp_b2p_backup FROM TABLE gt_backup.
+    IF sy-subrc = 0.
+      COMMIT WORK AND WAIT.
+      WAIT UP TO 10 SECONDS.
+      MESSAGE s065.
+    ELSE.
+      MESSAGE s066.
+    ENDIF.
+  ENDIF.
+ENDFORM.

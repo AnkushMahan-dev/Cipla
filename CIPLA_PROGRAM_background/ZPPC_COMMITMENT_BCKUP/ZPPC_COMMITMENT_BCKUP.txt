@@ -1,0 +1,17 @@
+*&---------------------------------------------------------------------*
+*& Report  ZPPC_COMMITMENT_BCKUP
+*&
+*&---------------------------------------------------------------------*
+*&
+*&
+*&---------------------------------------------------------------------*
+REPORT ZPPC_COMMITMENT_BCKUP.
+include ZPPC_TOPINCLUDE.
+include ZPPC_CLASSMETHODS.
+
+INITIALIZATION.
+CREATE OBJECT GO_OBJ.
+START-OF-SELECTION.
+CALL METHOD GO_OBJ->FETCH_DATA( ).
+END-OF-SELECTION.
+CALL METHOD GO_OBJ->DISP_DATA( ).

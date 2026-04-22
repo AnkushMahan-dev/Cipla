@@ -1,0 +1,29 @@
+*&---------------------------------------------------------------------*
+*&  Include           ZFM06LCS4N
+*&---------------------------------------------------------------------*
+DATA:    BEGIN OF COMMON PART FM06LCS4.
+
+SELECT-OPTIONS: S_PSTYP FOR RM06E-EPSTP,
+                S_KNTTP FOR EKPO-KNTTP,
+                S_EINDT FOR EKET-EINDT,
+                S_ANGDT FOR EKKO-ANGDT.
+PARAMETERS:     P_GULDT LIKE RM06A-P_GULDT,
+                P_RWEIT LIKE RM06A-P_RWEIT.
+
+*- für Positionstyp im internen Format --------------------------------*
+RANGES: R_PSTYP FOR EKPO-PSTYP,
+        R_BSTYP FOR EKKO-BSTYP,
+        R_WEPOS FOR EKPO-WEPOS,
+        R_REPOS FOR EKPO-REPOS,
+        R_RTPOS FOR EKPO-RETPO,
+        R_LOEKZ FOR EKPO-LOEKZ,
+        R_MATNR FOR EKPO-MATNR.
+
+RANGES :
+        R_MFRPN FOR MARA-MFRPN.
+*ENDENHANCEMENT.
+*$*$-End:   FM06LCS4_01-------------------------------------------------------------------------$*$*
+RANGES :
+        R_EKORG FOR EKKO-EKORG.
+
+DATA:    END OF COMMON PART.

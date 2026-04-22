@@ -1,0 +1,645 @@
+*&---------------------------------------------------------------------*
+*&  Include           RFITEM_INC_LIR
+*&---------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*&      Form  RRI_INIT
+*&---------------------------------------------------------------------*
+FORM rri_init .                                   "new since "n2199162
+*----------------------------------------------------------------------*
+  STATICS sd_processed.                                     "n2632971
+*----------------------------------------------------------------------*
+  DATA ls_sel                 TYPE rstisel.
+  DATA lt_sel                 TYPE TABLE OF rstisel.
+  DATA lt_field_s             TYPE STANDARD TABLE OF rstifields.
+  DATA ls_field_s             LIKE rstifields.
+  DATA lt_field_r             TYPE STANDARD TABLE OF rstifields.
+  DATA ls_field_r             LIKE rstifields.
+  DATA ls_a_rec               LIKE rstirec.
+  DATA ld_rri_subrc           LIKE sy-subrc.
+  DATA lt_field_info          TYPE STANDARD TABLE OF rsel_info.
+  DATA ls_field_info          TYPE rsel_info.
+  DATA ld_fdpos               TYPE syfdpos.
+  DATA ld_table               TYPE tabname.
+  DATA ld_field               TYPE fieldname.
+  DATA lt_dfies               TYPE STANDARD TABLE OF dfies.
+  DATA ls_dfies               TYPE dfies.
+  DATA ld_range_name          TYPE fieldname.
+  DATA ls_sender              TYPE rstirec.       "begin "n2077832
+  DATA lt_bsin_fields         TYPE STANDARD TABLE OF x031l.
+  DATA lt_acca_fields         TYPE STANDARD TABLE OF x031l.
+  DATA lt_accb_fields         TYPE STANDARD TABLE OF x031l.
+  DATA ls_fields              TYPE x031l.
+  DATA lt_bsin_frange         TYPE rsds_frange_t.
+  DATA ls_bsin_frange         TYPE rsds_frange.
+  DATA lt_acca_frange         TYPE rsds_frange_t.
+  DATA ls_acca_frange         TYPE rsds_frange.
+  DATA lt_accb_frange         TYPE rsds_frange_t.
+  DATA ls_accb_frange         TYPE rsds_frange.
+  DATA lb_found.
+  DATA ls_range               TYPE rsdsselopt.
+  DATA lsx_trange             TYPE rsds_range.
+  DATA ld_tcode_1             TYPE sytcode.
+  DATA ld_tcode_2             TYPE sytcode.
+  DATA ld_tabname_bsin        TYPE tabname.
+  DATA ld_tabname_acca        TYPE tabname.
+  DATA ld_tabname_accb        TYPE tabname.
+  DATA lr_data                TYPE REF TO data.
+  DATA ld_receiver            TYPE syrepid.       "end "n2199162
+*----------------------------------------------------------------------*
+  FIELD-SYMBOLS <ls_range>    TYPE any.
+  FIELD-SYMBOLS <lt_range>    TYPE STANDARD TABLE.
+  FIELD-SYMBOLS <ld_value>    TYPE any.
+  FIELD-SYMBOLS <ld_stida>    TYPE any.
+  FIELD-SYMBOLS <lt_ra_augdt> TYPE STANDARD TABLE.
+  FIELD-SYMBOLS <ld_opopt>.                                 "n2424014
+  FIELD-SYMBOLS <ld_apopt>.                                 "n2424014
+*----------------------------------------------------------------------*
+  DEFINE assign_and_clear.
+    ld_range_name = &1.
+    ASSIGN (ld_range_name)
+      TO <ls_range>.
+    IF sy-subrc = 0.
+      CLEAR <ls_range>.
+    ENDIF.
+  END-OF-DEFINITION.
+*----------------------------------------------------------------------*
+  DEFINE range_append.
+    CASE g_repid.
+      WHEN 'RFITEMGL'.
+        ld_range_name = &1.
+      WHEN 'RFITEMAR'.
+        ld_range_name = &2.
+      WHEN 'RFITEMAP'.
+        ld_range_name = &3.
+    ENDCASE.
+    ASSIGN (ld_range_name)
+      TO <lt_range>.
+    IF sy-subrc = 0.
+      CREATE DATA lr_data LIKE LINE OF <lt_range>.
+      IF sy-subrc = 0.
+        ASSIGN lr_data->* TO <ls_range>.
+        IF sy-subrc = 0.
+          MOVE-CORRESPONDING ls_sel TO <ls_range>.
+          APPEND <ls_range>
+            TO <lt_range>.
+        ENDIF.
+      ENDIF.
+    ENDIF.
+  END-OF-DEFINITION.
+*----------------------------------------------------------------------*
+  CHECK sd_processed IS INITIAL.                            "n2632971
+  sd_processed = abap_true.                                 "n2632971
+
+  CALL FUNCTION 'RSTI_APPL_STACK_POP'
+    IMPORTING
+      i_rec                      = ls_a_rec
+      i_sen                      = ls_sender                "n2077832
+    EXCEPTIONS
+      appl_stack_not_initialized = 1.
+  ld_rri_subrc = sy-subrc.
+
+  IF ld_rri_subrc = 0.
+    CASE g_repid.
+      WHEN 'RFITEMGL'.
+        ld_tcode_1 = 'FBL3N'.
+        ld_tcode_2 = 'FBL4N'.
+        ld_tabname_bsin = 'BSIS'.
+        ld_tabname_acca = 'SKA1'.
+        ld_tabname_accb = 'SKB1'.
+      WHEN 'RFITEMAR'.
+        ld_tcode_1 = 'FBL5N'.
+        ld_tcode_2 = 'FBL6N'.
+        ld_tabname_bsin = 'BSID'.
+        ld_tabname_acca = 'KNA1'.
+        ld_tabname_accb = 'KNB1'.
+      WHEN 'RFITEMAP'.
+        ld_tcode_1 = 'FBL1N'.
+        ld_tcode_2 = 'FBL2N'.
+        ld_tabname_bsin = 'BSIK'.
+        ld_tabname_acca = 'LFA1'.
+        ld_tabname_accb = 'LFB1'.
+    ENDCASE.
+    ld_receiver = g_repid.
+
+*    check Receiver is this report
+    IF NOT ( ( ls_a_rec-rtool = 'RT'
+               AND ls_a_rec-ronam = ld_receiver )
+          OR (     ls_a_rec-rtool = 'TR'
+               AND    ls_a_rec-ronam CS ld_tcode_1
+                   OR ls_a_rec-ronam CS ld_tcode_2 ) ) .
+      ld_rri_subrc = 2.
+    ENDIF.
+  ENDIF.
+  IF ld_rri_subrc = 0.
+
+    CASE g_repid.
+      WHEN 'RFITEMGL'.
+        assign_and_clear 'SD_SAKNR[]'.
+        assign_and_clear 'SD_BUKRS[]'.
+        assign_and_clear 'SD_ZUONR[]'.
+        ASSIGN ('SD_AUGDT[]') TO <lt_ra_augdt>.
+        ASSIGN ('SD_STIDA') TO <ld_stida>.
+        ASSIGN ('SD_OPOPT') TO <ld_opopt>.                  "n2424014
+        ASSIGN ('SD_APOPT') TO <ld_apopt>.                  "n2424014
+      WHEN 'RFITEMAR'.
+        assign_and_clear 'DD_SAKNR[]'.
+        assign_and_clear 'DD_BUKRS[]'.
+        assign_and_clear 'DD_ZUONR[]'.
+        assign_and_clear 'DD_KUNNR[]'.                      "n2272245
+        ASSIGN ('DD_AUGDT[]') TO <lt_ra_augdt>.
+        ASSIGN ('DD_STIDA') TO <ld_stida>.
+        ASSIGN ('DD_OPOPT') TO <ld_opopt>.                  "n2424014
+        ASSIGN ('DD_APOPT') TO <ld_apopt>.                  "n2424014
+      WHEN 'RFITEMAP'.
+        assign_and_clear 'KD_SAKNR[]'.
+        assign_and_clear 'KD_BUKRS[]'.
+        assign_and_clear 'KD_ZUONR[]'.
+        assign_and_clear 'KD_LIFNR[]'.                      "n2272245
+        ASSIGN ('KD_AUGDT[]') TO <lt_ra_augdt>.
+        ASSIGN ('KD_STIDA') TO <ld_stida>.
+        ASSIGN ('KD_OPOPT') TO <ld_opopt>.                  "n2424014
+        ASSIGN ('KD_APOPT') TO <ld_apopt>.                  "n2424014
+    ENDCASE.
+
+    IF <ld_stida> IS ASSIGNED.
+      CLEAR <ld_stida>.
+    ENDIF.
+    IF <lt_ra_augdt> IS ASSIGNED.
+      CLEAR <lt_ra_augdt>.
+    ENDIF.
+
+    CLEAR x_opsel.
+    CLEAR pa_stida.
+
+    CLEAR x_clsel.
+    REFRESH so_augdt.
+
+    CLEAR pa_stid2.
+    CLEAR x_aisel.
+    REFRESH so_budat.
+
+    CALL FUNCTION 'RSTI_SELECTION_IMPORT'
+      TABLES
+        it_sel            = lt_sel
+        it_fields         = lt_field_s
+      EXCEPTIONS
+        no_selection_data = 1
+        OTHERS            = 2.
+    IF sy-subrc <> 0.
+      CALL FUNCTION 'RSTI_APPL_STACK_INITIALIZE'
+        EXPORTING
+          e_tool = ls_a_rec-rtool
+          e_onam = ls_a_rec-ronam.
+      EXIT.
+    ENDIF.
+
+    LOOP AT lt_sel INTO ls_sel
+      WHERE sign   IS INITIAL
+        AND option IS INITIAL
+        AND low    IS INITIAL.
+      DELETE lt_sel.
+    ENDLOOP.
+
+    SORT lt_sel BY field.                         "being "n2632971
+
+* deleted restrictions to USEDB, USEAR and USEAS
+    LOOP AT lt_sel INTO ls_sel.
+      CASE ls_sel-field.
+* Determine Posting Date
+        WHEN 'BUDAT'.
+          MOVE-CORRESPONDING ls_sel TO so_budat.
+          APPEND so_budat.
+        WHEN 'USEDB'
+         OR 'USEAR'
+         OR 'USEAS'.
+          DELETE lt_sel.
+        WHEN 'RYEAR'.
+* RFBILA* may send posting date as well as fiscal year.
+* If a posting date range has been specified, restriction to fiscal year
+* is irrelevant.
+          IF ls_sender CS 'RFBILA'
+          AND NOT so_budat IS INITIAL.
+            DELETE lt_sel.
+          ENDIF.
+      ENDCASE.                                    "end "n2632971
+    ENDLOOP.
+
+    CALL FUNCTION 'RS_REPORTSELECTIONS_INFO'
+      EXPORTING
+        report     = sy-repid
+      TABLES
+        field_info = lt_field_info.
+
+    LOOP AT lt_field_info
+      INTO  ls_field_info.
+*   empty dbfield -> useless for RRI
+      CHECK NOT ls_field_info-dbfield IS INITIAL.
+      IF ls_field_info-dbfield CA '-'.
+*   -> field is defined via table and fieldname
+        ld_fdpos = sy-fdpos + 1.
+        ld_table = ls_field_info-dbfield(sy-fdpos).
+        ld_field = ls_field_info-dbfield+ld_fdpos(*).
+        IF ld_table = 'SY'.
+          ld_table = 'SYST'.
+        ENDIF.
+*     get field info for table + field
+        CALL FUNCTION 'DDIF_FIELDINFO_GET'
+          EXPORTING
+            tabname   = ld_table
+            fieldname = ld_field
+          TABLES
+            dfies_tab = lt_dfies
+          EXCEPTIONS
+            OTHERS    = 1.
+        IF sy-subrc <> 0.
+          CONTINUE. "don't append export tables
+        ENDIF.
+      ENDIF.
+*   if major information missing -> skip field
+      LOOP AT lt_dfies
+        INTO  ls_dfies.
+        IF ls_dfies-domname   IS INITIAL
+        OR ls_dfies-rollname  IS INITIAL
+        OR ls_dfies-leng      IS INITIAL
+        OR ls_dfies-intlen    IS INITIAL
+        OR ls_dfies-inttype   IS INITIAL.
+          CONTINUE. "don't append export tables
+        ENDIF.
+*   fill some missing fields
+        CLEAR ls_field_r.
+        ls_field_r-rfield   = ls_field_info-name.
+        ls_field_r-rollname = ls_dfies-rollname.
+        ls_field_r-domname  = ls_dfies-domname.
+        ls_field_r-kind     = ls_field_info-kind.
+        IF ls_field_r-kind = 'S' AND ls_field_info-noselset = 'N'.
+          ls_field_r-kind = 'I'.
+        ENDIF.
+        IF NOT ls_field_info-obligatory IS INITIAL.
+          ls_field_r-oblig = 'X'.
+        ELSE.
+          CLEAR: ls_field_r-oblig.
+        ENDIF.
+*   finally append export tables
+        APPEND ls_field_r TO lt_field_r.
+      ENDLOOP.
+    ENDLOOP.
+
+    SORT lt_field_s BY field.                               "n2199162
+    SORT lt_field_r BY rollname rfield DESCENDING.
+
+    CALL FUNCTION 'DDIF_NAMETAB_GET'              "begin "n2199162
+      EXPORTING
+        tabname   = ld_tabname_bsin
+      TABLES
+        x031l_tab = lt_bsin_fields
+      EXCEPTIONS
+        OTHERS    = 0.
+    SORT lt_bsin_fields BY rollname fieldname.              "n2272245
+
+    CALL FUNCTION 'DDIF_NAMETAB_GET'
+      EXPORTING
+        tabname   = ld_tabname_acca
+      TABLES
+        x031l_tab = lt_acca_fields
+      EXCEPTIONS
+        OTHERS    = 0.
+    SORT lt_acca_fields BY rollname.
+
+    CALL FUNCTION 'DDIF_NAMETAB_GET'
+      EXPORTING
+        tabname   = ld_tabname_accb
+      TABLES
+        x031l_tab = lt_accb_fields
+      EXCEPTIONS
+        OTHERS    = 0.
+    SORT lt_accb_fields BY rollname.
+
+    SORT lt_sel BY field.
+
+    LOOP AT lt_sel INTO ls_sel.
+* Determine Comp Code
+      CASE ls_sel-field.
+        WHEN 'BUKRS'
+          OR 'RBUKRS'.
+          range_append 'SD_BUKRS[]' 'DD_BUKRS[]' 'KD_BUKRS[]'.
+* Determine GL Accounts
+*        WHEN 'RACCT'                                            "n2272245
+*          OR 'SAKNR'                                            "n2272245
+*          OR 'HKONT'.                                           "n2272245
+*          range_append 'SD_SAKNR[]' 'SD_SAKNR[]' 'SD_SAKNR[]'.  "n2272245
+* Customer Number
+        WHEN 'KUNNR'.
+          range_append 'DD_KUNNR[]' 'DD_KUNNR[]' 'DD_KUNNR[]'.
+* Vendor Number
+        WHEN 'LIFNR'.
+          range_append 'KD_LIFNR[]' 'KD_LIFNR[]' 'KD_LIFNR[]'.
+* Determine Business Areas
+        WHEN 'GSBER'
+          OR 'BUSA'
+          OR 'RBUSA'.
+          MOVE-CORRESPONDING ls_sel TO so_gsber.
+          APPEND so_gsber.
+* Currency keys                                   "begin "n2488532
+        WHEN 'CURRKEY_0D'.
+          MOVE-CORRESPONDING ls_sel TO so_waers.
+          APPEND so_waers.
+        WHEN 'CURRKEY_10'.
+          MOVE-CORRESPONDING ls_sel TO so_hwaer.
+          APPEND so_hwaer.
+        WHEN 'CURRVAL_0D'.
+          MOVE-CORRESPONDING ls_sel TO so_wrshb.
+          APPEND so_wrshb.
+        WHEN 'CURRVAL_10'.
+          MOVE-CORRESPONDING ls_sel TO so_dmshb.
+          APPEND so_dmshb.                        "end "n2488532
+* Free selections or other fields
+        WHEN OTHERS.
+          IF ( ls_sel-field = 'RACCT'                            "n2272245
+               OR ls_sel-field = 'SAKNR'                         "n2272245
+               OR ls_sel-field = 'HKONT' )                       "n2272245
+               AND g_repid = 'RFITEMGL'.                         "n2272245
+            range_append 'SD_SAKNR[]' 'SD_SAKNR[]' 'SD_SAKNR[]'. "n2272245
+            CONTINUE.                                            "n2272245
+          ENDIF.                                                 "n2272245
+
+          lb_found = abap_false.
+          READ TABLE lt_field_s
+            INTO ls_field_s
+            WITH KEY
+              field = ls_sel-field
+            BINARY SEARCH.
+
+* Find a receiver field based on data element
+          IF sy-subrc = 0.
+            READ TABLE lt_field_r                           "n2424014
+              INTO ls_field_r                               "n2424014
+              WITH KEY                                      "n2424014
+                rfield = ls_field_s-rfield.                 "n2424014
+
+            IF sy-subrc <> 0.                               "n2424014
+              READ TABLE lt_field_r
+                INTO ls_field_r
+                WITH KEY
+                  rollname = ls_field_s-rollname
+                BINARY SEARCH.
+            ENDIF.                                          "n2424014
+
+            IF sy-subrc = 0
+* "Special" logic in in DBSDFSEL
+            AND ls_field_s-field  <> 'SKA1_KTOKS'
+            AND ls_field_r-rfield <> 'SD_GSBER'.
+* Receiver field is a select option
+              IF ls_field_r-kind = 'S'.
+                CONCATENATE ls_field_r-rfield '[]'
+                  INTO ld_range_name.
+                ASSIGN (ld_range_name)     TO <lt_range>.
+                IF sy-subrc = 0.
+                  ASSIGN (ls_field_r-rfield) TO <ls_range>.
+                  IF sy-subrc = 0.
+                    MOVE-CORRESPONDING ls_sel
+                      TO <ls_range>.
+                    APPEND <ls_range>
+                      TO <lt_range>.
+                  ENDIF.
+                ENDIF.
+* Receiver field is a parameter
+              ELSE.
+                ASSIGN (ls_field_r-rfield) TO <ld_value>.
+                <ld_value> = ls_sel-low.
+                lb_found = abap_true.
+              ENDIF.
+            ENDIF.
+
+* No matching field found yet
+* >> try to find a field in dynamic selections for item
+            IF lb_found = abap_false                        "n2647013
+            AND ls_field_s-rollname IS NOT INITIAL.         "n2647013
+              READ TABLE lt_bsin_fields
+                INTO ls_fields
+                WITH KEY
+                  rollname = ls_field_s-rollname
+                  fieldname = ls_field_s-field              "n2272245
+                BINARY SEARCH.
+
+              IF sy-subrc <> 0.                             "n2272245
+                READ TABLE lt_bsin_fields                   "n2272245
+                  INTO ls_fields                            "n2272245
+                  WITH KEY                                  "n2272245
+                    rollname = ls_field_s-rollname          "n2272245
+                  BINARY SEARCH.                            "n2272245
+              ENDIF.                                        "n2272245
+
+              IF sy-subrc = 0.
+                lb_found = abap_true.
+                IF ls_bsin_frange-fieldname <> ls_fields-fieldname.
+                  IF ls_bsin_frange IS NOT INITIAL.
+                    APPEND ls_bsin_frange
+                      TO lt_bsin_frange.
+                  ENDIF.
+                  CLEAR ls_bsin_frange.
+                  ls_bsin_frange-fieldname = ls_fields-fieldname.
+                ENDIF.
+                MOVE-CORRESPONDING ls_sel
+                  TO ls_range.
+                IF ls_sel-low <> ls_range-low.              "n2557471
+                  ls_range-option = 'CP'.                   "n2557471
+                  ls_range-low+44 = '*'.                    "n2557471
+                ENDIF.                                      "n2557471
+                APPEND ls_range
+                  TO ls_bsin_frange-selopt_t.
+              ENDIF.
+            ENDIF.
+
+* No matching field found yet
+* >> try to find a field in dynamic selections for account
+            IF lb_found = abap_false.
+              READ TABLE lt_acca_fields
+                INTO ls_fields
+                WITH KEY
+                  rollname = ls_field_s-rollname
+                BINARY SEARCH.
+
+              IF sy-subrc = 0.
+                lb_found = abap_true.
+                IF ls_acca_frange-fieldname <> ls_fields-fieldname.
+                  IF ls_acca_frange IS NOT INITIAL.
+                    APPEND ls_acca_frange
+                      TO lt_acca_frange.
+                  ENDIF.
+                  CLEAR ls_acca_frange.
+                  ls_acca_frange-fieldname = ls_fields-fieldname.
+                ENDIF.
+                MOVE-CORRESPONDING ls_sel
+                  TO ls_range.
+                IF ls_sel-low <> ls_range-low.              "n2557471
+                  ls_range-option = 'CP'.                   "n2557471
+                  ls_range-low+44 = '*'.                    "n2557471
+                ENDIF.                                      "n2557471
+                APPEND ls_range
+                  TO ls_acca_frange-selopt_t.
+              ENDIF.
+            ENDIF.
+
+* No matching field found yet
+* >> try to find a field in dynamic selections for cccode account
+            IF lb_found = abap_false.
+              READ TABLE lt_accb_fields
+                INTO ls_fields
+                WITH KEY
+                  rollname = ls_field_s-rollname
+                BINARY SEARCH.
+
+              IF sy-subrc = 0.
+                lb_found = abap_true.
+                IF ls_accb_frange-fieldname <> ls_fields-fieldname.
+                  IF ls_accb_frange IS NOT INITIAL.
+                    APPEND ls_accb_frange
+                      TO lt_accb_frange.
+                  ENDIF.
+                  CLEAR ls_accb_frange.
+                  ls_accb_frange-fieldname = ls_fields-fieldname.
+                ENDIF.
+                MOVE-CORRESPONDING ls_sel
+                  TO ls_range.
+                IF ls_sel-low <> ls_range-low.              "n2557471
+                  ls_range-option = 'CP'.                   "n2557471
+                  ls_range-low+44 = '*'.                    "n2557471
+                ENDIF.                                      "n2557471
+                APPEND ls_range
+                  TO ls_accb_frange-selopt_t.
+              ENDIF.
+            ENDIF.
+
+          ENDIF.
+
+      ENDCASE.
+    ENDLOOP.
+
+* Save remaining selections
+    IF ls_bsin_frange IS NOT INITIAL.
+      APPEND ls_bsin_frange
+        TO lt_bsin_frange.
+    ENDIF.
+
+    IF ls_acca_frange IS NOT INITIAL.
+      APPEND ls_acca_frange
+        TO lt_acca_frange.
+    ENDIF.
+
+    IF ls_accb_frange IS NOT INITIAL.
+      APPEND ls_accb_frange
+        TO lt_accb_frange.
+    ENDIF.
+
+* Transfer selections to global field
+    IF lt_bsin_frange IS NOT INITIAL.
+      lsx_trange-tablename = ld_tabname_bsin.
+      lsx_trange-frange_t = lt_bsin_frange.
+      APPEND lsx_trange
+        TO fs_dyns-trange.
+    ENDIF.
+
+    IF lt_acca_frange IS NOT INITIAL.
+      lsx_trange-tablename = ld_tabname_acca.
+      lsx_trange-frange_t = lt_acca_frange.
+      APPEND lsx_trange
+        TO fs_dyns-trange.
+    ENDIF.
+
+    IF lt_accb_frange IS NOT INITIAL.
+      lsx_trange-tablename = ld_tabname_accb.
+      lsx_trange-frange_t = lt_accb_frange.
+      APPEND lsx_trange
+        TO fs_dyns-trange.
+    ENDIF.                                        "end "n2199162
+
+    IF <ld_stida> IS NOT INITIAL
+    OR pa_stida IS NOT INITIAL.
+      x_opsel = 'X'.
+      x_clsel = space.
+      x_aisel = space.
+      <ld_opopt> = 'X'.                                     "n2424014
+      IF  pa_stida   IS INITIAL                             "n2424014
+      AND <ld_stida> IS NOT INITIAL.                        "n2424014
+        pa_stida = <ld_stida>.                              "n2424014
+      ENDIF.                                                "n2424014
+    ELSEIF so_augdt[] IS NOT INITIAL
+    OR     <lt_ra_augdt> IS NOT INITIAL
+    OR     pa_stid2   IS NOT INITIAL.
+      x_opsel = space.
+      x_clsel = 'X'.
+      x_aisel = space.
+      <ld_apopt> = 'X'.                                     "n2424014
+      IF  so_augdt[]    IS INITIAL                          "n2424014
+      AND <lt_ra_augdt> IS NOT INITIAL.                     "n2424014
+        so_augdt[] = <lt_ra_augdt>.                         "n2424014
+      ENDIF.                                                "n2424014
+    ELSE.                                                   "n2356943
+      IF NOT ls_sender CS 'FAGL_LINE_ITEM_BROWSER'.         "n2611037
+        x_opsel = space.                                    "n2356943
+        x_clsel = space.                                    "n2356943
+        x_aisel = 'X'.                                      "n2356943
+      ENDIF.                                                "n2611037
+    ENDIF.
+  ENDIF.
+
+  IF ls_sender CS 'RFBILA'.                                 "n2077832
+    CLEAR so_yrper[].                                       "n2077832
+  ENDIF.                                                    "n2077832
+
+ENDFORM.                    " RRI_INIT
+*&---------------------------------------------------------------------*
+*&      Form  RSTI_SELECTION_EXIT
+*&---------------------------------------------------------------------*
+FORM rsti_selection_exit                         "new since "n2488532
+  TABLES
+    lt_table                  STRUCTURE rstifields
+  USING
+    cd_own_logic.
+*----------------------------------------------------------------------*
+  DATA ls_a_rec               LIKE rstirec.
+  DATA ld_rri_subrc           LIKE sy-subrc.
+  DATA ls_sender              TYPE rstirec.
+  DATA ld_tcode_1             TYPE sytcode.
+  DATA ld_tcode_2             TYPE sytcode.
+  DATA ld_receiver            TYPE syrepid.
+*----------------------------------------------------------------------*
+  CALL FUNCTION 'RSTI_APPL_STACK_POP'
+    IMPORTING
+      i_rec                      = ls_a_rec
+      i_sen                      = ls_sender
+    EXCEPTIONS
+      appl_stack_not_initialized = 1.
+  ld_rri_subrc = sy-subrc.
+
+  IF ld_rri_subrc = 0.
+    CASE g_repid.
+      WHEN 'RFITEMGL'.
+        ld_tcode_1 = 'FBL3N'.
+        ld_tcode_2 = 'FBL4N'.
+      WHEN 'RFITEMAR'.
+        ld_tcode_1 = 'FBL5N'.
+        ld_tcode_2 = 'FBL6N'.
+      WHEN 'RFITEMAP'.
+        ld_tcode_1 = 'FBL1N'.
+        ld_tcode_2 = 'FBL2N'.
+    ENDCASE.
+    ld_receiver = g_repid.
+
+* check Receiver is this report
+    IF NOT ( ( ls_a_rec-rtool = 'RT'
+               AND ls_a_rec-ronam = ld_receiver )
+          OR (     ls_a_rec-rtool = 'TR'
+               AND    ls_a_rec-ronam CS ld_tcode_1
+                   OR ls_a_rec-ronam CS ld_tcode_2 ) ) .
+* current call is not relevant
+      RETURN.
+    ELSE.
+* current program is being called from corresponding line item browser
+* >> do not perform standard logic
+      IF ls_sender CS 'FAGL_LINE_ITEM'.
+        cd_own_logic = 'X'.
+      ENDIF.
+    ENDIF.
+  ENDIF.
+ENDFORM.

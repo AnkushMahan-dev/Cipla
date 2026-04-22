@@ -1,0 +1,2243 @@
+*&---------------------------------------------------------------------*
+*& Report  ZPM_EQUPDATE_REPORT
+*&
+*&---------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*& Title             : ZPM_EQUPDATE_REPORT
+*& Author            : Vinit Sawant
+*& Program Type      : Executable
+*& Creation Date     : 29.12.2020
+*& Transaction       : ZPM_EQUPDATE
+*& Functional design : Sarikrishna Pari
+*& Technical design  : Vinit Sawant
+*& Change request    : 8000006801
+*& Transport request : CRDK975425
+*& Description       : Custom report for Equipment History Report
+*&---------------------------------------------------------------------*
+* Date            : 18.07.2023
+* Author          : Shirisha Doosa
+* Change request  : 8000009152
+* Transport number: CRDK987609
+* Description     : Performance Improvement
+*----------------------------------------------------------------------*
+
+REPORT zpm_equpdate_report.
+
+*&---------------------------------------------------------------------*
+*&  Structure
+*&---------------------------------------------------------------------*
+
+TYPES : BEGIN OF ty_werks,
+          werks TYPE werks_d,
+        END OF ty_werks,
+
+        BEGIN OF ty_vequi,
+          equnr TYPE equnr,
+          eqtyp TYPE eqtyp,
+          eqart TYPE eqart,
+          iwerk TYPE iwerk,
+          hequi TYPE hequi,
+          ingrp TYPE ingrp,
+          tidnr TYPE tidnr,
+          eqktx TYPE ktx01,
+          tplnr TYPE tplnr,
+          abckz TYPE abckz,
+          stort TYPE pmloc,
+          msgrp TYPE raumnr,
+          beber TYPE beber,
+          kostl TYPE kostl,
+        END OF ty_vequi,
+
+        BEGIN OF ty_equz,
+          equnr TYPE equnr,
+          datab TYPE datab,
+        END OF ty_equz,
+
+        BEGIN OF ty_t001w,
+          werks TYPE werks_d,
+          adrnr TYPE adrnr,
+        END OF ty_t001w,
+
+        BEGIN OF ty_adrc,
+          addrnumber TYPE ad_addrnum,
+          name1      TYPE ad_name1,
+        END OF ty_adrc,
+
+        BEGIN OF ty_iflotx,
+          tplnr TYPE tplnr,
+          pltxt TYPE pltxt,
+        END OF ty_iflotx,
+
+        BEGIN OF ty_viqmel,
+          qmnum TYPE qmnum,
+          iwerk TYPE iwerk,
+          equnr TYPE equnr,
+          warpl TYPE warpl,
+          abnum TYPE abnum,
+          aufnr TYPE aufnr,
+          objnr TYPE j_objnr,
+        END OF ty_viqmel,
+
+        BEGIN OF ty_mpos,
+          warpl TYPE warpl,
+          plnnr TYPE plnnr,
+          plnal TYPE plnal,
+        END OF ty_mpos,
+
+        BEGIN OF ty_viaufks,
+          aufnr TYPE aufnr,
+          equnr TYPE equnr,
+          iwerk TYPE iwerk,
+          auart TYPE aufart,
+          ktext TYPE auftext,
+          objnr TYPE j_objnr,
+          gstrp TYPE pm_ordgstrp,
+        END OF ty_viaufks,
+
+        BEGIN OF ty_afvc,
+          aufnr TYPE aufnr,
+          vornr TYPE vornr,
+        END OF ty_afvc,
+
+        BEGIN OF ty_oper,
+          aufnr     TYPE aufnr,
+          vornr     TYPE vornr,
+          zcnf_date TYPE char10,
+          zcnf_dt   TYPE datum,
+          zcnf_time TYPE uzeit,
+        END OF ty_oper,
+
+        BEGIN OF ty_jsto,
+          objnr TYPE j_objnr,
+          stsma TYPE j_stsma,
+        END OF ty_jsto,
+
+        BEGIN OF ty_tj30t,
+          stsma TYPE j_stsma,
+          estat TYPE j_estat,
+          txt04 TYPE j_txt04,
+          txt30 TYPE j_txt30,
+        END OF ty_tj30t,
+
+        BEGIN OF ty_user_assign,
+          aufnr TYPE aufnr,
+          werks TYPE werks_d,
+          user1 TYPE usnam,
+          user2 TYPE usnam,
+        END OF ty_user_assign,
+
+        BEGIN OF ty_deviation,
+          aufnr    TYPE aufnr,
+          z_early  TYPE char10,
+          z_late   TYPE char10,
+          z_devnr1 TYPE char20,
+          z_devnr2 TYPE char20,
+          z_devnr3 TYPE char20,
+          z_devnr4 TYPE char20,
+          z_devnr5 TYPE char20,
+          z_remk   TYPE char155,
+          sch_date TYPE co_gstrs,
+          z_freq   TYPE char40,
+        END OF ty_deviation,
+
+        BEGIN OF ty_equi,
+          equnr TYPE equnr,
+          eqtyp TYPE eqtyp,
+        END OF ty_equi,
+
+        BEGIN OF ty_output,
+          werks       TYPE werks_d,
+          name1       TYPE ad_name1,
+          equnr       TYPE equnr,
+          eqktx       TYPE ktx01,
+          tidnr       TYPE tidnr,
+          eqtyp       TYPE eqtyp,
+          eqart       TYPE eqart,
+          eartx       TYPE eartx,
+          stort       TYPE aufstort,
+          ktext       TYPE text40,
+          raumnr      TYPE raumnr,
+          tplnr       TYPE tplnr,
+          pltxt       TYPE pltxt,
+          kostl       TYPE kostl,
+          beber       TYPE beber,
+          fing        TYPE fing,
+          abc_in      TYPE char2,
+          ingrp       TYPE ingrp,
+          hequi       TYPE hequi,
+          aufnr       TYPE aufnr,
+          auftext     TYPE auftext,
+          ostat       TYPE j_txt04,
+          os_text     TYPE j_txt30,
+          auart       TYPE aufart,
+          gstrp       TYPE pm_ordgstrp,
+          gstrs       TYPE co_gstrs,
+          z_early     TYPE char10,
+          z_late      TYPE char10,
+          astat       TYPE j_txt04,
+          as_text     TYPE j_txt30,
+          ac_date     TYPE char10,
+          frequency   TYPE char40,
+          user1       TYPE usnam,
+          user2       TYPE usnam,
+          z_devnr1    TYPE char20,
+          z_devnr2    TYPE char20,
+          z_devnr3    TYPE char20,
+          z_devnr4    TYPE char20,
+          z_devnr5    TYPE char20,
+          z_remk      TYPE char155,
+          maj_min     TYPE char10,
+          constra     TYPE char3,
+          ustat       TYPE j_txt04,
+          us_text     TYPE j_txt30,
+          qmnum       TYPE qmnum,
+          warpl       TYPE warpl,
+          plnnr       TYPE plnnr,
+          plnal       TYPE plnal,
+          raised_by   TYPE usnam,
+          raised_name TYPE ad_name1,
+          raised_dt   TYPE char10,
+          raised_tm   TYPE uzeit,
+          impass_by   TYPE usnam,
+          impass_name TYPE ad_name1,
+          impass_dt   TYPE char10,
+          impass_tm   TYPE uzeit,
+          usercl_by   TYPE usnam,
+          usercl_name TYPE ad_name1,
+          usercl_dt   TYPE char10,
+          usercl_tm   TYPE uzeit,
+          enggcl_by   TYPE usnam,
+          enggcl_name TYPE ad_name1,
+          enggcl_dt   TYPE char10,
+          enggcl_tm   TYPE uzeit,
+          act_taken   TYPE char200,
+          enggrv_by   TYPE usnam,
+          enggrv_name TYPE ad_name1,
+          enggrv_dt   TYPE char10,
+          enggrv_tm   TYPE uzeit,
+          userrv_by   TYPE usnam,
+          userrv_name TYPE ad_name1,
+          userrv_dt   TYPE char10,
+          userrv_tm   TYPE uzeit,
+          qaapr_by    TYPE usnam,
+          qaapr_name  TYPE ad_name1,
+          qaapr_dt    TYPE char10,
+          qaapr_tm    TYPE uzeit,
+          ra_impass   TYPE char20,
+          impass_ucl  TYPE char20,
+          ucl_ecl     TYPE char20,
+          ecl_opcomp  TYPE char20,
+          opcomp_urv  TYPE char20,
+          urv_qaapr   TYPE char20,
+          total_time  TYPE char20,
+        END OF ty_output,
+
+        BEGIN OF ty_summary,
+          werks      TYPE werks_d,
+          name1      TYPE ad_name1,
+          aufnr      TYPE aufnr,
+          gjahr      TYPE gjahr,
+          monat      TYPE monat,
+          ustat      TYPE j_txt04,
+          us_text    TYPE j_txt30,
+          ra_impass  TYPE char20,
+          impass_ucl TYPE char20,
+          ucl_ecl    TYPE char20,
+          ecl_opcomp TYPE char20,
+          opcomp_urv TYPE char20,
+          urv_qaapr  TYPE char20,
+          total_time TYPE char20,
+        END OF ty_summary,
+
+        BEGIN OF ty_annual_brs,
+          gjahr       TYPE gjahr,
+          werks       TYPE werks_d,
+          name1       TYPE ad_name1,
+          reported    TYPE i,
+          completed   TYPE i,
+          under_maint TYPE i,
+          ra_imp_min  TYPE char20,
+          ra_imp_max  TYPE char20,
+          ra_imp_avg  TYPE char20,
+          imp_ucl_min TYPE char20,
+          imp_ucl_max TYPE char20,
+          imp_ucl_avg TYPE char20,
+          ucl_ecl_min TYPE char20,
+          ucl_ecl_max TYPE char20,
+          ucl_ecl_avg TYPE char20,
+          ecl_opc_min TYPE char20,
+          ecl_opc_max TYPE char20,
+          ecl_opc_avg TYPE char20,
+          opc_urv_min TYPE char20,
+          opc_urv_max TYPE char20,
+          opc_urv_avg TYPE char20,
+          urv_qa_min  TYPE char20,
+          urv_qa_max  TYPE char20,
+          urv_qa_avg  TYPE char20,
+          total_min   TYPE char20,
+          total_max   TYPE char20,
+          total_avg   TYPE char20,
+        END OF ty_annual_brs,
+
+        BEGIN OF ty_monthly_brs,
+          gjahr       TYPE gjahr,
+          monat       TYPE monat,
+          mnktx       TYPE fcktx,
+          mnltx       TYPE fcltx,
+          werks       TYPE werks_d,
+          name1       TYPE ad_name1,
+          reported    TYPE i,
+          completed   TYPE i,
+          under_maint TYPE i,
+          ra_imp_min  TYPE char20,
+          ra_imp_max  TYPE char20,
+          ra_imp_avg  TYPE char20,
+          imp_ucl_min TYPE char20,
+          imp_ucl_max TYPE char20,
+          imp_ucl_avg TYPE char20,
+          ucl_ecl_min TYPE char20,
+          ucl_ecl_max TYPE char20,
+          ucl_ecl_avg TYPE char20,
+          ecl_opc_min TYPE char20,
+          ecl_opc_max TYPE char20,
+          ecl_opc_avg TYPE char20,
+          opc_urv_min TYPE char20,
+          opc_urv_max TYPE char20,
+          opc_urv_avg TYPE char20,
+          urv_qa_min  TYPE char20,
+          urv_qa_max  TYPE char20,
+          urv_qa_avg  TYPE char20,
+          total_min   TYPE char20,
+          total_max   TYPE char20,
+          total_avg   TYPE char20,
+        END OF ty_monthly_brs,
+
+        BEGIN OF ty_brtrend,
+          werks      TYPE werks_d,
+          name1      TYPE ad_name1,
+          aufnr      TYPE aufnr,
+          gjahr      TYPE gjahr,
+          monat      TYPE monat,
+          ustat      TYPE j_txt04,
+          us_text    TYPE j_txt30,
+          equnr      TYPE equnr,
+          eqtyp      TYPE eqtyp,
+          constraint TYPE char3,
+          majmin     TYPE char10,
+          ra_impass  TYPE char20,
+          impass_ucl TYPE char20,
+          ucl_ecl    TYPE char20,
+          ecl_opcomp TYPE char20,
+          opcomp_urv TYPE char20,
+          urv_qaapr  TYPE char20,
+          total_time TYPE char20,
+        END OF ty_brtrend,
+
+        BEGIN OF ty_annual_brt,
+          gjahr       TYPE gjahr,
+          werks       TYPE werks_d,
+          name1       TYPE ad_name1,
+          reported    TYPE i,
+          completed   TYPE i,
+          under_maint TYPE i,
+          ra_impass   TYPE char20,
+          impass_ucl  TYPE char20,
+          ucl_ecl     TYPE char20,
+          ecl_opcomp  TYPE char20,
+          opcomp_urv  TYPE char20,
+          urv_qaapr   TYPE char20,
+          total_time  TYPE char20,
+        END OF ty_annual_brt,
+
+        BEGIN OF ty_monthly_brt,
+          status TYPE j_txt30,
+          mon01  TYPE i,
+          mon02  TYPE i,
+          mon03  TYPE i,
+          mon04  TYPE i,
+          mon05  TYPE i,
+          mon06  TYPE i,
+          mon07  TYPE i,
+          mon08  TYPE i,
+          mon09  TYPE i,
+          mon10  TYPE i,
+          mon11  TYPE i,
+          mon12  TYPE i,
+        END OF ty_monthly_brt,
+
+        BEGIN OF ty_majmin,
+          color      TYPE lvc_t_scol,
+          majmin     TYPE char10,
+          process    TYPE i,
+          constraint TYPE i,
+          utility    TYPE i,
+          others     TYPE i,
+        END OF ty_majmin,
+
+        BEGIN OF ty_mtheader,
+          werks TYPE werks_d,
+          name1 TYPE ad_name1,
+          equnr TYPE equnr,
+          eqktx TYPE ktx01,
+          mttr  TYPE p DECIMALS 2,
+          mtbr  TYPE p DECIMALS 2,
+        END OF ty_mtheader,
+
+        BEGIN OF ty_mtitem,
+          werks      TYPE werks_d,
+          equnr      TYPE equnr,
+          ustat      TYPE j_txt04,
+          us_text    TYPE j_txt30,
+          gstrp      TYPE pm_ordgstrp,
+          breakdowns TYPE i,
+          downtime   TYPE p DECIMALS 2,
+          xttr       TYPE p DECIMALS 2,
+          xtbr       TYPE p DECIMALS 2,
+        END OF ty_mtitem,
+
+        BEGIN OF ty_mtoutput,
+          werks      TYPE werks_d,
+          name1      TYPE ad_name1,
+          equnr      TYPE equnr,
+          eqktx      TYPE ktx01,
+          stort      TYPE aufstort,
+          ktext      TYPE text40,
+          tplnr      TYPE tplnr,
+          pltxt      TYPE pltxt,
+          datab      TYPE datab,
+          breakdowns TYPE i,
+          xttr       TYPE p DECIMALS 2,
+          mttr       TYPE p DECIMALS 2,
+          xtbr       TYPE p DECIMALS 2,
+          mtbr       TYPE p DECIMALS 2,
+          xtbf       TYPE p DECIMALS 2,
+          mtbf       TYPE p DECIMALS 2,
+          mtbf_d     TYPE p DECIMALS 2,
+        END OF ty_mtoutput.
+
+*&---------------------------------------------------------------------*
+*&  Internal tables & Work areas
+*&---------------------------------------------------------------------*
+DATA  : gt_werks_t     TYPE STANDARD TABLE OF ty_werks,
+        gs_werks_t     TYPE ty_werks,
+
+        gt_vequi       TYPE STANDARD TABLE OF ty_vequi,
+        gs_vequi       TYPE ty_vequi,
+
+        gt_equz        TYPE STANDARD TABLE OF ty_equz,
+        gs_equz        TYPE ty_equz,
+
+        gt_t001w       TYPE STANDARD TABLE OF ty_t001w,
+        gs_t001w       TYPE ty_t001w,
+
+        gt_adrc        TYPE STANDARD TABLE OF ty_adrc,
+        gs_adrc        TYPE ty_adrc,
+
+        gt_t370k_t     TYPE STANDARD TABLE OF t370k_t,
+        gs_t370k_t     TYPE t370k_t,
+
+        gt_t499s       TYPE STANDARD TABLE OF t499s,
+        gs_t499s       TYPE t499s,
+
+        gt_t357        TYPE STANDARD TABLE OF t357,
+        gs_t357        TYPE t357,
+
+        gt_iflotx      TYPE STANDARD TABLE OF ty_iflotx,
+        gs_iflotx      TYPE ty_iflotx,
+
+        gt_constraint  TYPE STANDARD TABLE OF zpm_constraint,
+        gs_constraint  TYPE zpm_constraint,
+
+        gt_viqmel      TYPE STANDARD TABLE OF ty_viqmel,
+        gs_viqmel      TYPE ty_viqmel,
+
+        gt_mpos        TYPE STANDARD TABLE OF ty_mpos,
+        gs_mpos        TYPE ty_mpos,
+
+        gt_history     TYPE STANDARD TABLE OF zpm_parameter,
+        gs_history     TYPE zpm_parameter,
+
+        gt_breakdown   TYPE STANDARD TABLE OF zpm_parameter,
+        gs_breakdown   TYPE zpm_parameter,
+
+        gt_ppm         TYPE STANDARD TABLE OF zpm_parameter,
+        gs_ppm         TYPE zpm_parameter,
+
+        gt_zpara       TYPE TABLE OF zpm_parameter, "Added by Gajanan - 13.09.2022 - CR#8000007982
+
+        gt_viaufks     TYPE STANDARD TABLE OF ty_viaufks,
+        gs_viaufks     TYPE ty_viaufks,
+
+        gt_afvc        TYPE STANDARD TABLE OF ty_afvc,
+        gs_afvc        TYPE ty_afvc,
+
+        gt_oper        TYPE STANDARD TABLE OF ty_oper,
+        gs_oper        TYPE ty_oper,
+
+        gt_jsto_n      TYPE STANDARD TABLE OF ty_jsto,
+        gs_jsto_n      TYPE ty_jsto,
+
+        gt_tj30t_n     TYPE STANDARD TABLE OF ty_tj30t,
+        gs_tj30t_n     TYPE ty_tj30t,
+
+        gt_jsto        TYPE STANDARD TABLE OF ty_jsto,
+        gs_jsto        TYPE ty_jsto,
+
+        gt_tj30t       TYPE STANDARD TABLE OF ty_tj30t,
+        gs_tj30t       TYPE ty_tj30t,
+
+        gt_tj02t       TYPE STANDARD TABLE OF tj02t,
+        gs_tj02t       TYPE tj02t,
+
+        gt_user_assign TYPE STANDARD TABLE OF ty_user_assign,
+        gs_user_assign TYPE ty_user_assign,
+
+        gt_deviation   TYPE STANDARD TABLE OF ty_deviation,
+        gs_deviation   TYPE ty_deviation,
+
+        gt_jobcard     TYPE STANDARD TABLE OF zpm_jobcard,
+        gs_jobcard     TYPE zpm_jobcard,
+
+        gt_eqhistory   TYPE STANDARD TABLE OF zpm_eqhistory,
+        gs_eqhistory   TYPE zpm_eqhistory,
+
+        gt_output      TYPE STANDARD TABLE OF ty_output,
+        gs_output      TYPE ty_output,
+
+        gt_months      TYPE STANDARD TABLE OF t247,
+        gs_months      TYPE t247,
+
+        gt_summary     TYPE STANDARD TABLE OF ty_summary,
+        gs_summary     TYPE ty_summary,
+
+        gt_summary_t   TYPE STANDARD TABLE OF ty_summary,
+        gs_summary_t   TYPE ty_summary,
+
+        gt_summary_r   TYPE STANDARD TABLE OF ty_summary,
+        gs_summary_r   TYPE ty_summary,
+
+        gt_summary_c   TYPE STANDARD TABLE OF ty_summary,
+        gs_summary_c   TYPE ty_summary,
+
+        gt_summary_um  TYPE STANDARD TABLE OF ty_summary,
+        gs_summary_um  TYPE ty_summary,
+
+        gt_annual_brs  TYPE STANDARD TABLE OF ty_annual_brs,
+        gs_annual_brs  TYPE ty_annual_brs,
+
+        gt_monthly_brs TYPE STANDARD TABLE OF ty_monthly_brs,
+        gt_monthly_br  TYPE STANDARD TABLE OF ty_monthly_brs,
+        gs_monthly_brs TYPE ty_monthly_brs,
+
+        gt_brtrend     TYPE STANDARD TABLE OF ty_brtrend,
+        gs_brtrend     TYPE ty_brtrend,
+
+        gt_brtrend_t   TYPE STANDARD TABLE OF ty_brtrend,
+        gs_brtrend_t   TYPE ty_brtrend,
+
+        gt_brtrend_r   TYPE STANDARD TABLE OF ty_brtrend,
+        gs_brtrend_r   TYPE ty_brtrend,
+
+        gt_brtrend_c   TYPE STANDARD TABLE OF ty_brtrend,
+        gs_brtrend_c   TYPE ty_brtrend,
+
+        gt_brtrend_um  TYPE STANDARD TABLE OF ty_brtrend,
+        gs_brtrend_um  TYPE ty_brtrend,
+
+        gt_annual_brt  TYPE STANDARD TABLE OF ty_annual_brt,
+        gs_annual_brt  TYPE ty_annual_brt,
+
+        gt_monthly_brt TYPE STANDARD TABLE OF ty_monthly_brt,
+        gs_monthly_brt TYPE ty_monthly_brt,
+
+        gt_equi        TYPE STANDARD TABLE OF ty_equi,
+        gs_equi        TYPE ty_equi,
+
+        gt_t370u       TYPE STANDARD TABLE OF t370u,
+        gs_t370u       TYPE t370u,
+
+        gt_majmin      TYPE STANDARD TABLE OF ty_majmin,
+        gs_majmin      TYPE ty_majmin,
+
+        gt_mtheader    TYPE STANDARD TABLE OF ty_mtheader,
+        gs_mtheader    TYPE ty_mtheader,
+
+        gt_mtitem      TYPE STANDARD TABLE OF ty_mtitem,
+        gs_mtitem      TYPE ty_mtitem,
+
+        gt_mtoutput    TYPE STANDARD TABLE OF ty_mtoutput,
+        gs_mtoutput    TYPE ty_mtoutput.
+
+DATA  : gr_custom       TYPE REF TO cl_gui_custom_container,
+        gr_splitter     TYPE REF TO cl_gui_splitter_container,
+        gr_splitter1    TYPE REF TO cl_gui_splitter_container,
+        gr_container1   TYPE REF TO cl_gui_container,
+        gr_container2   TYPE REF TO cl_gui_container,
+        gr_container3   TYPE REF TO cl_gui_container,
+        gr_container_c1 TYPE REF TO cl_gui_container,
+        gr_container_c2 TYPE REF TO cl_gui_container,
+        gr_container4   TYPE REF TO cl_gui_container,
+        gr_document     TYPE REF TO cl_dd_document.
+
+DATA  : gr_gjahr TYPE RANGE OF gjahr,
+        gs_gjahr LIKE LINE OF gr_gjahr,
+
+        gr_werks TYPE RANGE OF werks,
+        gs_werks LIKE LINE OF gr_werks.
+
+DATA  : gr_table      TYPE REF TO cl_salv_table,
+        gr_functions  TYPE REF TO cl_salv_functions_list,
+        gr_layout     TYPE REF TO cl_salv_layout,
+        gr_events     TYPE REF TO cl_salv_events_table,
+        gr_columns    TYPE REF TO cl_salv_columns_table,
+        gr_column     TYPE REF TO cl_salv_column_table,
+        gr_selections TYPE REF TO cl_salv_selections,
+        gr_grid       TYPE REF TO cl_salv_form_layout_grid,
+        gr_head       TYPE REF TO cl_salv_form_header_info,
+        gr_label      TYPE REF TO cl_salv_form_label,
+        gr_text       TYPE REF TO cl_salv_form_text,
+        gr_display    TYPE REF TO cl_salv_display_settings,
+        gr_aggregate  TYPE REF TO cl_salv_aggregations,
+        gr_sort       TYPE REF TO cl_salv_sorts.
+
+DATA  : gs_alv_key TYPE salv_s_layout_key,
+        gv_variant TYPE slis_vari.
+
+DATA  : gr_table1      TYPE REF TO cl_salv_table,
+        gr_functions1  TYPE REF TO cl_salv_functions_list,
+        gr_layout1     TYPE REF TO cl_salv_layout,
+        gr_events1     TYPE REF TO cl_salv_events_table,
+        gr_columns1    TYPE REF TO cl_salv_columns_table,
+        gr_column1     TYPE REF TO cl_salv_column_table,
+        gr_selections1 TYPE REF TO cl_salv_selections,
+        gr_grid1       TYPE REF TO cl_salv_form_layout_grid,
+        gr_head1       TYPE REF TO cl_salv_form_header_info,
+        gr_label1      TYPE REF TO cl_salv_form_label,
+        gr_text1       TYPE REF TO cl_salv_form_text,
+        gr_display1    TYPE REF TO cl_salv_display_settings.
+
+DATA  : gt_fieldcat TYPE slis_t_fieldcat_alv,
+        gs_fieldcat TYPE slis_fieldcat_alv,
+
+        gt_sortinfo TYPE slis_t_sortinfo_alv,
+        gs_sortinfo TYPE slis_sortinfo_alv,
+
+        gs_keyinfo  TYPE slis_keyinfo_alv,
+
+        gs_layout   TYPE slis_layout_alv,
+
+        ta_fcat     TYPE TABLE OF slis_fieldcat_alv,
+        wa_fcat     TYPE slis_fieldcat_alv.
+
+DATA  : ok_code         TYPE sy-ucomm.
+
+*&---------------------------------------------------------------------*
+*&  Field Symbols
+*&---------------------------------------------------------------------*
+FIELD-SYMBOLS : <fs_oper> TYPE ty_oper.
+
+*&---------------------------------------------------------------------*
+*&  Variable
+*&---------------------------------------------------------------------*
+DATA :  gv_werks TYPE werks_d,
+        gv_equnr TYPE equnr,
+        gv_aufnr TYPE aufk-aufnr,
+        gv_auart TYPE aufk-auart,
+        gv_tidnr TYPE equz-tidnr,
+        gv_eqart TYPE equi-eqart,
+        gv_stort TYPE iloa-stort,
+        gv_date  TYPE datum.
+
+DATA  : gv_col_pos TYPE i,
+        gv_row_pos TYPE i.
+
+DATA : gv_execute TYPE c LENGTH 4.
+
+DATA  : gv_message    TYPE string,
+        gv_eqh_flag   TYPE boolean,
+        gv_brs_flag   TYPE boolean,
+        gv_brt_flag   TYPE boolean,
+        gv_mttr_flag  TYPE boolean,
+        gv_ppmt_flag  TYPE boolean,
+        gv_ppmd_flag  TYPE boolean,
+        gv_opd_flag   TYPE boolean,
+        gv_init_9000  TYPE boolean,
+        gv_index      TYPE sy-tabix,
+        gv_afvc_index TYPE sy-tabix,
+        gv_flag       TYPE boolean.
+
+*&---------------------------------------------------------------------*
+*&  Constants
+*&---------------------------------------------------------------------*
+CONSTANTS : gc_selscreen       TYPE sy-dynnr     VALUE '1000',
+            gc_eqhscreen       TYPE sy-dynnr     VALUE '9000',
+            gc_history         TYPE sy-ucomm     VALUE 'HISTORY',
+            gc_summary         TYPE sy-ucomm     VALUE 'SUMMARY',
+            gc_breakdown_trend TYPE sy-ucomm     VALUE 'BTREND',
+            gc_mttr_mtbr       TYPE sy-ucomm     VALUE 'MEANTIME',
+            gc_ppm_trend       TYPE sy-ucomm     VALUE 'PTREND',
+            gc_ppm_dashboard   TYPE sy-ucomm     VALUE 'PPMDASH',
+            gc_op_dashboard    TYPE sy-ucomm     VALUE 'OPDASH',
+            gc_execute         TYPE sy-ucomm     VALUE 'CRET',
+            gc_back            TYPE sy-ucomm     VALUE 'BACK',
+            gc_exit            TYPE sy-ucomm     VALUE 'EXIT',
+            gc_cancel          TYPE sy-ucomm     VALUE 'CANCEL',
+            gc_order_group     TYPE char3        VALUE 'ORD',
+            gc_general_group   TYPE char3        VALUE 'GEN',
+            gc_equipment_group TYPE char3        VALUE 'EQD',
+            gc_jobcard_group   TYPE char3        VALUE 'JOB',
+            gc_reference_group TYPE char3        VALUE 'REF',
+            gc_breakdown_group TYPE char3        VALUE 'BRK',
+            gc_breakdown_grp1  TYPE char3        VALUE 'BR1',
+            gc_breakdown_grp2  TYPE char3        VALUE 'BR2',
+            gc_yes             TYPE char3        VALUE 'YES',
+            gc_no              TYPE char3        VALUE 'NO',
+            gc_system_status   TYPE c            VALUE 'I',
+            gc_user_status     TYPE c            VALUE 'E',
+            gc_created         TYPE j_status     VALUE 'I0001',
+            gc_released        TYPE j_status     VALUE 'I0002',
+            gc_teco            TYPE j_status     VALUE 'I0045',
+            gc_closed          TYPE j_status     VALUE 'I0046',
+            gc_deletion        TYPE j_status     VALUE 'I0076',
+            gc_qavr            TYPE j_txt04      VALUE 'QAVR',
+            gc_close           TYPE j_txt04      VALUE 'CLOS',
+            gc_colon           TYPE c            VALUE ':',
+            gc_brt_container   TYPE char50       VALUE 'BRT_CONTAINER',
+            gc_major           TYPE char10       VALUE 'MAJOR',
+            gc_minor           TYPE char10       VALUE 'MINOR',
+            gc_mtheader        TYPE slis_tabname VALUE 'GT_OBJECT_HEAD',
+            gc_mtitem          TYPE slis_tabname VALUE 'GT_OBJECT_ITEM'.
+
+*&---------------------------------------------------------------------*
+*&  Selection Screen declaration
+*&---------------------------------------------------------------------*
+SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE text-t01.
+
+SELECT-OPTIONS  : s_werks FOR gv_werks  MODIF ID wrk OBLIGATORY,
+                  s_equnr FOR gv_equnr  MODIF ID equ,
+                  s_aufnr FOR gv_aufnr  MODIF ID auf,
+                  s_auart FOR gv_auart  MODIF ID aua,
+                  s_tidnr FOR gv_tidnr  MODIF ID tid,
+                  s_eqart FOR gv_eqart  MODIF ID eqa,
+                  s_stort FOR gv_stort  MODIF ID sto,
+                  s_date  FOR gv_date   MODIF ID dat OBLIGATORY.
+
+SELECTION-SCREEN END OF BLOCK b1.
+
+SELECTION-SCREEN BEGIN OF BLOCK b2 WITH FRAME TITLE text-t02.
+*PARAMETER p_sim RADIOBUTTON GROUP rg1 DEFAULT 'X' USER-COMMAND fradio MODIF ID rbn.
+PARAMETER p_sim AS CHECKBOX DEFAULT 'X' USER-COMMAND fradio MODIF ID rbn.
+
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN POSITION 4.
+PARAMETER p_save   AS CHECKBOX DEFAULT 'X' USER-COMMAND fcheck MODIF ID sav.
+SELECTION-SCREEN COMMENT 7(15) text-c16 FOR FIELD p_save MODIF ID sav.
+SELECTION-SCREEN END OF LINE.
+
+*PARAMETER p_disp RADIOBUTTON GROUP rg1 DEFAULT 'X' MODIF ID rbn
+SELECTION-SCREEN END OF BLOCK b2.
+
+SELECTION-SCREEN BEGIN OF BLOCK b3 WITH FRAME TITLE text-t03.
+PARAMETER p_eqdtl AS CHECKBOX DEFAULT 'X' USER-COMMAND fcheck MODIF ID chk.
+
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN POSITION 4.
+PARAMETER p_equip   AS CHECKBOX DEFAULT 'X' MODIF ID eqd.
+SELECTION-SCREEN COMMENT 7(15) text-c01 FOR FIELD p_equip MODIF ID eqd.
+
+SELECTION-SCREEN POSITION 24.
+PARAMETER p_gen     AS CHECKBOX USER-COMMAND fcheck MODIF ID eqd.
+SELECTION-SCREEN COMMENT 27(20) text-c02 FOR FIELD p_gen MODIF ID eqd.
+SELECTION-SCREEN END OF LINE.
+
+PARAMETER p_orddtl  AS CHECKBOX DEFAULT 'X' USER-COMMAND fcheck MODIF ID chk.
+
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN POSITION 4.
+PARAMETER p_order   AS CHECKBOX DEFAULT 'X' MODIF ID ord.
+SELECTION-SCREEN COMMENT 7(15) text-c03 FOR FIELD p_order MODIF ID ord.
+
+SELECTION-SCREEN POSITION 24.
+PARAMETER p_plan    AS CHECKBOX MODIF ID ord.
+SELECTION-SCREEN COMMENT 27(20) text-c04 FOR FIELD p_plan MODIF ID ord.
+SELECTION-SCREEN END OF LINE.
+
+PARAMETER p_jobdtl  AS CHECKBOX USER-COMMAND fcheck MODIF ID chk.
+
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN POSITION 4.
+PARAMETER p_ppm     AS CHECKBOX USER-COMMAND fcheck MODIF ID job.
+SELECTION-SCREEN COMMENT 7(15) text-c05 FOR FIELD p_ppm MODIF ID job.
+
+SELECTION-SCREEN POSITION 24.
+PARAMETER p_brkd    AS CHECKBOX USER-COMMAND fcheck MODIF ID job.
+SELECTION-SCREEN COMMENT 27(20) text-c06 FOR FIELD p_brkd MODIF ID job.
+SELECTION-SCREEN END OF LINE.
+
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN POSITION 6.
+PARAMETER p_rby     AS CHECKBOX MODIF ID br1.
+SELECTION-SCREEN COMMENT 10(15) text-c07 FOR FIELD p_rby MODIF ID br1.
+
+SELECTION-SCREEN POSITION 26.
+PARAMETER p_imp     AS CHECKBOX MODIF ID br2.
+SELECTION-SCREEN COMMENT 28(18) text-c08 FOR FIELD p_imp MODIF ID br2.
+
+SELECTION-SCREEN POSITION 46.
+PARAMETER p_ucl     AS CHECKBOX MODIF ID br1.
+SELECTION-SCREEN COMMENT 50(15) text-c09 FOR FIELD p_ucl MODIF ID br1.
+
+SELECTION-SCREEN POSITION 66.
+PARAMETER p_ecl     AS CHECKBOX MODIF ID br1.
+SELECTION-SCREEN COMMENT 70(25) text-c10 FOR FIELD p_ecl MODIF ID br1.
+SELECTION-SCREEN END OF LINE.
+
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN POSITION 6.
+PARAMETER p_act     AS CHECKBOX MODIF ID br2.
+SELECTION-SCREEN COMMENT 10(15) text-c11 FOR FIELD p_act MODIF ID br2.
+
+SELECTION-SCREEN POSITION 26.
+PARAMETER p_urv     AS CHECKBOX MODIF ID br1.
+SELECTION-SCREEN COMMENT 30(15) text-c12 FOR FIELD p_urv MODIF ID br1.
+
+SELECTION-SCREEN POSITION 46.
+PARAMETER p_qa      AS CHECKBOX MODIF ID br2.
+SELECTION-SCREEN COMMENT 50(15) text-c13 FOR FIELD p_qa MODIF ID br2.
+
+SELECTION-SCREEN POSITION 66.
+PARAMETER p_time    AS CHECKBOX MODIF ID br2.
+SELECTION-SCREEN COMMENT 70(25) text-c14 FOR FIELD p_time MODIF ID br2.
+SELECTION-SCREEN END OF LINE.
+
+PARAMETER p_refdtl  AS CHECKBOX USER-COMMAND fcheck MODIF ID chk.
+
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN POSITION 4.
+PARAMETER p_ref     AS CHECKBOX MODIF ID ref.
+SELECTION-SCREEN COMMENT 7(20) text-c15 FOR FIELD p_ref MODIF ID ref.
+SELECTION-SCREEN END OF LINE.
+SELECTION-SCREEN END OF BLOCK b3.
+
+*&---------------------------------------------------------------------*
+*&  At Selection Screen Output
+*&---------------------------------------------------------------------*
+AT SELECTION-SCREEN OUTPUT.
+  PERFORM modify_screen.
+
+*&---------------------------------------------------------------------*
+*&  Start of Selection
+*&---------------------------------------------------------------------*
+START-OF-SELECTION.
+
+  IF p_sim IS NOT INITIAL.
+    PERFORM fetch_eqhistory_data.
+    PERFORM populate_eqhistory_data.
+  ENDIF.
+
+  PERFORM display_eqhistory_data.
+
+*&---------------------------------------------------------------------*
+*& Form FETCH_EQHISTORY_DATA
+*&---------------------------------------------------------------------*
+*& Equipment History data
+*&---------------------------------------------------------------------*
+FORM fetch_eqhistory_data .
+
+  REFRESH : gt_vequi,
+            gt_t001w,
+            gt_adrc,
+            gt_t370k_t,
+            gt_t499s,
+            gt_t357,
+            gt_iflotx,
+            gt_constraint,
+            gt_viqmel,
+            gt_mpos,
+            gt_jsto_n,
+            gt_tj30t_n,
+            gt_history,
+            gt_breakdown,
+            gt_ppm,
+            gt_viaufks,
+            gt_afvc,
+            gt_oper,
+            gt_jsto,
+            gt_tj30t,
+            gt_user_assign,
+            gt_deviation,
+            gt_jobcard,
+            gt_tj02t.
+
+  SELECT equnr
+         eqtyp
+         eqart
+         iwerk
+         hequi
+         ingrp
+         tidnr
+         eqktx
+         tplnr
+         abckz
+         stort
+         msgrp
+         beber
+         kostl INTO TABLE gt_vequi
+    FROM v_equi
+   WHERE equnr IN s_equnr
+     AND eqart IN s_eqart
+     AND datbi = '99991231'
+     AND iwerk IN s_werks
+     AND tidnr IN s_tidnr
+     AND stort IN s_stort.
+
+  IF sy-subrc = 0.
+    SELECT werks
+           adrnr INTO TABLE gt_t001w
+      FROM t001w
+      FOR ALL ENTRIES IN gt_vequi
+      WHERE werks = gt_vequi-iwerk.
+    IF sy-subrc = 0.
+      SELECT addrnumber
+             name1 INTO TABLE gt_adrc
+        FROM adrc
+        FOR ALL ENTRIES IN gt_t001w
+        WHERE addrnumber = gt_t001w-adrnr.
+    ENDIF.
+
+    SELECT * INTO TABLE gt_t370k_t
+      FROM t370k_t
+      FOR ALL ENTRIES IN gt_vequi
+      WHERE spras = sy-langu
+        AND eqart = gt_vequi-eqart.
+
+    SELECT * INTO TABLE gt_t499s
+      FROM t499s
+      FOR ALL ENTRIES IN gt_vequi
+      WHERE werks = gt_vequi-iwerk
+        AND stand = gt_vequi-stort.
+
+    SELECT * INTO TABLE gt_t357
+      FROM t357
+      FOR ALL ENTRIES IN gt_vequi
+      WHERE werks = gt_vequi-iwerk
+        AND beber = gt_vequi-beber.
+
+    SELECT tplnr
+           pltxt INTO TABLE gt_iflotx
+      FROM iflotx
+      FOR ALL ENTRIES IN gt_vequi
+      WHERE tplnr = gt_vequi-tplnr
+        AND spras = sy-langu.
+
+    IF p_order IS NOT INITIAL.
+      SELECT * INTO TABLE gt_constraint
+        FROM zpm_constraint
+        FOR ALL ENTRIES IN gt_vequi
+        WHERE werks = gt_vequi-iwerk
+          AND equnr = gt_vequi-equnr.
+
+      SELECT qmnum
+             iwerk
+             equnr
+             warpl
+             abnum
+             aufnr
+             objnr INTO TABLE gt_viqmel
+        FROM viqmel
+        FOR ALL ENTRIES IN gt_vequi
+*        WHERE equnr = gt_vequi-equnr "commented by 8000009152 Shirisha 18.07.2023
+*          AND iwerk = gt_vequi-iwerk
+*          AND aufnr IN s_aufnr.
+           WHERE iwerk = gt_vequi-iwerk "added by 8000009152 Shirisha 18.07.2023
+          AND equnr = gt_vequi-equnr
+          AND aufnr IN s_aufnr.
+      IF sy-subrc = 0.
+        SORT gt_viqmel BY equnr iwerk.
+***SOA by Gajanan - 13.09.2022 - CR#8000007982
+*Start of comment by Gajanan - 13.09.2022 - CR#8000007982
+*        SELECT * INTO TABLE gt_history
+*          FROM zpm_parameter
+*         WHERE param1 IN s_werks
+*           AND param2 = 'DASHBOARD'
+*           AND param3 = 'EQUIP_HISTORY'
+*           AND param4 = ' '.
+*
+*        SELECT * INTO TABLE gt_breakdown
+*          FROM zpm_parameter
+*         WHERE param1 IN s_werks
+*           AND param2 = 'DASHBOARD'
+*           AND param3 = 'EQUIP_HISTORY'
+*           AND param4 = 'BREAKDOWN'.
+*
+*        SELECT * INTO TABLE gt_ppm
+*          FROM zpm_parameter
+*         WHERE param1 IN s_werks
+*           AND param2 = 'DASHBOARD'
+*           AND param3 = 'EQUIP_HISTORY'
+*           AND param4 = 'PPM'.
+
+*End of comment by Gajanan - 13.09.2022 - CR#8000007982
+
+        SELECT * INTO TABLE gt_zpara
+          FROM zpm_parameter
+         WHERE param1 IN s_werks
+           AND param2 = 'DASHBOARD'
+           AND param3 = 'EQUIP_HISTORY'.
+
+        IF NOT gt_zpara IS INITIAL.
+          SORT gt_zpara BY param1 param2 param3 param4.
+
+          "Call FM to split data
+          CALL FUNCTION 'ZPM_ZPARAMETER_TAB_SPLIT'
+            CHANGING
+              ta_param = gt_zpara.
+
+          gt_history[] = gt_zpara[].
+          DELETE gt_history WHERE param4 <> abap_false.
+
+          gt_breakdown[] = gt_zpara[].
+          DELETE gt_breakdown WHERE param4 <> 'BREAKDOWN'.
+
+          gt_ppm[] = gt_zpara[].
+          DELETE gt_ppm WHERE param4 <> 'PPM'.
+
+        ENDIF.
+
+***EOA by Gajanan - 13.09.2022 - CR#8000007982
+
+        SELECT aufnr
+               equnr
+               iwerk
+               auart
+               ktext
+               objnr
+               gstrp INTO TABLE gt_viaufks
+          FROM viaufks
+          FOR ALL ENTRIES IN gt_viqmel
+          WHERE aufnr = gt_viqmel-aufnr
+            AND iwerk = gt_viqmel-iwerk
+            AND auart IN s_auart
+            AND gstrp IN s_date.
+        IF sy-subrc = 0.
+
+          CLEAR gs_history.
+***SOA by Gajanan - 13.09.2022 - CR#8000007982
+*commented by Gajanan - 13.09.2022 - CR#8000007982
+*          LOOP AT gt_history INTO gs_history.
+*            DELETE gt_viaufks WHERE iwerk = gs_history-param1
+*                             AND ( auart <> gs_history-value1 AND
+*                                   auart <> gs_history-value2 AND
+*                                   auart <> gs_history-value3 AND
+*                                   auart <> gs_history-value4 ).
+*            CLEAR gs_history.
+*          ENDLOOP.
+
+    sort gt_history by param1 value1 ASCENDING. ""added by 8000009152 Shirisha 19.07.2023
+
+          LOOP AT gt_viaufks INTO gs_viaufks.
+
+            READ TABLE gt_history WITH KEY param1 = gs_viaufks-iwerk
+                                           value1 = gs_viaufks-auart
+                                           TRANSPORTING NO FIELDS BINARY SEARCH ."added binary search keyword by 8000009152 Shirisha 19.07.2023
+            IF sy-subrc <> 0.
+              CLEAR: gs_viaufks-aufnr.
+              MODIFY gt_viaufks FROM gs_viaufks TRANSPORTING aufnr.
+            ENDIF.
+            CLEAR: gs_viaufks.
+          ENDLOOP.
+
+          DELETE gt_viaufks WHERE aufnr IS INITIAL.
+***EOA by Gajanan - 13.09.2022 - CR#8000007982
+
+          IF p_brkd IS NOT INITIAL AND p_ppm IS INITIAL.
+            CLEAR gs_breakdown.
+***SOA by Gajanan - 13.09.2022 - CR#8000007982
+*commented by Gajanan - 13.09.2022 - CR#8000007982
+*            LOOP AT gt_breakdown INTO gs_breakdown.
+*              DELETE gt_viaufks WHERE iwerk = gs_breakdown-param1
+*                               AND ( auart <> gs_breakdown-value1 AND
+*                                     auart <> gs_breakdown-value2 AND
+*                                     auart <> gs_breakdown-value3 AND
+*                                     auart <> gs_breakdown-value4 ).
+*              CLEAR gs_breakdown.
+*            ENDLOOP.
+
+            sort gt_breakdown by param1 value1 ASCENDING."added by 8000009152 Shirisha 19.07.2023
+
+            LOOP AT gt_viaufks INTO gs_viaufks.
+
+              READ TABLE gt_breakdown WITH KEY param1 = gs_viaufks-iwerk
+                                               value1 = gs_viaufks-auart
+                                               TRANSPORTING NO FIELDS BINARY SEARCH."added binary search keyword by 8000009152 Shirisha 19.07.2023
+              IF sy-subrc <> 0.
+                CLEAR: gs_viaufks-aufnr.
+                MODIFY gt_viaufks FROM gs_viaufks TRANSPORTING aufnr.
+              ENDIF.
+              CLEAR: gs_viaufks.
+            ENDLOOP.
+
+            DELETE gt_viaufks WHERE aufnr IS INITIAL.
+***EOA by Gajanan - 13.09.2022 - CR#8000007982
+
+          ELSEIF p_brkd IS INITIAL AND p_ppm IS NOT INITIAL.
+            CLEAR gs_ppm.
+***SOA by Gajanan - 13.09.2022 - CR#8000007982
+*commented by Gajanan - 13.09.2022 - CR#8000007982
+*            LOOP AT gt_ppm INTO gs_ppm.
+*              DELETE gt_viaufks WHERE iwerk = gs_ppm-param1
+*                               AND ( auart <> gs_ppm-value1 AND
+*                                     auart <> gs_ppm-value2 AND
+*                                     auart <> gs_ppm-value3 AND
+*                                     auart <> gs_ppm-value4 ).
+*              CLEAR gs_ppm.
+*            ENDLOOP.
+
+            sort gt_ppm by param1 value1 ASCENDING."added by 8000009152 Shirisha 19.07.2023
+            LOOP AT gt_viaufks INTO gs_viaufks.
+
+              READ TABLE gt_ppm WITH KEY param1 = gs_viaufks-iwerk
+                                         value1 = gs_viaufks-auart
+                                         TRANSPORTING NO FIELDS BINARY SEARCH."added binary search keyword by 8000009152 Shirisha 19.07.2023
+              IF sy-subrc <> 0.
+                CLEAR: gs_viaufks-aufnr.
+                MODIFY gt_viaufks FROM gs_viaufks TRANSPORTING aufnr.
+              ENDIF.
+              CLEAR: gs_viaufks.
+            ENDLOOP.
+
+            DELETE gt_viaufks WHERE aufnr IS INITIAL.
+***EOA by Gajanan - 13.09.2022 - CR#8000007982
+          ENDIF.
+
+          sort gt_viaufks by aufnr iwerk  ASCENDING.
+
+          CLEAR gs_viqmel.
+          LOOP AT gt_viqmel INTO gs_viqmel."added by 8000009152 Shirisha 19.07.2023
+            CLEAR gs_viaufks.
+            READ TABLE gt_viaufks INTO gs_viaufks WITH KEY aufnr = gs_viqmel-aufnr
+                                                           iwerk = gs_viqmel-iwerk BINARY SEARCH. "added binary search keyword by 8000009152 Shirisha 19.07.2023
+            IF sy-subrc <> 0.
+              DELETE gt_viqmel WHERE aufnr = gs_viqmel-aufnr
+                                 AND iwerk = gs_viqmel-iwerk.
+            ENDIF.
+            CLEAR gs_viqmel.
+          ENDLOOP.
+
+          sort gt_viqmel by equnr iwerk ASCENDING.
+
+          CLEAR gs_vequi.
+          LOOP AT gt_vequi INTO gs_vequi."added  by 8000009152 Shirisha 19.07.2023
+            CLEAR gs_viqmel.
+            READ TABLE gt_viqmel TRANSPORTING NO FIELDS WITH KEY equnr = gs_vequi-equnr
+                                                                 iwerk = gs_vequi-iwerk BINARY SEARCH."added binary search keyword by 8000009152 Shirisha 19.07.2023
+            IF sy-subrc <> 0.
+              DELETE gt_vequi WHERE equnr = gs_vequi-equnr
+                                AND iwerk = gs_vequi-iwerk.
+            ENDIF.
+            CLEAR gs_vequi.
+          ENDLOOP.
+
+          SELECT warpl
+                 plnnr
+                 plnal INTO TABLE gt_mpos
+            FROM mpos
+            FOR ALL ENTRIES IN gt_viqmel
+            WHERE warpl = gt_viqmel-warpl.
+
+          SELECT objnr
+                 stsma INTO TABLE gt_jsto_n
+            FROM jsto
+            FOR ALL ENTRIES IN gt_viqmel
+            WHERE objnr = gt_viqmel-objnr.
+          IF sy-subrc = 0.
+            SELECT stsma
+                   estat
+                   txt04
+                   txt30 INTO TABLE gt_tj30t_n
+              FROM tj30t
+              FOR ALL ENTRIES IN gt_jsto_n
+              WHERE stsma = gt_jsto_n-stsma
+                AND spras = sy-langu.
+          ENDIF.
+
+          SELECT aufnr
+                 vornr INTO TABLE gt_afvc
+            FROM viauf_afvc
+            FOR ALL ENTRIES IN gt_viaufks
+            WHERE aufnr = gt_viaufks-aufnr.
+          IF sy-subrc = 0.
+            SORT gt_afvc BY aufnr vornr.
+          ENDIF.
+
+          SELECT aufnr
+                 vornr
+                 zcnf_date
+                 zcnf_time INTO CORRESPONDING FIELDS OF TABLE gt_oper
+            FROM zpm_operation_cn
+            FOR ALL ENTRIES IN gt_viaufks
+            WHERE aufnr = gt_viaufks-aufnr.
+          IF sy-subrc = 0.
+            LOOP AT gt_oper ASSIGNING <fs_oper>.
+              IF <fs_oper>-zcnf_date IS NOT INITIAL.
+                CONCATENATE <fs_oper>-zcnf_date+6(4)
+                            <fs_oper>-zcnf_date+3(2)
+                            <fs_oper>-zcnf_date(2)
+                       INTO <fs_oper>-zcnf_dt.
+              ENDIF.
+            ENDLOOP.
+          ENDIF.
+
+          SELECT objnr
+                 stsma INTO TABLE gt_jsto
+            FROM jsto
+            FOR ALL ENTRIES IN gt_viaufks
+            WHERE objnr = gt_viaufks-objnr.
+          IF sy-subrc = 0.
+            SELECT stsma
+                   estat
+                   txt04
+                   txt30 INTO TABLE gt_tj30t
+              FROM tj30t
+              FOR ALL ENTRIES IN gt_jsto
+              WHERE stsma = gt_jsto-stsma
+                AND spras = sy-langu.
+          ENDIF.
+
+          SELECT aufnr
+                 werks
+                 user1
+                 user2 INTO TABLE gt_user_assign
+            FROM zpm_user_assign
+            FOR ALL ENTRIES IN gt_viaufks
+           WHERE aufnr = gt_viaufks-aufnr
+             AND werks = gt_viaufks-iwerk.
+
+          SELECT aufnr
+                 z_early
+                 z_late
+                 z_devnr1
+                 z_devnr2
+                 z_devnr3
+                 z_devnr4
+                 z_devnr5
+                 z_remk
+                 sch_date
+                 z_freq INTO TABLE gt_deviation
+            FROM zpm_deviation
+            FOR ALL ENTRIES IN gt_viaufks
+            WHERE aufnr = gt_viaufks-aufnr.
+
+          SELECT * INTO TABLE gt_jobcard
+            FROM zpm_jobcard
+            FOR ALL ENTRIES IN gt_viaufks
+            WHERE aufnr = gt_viaufks-aufnr
+              AND werks = gt_viaufks-iwerk
+              AND auart = gt_viaufks-auart.
+        ENDIF.
+      ENDIF.
+
+      SELECT * INTO TABLE gt_tj02t
+        FROM tj02t
+       WHERE spras = sy-langu.
+
+    ENDIF.
+  ENDIF.
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*& Form POPULATE_EQHISTORY_DATA
+*&---------------------------------------------------------------------*
+*& Populate data
+*&---------------------------------------------------------------------*
+FORM populate_eqhistory_data .
+
+  DATA : lv_days TYPE char20,
+         lv_time TYPE uzeit.
+
+  REFRESH : gt_output.
+
+  CLEAR : gs_vequi,
+          gs_output.
+
+***********BOC : added by 8000009152 Shirisha 19.07.2023**************
+
+  sort gt_t001w       by werks             ASCENDING.
+  sort gt_adrc        by addrnumber        ASCENDING.
+  sort gt_t370k_t     by eqart             ASCENDING.
+  sort gt_t499s       by werks stand       ASCENDING.
+  sort gt_t357        by werks beber       ASCENDING.
+  sort gt_iflotx      by tplnr             ASCENDING.
+  sort gt_viqmel      by equnr iwerk       ASCENDING.
+  sort gt_viaufks     by aufnr             ASCENDING.
+  sort gt_user_assign by aufnr werks       ASCENDING.
+  sort gt_mpos        by warpl             ASCENDING.
+  sort gt_constraint  by werks equnr       ASCENDING.
+  sort gt_deviation   by aufnr             ASCENDING.
+  sort gt_afvc        by aufnr             ASCENDING.
+  sort gt_oper        by aufnr vornr       ASCENDING.
+  sort gt_jobcard     by aufnr werks auart ASCENDING.
+
+***********EOC : added by 8000009152 Shirisha 19.07.2023**************
+
+  LOOP AT gt_vequi INTO gs_vequi.
+    gs_output-werks     = gs_vequi-iwerk.
+    gs_output-equnr     = gs_vequi-equnr.
+    gs_output-eqtyp     = gs_vequi-eqtyp.
+    gs_output-eqart     = gs_vequi-eqart.
+    gs_output-eqktx     = gs_vequi-eqktx.
+    gs_output-tidnr     = gs_vequi-tidnr.
+    gs_output-stort     = gs_vequi-stort.
+    gs_output-beber     = gs_vequi-beber.
+    gs_output-raumnr    = gs_vequi-msgrp.
+    gs_output-tplnr     = gs_vequi-tplnr.
+    gs_output-abc_in    = gs_vequi-abckz.
+    gs_output-ingrp     = gs_vequi-ingrp.
+    gs_output-hequi     = gs_vequi-hequi.
+    gs_output-kostl     = gs_vequi-kostl.
+
+    CLEAR : gs_t001w,
+            gs_adrc,
+            gs_t370k_t,
+            gs_t499s,
+            gs_t357,
+            gs_iflotx,
+            gs_viqmel.
+
+    READ TABLE gt_t001w INTO gs_t001w WITH KEY werks = gs_vequi-iwerk BINARY SEARCH."added binary search keyword by 8000009152 Shirisha 19.07.2023
+    IF sy-subrc = 0.
+      READ TABLE gt_adrc INTO gs_adrc WITH KEY addrnumber = gs_t001w-adrnr BINARY SEARCH."added binary search keyword by 8000009152 Shirisha 19.07.2023
+      IF sy-subrc = 0.
+        gs_output-name1 = gs_adrc-name1.
+      ENDIF.
+    ENDIF.
+
+    READ TABLE gt_t370k_t INTO gs_t370k_t WITH KEY eqart = gs_vequi-eqart BINARY SEARCH."added binary search keyword by 8000009152 Shirisha 19.07.2023
+    IF sy-subrc = 0.
+      gs_output-eartx = gs_t370k_t-eartx.
+    ENDIF.
+
+    READ TABLE gt_t499s INTO gs_t499s WITH KEY werks = gs_vequi-iwerk
+                                               stand = gs_vequi-stort BINARY SEARCH."added binary search keyword by 8000009152 Shirisha 19.07.2023
+    IF sy-subrc = 0.
+      gs_output-ktext = gs_t499s-ktext.
+    ENDIF.
+
+    READ TABLE gt_t357 INTO gs_t357 WITH KEY werks = gs_vequi-iwerk
+                                             beber = gs_vequi-beber BINARY SEARCH."added binary search keyword by 8000009152 Shirisha 19.07.2023
+    IF sy-subrc = 0.
+      gs_output-fing  = gs_t357-fing.
+    ENDIF.
+
+    READ TABLE gt_iflotx INTO gs_iflotx WITH KEY tplnr = gs_vequi-tplnr BINARY SEARCH."added binary search keyword by 8000009152 Shirisha 19.07.2023
+    IF sy-subrc = 0.
+      gs_output-pltxt = gs_iflotx-pltxt.
+    ENDIF.
+
+    IF p_order IS NOT INITIAL.
+      CLEAR gv_index.
+      READ TABLE gt_viqmel TRANSPORTING NO FIELDS WITH KEY equnr = gs_vequi-equnr
+                                                           iwerk = gs_vequi-iwerk BINARY SEARCH."added binary search keyword by 8000009152 Shirisha 19.07.2023
+      IF sy-subrc = 0.
+        gv_index = sy-tabix.
+
+        LOOP AT gt_viqmel INTO gs_viqmel FROM gv_index.
+          IF gs_viqmel-equnr <> gs_vequi-equnr OR
+             gs_viqmel-iwerk <> gs_vequi-iwerk.
+            EXIT.
+          ENDIF.
+
+          CLEAR : gs_viaufks,
+                  gs_user_assign,
+                  gs_mpos,
+                  gs_constraint,
+                  gs_deviation,
+                  gs_afvc,
+                  gs_oper,
+                  gs_jobcard.
+
+          READ TABLE gt_viaufks INTO gs_viaufks WITH KEY aufnr = gs_viqmel-aufnr BINARY SEARCH."added binary search keyword by 8000009152 Shirisha 19.07.2023
+          IF sy-subrc = 0.
+            gs_output-aufnr   = gs_viaufks-aufnr.
+            gs_output-auart   = gs_viaufks-auart.
+            gs_output-auftext = gs_viaufks-ktext.
+            gs_output-gstrp   = gs_viaufks-gstrp.
+
+            READ TABLE gt_user_assign INTO gs_user_assign WITH KEY aufnr = gs_viaufks-aufnr
+                                                                   werks = gs_viaufks-iwerk BINARY SEARCH."added binary search keyword by 8000009152 Shirisha 19.07.2023
+            IF sy-subrc = 0.
+              gs_output-user1 = gs_user_assign-user1.
+              gs_output-user2 = gs_user_assign-user2.
+            ENDIF.
+
+            gs_output-warpl = gs_viqmel-warpl.
+            gs_output-qmnum = gs_viqmel-qmnum.
+
+            READ TABLE gt_mpos INTO gs_mpos WITH KEY warpl = gs_viqmel-warpl BINARY SEARCH."added binary search keyword by 8000009152 Shirisha 19.07.2023
+            IF sy-subrc = 0.
+              gs_output-plnnr = gs_mpos-plnnr.
+              gs_output-plnal = gs_mpos-plnal.
+            ENDIF.
+
+            READ TABLE gt_constraint INTO gs_constraint WITH KEY werks = gs_vequi-iwerk
+                                                                 equnr = gs_vequi-equnr BINARY SEARCH."added binary search keyword by 8000009152 Shirisha 19.07.2023
+            IF sy-subrc = 0.
+              IF gs_constraint-begda <= gs_output-gstrp AND
+                 gs_constraint-endda >= gs_output-gstrp.
+                gs_output-constra = gc_yes.
+              ELSE.
+                gs_output-constra = gc_no.
+              ENDIF.
+            ELSE.
+              gs_output-constra = gc_no.
+            ENDIF.
+
+            READ TABLE gt_deviation INTO gs_deviation WITH KEY aufnr = gs_viaufks-aufnr BINARY SEARCH."added binary search keyword by 8000009152 Shirisha 19.07.2023
+            IF sy-subrc = 0.
+              gs_output-gstrs     = gs_deviation-sch_date.
+              gs_output-z_early   = gs_deviation-z_early.
+              gs_output-z_late    = gs_deviation-z_late.
+              gs_output-frequency = gs_deviation-z_freq.
+              gs_output-z_devnr1  = gs_deviation-z_devnr1.
+              gs_output-z_devnr2  = gs_deviation-z_devnr2.
+              gs_output-z_devnr3  = gs_deviation-z_devnr3.
+              gs_output-z_devnr4  = gs_deviation-z_devnr4.
+              gs_output-z_devnr5  = gs_deviation-z_devnr5.
+              gs_output-z_remk    = gs_deviation-z_remk.
+            ENDIF.
+
+            PERFORM get_status USING gs_viaufks-objnr
+                            CHANGING gs_output-ostat
+                                     gs_output-os_text
+                                     gs_output-ustat
+                                     gs_output-us_text.
+
+            PERFORM get_actual_status USING gs_viqmel-objnr
+                                            gs_viaufks-objnr
+                                   CHANGING gs_output-astat
+                                            gs_output-as_text.
+
+            IF gs_output-astat IS INITIAL.
+              CLEAR : gv_afvc_index.
+              READ TABLE gt_afvc TRANSPORTING NO FIELDS WITH KEY aufnr = gs_viaufks-aufnr BINARY SEARCH."added binary search keyword by 8000009152 Shirisha 19.07.2023
+              IF sy-subrc = 0.
+                gv_afvc_index = sy-tabix.
+
+                CLEAR : gv_flag.
+                LOOP AT gt_afvc INTO gs_afvc FROM gv_afvc_index.
+                  IF gs_afvc-aufnr <> gs_viaufks-aufnr.
+                    EXIT.
+                  ENDIF.
+
+                  READ TABLE gt_oper TRANSPORTING NO FIELDS WITH KEY aufnr = gs_afvc-aufnr
+                                                                     vornr = gs_afvc-vornr BINARY SEARCH."added binary search keyword by 8000009152 Shirisha 19.07.2023
+                  IF sy-subrc <> 0.
+                    gv_flag = abap_true.
+                  ENDIF.
+                ENDLOOP.
+              ENDIF.
+
+              IF gv_flag IS INITIAL.
+                SORT gt_oper DESCENDING BY zcnf_dt zcnf_time.
+                READ TABLE gt_oper INTO gs_oper WITH KEY aufnr = gs_afvc-aufnr BINARY SEARCH."added binary search keyword by 8000009152 Shirisha 19.07.2023
+                IF sy-subrc = 0.
+                  gs_output-ac_date = gs_oper-zcnf_date.
+                ENDIF.
+              ENDIF.
+            ENDIF.
+
+            READ TABLE gt_jobcard INTO gs_jobcard WITH KEY aufnr = gs_viaufks-aufnr
+                                                           werks = gs_viaufks-iwerk
+                                                           auart = gs_viaufks-auart BINARY SEARCH."added binary search keyword by 8000009152 Shirisha 19.07.2023
+            IF sy-subrc = 0.
+
+              IF p_ref IS NOT INITIAL.
+                gs_output-maj_min     = gs_jobcard-z_qa_aprv_in2.
+              ENDIF.
+
+              IF p_rby IS NOT INITIAL.
+                gs_output-raised_by   = gs_jobcard-z_crtd_usr.
+                gs_output-raised_name = gs_jobcard-z_crtd_name.
+                gs_output-raised_dt   = gs_jobcard-z_crtd_dt.
+                gs_output-raised_tm   = gs_jobcard-z_crtd_tm.
+              ENDIF.
+
+              IF p_imp IS NOT INITIAL.
+                gs_output-impass_by   = gs_jobcard-z_qa_rvw_usr.
+                gs_output-impass_name = gs_jobcard-z_rvw_name.
+                gs_output-impass_dt   = gs_jobcard-z_rvw_dt.
+                gs_output-impass_tm   = gs_jobcard-z_rvw_tm.
+              ENDIF.
+
+              IF p_ucl IS NOT INITIAL.
+                gs_output-usercl_by   = gs_jobcard-z_usr_usr1.
+                gs_output-usercl_name = gs_jobcard-z_usr_name.
+                gs_output-usercl_dt   = gs_jobcard-z_usr_dt1.
+                gs_output-usercl_tm   = gs_jobcard-z_usr_tm1.
+              ENDIF.
+
+              IF p_ecl IS NOT INITIAL.
+                gs_output-enggcl_by   = gs_jobcard-z_engg_usr1.
+                gs_output-enggcl_name = gs_jobcard-z_engg_name1.
+                gs_output-enggcl_dt   = gs_jobcard-z_engg_dt1.
+                gs_output-enggcl_tm   = gs_jobcard-z_engg_tm1.
+              ENDIF.
+
+              IF p_urv IS NOT INITIAL.
+                gs_output-userrv_by   = gs_jobcard-z_usr_usr2.
+                gs_output-userrv_name = gs_jobcard-z_usr2_name.
+                gs_output-userrv_dt   = gs_jobcard-z_usr_dt2.
+                gs_output-userrv_tm   = gs_jobcard-z_usr_tm2.
+              ENDIF.
+
+              IF p_qa IS NOT INITIAL.
+                gs_output-qaapr_by    = gs_jobcard-z_qa_aprv_usr1.
+                gs_output-qaapr_name  = gs_jobcard-z_qa_aprv_name.
+                gs_output-qaapr_dt    = gs_jobcard-z_qa_aprv_dt.
+                gs_output-qaapr_tm    = gs_jobcard-z_qa_aprv_tm.
+              ENDIF.
+
+              IF p_act IS NOT INITIAL.
+                gs_output-enggrv_by   = gs_jobcard-z_engg_usr2.
+                gs_output-enggrv_name = gs_jobcard-z_engg_name2.
+                gs_output-enggrv_dt   = gs_jobcard-z_engg_dt2.
+                gs_output-enggrv_tm   = gs_jobcard-z_engg_tm2.
+                gs_output-act_taken   = gs_jobcard-z_engg_txt2_1.
+              ENDIF.
+
+              IF p_time IS NOT INITIAL.
+
+                PERFORM get_time_diff USING gs_jobcard-z_crtd_dt
+                                            gs_jobcard-z_crtd_tm
+                                            gs_jobcard-z_rvw_dt
+                                            gs_jobcard-z_rvw_tm
+                                   CHANGING gs_output-ra_impass
+                                            lv_days
+                                            lv_time.
+
+                PERFORM get_time_diff USING gs_jobcard-z_rvw_dt
+                                            gs_jobcard-z_rvw_tm
+                                            gs_jobcard-z_usr_dt1
+                                            gs_jobcard-z_usr_tm1
+                                   CHANGING gs_output-impass_ucl
+                                            lv_days
+                                            lv_time.
+
+                PERFORM get_time_diff USING gs_jobcard-z_usr_dt1
+                                            gs_jobcard-z_usr_tm1
+                                            gs_jobcard-z_engg_dt1
+                                            gs_jobcard-z_engg_tm1
+                                   CHANGING gs_output-ucl_ecl
+                                            lv_days
+                                            lv_time.
+
+                PERFORM get_time_diff USING gs_jobcard-z_engg_dt1
+                                            gs_jobcard-z_engg_tm1
+                                            gs_jobcard-z_engg_dt2
+                                            gs_jobcard-z_engg_tm2
+                                   CHANGING gs_output-ecl_opcomp
+                                            lv_days
+                                            lv_time.
+
+                PERFORM get_time_diff USING gs_jobcard-z_engg_dt2
+                                            gs_jobcard-z_engg_tm2
+                                            gs_jobcard-z_usr_dt2
+                                            gs_jobcard-z_usr_tm2
+                                   CHANGING gs_output-opcomp_urv
+                                            lv_days
+                                            lv_time.
+
+                PERFORM get_time_diff USING gs_jobcard-z_usr_dt2
+                                            gs_jobcard-z_usr_tm2
+                                            gs_jobcard-z_qa_aprv_dt
+                                            gs_jobcard-z_qa_aprv_tm
+                                   CHANGING gs_output-urv_qaapr
+                                            lv_days
+                                            lv_time.
+
+                PERFORM get_time_diff USING gs_jobcard-z_crtd_dt
+                                            gs_jobcard-z_crtd_tm
+                                            gs_jobcard-z_qa_aprv_dt
+                                            gs_jobcard-z_qa_aprv_tm
+                                   CHANGING gs_output-total_time
+                                            lv_days
+                                            lv_time.
+
+              ENDIF.
+            ENDIF.
+
+            APPEND gs_output TO gt_output.
+            CLEAR : gs_output-aufnr,
+                    gs_output-auart,
+                    gs_output-auftext,
+                    gs_output-gstrp,
+                    gs_output-gstrs,
+                    gs_output-z_early,
+                    gs_output-z_late,
+                    gs_output-frequency,
+                    gs_output-user1,
+                    gs_output-user2,
+                    gs_output-warpl,
+                    gs_output-qmnum,
+                    gs_output-plnnr,
+                    gs_output-plnal,
+                    gs_output-constra,
+                    gs_output-z_devnr1,
+                    gs_output-z_devnr2,
+                    gs_output-z_devnr3,
+                    gs_output-z_devnr4,
+                    gs_output-z_devnr5,
+                    gs_output-z_remk,
+                    gs_output-ostat,
+                    gs_output-os_text,
+                    gs_output-ustat,
+                    gs_output-us_text,
+                    gs_output-astat,
+                    gs_output-as_text,
+                    gs_output-ac_date,
+                    gs_output-maj_min,
+                    gs_output-raised_by,
+                    gs_output-raised_name,
+                    gs_output-raised_dt,
+                    gs_output-raised_tm,
+                    gs_output-impass_by,
+                    gs_output-impass_name,
+                    gs_output-impass_dt,
+                    gs_output-impass_tm,
+                    gs_output-usercl_by,
+                    gs_output-usercl_name,
+                    gs_output-usercl_dt,
+                    gs_output-usercl_tm,
+                    gs_output-enggcl_by,
+                    gs_output-enggcl_name,
+                    gs_output-enggcl_dt,
+                    gs_output-enggcl_tm,
+                    gs_output-userrv_by,
+                    gs_output-userrv_name,
+                    gs_output-userrv_dt,
+                    gs_output-userrv_tm,
+                    gs_output-qaapr_by,
+                    gs_output-qaapr_name,
+                    gs_output-qaapr_dt,
+                    gs_output-qaapr_tm,
+                    gs_output-enggrv_by,
+                    gs_output-enggrv_name,
+                    gs_output-enggrv_dt,
+                    gs_output-enggrv_tm,
+                    gs_output-act_taken,
+                    gs_output-ra_impass,
+                    gs_output-impass_ucl,
+                    gs_output-ucl_ecl,
+                    gs_output-ecl_opcomp,
+                    gs_output-opcomp_urv,
+                    gs_output-urv_qaapr,
+                    gs_output-total_time,
+                    gs_viqmel.
+          ENDIF.
+        ENDLOOP.
+      ENDIF.
+
+    ELSE.
+      APPEND gs_output TO gt_output.
+    ENDIF.
+
+    CLEAR : gs_output,
+            gs_vequi.
+  ENDLOOP.
+
+  IF p_save IS NOT INITIAL.
+    IF gt_output IS NOT INITIAL.
+      REFRESH : gt_eqhistory.
+      MOVE-CORRESPONDING gt_output TO gt_eqhistory.
+
+      MODIFY zpm_eqhistory FROM TABLE gt_eqhistory.
+      IF sy-subrc = 0.
+        COMMIT WORK AND WAIT.
+      ENDIF.
+    ENDIF.
+  ENDIF.
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*& Form DISPLAY_EQHISTORY_DATA
+*&---------------------------------------------------------------------*
+*& Fieldcatalog
+*&---------------------------------------------------------------------*
+FORM display_eqhistory_data .
+
+  PERFORM set_fieldcatalog USING 'WERKS'        'Plant'                                 'EQDATA'.
+  PERFORM set_fieldcatalog USING 'NAME1'        'Plant Description'                     'EQDATA'.
+  PERFORM set_fieldcatalog USING 'EQUNR'        'Equipment Code'                        'EQDATA'.
+  PERFORM set_fieldcatalog USING 'EQKTX'        'Equipment Description'                 'EQDATA'.
+  PERFORM set_fieldcatalog USING 'TIDNR'        'Old Equipment Number'                  'EQDATA'.
+  PERFORM set_fieldcatalog USING 'EQTYP'        'Equipment Category'                    'GENDATA'.
+  PERFORM set_fieldcatalog USING 'EARTX'        'Object Type'                           'GENDATA'.
+  PERFORM set_fieldcatalog USING 'KTEXT'        'Location'                              'GENDATA'.
+  PERFORM set_fieldcatalog USING 'RAUMNR'       'Room Number'                           'GENDATA'.
+  PERFORM set_fieldcatalog USING 'TPLNR'        'Functional Location'                   'GENDATA'.
+  PERFORM set_fieldcatalog USING 'PLTXT'        'Functional Location Description'       'GENDATA'.
+  PERFORM set_fieldcatalog USING 'KOSTL'        'Cost Center'                           'GENDATA'.
+  PERFORM set_fieldcatalog USING 'FING'         'Plant Section'                         'GENDATA'.
+  PERFORM set_fieldcatalog USING 'ABC_IN'       'ABC Indicator'                         'GENDATA'.
+  PERFORM set_fieldcatalog USING 'INGRP'        'Planner Group'                         'GENDATA'.
+  PERFORM set_fieldcatalog USING 'HEQUI'        'Superior Equipment'                    'GENDATA'.
+  PERFORM set_fieldcatalog USING 'AUFNR'        'Order Number'                          'ORDDATA'.
+  PERFORM set_fieldcatalog USING 'AUFTEXT'      'Order Description'                     'ORDDATA'.
+  PERFORM set_fieldcatalog USING 'OSTAT'        'Order Status'                          'ORDDATA'.
+  PERFORM set_fieldcatalog USING 'OS_TEXT'      'Order Status Description'              'ORDDATA'.
+  PERFORM set_fieldcatalog USING 'AUART'        'Order Type'                            'ORDDATA'.
+  PERFORM set_fieldcatalog USING 'GSTRP'        'Planned Date'                          'PLDATA'.
+  PERFORM set_fieldcatalog USING 'GSTRS'        'Scheduled Date'                        'PLDATA'.
+  PERFORM set_fieldcatalog USING 'Z_EARLY'      'Possible Early Date'                   'PLDATA'.
+  PERFORM set_fieldcatalog USING 'Z_LATE'       'Possible Late Date'                    'PLDATA'.
+  PERFORM set_fieldcatalog USING 'ASTAT'        'Actual Status'                         'PLDATA'.
+  PERFORM set_fieldcatalog USING 'AS_TEXT'      'Actual Status Description'             'PLDATA'.
+  PERFORM set_fieldcatalog USING 'AC_DATE'      'Actual Date'                           'PLDATA'.
+  PERFORM set_fieldcatalog USING 'FREQUENCY'    'Frequency'                             'PLDATA'.
+  PERFORM set_fieldcatalog USING 'USER1'        'User 1'                                'PLDATA'.
+  PERFORM set_fieldcatalog USING 'USER2'        'User 2'                                'PLDATA'.
+  PERFORM set_fieldcatalog USING 'Z_DEVNR1'     'Deviation Number1'                     'REFDATA'.
+  PERFORM set_fieldcatalog USING 'Z_DEVNR2'     'Deviation Number2'                     'REFDATA'.
+  PERFORM set_fieldcatalog USING 'Z_DEVNR3'     'Deviation Number3'                     'REFDATA'.
+  PERFORM set_fieldcatalog USING 'Z_DEVNR4'     'Deviation Number4'                     'REFDATA'.
+  PERFORM set_fieldcatalog USING 'Z_DEVNR5'     'Deviation Number5'                     'REFDATA'.
+  PERFORM set_fieldcatalog USING 'Z_REMK'       'Deviation Remarks'                     'REFDATA'.
+  PERFORM set_fieldcatalog USING 'MAJ_MIN'      'Major/Minor'                           'REFDATA'.
+  PERFORM set_fieldcatalog USING 'CONSTRA'      'Is Constraint'                         'REFDATA'.
+  PERFORM set_fieldcatalog USING 'USTAT'        'User Status'                           'REFDATA'.
+  PERFORM set_fieldcatalog USING 'US_TEXT'      'User Status Description'               'REFDATA'.
+  PERFORM set_fieldcatalog USING 'QMNUM'        'Notification Number'                   'REFDATA'.
+  PERFORM set_fieldcatalog USING 'WARPL'        'Maintenance Plan Number'               'REFDATA'.
+  PERFORM set_fieldcatalog USING 'PLNNR'        'Tasklist Group'                        'REFDATA'.
+  PERFORM set_fieldcatalog USING 'PLNAL'        'Tasklist Group Counter'                'REFDATA'.
+  PERFORM set_fieldcatalog USING 'RAISED_BY'    'Raised By ID'                          'RBYDATA'.
+  PERFORM set_fieldcatalog USING 'RAISED_NAME'  'Raised By Name'                        'RBYDATA'.
+  PERFORM set_fieldcatalog USING 'RAISED_DT'    'Raised By Date'                        'RBYDATA'.
+  PERFORM set_fieldcatalog USING 'RAISED_TM'    'Raised On Time'                        'RBYDATA'.
+  PERFORM set_fieldcatalog USING 'IMPASS_BY'    'Impact Assesment By ID'                'IMPDATA'.
+  PERFORM set_fieldcatalog USING 'IMPASS_NAME'  'Impact Assesment By Name'              'IMPDATA'.
+  PERFORM set_fieldcatalog USING 'IMPASS_DT'    'Impact Assesment Date'                 'IMPDATA'.
+  PERFORM set_fieldcatalog USING 'IMPASS_TM'    'Impact Assesment Time'                 'IMPDATA'.
+  PERFORM set_fieldcatalog USING 'USERCL_BY'    'User Clearance By ID'                  'UCDATA'.
+  PERFORM set_fieldcatalog USING 'USERCL_NAME'  'User Clearance By Name'                'UCDATA'.
+  PERFORM set_fieldcatalog USING 'USERCL_DT'    'User Clearance Date'                   'UCDATA'.
+  PERFORM set_fieldcatalog USING 'USERCL_TM'    'User Clearance Time'                   'UCDATA'.
+  PERFORM set_fieldcatalog USING 'ENGGCL_BY'    'Engineering Clearance By ID'           'ECDATA'.
+  PERFORM set_fieldcatalog USING 'ENGGCL_NAME'  'Engineering Clearance By Name'         'ECDATA'.
+  PERFORM set_fieldcatalog USING 'ENGGCL_DT'    'Engineering Clearance Date'            'ECDATA'.
+  PERFORM set_fieldcatalog USING 'ENGGCL_TM'    'Engineering Clearance Time'            'ECDATA'.
+  PERFORM set_fieldcatalog USING 'USERRV_BY'    'User Review By ID'                     'URDATA'.
+  PERFORM set_fieldcatalog USING 'USERRV_NAME'  'User Review By Name'                   'URDATA'.
+  PERFORM set_fieldcatalog USING 'USERRV_DT'    'User Review Date'                      'URDATA'.
+  PERFORM set_fieldcatalog USING 'USERRV_TM'    'User Review Time'                      'URDATA'.
+  PERFORM set_fieldcatalog USING 'QAAPR_BY'     'QA Approval ID'                        'QADATA'.
+  PERFORM set_fieldcatalog USING 'QAAPR_NAME'   'QA Approval Name'                      'QADATA'.
+  PERFORM set_fieldcatalog USING 'QAAPR_DT'     'QA Approval Date'                      'QADATA'.
+  PERFORM set_fieldcatalog USING 'QAAPR_TM'     'QA Approval Time'                      'QADATA'.
+  PERFORM set_fieldcatalog USING 'ACT_TAKEN'    'Action Taken'                          'ACTDATA'.
+  PERFORM set_fieldcatalog USING 'ENGGRV_BY'    'Engg ID'                               'ACTDATA'.
+  PERFORM set_fieldcatalog USING 'ENGGRV_NAME'  'Engg Name'                             'ACTDATA'.
+  PERFORM set_fieldcatalog USING 'ENGGRV_DT'    'Engg Performed Date'                   'ACTDATA'.
+  PERFORM set_fieldcatalog USING 'ENGGRV_TM'    'Engg Performed Time'                   'ACTDATA'.
+  PERFORM set_fieldcatalog USING 'RA_IMPASS'    'Raised By - Impact Assessment'         'TDDATA'.
+  PERFORM set_fieldcatalog USING 'IMPASS_UCL'   'Impact Assessment - User Clearance'    'TDDATA'.
+  PERFORM set_fieldcatalog USING 'UCL_ECL'      'User Clearance - Engg Clearance'       'TDDATA'.
+  PERFORM set_fieldcatalog USING 'ECL_OPCOMP'   'Engg Clearance - Operation Completed'  'TDDATA'.
+  PERFORM set_fieldcatalog USING 'OPCOMP_URV'   'Operation Completed - User Review'     'TDDATA'.
+  PERFORM set_fieldcatalog USING 'URV_QAAPR'    'User Review - QA Approval'             'TDDATA'.
+  PERFORM set_fieldcatalog USING 'TOTAL_TIME'   'Total Time Difference'                 'TDDATA'.
+
+
+  DATA : lwa_layout TYPE slis_layout_alv.
+
+  CLEAR lwa_layout.
+  lwa_layout-colwidth_optimize = abap_true.
+  lwa_layout-zebra = abap_true.
+
+  IF gt_output[] IS NOT INITIAL.
+
+    "FM for ALV Display
+    CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+      EXPORTING
+        i_callback_program = sy-repid
+        is_layout          = lwa_layout
+        it_fieldcat        = ta_fcat
+        i_save             = 'A'
+      TABLES
+        t_outtab           = gt_output[]
+      EXCEPTIONS
+        program_error      = 1
+        OTHERS             = 2.
+    IF sy-subrc <> 0.
+* Implement suitable error handling here
+    ENDIF.
+
+  ENDIF.
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form  GET_STATUS
+*&---------------------------------------------------------------------*
+*       Get status details
+*----------------------------------------------------------------------*
+FORM get_status  USING    p_objnr
+              CHANGING    p_ostat
+                          p_os_text
+                          p_ustat
+                          p_us_text .
+
+  DATA  : lt_status TYPE STANDARD TABLE OF jstat,
+          ls_status TYPE jstat,
+
+          lv_objnr  TYPE j_objnr,
+          lv_istat  TYPE j_istat,
+          lv_estat  TYPE j_estat,
+          lv_len    TYPE i.
+
+  REFRESH : lt_status.
+
+  CLEAR : lv_objnr,
+          lv_istat,
+          lv_estat,
+          lv_len.
+
+  lv_objnr = p_objnr.
+
+  CALL FUNCTION 'STATUS_READ'
+    EXPORTING
+      client           = sy-mandt
+      objnr            = lv_objnr
+      only_active      = abap_true
+    TABLES
+      status           = lt_status
+    EXCEPTIONS
+      object_not_found = 1
+      OTHERS           = 2.
+  IF sy-subrc = 0.
+    CLEAR : ls_status.
+    LOOP AT lt_status INTO ls_status.
+
+      IF ls_status-stat CS gc_system_status.
+
+        IF ls_status-stat EQ gc_created   OR ls_status-stat EQ gc_released  OR
+           ls_status-stat EQ gc_teco      OR ls_status-stat EQ gc_closed    OR
+           ls_status-stat EQ gc_deletion.
+
+          lv_istat  = ls_status-stat.
+
+        ENDIF.
+
+      ELSEIF ls_status-stat CS gc_user_status.
+
+        lv_estat  = ls_status-stat.
+
+        CLEAR : gs_jsto,
+                gs_tj30t,
+                lv_len.
+
+        READ TABLE gt_jsto INTO gs_jsto WITH KEY objnr = lv_objnr.
+        IF sy-subrc = 0.
+          READ TABLE gt_tj30t INTO gs_tj30t WITH KEY stsma = gs_jsto-stsma
+                                                     estat = lv_estat.
+          IF sy-subrc = 0.
+
+            lv_len = strlen( gs_tj30t-txt04 ).
+
+            IF lv_len > 3.
+              CLEAR : p_ustat,
+                      p_us_text.
+              p_ustat   = gs_tj30t-txt04.
+              p_us_text = gs_tj30t-txt30.
+            ENDIF.
+          ENDIF.
+        ENDIF.
+
+      ENDIF.
+
+    ENDLOOP.
+
+    CLEAR : gs_tj02t,
+            p_ostat,
+            p_os_text.
+
+    READ TABLE gt_tj02t INTO gs_tj02t WITH KEY istat = lv_istat.
+    IF sy-subrc = 0.
+      p_ostat   = gs_tj02t-txt04.
+      p_os_text = gs_tj02t-txt30.
+    ENDIF.
+
+  ENDIF.
+
+ENDFORM.
+
+
+*&---------------------------------------------------------------------*
+*&      Form  GET_ACTUAL_STATUS
+*&---------------------------------------------------------------------*
+*       Actual status
+*----------------------------------------------------------------------*
+FORM get_actual_status  USING    p_objnr_n
+                                 p_objnr
+                     CHANGING    p_astat
+                                 p_as_text  .
+
+  DATA  : lt_status  TYPE STANDARD TABLE OF jstat,
+          ls_status  TYPE jstat,
+
+          lv_objnr_n TYPE j_objnr,
+          lv_objnr   TYPE j_objnr,
+          lv_estat   TYPE j_estat,
+          lv_len     TYPE i.
+
+  REFRESH : lt_status.
+
+  CLEAR : lv_objnr_n,
+          lv_estat.
+
+  lv_objnr_n = p_objnr_n.
+
+  CALL FUNCTION 'STATUS_READ'
+    EXPORTING
+      client           = sy-mandt
+      objnr            = lv_objnr_n
+      only_active      = abap_true
+    TABLES
+      status           = lt_status
+    EXCEPTIONS
+      object_not_found = 1
+      OTHERS           = 2.
+  IF sy-subrc = 0.
+    CLEAR : ls_status.
+    LOOP AT lt_status INTO ls_status.
+      IF ls_status-stat CS gc_user_status.
+        lv_estat  = ls_status-stat.
+      ENDIF.
+    ENDLOOP.
+
+    IF lv_estat IS NOT INITIAL.
+      CLEAR : gs_jsto_n,
+              gs_tj30t_n,
+              lv_len,
+              p_astat,
+              p_as_text.
+
+      READ TABLE gt_jsto_n INTO gs_jsto_n WITH KEY objnr = lv_objnr_n.
+      IF sy-subrc = 0.
+        READ TABLE gt_tj30t_n INTO gs_tj30t_n WITH KEY stsma = gs_jsto_n-stsma
+                                                       estat = lv_estat.
+        IF sy-subrc = 0.
+          lv_len = strlen( gs_tj30t_n-txt04 ).
+
+          IF lv_len = 3.
+            p_astat   = gs_tj30t_n-txt04.
+            p_as_text = gs_tj30t_n-txt30.
+          ENDIF.
+        ENDIF.
+      ENDIF.
+    ENDIF.
+  ENDIF.
+
+  IF p_astat IS INITIAL.
+
+    REFRESH : lt_status.
+
+    CLEAR : lv_objnr,
+            lv_estat.
+
+    lv_objnr = p_objnr.
+
+    CALL FUNCTION 'STATUS_READ'
+      EXPORTING
+        client           = sy-mandt
+        objnr            = lv_objnr
+        only_active      = abap_true
+      TABLES
+        status           = lt_status
+      EXCEPTIONS
+        object_not_found = 1
+        OTHERS           = 2.
+    IF sy-subrc = 0.
+      CLEAR : ls_status.
+      LOOP AT lt_status INTO ls_status.
+        IF ls_status-stat CS gc_user_status.
+          lv_estat  = ls_status-stat.
+        ENDIF.
+      ENDLOOP.
+
+      IF lv_estat IS NOT INITIAL.
+        CLEAR : gs_jsto,
+                gs_tj30t,
+                lv_len,
+                p_astat,
+                p_as_text.
+
+        READ TABLE gt_jsto INTO gs_jsto WITH KEY objnr = lv_objnr.
+        IF sy-subrc = 0.
+          READ TABLE gt_tj30t INTO gs_tj30t WITH KEY stsma = gs_jsto-stsma
+                                                     estat = lv_estat.
+          IF sy-subrc = 0.
+            lv_len = strlen( gs_tj30t-txt04 ).
+
+            IF lv_len = 3.
+              p_astat   = gs_tj30t-txt04.
+              p_as_text = gs_tj30t-txt30.
+            ENDIF.
+          ENDIF.
+        ENDIF.
+      ENDIF.
+    ENDIF.
+
+  ENDIF.
+
+ENDFORM.
+
+
+*&---------------------------------------------------------------------*
+*&      Form  GET_TIME_DIFF
+*&---------------------------------------------------------------------*
+*       time difference
+*----------------------------------------------------------------------*
+FORM get_time_diff  USING    p_date1
+                             p_time1
+                             p_date2
+                             p_time2
+                 CHANGING    p_diff
+                             p_days
+                             p_time .
+
+  DATA  : lv_date1 TYPE cva_date,
+          lv_time1 TYPE cva_time,
+          lv_date2 TYPE cva_date,
+          lv_time2 TYPE cva_time,
+          lv_days  TYPE i,
+          lv_day   TYPE char10,
+          lv_time  TYPE cva_time.
+
+  CLEAR : lv_date1,
+          lv_time1,
+          lv_date2,
+          lv_time2,
+          lv_days,
+          lv_day,
+          lv_time,
+          p_diff.
+
+  IF p_date1 IS NOT INITIAL AND p_date2 IS NOT INITIAL.
+
+    CONCATENATE p_date1+6(4) p_date1+3(2) p_date1(2)
+           INTO lv_date1.
+
+    CONCATENATE p_date2+6(4) p_date2+3(2) p_date2(2)
+           INTO lv_date2.
+
+    lv_time1  = p_time1.
+    lv_time2  = p_time2.
+
+    CALL FUNCTION 'SCOV_TIME_DIFF'
+      EXPORTING
+        im_date1              = lv_date1
+        im_date2              = lv_date2
+        im_time1              = lv_time1
+        im_time2              = lv_time2
+      IMPORTING
+        ex_days               = lv_days
+        ex_time               = lv_time
+      EXCEPTIONS
+        start_larger_than_end = 1
+        OTHERS                = 2.
+    IF sy-subrc = 0.
+      lv_day = lv_days.
+      p_days = lv_days.
+      p_time = lv_time.
+      CONCATENATE lv_day lv_time(2) lv_time+2(2) lv_time+4(2)
+             INTO p_diff SEPARATED BY gc_colon.
+      CONDENSE  : p_diff,
+                  p_days,
+                  p_time.
+    ENDIF.
+
+  ENDIF.
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form  SET_FIELDCATALOG
+*&---------------------------------------------------------------------*
+*       Fieldcatalog
+*----------------------------------------------------------------------*
+FORM set_fieldcatalog  USING    VALUE(p_value1)
+                                VALUE(p_value2)
+                                VALUE(p_value3) .
+
+  IF p_equip IS INITIAL.
+    IF p_value3 = 'EQDATA'.
+      CLEAR p_value2.
+    ENDIF.
+  ENDIF.
+
+  IF p_gen IS INITIAL.
+    IF p_value3 = 'GENDATA'.
+      CLEAR p_value2.
+    ENDIF.
+  ENDIF.
+
+  IF p_order IS INITIAL.
+    IF p_value3 = 'ORDDATA'.
+      CLEAR p_value2.
+    ENDIF.
+  ENDIF.
+
+  IF p_plan IS INITIAL.
+    IF p_value3 = 'PLDATA'.
+      CLEAR p_value2.
+    ENDIF.
+  ENDIF.
+
+  IF p_rby IS INITIAL.
+    IF p_value3 = 'RBYDATA'.
+      CLEAR p_value2.
+    ENDIF.
+  ENDIF.
+
+  IF p_imp IS INITIAL.
+    IF p_value3 = 'IMPDATA'.
+      CLEAR p_value2.
+    ENDIF.
+  ENDIF.
+
+  IF p_ucl IS INITIAL.
+    IF p_value3 = 'UCDATA'.
+      CLEAR p_value2.
+    ENDIF.
+  ENDIF.
+
+  IF p_ecl IS INITIAL.
+    IF p_value3 = 'ECDATA'.
+      CLEAR p_value2.
+    ENDIF.
+  ENDIF.
+
+  IF p_act IS INITIAL.
+    IF p_value3 = 'ACTDATA'.
+      CLEAR p_value2.
+    ENDIF.
+  ENDIF.
+
+  IF p_urv IS INITIAL.
+    IF p_value3 = 'URDATA'.
+      CLEAR p_value2.
+    ENDIF.
+  ENDIF.
+
+  IF p_qa IS INITIAL.
+    IF p_value3 = 'QADATA'.
+      CLEAR p_value2.
+    ENDIF.
+  ENDIF.
+
+  IF p_time IS INITIAL.
+    IF p_value3 = 'TDDATA'.
+      CLEAR p_value2.
+    ENDIF.
+  ENDIF.
+
+  IF p_ref IS INITIAL.
+    IF p_value3 = 'REFDATA'.
+      CLEAR p_value2.
+    ENDIF.
+  ENDIF.
+
+  wa_fcat-fieldname = p_value1.
+  wa_fcat-seltext_l = p_value2.
+  APPEND wa_fcat TO ta_fcat.
+  CLEAR wa_fcat.
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form  MODIFY_SCREEN
+*&---------------------------------------------------------------------*
+*       modify screen
+*----------------------------------------------------------------------*
+FORM modify_screen .
+
+  IF s_date IS INITIAL.
+    REFRESH : s_date.
+
+    CLEAR : s_date.
+    s_date-sign   = 'I'.
+    s_date-option = 'BT'.
+    s_date-high   = sy-datum.
+    APPEND s_date.
+  ENDIF.
+  p_orddtl      = abap_true.
+  gv_init_9000  = abap_true.
+
+  IF p_sim IS NOT INITIAL AND p_save IS NOT INITIAL.
+    p_eqdtl   = abap_true.
+    p_gen     = abap_true.
+    p_orddtl  = abap_true.
+    p_plan    = abap_true.
+    p_jobdtl  = abap_true.
+    p_ppm     = abap_true.
+    p_brkd    = abap_true.
+    p_time    = abap_true.
+    p_refdtl  = abap_true.
+  ENDIF.
+
+  IF p_jobdtl IS NOT INITIAL.
+    p_eqdtl   = abap_true.
+    p_orddtl  = abap_true.
+
+    IF p_ppm IS NOT INITIAL AND p_brkd IS INITIAL.
+      p_rby   = abap_true.
+      p_ucl   = abap_true.
+      p_ecl   = abap_true.
+      p_urv   = abap_true.
+
+      CLEAR : p_imp,
+              p_act,
+              p_qa,
+              p_time.
+
+    ELSEIF p_brkd IS NOT INITIAL.
+      p_rby   = abap_true.
+      p_imp   = abap_true.
+      p_ucl   = abap_true.
+      p_ecl   = abap_true.
+      p_act   = abap_true.
+      p_urv   = abap_true.
+      p_qa    = abap_true.
+    ENDIF.
+
+  ELSE.
+    CLEAR : p_ppm,
+            p_brkd.
+  ENDIF.
+
+  IF p_refdtl IS NOT INITIAL.
+    p_eqdtl   = abap_true.
+    p_orddtl  = abap_true.
+    p_ref     = abap_true.
+  ELSE.
+    CLEAR : p_ref.
+  ENDIF.
+
+  IF p_eqdtl IS NOT INITIAL.
+    p_equip = abap_true.
+  ELSE.
+    CLEAR : p_equip,
+            p_gen.
+  ENDIF.
+
+  IF p_orddtl IS NOT INITIAL.
+    p_order  = abap_true.
+  ELSE.
+    CLEAR : p_order,
+            p_plan.
+  ENDIF.
+
+ENDFORM.

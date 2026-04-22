@@ -1,0 +1,11 @@
+*&---------------------------------------------------------------------*
+*&  Include           ZMM_FM06LCS1N
+*&---------------------------------------------------------------------*
+DATA:    BEGIN OF COMMON PART FM06LCS1.
+
+PARAMETERS:     LISTU LIKE T160O-LISTU." DEFAULT 'ALV'.
+SELECT-OPTIONS: SELPA FOR T160T-SELPA MEMORY ID SEL,
+                S_BSART FOR EKKO-BSART,
+                S_EKGRP FOR EKKO-EKGRP MEMORY ID EKG.            "69970
+
+DATA:    END OF COMMON PART.

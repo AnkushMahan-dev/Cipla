@@ -1,0 +1,36 @@
+*&---------------------------------------------------------------------*
+*& Report  ZVX_PARTICIPANT_REC_CIPLA
+*&
+*&---------------------------------------------------------------------*
+* Include Name    :  ZVX_PARTICIPANT_REC_CIPLA                         *
+* Creation Date   :  05-March-2020                                     *
+* Author          :  Sindhuja Dhulipudi                                *
+* Application Area:  Agreements                                        *
+* ---------------------------------------------------------------------*
+* Description: Report to create a job in BB_ASP~AFTER_SAVE method to   *
+*              create the CR participation records when saving the     *
+*              BB Agreement
+*----------------------------------------------------------------------*
+* Change History:                                                      *
+*----------------------------------------------------------------------*
+* Date        Created By     Task #      Description                   *
+* ---------------------------------------------------------------------*
+* 05-March-2020  ABAP1      CRDK968332      Initial Development        *
+*                                                                      *
+*&---------------------------------------------------------------------*
+REPORT zvx_participant_rec_cipla.
+
+**Top declarations
+INCLUDE zvx_participant_rec_cipla_top.
+*Selection
+INCLUDE zvx_participant_rec_cipla_sel.
+*Sub Routines
+INCLUDE zvx_participant_rec_cipla_f01.
+*----------------------------------------------------------------------*
+*                       START-OF-SELECTION                             *
+*----------------------------------------------------------------------*
+START-OF-SELECTION.
+**Get the data
+  PERFORM get_data.
+** Update the participation records data
+  PERFORM update_part_data.

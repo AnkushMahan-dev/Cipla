@@ -1,0 +1,12 @@
+***INCLUDE <LIST> .
+TYPE-POOLS: icon.
+TYPE-POOLS: sym.
+TYPE-POOLS: line.
+TYPE-POOLS: col.
+
+
+
+
+
+
+

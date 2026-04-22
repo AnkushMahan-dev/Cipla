@@ -1,0 +1,589 @@
+*&---------------------------------------------------------------------*
+*&  Include           ZPP_SCM_ANALYTICS_QA33
+*&---------------------------------------------------------------------*
+FORM SCM_QA33.
+DATA:   number           TYPE tbtcjob-jobcount,
+        name             TYPE tbtcjob-jobname VALUE 'JOB_QA33',
+        list_tab      TYPE TABLE OF ABAPLIST.
+
+CALL FUNCTION 'JOB_OPEN'
+    EXPORTING
+      jobname          = name
+    IMPORTING
+      jobcount         = number
+    EXCEPTIONS
+      cant_create_job  = 1
+      invalid_job_data = 2
+      jobname_missing  = 3
+      OTHERS           = 4.
+  IF sy-subrc = 0.
+
+  SUBMIT RQEEAL10 USING SELECTION-SET QL_VARI
+      VIA JOB NAME   NUMBER NUMBER
+      WITH  P_SELID     = P_SELID
+      WITH  QL_ENSTD    IN QL_ENSTD
+      WITH  QL_PASTR    IN QL_PASTR
+      WITH  QL_PAEND    IN QL_PAEND
+      WITH  QL_WERKS    IN QL_WERKS
+      WITH  QL_HERKT    IN QL_HERKT
+      WITH  QL_MATNR    IN QL_MATNR
+      WITH  QL_CHARG    IN QL_CHARG
+      WITH  QL_LIFNR    IN QL_LIFNR
+      WITH  QL_HERST    IN QL_HERST
+      WITH  QL_KUNNR    IN QL_KUNNR
+      WITH  P_ALLES   = 'X'
+      WITH  MONITOR   = '3'
+      AND RETURN.
+    COMMIT WORK AND WAIT.
+    IF sy-subrc = 0.
+      CALL FUNCTION 'JOB_CLOSE'
+        EXPORTING
+          jobcount             = number
+          jobname              = name
+          strtimmed            = 'X'
+        EXCEPTIONS
+          cant_start_immediate = 1
+          invalid_startdate    = 2
+          jobname_missing      = 3
+          job_close_failed     = 4
+          job_nosteps          = 5
+          job_notex            = 6
+          lock_failed          = 7
+          OTHERS               = 8.
+   ENDIF.
+  ENDIF.
+
+*********************************" Reading data from spool********************
+*DATA: lv_repid        TYPE sy-REPID VALUE 'RQEEAL10',
+*      lv_date_qa33(8),
+*            lv_pages    TYPE C,
+*      lv_rqident  TYPE tsp01-RQIDENT.
+*SELECT * FROM TBTCP INTO TABLE @data(ta_tbtcp)
+*  where jobname   = 'JOB_QA33'  AND
+*        PROGNAME  = @lv_repid   AND
+*        SDLUNAME  = @sy-UNAME.
+*SORT ta_tbtcp DESCENDING by LISTIDENT.
+*READ TABLE ta_tbtcp INTO data(LV_SPOOL_NO) INDEX 1.
+*lv_rqident = LV_SPOOL_NO-LISTIDENT.
+*SELECT SINGLE * FROM tsp01 INTO @data(wa_tsp01) WHERE rqident = @lv_rqident.
+*TYPES: BEGIN OF ITAB,
+*          LV(20000),
+*       END OF ITAB.
+*
+*DATA: ITAB_QA33   TYPE TABLE OF ITAB,
+*      TA_QA33     TYPE TABLE OF ABAPLIST,
+*      lv_dat(8).
+*
+*SUBMIT RSPOLST2 EXPORTING LIST TO MEMORY AND RETURN
+*WITH RQIDENT = lv_rqident
+*WITH FIRST = '1'
+*WITH pages = wa_tsp01-rqapprule.
+*
+*lv_pages = wa_tsp01-rqapprule.
+*CONDENSE lv_pages.
+*CALL FUNCTION 'RSPO_RETURN_ABAP_SPOOLJOB'
+*  EXPORTING
+*    rqident                    = lv_rqident
+*   FIRST_LINE                 = 1
+**   LAST_LINE                  =
+*   PAGES                      = lv_pages
+*  tables
+*    buffer                     = ITAB_QA33
+* EXCEPTIONS
+*   NO_SUCH_JOB                = 1
+*   NOT_ABAP_LIST              = 2
+*   JOB_CONTAINS_NO_DATA       = 3
+*   SELECTION_EMPTY            = 4
+*   NO_PERMISSION              = 5
+*   CAN_NOT_ACCESS             = 6
+*   READ_ERROR                 = 7
+*   OTHERS                     = 8.
+*IF sy-subrc IS INITIAL.
+*  COMMIT WORK AND WAIT.
+*IF ITAB_QA33[] IS NOT INITIAL.
+*DESCRIBE TABLE ITAB_QA33 LINES DATA(LV_LINES).
+*
+*BREAK abap4.
+*LOOP AT ITAB_QA33 INTO DATA(WA).
+*IF SY-TABIX LE 22 OR SY-TABIX = LV_LINES.
+*WA-LV = ''.
+*MODIFY ITAB_QA33 FROM WA.
+*ENDIF.
+*ENDLOOP.
+*ENDIF.
+*
+*DELETE ITAB_QA33 WHERE LV = ''.
+*SORT ITAB_QA33.
+*DELETE ADJACENT DUPLICATES FROM ITAB_QA33.
+*DESCRIBE TABLE ITAB_QA33 LINES LV_LINES.
+*LOOP AT ITAB_QA33 INTO WA.
+*IF SY-TABIX EQ 1 OR SY-TABIX = LV_LINES - 1 OR SY-TABIX = LV_LINES.
+*WA-LV = ''.
+*MODIFY ITAB_QA33 FROM WA.
+*ELSE.
+*FIND ALL OCCURRENCES OF '|' in WA MATCH COUNT DATA(lv_results).
+*IF lv_results LT 25.
+*WA-LV = ''.
+*MODIFY ITAB_QA33 FROM WA.
+*ENDIF.
+*ENDIF.
+*ENDLOOP.
+*
+*DELETE ITAB_QA33 WHERE LV = ''.
+**********************" Process to send QA33 file on FTP server***********************
+*IF ITAB_QA33[] IS NOT INITIAL.
+*CLEAR: wa_ftp, ta_ftp[], lv_file.
+*CONCATENATE
+*'creat_dt'
+*'insp_shrt_txt'
+*'insp_type'
+*'mat_code'
+*'plnt_code'
+*'batch'
+*'insp_lot'
+*'order'
+*'usr_status'
+*'mat_doc'
+*'lot_qty'
+*'act_lot_qty'
+*'buom'
+*'shrt_trm_char'
+*'sys_status'
+*'aref_no'
+*'manufacturer'
+*'created_by'
+*'delivery'
+*'pstng_dt'
+*'mov_type'
+*'purch_doc'
+*'line_selected'
+*'share_scrap'
+*'def_qty'
+*'dstry_qty'
+*'insp_qty'
+*'lngtrm_smpl_qty'
+*'posted_qty'
+*'oth_qty'
+*'oth_qty2'
+*'ret_to_vend'
+*'batch'
+*'mat_code'
+*'new_mat'
+*'reserve'
+*'blocked_stk'
+*'smpl'
+*'lang_key'
+*'scrap_qty'
+*'shrt_txt'
+*'unres_qty'
+*'char_rec'
+*'insp_severity'
+*'insp_stage'
+*'at_lot_create'
+*'mod_rule'
+*'smpl_uom'
+*'smpl_size'
+*'lot_container'
+*'no_container'
+*'lng_trm_char'
+*'ud_mode'
+*'ud_chng_time'
+*'ud_chng_dt'
+*'ud_chng_by'
+*'ud_chng_time'
+*'ud_code_dt'
+*'ud_by'
+*'followup_act'
+*'val_rule'
+*'ud_code'
+*'ud_code_grp'
+*'ud_sel_set'
+*'catalog'
+*'qual_score'
+*'val_code'
+*'priority'
+*'insp_doc'
+*'so_itm'
+*'so_num'
+*'wbs_ele'
+*'profile'
+*'comp_code'
+*'cntllng_area'
+*'gl_acc'
+*'bu_area'
+*'profit_center'
+*'profit_seg'
+*'so_itm'
+*'so_num'
+*'counter'
+*'network'
+*'wbs_ele'
+*'sub_no'
+*'str_itm'
+*'str_itm'
+*'cost_center'
+*'acc_asgn_cat'
+*'consumption'
+*'qm_ord'
+*'allow_scarp_shr'
+*'smpl_drw_proc'
+*'insp_pt_type'
+*'usr_fld_comb'
+*'grp_counter'
+*'usage'
+*'group'
+*'insp_pt_type' INTO wa_ftp SEPARATED BY lv_tab.
+*
+*APPEND wa_ftp to ta_ftp.
+*CLEAR wa_ftp.
+*LOOP AT ITAB_QA33 INTO DATA(wa_qa33).
+*REPLACE FIRST OCCURRENCE OF '|' in wa_qa33 WITH ''.
+*REPLACE ALL OCCURRENCES OF ',' in wa_qa33 WITH ','.
+*SPLIT wa_qa33 at '|' INTO
+*wa_char-LV_CHAR1
+*wa_char-LV_CHAR2
+*wa_char-LV_CHAR3
+*wa_char-LV_CHAR4
+*wa_char-LV_CHAR5
+*wa_char-LV_CHAR6
+*wa_char-LV_CHAR7
+*wa_char-LV_CHAR8
+*wa_char-LV_CHAR9
+*wa_char-LV_CHAR10
+*wa_char-LV_CHAR11
+*wa_char-LV_CHAR12
+*wa_char-LV_CHAR13
+*wa_char-LV_CHAR14
+*wa_char-LV_CHAR15
+*wa_char-LV_CHAR16
+*wa_char-LV_CHAR17
+*wa_char-LV_CHAR18
+*wa_char-LV_CHAR19
+*wa_char-LV_CHAR20
+*wa_char-LV_CHAR21
+*wa_char-LV_CHAR22
+*wa_char-LV_CHAR23
+*wa_char-LV_CHAR24
+*wa_char-LV_CHAR25
+*wa_char-LV_CHAR26
+*wa_char-LV_CHAR27
+*wa_char-LV_CHAR28
+*wa_char-LV_CHAR29
+*wa_char-LV_CHAR30
+*wa_char-LV_CHAR31
+*wa_char-LV_CHAR32
+*wa_char-LV_CHAR33
+*wa_char-LV_CHAR34
+*wa_char-LV_CHAR35
+*wa_char-LV_CHAR36
+*wa_char-LV_CHAR37
+*wa_char-LV_CHAR38
+*wa_char-LV_CHAR39
+*wa_char-LV_CHAR40
+*wa_char-LV_CHAR41
+*wa_char-LV_CHAR42
+*wa_char-LV_CHAR43
+*wa_char-LV_CHAR44
+*wa_char-LV_CHAR45
+*wa_char-LV_CHAR46
+*wa_char-LV_CHAR47
+*wa_char-LV_CHAR48
+*wa_char-LV_CHAR49
+*wa_char-LV_CHAR50
+*wa_char-LV_CHAR51
+*wa_char-LV_CHAR52
+*wa_char-LV_CHAR53
+*wa_char-LV_CHAR54
+*wa_char-LV_CHAR55
+*wa_char-LV_CHAR56
+*wa_char-LV_CHAR57
+*wa_char-LV_CHAR58
+*wa_char-LV_CHAR59
+*wa_char-LV_CHAR60
+*wa_char-LV_CHAR61
+*wa_char-LV_CHAR62
+*wa_char-LV_CHAR63
+*wa_char-LV_CHAR64
+*wa_char-LV_CHAR65
+*wa_char-LV_CHAR66
+*wa_char-LV_CHAR67
+*wa_char-LV_CHAR68
+*wa_char-LV_CHAR69
+*wa_char-LV_CHAR70
+*wa_char-LV_CHAR71
+*wa_char-LV_CHAR72
+*wa_char-LV_CHAR73
+*wa_char-LV_CHAR74
+*wa_char-LV_CHAR75
+*wa_char-LV_CHAR76
+*wa_char-LV_CHAR77
+*wa_char-LV_CHAR78
+*wa_char-LV_CHAR79
+*wa_char-LV_CHAR80
+*wa_char-LV_CHAR81
+*wa_char-LV_CHAR82
+*wa_char-LV_CHAR83
+*wa_char-LV_CHAR84
+*wa_char-LV_CHAR85
+*wa_char-LV_CHAR86
+*wa_char-LV_CHAR87
+*wa_char-LV_CHAR88
+*wa_char-LV_CHAR89
+*wa_char-LV_CHAR90
+*wa_char-LV_CHAR91
+*wa_char-LV_CHAR92
+*wa_char-LV_CHAR93
+*wa_char-LV_CHAR94
+*wa_char-LV_CHAR95
+*wa_char-LV_CHAR96
+*wa_char-LV_CHAR97
+*wa_char-LV_CHAR98
+*wa_char-LV_CHAR99.
+*"Replacing ,(comma) from quantity field
+*REPLACE ALL OCCURRENCES OF ',' in wa_char-LV_CHAR11 WITH ''.
+*REPLACE ALL OCCURRENCES OF ',' in wa_char-LV_CHAR12 WITH ''.
+*REPLACE ALL OCCURRENCES OF ',' in wa_char-LV_CHAR25 WITH ''.
+*REPLACE ALL OCCURRENCES OF ',' in wa_char-LV_CHAR26 WITH ''.
+*REPLACE ALL OCCURRENCES OF ',' in wa_char-LV_CHAR27 WITH ''.
+*REPLACE ALL OCCURRENCES OF ',' in wa_char-LV_CHAR28 WITH ''.
+*REPLACE ALL OCCURRENCES OF ',' in wa_char-LV_CHAR29 WITH ''.
+*REPLACE ALL OCCURRENCES OF ',' in wa_char-LV_CHAR30 WITH ''.
+*REPLACE ALL OCCURRENCES OF ',' in wa_char-LV_CHAR31 WITH ''.
+*REPLACE ALL OCCURRENCES OF ',' in wa_char-LV_CHAR40 WITH ''.
+*REPLACE ALL OCCURRENCES OF ',' in wa_char-LV_CHAR42 WITH ''.
+*CONDENSE: wa_char-LV_CHAR1.
+*CONDENSE: wa_char-LV_CHAR20.
+*CONDENSE: wa_char-LV_CHAR55.
+*CONDENSE: wa_char-LV_CHAR58.
+*CONCATENATE wa_char-LV_CHAR1+0(2) wa_char-LV_CHAR1+3(2) wa_char-LV_CHAR1+6(4) INTO lv_date_qa33.
+*CLEAR wa_char-LV_CHAR1.
+*wa_char-LV_CHAR1 = lv_date_qa33.
+*CLEAR lv_date_qa33.
+*CONCATENATE wa_char-LV_CHAR20+0(2) wa_char-LV_CHAR20+3(2) wa_char-LV_CHAR20+6(4) INTO lv_date_qa33.
+*CLEAR wa_char-LV_CHAR20.
+*wa_char-LV_CHAR20 = lv_date_qa33.
+*CLEAR lv_date_qa33.
+*CONCATENATE wa_char-LV_CHAR55+0(2) wa_char-LV_CHAR55+3(2) wa_char-LV_CHAR55+6(4) INTO lv_date_qa33.
+*CLEAR wa_char-LV_CHAR55.
+*wa_char-LV_CHAR55 = lv_date_qa33.
+*CLEAR lv_date_qa33.
+*CONCATENATE wa_char-LV_CHAR58+0(2) wa_char-LV_CHAR58+3(2) wa_char-LV_CHAR58+6(4) INTO lv_date_qa33.
+*CLEAR wa_char-LV_CHAR58.
+*wa_char-LV_CHAR58 = lv_date_qa33.
+*CLEAR lv_date_qa33.
+*  Condense wa_char-LV_CHAR1 .
+*  Condense wa_char-LV_CHAR2 .
+*  Condense wa_char-LV_CHAR3 .
+*  Condense wa_char-LV_CHAR4 .
+*  Condense wa_char-LV_CHAR5 .
+*  Condense wa_char-LV_CHAR6 .
+*  Condense wa_char-LV_CHAR7 .
+*  Condense wa_char-LV_CHAR8 .
+*  Condense wa_char-LV_CHAR9 .
+*  Condense wa_char-LV_CHAR10.
+*  Condense wa_char-LV_CHAR11.
+*  Condense wa_char-LV_CHAR12.
+*  Condense wa_char-LV_CHAR13.
+*  Condense wa_char-LV_CHAR14.
+*  Condense wa_char-LV_CHAR15.
+*  Condense wa_char-LV_CHAR16.
+*  Condense wa_char-LV_CHAR17.
+*  Condense wa_char-LV_CHAR18.
+*  Condense wa_char-LV_CHAR19.
+*  Condense wa_char-LV_CHAR20.
+*  Condense wa_char-LV_CHAR21.
+*  Condense wa_char-LV_CHAR22.
+*  Condense wa_char-LV_CHAR23.
+*  Condense wa_char-LV_CHAR24.
+*  Condense wa_char-LV_CHAR25.
+*  Condense wa_char-LV_CHAR26.
+*  Condense wa_char-LV_CHAR27.
+*  Condense wa_char-LV_CHAR28.
+*  Condense wa_char-LV_CHAR29.
+*  Condense wa_char-LV_CHAR30.
+*  Condense wa_char-LV_CHAR31.
+*  Condense wa_char-LV_CHAR32.
+*  Condense wa_char-LV_CHAR33.
+*  Condense wa_char-LV_CHAR34.
+*  Condense wa_char-LV_CHAR35.
+*  Condense wa_char-LV_CHAR36.
+*  Condense wa_char-LV_CHAR37.
+*  Condense wa_char-LV_CHAR38.
+*  Condense wa_char-LV_CHAR39.
+*  Condense wa_char-LV_CHAR40.
+*  Condense wa_char-LV_CHAR41.
+*  Condense wa_char-LV_CHAR42.
+*  Condense wa_char-LV_CHAR43.
+*  Condense wa_char-LV_CHAR44.
+*  Condense wa_char-LV_CHAR45.
+*  Condense wa_char-LV_CHAR46.
+*  Condense wa_char-LV_CHAR47.
+*  Condense wa_char-LV_CHAR48.
+*  Condense wa_char-LV_CHAR49.
+*  Condense wa_char-LV_CHAR50.
+*  Condense wa_char-LV_CHAR51.
+*  Condense wa_char-LV_CHAR52.
+*  Condense wa_char-LV_CHAR53.
+*  Condense wa_char-LV_CHAR54.
+*  Condense wa_char-LV_CHAR55.
+*  Condense wa_char-LV_CHAR56.
+*  Condense wa_char-LV_CHAR57.
+*  Condense wa_char-LV_CHAR58.
+*  Condense wa_char-LV_CHAR59.
+*  Condense wa_char-LV_CHAR60.
+*  Condense wa_char-LV_CHAR61.
+*  Condense wa_char-LV_CHAR62.
+*  Condense wa_char-LV_CHAR63.
+*  Condense wa_char-LV_CHAR64.
+*  Condense wa_char-LV_CHAR65.
+*  Condense wa_char-LV_CHAR66.
+*  Condense wa_char-LV_CHAR67.
+*  Condense wa_char-LV_CHAR68.
+*  Condense wa_char-LV_CHAR69.
+*  Condense wa_char-LV_CHAR70.
+*  Condense wa_char-LV_CHAR71.
+*  Condense wa_char-LV_CHAR72.
+*  Condense wa_char-LV_CHAR73.
+*  Condense wa_char-LV_CHAR74.
+*  Condense wa_char-LV_CHAR75.
+*  Condense wa_char-LV_CHAR76.
+*  Condense wa_char-LV_CHAR77.
+*  Condense wa_char-LV_CHAR78.
+*  Condense wa_char-LV_CHAR79.
+*  Condense wa_char-LV_CHAR80.
+*  Condense wa_char-LV_CHAR81.
+*  Condense wa_char-LV_CHAR82.
+*  Condense wa_char-LV_CHAR83.
+*  Condense wa_char-LV_CHAR84.
+*  Condense wa_char-LV_CHAR85.
+*  Condense wa_char-LV_CHAR86.
+*  Condense wa_char-LV_CHAR87.
+*  Condense wa_char-LV_CHAR88.
+*  Condense wa_char-LV_CHAR89.
+*  Condense wa_char-LV_CHAR90.
+*  Condense wa_char-LV_CHAR91.
+*  Condense wa_char-LV_CHAR92.
+*  Condense wa_char-LV_CHAR93.
+*  Condense wa_char-LV_CHAR94.
+*  Condense wa_char-LV_CHAR95.
+*  Condense wa_char-LV_CHAR96.
+*  Condense wa_char-LV_CHAR97.
+*  Condense wa_char-LV_CHAR98.
+*  Condense wa_char-LV_CHAR99.
+*
+*CONCATENATE
+*wa_char-LV_CHAR1
+*wa_char-LV_CHAR2
+*wa_char-LV_CHAR3
+*wa_char-LV_CHAR4
+*wa_char-LV_CHAR5
+*wa_char-LV_CHAR6
+*wa_char-LV_CHAR7
+*wa_char-LV_CHAR8
+*wa_char-LV_CHAR9
+*wa_char-LV_CHAR10
+*wa_char-LV_CHAR11
+*wa_char-LV_CHAR12
+*wa_char-LV_CHAR13
+*wa_char-LV_CHAR14
+*wa_char-LV_CHAR15
+*wa_char-LV_CHAR16
+*wa_char-LV_CHAR17
+*wa_char-LV_CHAR18
+*wa_char-LV_CHAR19
+*wa_char-LV_CHAR20
+*wa_char-LV_CHAR21
+*wa_char-LV_CHAR22
+*wa_char-LV_CHAR23
+*wa_char-LV_CHAR24
+*wa_char-LV_CHAR25
+*wa_char-LV_CHAR26
+*wa_char-LV_CHAR27
+*wa_char-LV_CHAR28
+*wa_char-LV_CHAR29
+*wa_char-LV_CHAR30
+*wa_char-LV_CHAR31
+*wa_char-LV_CHAR32
+*wa_char-LV_CHAR33
+*wa_char-LV_CHAR34
+*wa_char-LV_CHAR35
+*wa_char-LV_CHAR36
+*wa_char-LV_CHAR37
+*wa_char-LV_CHAR38
+*wa_char-LV_CHAR39
+*wa_char-LV_CHAR40
+*wa_char-LV_CHAR41
+*wa_char-LV_CHAR42
+*wa_char-LV_CHAR43
+*wa_char-LV_CHAR44
+*wa_char-LV_CHAR45
+*wa_char-LV_CHAR46
+*wa_char-LV_CHAR47
+*wa_char-LV_CHAR48
+*wa_char-LV_CHAR49
+*wa_char-LV_CHAR50
+*wa_char-LV_CHAR51
+*wa_char-LV_CHAR52
+*wa_char-LV_CHAR53
+*wa_char-LV_CHAR54
+*wa_char-LV_CHAR55
+*wa_char-LV_CHAR56
+*wa_char-LV_CHAR57
+*wa_char-LV_CHAR58
+*wa_char-LV_CHAR59
+*wa_char-LV_CHAR60
+*wa_char-LV_CHAR61
+*wa_char-LV_CHAR62
+*wa_char-LV_CHAR63
+*wa_char-LV_CHAR64
+*wa_char-LV_CHAR65
+*wa_char-LV_CHAR66
+*wa_char-LV_CHAR67
+*wa_char-LV_CHAR68
+*wa_char-LV_CHAR69
+*wa_char-LV_CHAR70
+*wa_char-LV_CHAR71
+*wa_char-LV_CHAR72
+*wa_char-LV_CHAR73
+*wa_char-LV_CHAR74
+*wa_char-LV_CHAR75
+*wa_char-LV_CHAR76
+*wa_char-LV_CHAR77
+*wa_char-LV_CHAR78
+*wa_char-LV_CHAR79
+*wa_char-LV_CHAR80
+*wa_char-LV_CHAR81
+*wa_char-LV_CHAR82
+*wa_char-LV_CHAR83
+*wa_char-LV_CHAR84
+*wa_char-LV_CHAR85
+*wa_char-LV_CHAR86
+*wa_char-LV_CHAR87
+*wa_char-LV_CHAR88
+*wa_char-LV_CHAR89
+*wa_char-LV_CHAR90
+*wa_char-LV_CHAR91
+*wa_char-LV_CHAR92
+*wa_char-LV_CHAR93
+*wa_char-LV_CHAR94
+*wa_char-LV_CHAR95
+*wa_char-LV_CHAR96
+*wa_char-LV_CHAR97
+*wa_char-LV_CHAR98
+*wa_char-LV_CHAR99 INTO wa_ftp SEPARATED BY lv_tab.
+*APPEND wa_ftp to ta_ftp.
+*CLEAR: wa_ftp, wa_char.
+*ENDLOOP.
+*PERFORM connect_2_ftp USING g_dest CHANGING g_hdl exp5.
+*CLEAR: wa_ftp,lv_file.
+*
+*IF exp5 IS INITIAL AND ta_ftp[] IS NOT INITIAL.
+*CONCATENATE lv_file1 'qa33_' sy-datum+6(2) sy-datum+4(2) sy-datum+0(4) sy-uzeit '.txt' INTO lv_file.
+*IF lv_file IS NOT INITIAL.
+*PERFORM send_2_ftp USING lv_file.
+*ENDIF.
+*ENDIF.
+*PERFORM disconnect_ftp USING g_hdl g_dest.
+*ENDIF.
+*ENDIF.
+ENDFORM.

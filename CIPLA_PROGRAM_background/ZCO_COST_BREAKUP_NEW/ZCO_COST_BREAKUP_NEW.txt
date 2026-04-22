@@ -1,0 +1,3904 @@
+*&---------------------------------------------------------------------*
+*& Report  ZCO_COST_BREAKUP
+*&
+*&---------------------------------------------------------------------*
+* Program         : ZCO_COST_BREAKUP
+* Title           : Cost Breakup
+* Author          : Vipin Mundra
+* Program Type    : Report
+* Creation Date   : 11-02-2016
+* Transaction     :
+* Functional design: FS_CO_012
+* Technical design: <document with technical specifications>
+* Change request  : 8000001568
+* Transport number: CRDK932743
+* Description     :
+*----------------------------------------------------------------------*
+* Modification Information
+* Date            : 15.07.2019
+* Author          : Vipin Mundra
+* Change request  : CRDK963757
+* Ticket Number   : 8000005626
+* Description     : Added date for keko
+*----------------------------------------------------------------------*
+* Modification Information
+* Date            : 5.08.2021
+* Author          : FAYAZ ALI
+* Change request  : CRDK979310
+* Ticket Number   : 8000007328
+* Description     : Importing data to AL11 (ZFI_Solvents)
+*----------------------------------------------------------------------*
+* Modification Information
+* Date            : 22-02-2022
+* Author          : FATIMA ZIA
+* Change request  : CRDK981969
+* Ticket Number   : 8000008017
+* Description     : Importing data to AL11
+*----------------------------------------------------------------------*
+* Modification Information
+* Date            : 13-04-2022
+* Author          : Sharan
+* Change request  : 8000007328
+* Description     : Data to be Uploaded for Solvents
+*----------------------------------------------------------------------*
+* Modification Information
+* Date            : 19-03-2024, 10-04-2024
+* Author          : Shravani Gadhikar
+* Change request  : CRDK990135, CRDK990530
+* Change request  : 8000003398
+* Description     : Added checkbox and logic for ZAPI and ZINT to FTP
+*                   and remove hardcoded Path for ZAPI and ZINT
+*----------------------------------------------------------------------*
+REPORT zco_cost_breakup_new.
+
+*&---------------------------------------------------------------------*
+*& Tables Declaration
+*&---------------------------------------------------------------------*
+TABLES : mara,mbew,keko.
+
+*&---------------------------------------------------------------------*
+*& Types Declaration
+*&---------------------------------------------------------------------*
+TYPES : BEGIN OF ty_mara,
+          matnr TYPE matnr,
+          extwg TYPE extwg,
+          meins TYPE meins,
+        END OF ty_mara,
+
+        BEGIN OF ty_makt,
+          matnr TYPE matnr,
+          maktx TYPE maktx,
+        END OF ty_makt,
+
+        BEGIN OF ty_set,
+          setname TYPE setnamenew,
+          valfrom TYPE setvalmin,
+        END OF ty_set,
+
+        BEGIN OF ty_marc,
+          matnr TYPE matnr,
+          werks TYPE werks_d,
+          sobsk TYPE marc-sobsk,
+          ncost TYPE marc-ncost,
+        END OF ty_marc,
+
+        BEGIN OF ty_keko,
+          kalnr TYPE  ck_kalnr1,
+          kalka TYPE ck_kalka,
+          kadky TYPE ck_kadky,
+          tvers TYPE   ck_tvers,
+          bwvar TYPE ck_bwvar,
+          kkzma TYPE ck_kkzma,
+          bwkey TYPE bwkey,
+          stnum TYPE stnum,
+          stalt TYPE stalt,
+          losgr TYPE ck_losgr,
+          klvar TYPE ck_klvar,
+          poper TYPE poper,
+          bdatj TYPE bdatj,
+          cpudt TYPE keko-cpudt,
+          erfnm TYPE ck_kalkusr,
+        END OF ty_keko,
+
+        BEGIN OF ty_mbew,
+          matnr TYPE matnr,
+          bwkey TYPE bwkey,
+          kaln1 TYPE ck_kalnr1,
+          lplpr TYPE 	mbew-lplpr,
+        END OF ty_mbew,
+
+        BEGIN OF ty_t460,
+          werks TYPE werks_d,
+          sobsl TYPE sobsl,
+          wrk02 TYPE werks_d,
+        END OF ty_t460,
+
+
+        BEGIN OF ty_plant,
+          matnr TYPE matnr,
+          werks TYPE werks_d,
+        END OF ty_plant,
+
+        BEGIN OF ty_ke_31,
+          kalnr TYPE ck_kalnr1,
+          matnr TYPE matnr,
+          werks TYPE werks_d,
+
+        END OF ty_ke_31,
+
+        BEGIN OF ty_final,
+          werks           TYPE werks_d,
+          matnr           TYPE matnr,
+          maktx           TYPE maktx,
+          extwg           TYPE extwg,
+          meins           TYPE meins,
+          kaln1           TYPE mbew-kaln1,
+          kadky           TYPE keko-kadky,
+          bdatj           TYPE keko-bdatj,
+          poper           TYPE keko-poper,
+          losgr           TYPE keko-losgr,
+          stnum           TYPE keko-stnum,
+          stalt           TYPE keko-stalt,
+          kalka           TYPE keko-kalka,
+          klvar           TYPE keko-klvar,
+          32_pm_c(16)     TYPE  p DECIMALS 3,
+          32_pm_f(16)     TYPE  p DECIMALS 3,
+          32_pm_v(16)     TYPE  p DECIMALS 3,
+          32_oh_f(16)     TYPE  p DECIMALS 3,
+          32_oh_v(16)     TYPE  p DECIMALS 3,
+          32_pm_y(16)     TYPE  p DECIMALS 3,
+          32_pm_frg(16)   TYPE  p DECIMALS 3,
+          31_rm_c(16)     TYPE  p DECIMALS 3,
+          31_rm_f(16)     TYPE  p DECIMALS 3,
+          31_rm_v(16)     TYPE  p DECIMALS 3,
+          31_oh_f(16)     TYPE  p DECIMALS 3,
+          31_oh_v(16)     TYPE  p DECIMALS 3,
+          31_pm_y(16)     TYPE  p DECIMALS 3,
+          31_pm_frg(16)   TYPE  p DECIMALS 3,
+          13_api_i(16)    TYPE  p DECIMALS 3,
+          13_api_p(16)    TYPE  p DECIMALS 3,
+          13_api_f(16)    TYPE  p DECIMALS 3,
+          13_api_v(16)    TYPE  p DECIMALS 3,
+          13_api_oh_f(16) TYPE  p DECIMALS 3,
+          13_api_oh_v(16) TYPE  p DECIMALS 3,
+          13_api_y(16)    TYPE  p DECIMALS 3,
+          13_api_frg(16)  TYPE  p DECIMALS 3,
+          api_mat         TYPE  keph-kst002,
+          api_mat_p       TYPE  keph-kst002,
+          e_mat           TYPE   keph-kst002,
+          p_mat           TYPE   keph-kst002,
+          api_oh_f        TYPE keph-kst002,
+          api_oh_v        TYPE keph-kst002,
+          f_oh_f          TYPE keph-kst002,
+          for_oh          TYPE keph-kst002,
+          total           TYPE  keph-kst002,
+          dnc             TYPE c,
+          rec             TYPE c,
+          price           TYPE  keph-kst002,
+          diff            TYPE  keph-kst002,
+          d_pre           TYPE keph-kst002,
+        END OF ty_final.
+"soa by fatima for 8000008017.
+TYPES: BEGIN OF ty1_final,
+*         werks       TYPE string,
+*         matnr       TYPE string,
+*         maktx       TYPE string,
+*         extwg       TYPE string,
+*         meins       TYPE string,
+*         kaln1       TYPE string,
+*         kadky       TYPE string,
+*         bdatj       TYPE string,
+*         poper       TYPE string,
+*         losgr       TYPE string,
+*         stnum       TYPE string,
+*         stalt       TYPE string,
+*         kalka       TYPE string,
+*         klvar       TYPE string,
+*         32_pm_c     TYPE string,
+*         32_pm_f     TYPE string,
+*         32_pm_v     TYPE string,
+*         32_oh_f     TYPE string,
+*         32_oh_v     TYPE string,
+*         32_pm_y     TYPE string,
+*         32_pm_frg   TYPE string,
+*         31_rm_c     TYPE string,
+*         31_rm_f     TYPE string,
+*         31_rm_v     TYPE string,
+*         31_oh_f     TYPE string,
+*         31_oh_v     TYPE string,
+*         31_pm_y     TYPE string,
+*         31_pm_frg   TYPE string,
+*         13_api_i    TYPE string,
+*         13_api_p    TYPE string,
+*         13_api_f    TYPE string,
+*         13_api_v    TYPE string,
+*         13_api_oh_f TYPE string,
+*         13_api_oh_v TYPE string,
+*         13_api_y    TYPE string,
+*         13_api_frg  TYPE string,
+*         api_mat     TYPE string,
+*         api_mat_p   TYPE string,
+*         e_mat       TYPE string,
+*         p_mat       TYPE string,
+*         api_oh_f    TYPE string,
+*         api_oh_v    TYPE string,
+*         f_oh_f      TYPE string,
+*         for_oh      TYPE string,
+*         total       TYPE string,
+*         dnc         TYPE string,
+*         rec         TYPE string,
+*         price       TYPE string,
+*         diff        TYPE string,
+*         d_pre       TYPE string,
+         matnr   TYPE string,  " FM matnr
+         maktx   TYPE string,
+         werks   TYPE string,
+         kaln1   TYPE string,
+         kadky   TYPE string,
+         bdatj   TYPE string,
+         poper   TYPE string,
+         losgr   TYPE string,
+         stnum   TYPE string,
+         stalt   TYPE string,
+         kalka   TYPE string,
+         klvar   TYPE string,
+         tvers   TYPE string,
+         erfnm   TYPE string,
+         kalnr   TYPE string,
+         kmatnr  TYPE string,  "need to pass
+         fmatnr  TYPE string,       "matnr from final
+         ltext   TYPE string,
+         fwerks  TYPE string,
+         kstar   TYPE string,
+         kltext  TYPE string,
+         flosgr  TYPE string,
+         wertn   TYPE string,
+         wrtfx   TYPE string,
+         menge   TYPE string,
+         typps   TYPE string,
+         elemt   TYPE string, "ck_elemenths,
+         elemtns TYPE string, "ck_elementns,
+         baugr   TYPE string,
+         meins   TYPE string,
+         pmeht   TYPE string,
+         meeht   TYPE string,
+         arbpl   TYPE string,
+         fklvar  TYPE string,
+         gpreis  TYPE string,
+         peinh   TYPE string,
+         kostl   TYPE string,
+         lstar   TYPE string,
+         umrez   TYPE string,
+         umren   TYPE string,
+         parob   TYPE string,
+         prctr   TYPE string,
+         ncost   TYPE string,
+*        stlnr   TYPE stpo-stlnr,
+         rekrs   TYPE string,
+         lplpr   TYPE string,
+*          flag    TYPE string,
+       END OF ty1_final.
+"eoa by fatima for 8000008017.
+
+DATA  : BEGIN OF ta_kalnr OCCURS 0 ,
+          kalnr TYPE ck_kalnr1,
+        END OF ta_kalnr.
+
+TYPES : BEGIN OF ty_mast,
+          matnr TYPE matnr,
+          werks TYPE werks_d,
+          stlnr TYPE stnum,
+        END OF ty_mast.
+
+TYPES : BEGIN OF ty_stpo,
+          stlnr TYPE stnum,
+          rekrs TYPE rekrs,
+        END OF ty_stpo.
+
+TYPES : BEGIN OF ty_download,
+          matnr   TYPE matnr,  " FM matnr
+          maktx   TYPE maktx,
+          werks   TYPE werks_d,
+          kaln1   TYPE mbew-kaln1,
+          kadky   TYPE keko-kadky,
+          bdatj   TYPE keko-bdatj,
+          poper   TYPE keko-poper,
+          losgr   TYPE keko-losgr,
+          stnum   TYPE keko-stnum,
+          stalt   TYPE keko-stalt,
+          kalka   TYPE keko-kalka,
+          klvar   TYPE keko-klvar,
+          tvers   TYPE keko-tvers,
+          erfnm   TYPE keko-erfnm,
+          kalnr   TYPE keko-kalnr,
+          kmatnr  TYPE keko-matnr,  "need to pass
+          fmatnr  TYPE matnr,       "matnr from final
+          ltext   TYPE kltxt,
+          fwerks  TYPE werks_d,
+          kstar   TYPE kstar,
+          kltext  TYPE csku-ltext,
+          flosgr  TYPE zco_cost_breakup-losgr,
+          wertn   TYPE ckps-wertn,
+          wrtfx   TYPE ckis-wrtfx,
+          menge   TYPE ckis-menge,
+          typps   TYPE typps,
+          elemt   TYPE ckis-elemt, "ck_elemenths,
+          elemtns TYPE ckis-elemtns, "ck_elementns,
+          baugr   TYPE assembly,
+          meins   TYPE meins,
+          pmeht   TYPE ckis-pmeht,
+          meeht   TYPE meins,
+          arbpl   TYPE arbpl,
+          fklvar  TYPE keko-klvar,
+          gpreis  TYPE ckis-gpreis,
+          peinh   TYPE ckis-peinh,
+          kostl   TYPE kostl,
+          lstar   TYPE lstar,
+          umrez   TYPE umrez,
+          umren   TYPE umren,
+          parob   TYPE parob,
+          prctr   TYPE prctr,
+          ncost   TYPE marc-ncost,
+*        stlnr   TYPE stpo-stlnr,
+          rekrs   TYPE stpo-rekrs,
+          lplpr   TYPE mbew-lplpr,
+          flag    TYPE i,
+        END OF ty_download.
+
+
+TYPES : BEGIN OF ty_keko_d,
+          kalnr TYPE keko-kalnr,
+          matnr TYPE keko-matnr,
+          werks TYPE keko-werks,
+        END OF ty_keko_d.
+
+TYPES : BEGIN OF ty_csku,
+          spras TYPE csku-spras,
+          ktopl TYPE csku-ktopl,
+          kstar TYPE csku-kstar,
+          ltext TYPE csku-ltext,
+        END OF ty_csku.
+
+
+DATA : ta_stpo TYPE TABLE OF ty_stpo,
+       wa_stpo TYPE ty_stpo.
+
+DATA : ta_csku TYPE STANDARD TABLE OF ty_csku,
+       wa_csku TYPE ty_csku.
+*DATA : ta_kalnr TYPE ck_kalnr1 OCCURS 0,
+*       wa_kalnr TYPE ty_kalnr.
+
+*&---------------------------------------------------------------------*
+*& Internal Table Declaration
+*&---------------------------------------------------------------------*
+DATA : ta_mara        TYPE TABLE OF ty_mara,
+       ta_makt        TYPE TABLE OF ty_makt,
+       ta_keko        TYPE TABLE OF ty_keko,
+       ta_keko1       TYPE TABLE OF ty_keko,
+       ta_keko2       TYPE TABLE OF ty_keko,
+       ta_keko_plant  TYPE TABLE OF ty_keko,
+       ta_keko_plant1 TYPE TABLE OF ty_keko,
+       wa_keko_plant  TYPE ty_keko,
+       ta_mbew        TYPE TABLE OF ty_mbew,
+       ta_mbew_plant  TYPE TABLE OF ty_mbew,
+       ta_mbew_plant1 TYPE TABLE OF ty_mbew,
+       ta_set         TYPE TABLE OF ty_set,
+       ta_set1        TYPE TABLE OF ty_set,
+       ta_set2        TYPE TABLE OF ty_set,
+       ta_set3        TYPE TABLE OF ty_set,
+       ta_set4        TYPE TABLE OF ty_set,
+       ta_set5        TYPE TABLE OF ty_set,
+       ta_set6        TYPE TABLE OF ty_set,
+       ta_set7        TYPE TABLE OF ty_set,
+       ta_set8        TYPE TABLE OF ty_set,
+       ta_set9        TYPE TABLE OF ty_set,
+       ta_set10       TYPE TABLE OF ty_set,
+       ta_set11       TYPE TABLE OF ty_set,
+       ta_set12       TYPE TABLE OF ty_set,
+       wa_set         TYPE ty_set,
+       wa_mbew_plant  TYPE ty_mbew,
+       ta_keph        TYPE TABLE OF keph,
+       ta_mara31      TYPE TABLE OF ty_mara,
+       ta_ke_32       TYPE TABLE OF ty_ke_31,
+       wa_ke_32       TYPE ty_ke_31,
+       ta_ke_31       TYPE TABLE OF ty_ke_31,
+       wa_ke_31       TYPE ty_ke_31,
+       ta_ke_13       TYPE TABLE OF ty_ke_31,
+       wa_ke_13       TYPE ty_ke_31,
+       ta_ke_tmp      TYPE TABLE OF ty_ke_31,
+
+       ta_makt31      TYPE TABLE OF ty_makt,
+       ta_keko31      TYPE TABLE OF ty_keko,
+       ta_keph_plant  TYPE TABLE OF keph,
+       wa_keph_plant  TYPE keph,
+       ta_mbew31      TYPE TABLE OF ty_mbew,
+       ta_keph31      TYPE TABLE OF keph,
+       ta_mara13      TYPE TABLE OF ty_mara,
+       ta_makt13      TYPE TABLE OF ty_makt,
+       ta_keko13      TYPE TABLE OF ty_keko,
+       ta_mbew13      TYPE TABLE OF ty_mbew,
+       ta_keph13      TYPE TABLE OF keph,
+       ta_tckh2       TYPE TABLE OF tckh2,
+       ta_tckh2_2     TYPE TABLE OF tckh2,
+       ta_final       TYPE TABLE OF ty_final,
+       ta_stpol       TYPE TABLE OF stpol,
+       ta_stpol_t     TYPE TABLE OF stpol,
+       ta_stpol_1     TYPE TABLE OF stpol,
+       ta_stpol_31    TYPE TABLE OF stpol,
+       ta_stpol_3     TYPE TABLE OF stpol,
+       wa_stpol_3     TYPE stpol,
+       ta_stpol_13    TYPE TABLE OF stpol,
+       ta_st_13       TYPE TABLE OF stpol,
+       ta_stpol_13i   TYPE TABLE OF stpol,
+       ta_stpol_13t   TYPE TABLE OF stpol,
+       ta_marc        TYPE TABLE OF ty_marc,
+       ta_marc_31     TYPE TABLE OF ty_marc,
+       ta_marc_13     TYPE TABLE OF ty_marc,
+       ta_marc_tmp    TYPE TABLE OF ty_marc,
+       ta_t460        TYPE TABLE OF ty_t460,
+       ta_t460_tmp    TYPE TABLE OF ty_t460,
+       ta_t460_31     TYPE TABLE OF ty_t460,
+       ta_t460_13     TYPE TABLE OF ty_t460,
+       ta_plant       TYPE TABLE OF ty_plant,
+*&---------------------------------------------------------------------*
+*& Work Area Declaration
+*&---------------------------------------------------------------------*
+       wa_mara        TYPE ty_mara,
+       wa_makt        TYPE ty_makt,
+       wa_keko        TYPE ty_keko,
+       wa_mbew        TYPE ty_mbew,
+       wa_tckh2       TYPE tckh2,
+       wa_keph        TYPE keph,
+       wa_final       TYPE ty_final,
+       wa_stpol       TYPE stpol,
+       wa_stpolt      TYPE stpol,
+       wa_stpol_1     TYPE stpol,
+       wa_marc        TYPE ty_marc,
+       wa_marc_tmp    TYPE ty_marc,
+       wa_plant       TYPE ty_plant,
+       wa_t460        TYPE ty_t460.
+DATA : v_feh    TYPE ck_klvar,
+       lv_kadky TYPE keko-kadky. "Added by pooja 05.05.2023 CR# 8000008985
+
+DATA : ta_mast TYPE TABLE OF ty_mast,
+       wa_mast TYPE ty_mast.
+
+TYPES : BEGIN OF ty_matnr,
+          matnr TYPE matnr,
+          idnrk TYPE matnr,
+        END OF ty_matnr.
+
+DATA : ta_matnr TYPE TABLE OF ty_matnr,
+       wa_matnr TYPE ty_matnr.
+
+
+DATA : v_werks        TYPE werks_d,
+       v_pm_c(16)     TYPE  p DECIMALS 3,
+       v_pm_f(16)     TYPE  p DECIMALS 3,
+       v_pm_ft(16)    TYPE  p DECIMALS 3,
+       v_pm_v(16)     TYPE  p DECIMALS 3,
+       v_oh_f(16)     TYPE  p DECIMALS 3,
+       v_oh_v(16)     TYPE  p DECIMALS 3,
+       v_of_v(16)     TYPE  p DECIMALS 3,
+       v_pm_y(16)     TYPE  p DECIMALS 3,
+       v_pm_frg(16)   TYPE  p DECIMALS 3,
+       v_rm_c(16)     TYPE  p DECIMALS 3,
+       v_rm_f(16)     TYPE  p DECIMALS 3,
+       v_rm_f_t(16)   TYPE  p DECIMALS 3,
+       v_rm_v(16)     TYPE  p DECIMALS 3,
+*      v_oh_f(16) TYPE  p DECIMALS 3,
+*      v_oh_v(16) TYPE  p DECIMALS 3,
+*      v_pm_y(16) TYPE  p DECIMALS 3,
+*      v_pm_frg(16) TYPE  p DECIMALS 3,
+       v_api_i(16)    TYPE  p DECIMALS 3,
+       v_api_p(16)    TYPE  p DECIMALS 3,
+       v_api_f(16)    TYPE  p DECIMALS 3,
+       v_api_v(16)    TYPE  p DECIMALS 3,
+       v_api_oh_f(16) TYPE  p DECIMALS 3,
+       v_api_oh_v(16) TYPE  p DECIMALS 3,
+       v_api_y(16)    TYPE  p DECIMALS 3,
+       v_api_frg(16)  TYPE  p DECIMALS 3.
+
+****SOA by Vrushali on 23.03.2016 to update ztable
+DATA : ta_cost_breakup TYPE STANDARD TABLE OF zco_cost_breakup,
+       wa_cost_breakup TYPE zco_cost_breakup.
+
+DATA : ta_ck_strukturtab TYPE ck_strukturtab,
+       wa_ck_strukturtab TYPE ck_strukturtab_typ.
+
+DATA : ta_final_struc TYPE ck_strukturtab,
+       wa_final_struc TYPE ck_strukturtab_typ . "ck_strukturtab.
+
+DATA : ta_download TYPE STANDARD TABLE OF ty_download,
+       wa_download TYPE ty_download.
+
+DATA : ta_events TYPE slis_t_event,
+       ta_sort   TYPE slis_t_sortinfo_alv,
+       wa_sort   TYPE slis_sortinfo_alv,
+       g_pos     TYPE i.
+
+DATA : ta_keko_dwn TYPE STANDARD TABLE OF ty_keko_d,
+       wa_keko_dwn TYPE ty_keko_d.
+
+DATA : ta_marc_dwn TYPE STANDARD TABLE OF ty_marc,
+       wa_marc_dwn TYPE ty_marc.
+
+DATA : ta_mast_dwn TYPE STANDARD TABLE OF ty_mast,
+       wa_mast_dwn TYPE ty_mast.
+
+DATA : ta_stpo_dwn TYPE STANDARD TABLE OF ty_stpo,
+       wa_stpo_dwn TYPE ty_stpo.
+****EOA by Vrushali on 23.03.2016
+*&---------------------------------------------------------------------*
+*& ALV DECLRATIONS                                                     *
+*&---------------------------------------------------------------------*
+* FIELDCATALOG DECLARATION
+DATA:  wa_fieldcat TYPE slis_fieldcat_alv,
+       ta_fieldcat TYPE slis_t_fieldcat_alv,
+       wa_layout   TYPE TABLE OF slis_layout_alv WITH HEADER LINE.
+DATA  g_variant      LIKE disvariant.""Added by Pooja on 04.05.2023 CR# 8000008985
+
+"SOC Added by Shravani Gadhikar for CR 8000003398 and TR CRDK990135 on 19-03-2024
+CONSTANTS : co_x             TYPE c VALUE 'X',
+            co_e             TYPE c VALUE 'E',
+            co_id            TYPE zparam_table-id_name VALUE 'ZCK13N_1',
+            co_file_name(36) TYPE c VALUE'ZCO_CK13N_'.
+"EOC Added by Shravani Gadhikar for CR 8000003398 and TR CRDK990135 on 19-03-2024
+
+*&---------------------------------------------------------------------*
+*& Selection Screen Declaration
+*&---------------------------------------------------------------------*
+
+SELECTION-SCREEN : BEGIN OF BLOCK b1 WITH FRAME TITLE text-001.
+PARAMETERS : r1 RADIOBUTTON GROUP r USER-COMMAND xyz,
+             r2 RADIOBUTTON GROUP r,
+             r3 RADIOBUTTON GROUP r,
+             r4 RADIOBUTTON GROUP r.
+SELECTION-SCREEN : END OF BLOCK b1.
+
+SELECTION-SCREEN : BEGIN OF BLOCK b2 WITH FRAME TITLE text-002.
+SELECT-OPTIONS : s_matnr FOR mara-matnr,
+                 s_bwkey FOR mbew-bwkey OBLIGATORY,
+                 s_kadky FOR keko-kadky OBLIGATORY MODIF ID abc,"Added by Pooja on 04.05.2023 CR# 8000008985
+                 s_kadka FOR keko-kadky OBLIGATORY MODIF ID abd."Added by Hame on 10-June-2024 CR8000003670
+PARAMETERS  :    p_klvar TYPE keko-klvar OBLIGATORY,
+                 p_sta   TYPE keko-feh_sta OBLIGATORY MODIF ID abc,
+                 p_kadky TYPE keko-kadky OBLIGATORY MODIF ID op1,
+                 p_var   LIKE disvariant-variant MODIF ID abc.
+SELECTION-SCREEN : END OF BLOCK b2.
+
+SELECTION-SCREEN : BEGIN OF BLOCK b3 WITH FRAME TITLE text-003.
+PARAMETERS : rb1 RADIOBUTTON GROUP grp USER-COMMAND xyz,
+             rb2 RADIOBUTTON GROUP grp,
+             rb3 RADIOBUTTON GROUP grp,
+             "SOA by fatima for 8000008017.
+             rb4 RADIOBUTTON GROUP grp MODIF ID gp1.
+"EOA by fatima for 8000008017.
+SELECTION-SCREEN : END OF BLOCK b3.
+
+"SOC Added by Shravani Gadhikar for CR 8000003398 and TR CRDK990135 on 19-03-2024
+SELECTION-SCREEN : BEGIN OF BLOCK b4 WITH FRAME TITLE text-004.
+PARAMETER: ck_check TYPE c AS CHECKBOX MODIF ID ch.
+SELECTION-SCREEN : END OF BLOCK b4.
+"EOC Added by Shravani Gadhikar for CR 8000003398 and TR CRDK990135 on 19-03-2024
+
+
+*&---------------------------------------------------------------------*
+*& Start of Seletion Event Declaration
+*&---------------------------------------------------------------------*
+AT SELECTION-SCREEN OUTPUT.
+
+  IF rb2 NE 'X'.
+    "SOC by Pooja on 04.05.2023 CR# 8000008985
+    LOOP AT SCREEN.
+      IF screen-group1 = 'ABC'.
+        screen-active = 0.
+        MODIFY SCREEN.
+      ENDIF.
+      IF screen-group1 = 'OP1'.
+        screen-active = 1.
+        MODIFY SCREEN.
+      ENDIF.
+    ENDLOOP.
+    "EOC by Pooja on 04.05.2023 CR# 8000008985
+  ENDIF.
+
+  IF rb2 = 'X'.
+    "Soc by Pooja on 04.05.2023 CR# 8000008985
+    LOOP AT SCREEN.
+      IF screen-group1 = 'ABC'.
+        screen-active = 1.
+        MODIFY SCREEN.
+      ENDIF.
+      IF screen-group1 = 'OP1'.
+        screen-active = 0.
+        MODIFY SCREEN.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT SCREEN.
+      IF screen-name = 'S_KADKY-HIGH'.
+        screen-required = 1.
+        MODIFY SCREEN.
+      ENDIF.
+    ENDLOOP.
+    "EOC by Pooja on 04.05.2023 CR# 8000008985
+*     LOOP AT SCREEN.
+*      IF screen-group1 = 'ABC1'.
+*        screen-active = 0.
+*        MODIFY SCREEN.
+*      ENDIF.
+*    ENDLOOP.
+  ENDIF.
+* Begin of change by Hame Dhar on 10-June-2024 CR8000003670
+  IF rb4 = 'X'.
+    LOOP AT SCREEN.
+      IF screen-group1 = 'ABD'.
+        screen-active = 1.
+        MODIFY SCREEN.
+      ENDIF.
+      IF screen-group1 = 'OP1'.
+        screen-active = 0.
+        MODIFY SCREEN.
+      ENDIF.
+    ENDLOOP.
+  ELSE.
+    LOOP AT SCREEN.
+      IF screen-group1 = 'ABD'.
+        screen-active = 0.
+        MODIFY SCREEN.
+      ENDIF.
+    ENDLOOP.
+  ENDIF.
+* End of change by Hame Dhar on 10-June-2024 CR8000003670
+
+*  IF rb4 = 'X'..
+  LOOP AT SCREEN.
+    IF screen-group1 = 'GP1'.
+      AUTHORITY-CHECK OBJECT 'ZCO_USER'
+      ID 'ACTVT' FIELD '16'.
+*      ID 'USER' FIELD sy-uname.
+      IF sy-subrc = 0.
+        screen-active = 1.
+      ELSE.
+        screen-active = 0.
+*      MESSAGE 'User not authoraised to send file to FTP sever' TYPE 'E'.
+      ENDIF.
+      MODIFY SCREEN.
+    ENDIF.
+  ENDLOOP.
+*  ENDIF.
+
+  "SOC Added by Shravani Gadhikar for CR 8000003398 and TR CRDK990135 on 19-03-2024
+  IF r1 = 'X' AND rb4 = 'X' AND ck_check = 'X'.
+    MESSAGE: text-005 TYPE 'I'.
+  ENDIF.
+
+  IF r2 = 'X' AND rb4 = 'X' AND ck_check = 'X'.
+    MESSAGE: text-005 TYPE 'I'.
+  ENDIF.
+  "EOC Added by Shravani Gadhikar for CR 8000003398 and TR CRDK990135 on 19-03-2024
+
+*&---------------------------------------------------------------------*
+*& Start of Seletion Event Declaration
+*&---------------------------------------------------------------------*
+
+START-OF-SELECTION.
+*commented by fatima for 8000008017 to be posted 1st.
+*  DATA lv_flag TYPE c.  "FAYAZ
+  IF r1 = 'X'.
+    PERFORM get_data_zfgs.
+    PERFORM merge_data.
+
+    IF rb1 = 'X'.  "update
+      PERFORM update_table.
+      PERFORM create_fcat.
+      PERFORM display_alv.
+    ELSEIF rb2 = 'X'.
+      PERFORM fm_data.
+      PERFORM create_fcat_new.
+      PERFORM display_alv_new.
+    ELSEIF rb3 = 'X'.
+      PERFORM create_fcat.
+      PERFORM display_alv.
+*SOA by fatima for 8000008017
+    ELSEIF rb4 = 'X'.
+      PERFORM fm_data.
+      PERFORM send_to_all11.
+    ENDIF.
+*EOA by fatima for 8000008017.
+  ELSEIF r2 = 'X'.
+    PERFORM get_data_zbfg.
+    PERFORM merge_data.
+    IF rb1 = 'X'.
+      PERFORM update_table.
+      PERFORM create_fcat.
+      PERFORM display_alv.
+    ELSEIF rb2 = 'X'.
+      PERFORM fm_data.
+      PERFORM create_fcat_new.
+      PERFORM display_alv_new.
+    ELSEIF rb3 = 'X'.
+      PERFORM create_fcat.
+      PERFORM display_alv.
+*SOA by fatima for 8000008017
+    ELSEIF rb4 = 'X'.
+      PERFORM fm_data.
+      PERFORM send_to_all11.
+    ENDIF.
+*EOA by fatima for 8000008017.
+  ELSEIF r3 = 'X'.
+    PERFORM get_data_zapi.
+    PERFORM merge_data.
+
+    IF rb1 = 'X'.
+      PERFORM update_table.
+* uncommenting  below code by fatima for 8000008017 to be posted 1st.
+      PERFORM create_fcat.
+      PERFORM display_alv.
+*commenting  below code by fatima for 8000008017 to be posted 1st.
+*Begin of FAYAZ CR#8000007328 05.08.2021
+**Exporting data to AL11
+*      CLEAR lv_flag.
+*      IMPORT lv_flag TO lv_flag FROM MEMORY ID 'ZFI_SOLVENTS'.
+*      IF lv_flag = abap_true.
+*        EXPORT ta_final TO MEMORY ID 'ZFI_SOLVENTS'.
+*      ELSE.
+*
+*        PERFORM create_fcat.
+*        PERFORM display_alv.
+*      ENDIF.
+*End of FAYAZ CR#8000007328 05.08.2021
+*end of comment by fatima for 8000008017 to be posted 1st.
+    ELSEIF rb2 = 'X'.
+      PERFORM fm_data.
+      PERFORM create_fcat_new.
+      PERFORM display_alv_new.
+    ELSEIF rb3 = 'X'.
+      PERFORM create_fcat.
+      PERFORM display_alv.
+*SOA by fatima for 8000008017
+    ELSEIF rb4 = 'X' AND ck_check NE 'X'..
+      PERFORM fm_data.
+      PERFORM send_to_all11.
+
+      "SOC Added by Shravani Gadhikar for CR 8000003398 and TR CRDK990135 on 19-03-2024
+    ELSEIF rb4 = 'X' AND ck_check = 'X'.
+      PERFORM fm_data.
+      PERFORM send_to_all.
+      "EOC Added by Shravani Gadhikar for CR 8000003398 and TR CRDK990135 on 19-03-2024
+
+    ENDIF.
+*EOA by fatima for 8000008017.
+  ELSEIF r4 = 'X'.
+
+    PERFORM get_data_zint.
+    PERFORM merge_data_zint.
+    IF rb1 = 'X'.
+      PERFORM update_table.
+*uncommenting  below code by fatima for 8000008017 to be posted 1st.
+      PERFORM create_fcat.
+      PERFORM display_alv.
+*commenting  below code by fatima for 8000008017 to be posted 1st.
+*Begin of FAYAZ CR#8000007328 05.08.2021
+*Exporting data to AL11
+*      CLEAR lv_flag.
+*      IMPORT lv_flag TO lv_flag FROM MEMORY ID 'ZFI_SOLVENTS'.
+*      IF lv_flag = abap_true.
+*        EXPORT ta_final TO MEMORY ID 'ZFI_SOLVENTS'.
+*      ELSE.
+*        PERFORM create_fcat.
+*        PERFORM display_alv.
+*      ENDIF.
+*End of FAYAZ CR#8000007328 05.08.2021
+*end of commenting
+    ELSEIF rb2 = 'X'.
+      PERFORM fm_data.
+      PERFORM create_fcat_new.
+      PERFORM display_alv_new.
+*SOA by fatima for 8000008017
+    ELSEIF rb4 = 'X'  AND ck_check NE 'X'..
+      PERFORM fm_data.
+      PERFORM send_to_all11.
+
+      "SOC Added by Shravani Gadhikar for CR 8000003398 and TR CRDK990135 on 19-03-2024
+    ELSEIF rb4 = 'X' AND ck_check = 'X'.
+      PERFORM fm_data.
+      PERFORM send_to_all.
+      "EOC Added by Shravani Gadhikar for CR 8000003398 and TR CRDK990135 on 19-03-2024
+
+    ENDIF.
+*EOA by fatima for 8000008017.
+  ENDIF.
+*&---------------------------------------------------------------------*
+*&      Form  GET_DATA_ZFGS
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM get_data_zfgs .
+
+  SELECT matnr
+         extwg
+         meins
+         FROM mara
+    INTO TABLE ta_mara
+    WHERE matnr IN s_matnr
+    AND mtart = 'ZFGS'.
+
+  IF ta_mara IS NOT INITIAL.
+    SELECT matnr
+           maktx
+      FROM makt
+      INTO TABLE ta_makt
+      FOR ALL ENTRIES IN ta_mara
+      WHERE matnr = ta_mara-matnr
+      AND spras = 'E'.
+
+    SELECT matnr
+           bwkey
+           kaln1
+           lplpr
+      FROM mbew
+      INTO TABLE ta_mbew
+      FOR ALL ENTRIES IN ta_mara
+      WHERE matnr = ta_mara-matnr
+      AND bwkey IN s_bwkey.
+  ENDIF.
+
+
+  IF ta_mbew IS NOT INITIAL.
+
+    IF rb2 = 'X'.
+      "Soc by pooja 05.05.2023 CR# 8000008985
+      IF s_kadky-low = s_kadky-high.
+        lv_kadky =  s_kadky-low.
+      ENDIF.
+      "Eoc by pooja 05.05.2023 CR# 8000008985
+      v_feh = p_sta.
+*  Begin of change started by Hame on 10-June-2024 CR8000003670
+    ELSEIF rb4 = 'X'.
+      IF s_kadka-low = s_kadka-high.
+        lv_kadky =  s_kadka-low.
+      ENDIF.
+*      v_feh = p_sta.
+      IF p_klvar = 'PPC1'.
+        v_feh = 'FR'.
+      ELSE.
+        v_feh = 'KA'.
+      ENDIF.
+*  End of change started by Hame on 10-June-2024 CR8000003670
+    ELSE.
+      lv_kadky = p_kadky."   "Added by pooja 05.05.2023 CR# 8000008985
+      IF p_klvar = 'PPC1'.
+        v_feh = 'FR'.
+      ELSE.
+        v_feh = 'KA'.
+      ENDIF.
+    ENDIF.
+
+    "Soc by pooja 05.05.2023 CR# 8000008985
+    IF lv_kadky IS NOT INITIAL.
+      SELECT kalnr
+             kalka
+             kadky
+             tvers
+             bwvar
+             kkzma
+             bwkey
+             stnum
+             stalt
+             losgr
+             klvar
+             poper
+             bdatj
+             cpudt
+             erfnm   " added by Vrushali on 28.03.2016
+      FROM keko
+        INTO TABLE ta_keko1
+        FOR ALL ENTRIES IN ta_mbew
+        WHERE kalnr = ta_mbew-kaln1
+*        AND kadky LE p_kadky
+        AND kadky LE lv_kadky " Changed by pooja 05.05.2023 CR# 8000008985
+        AND bwkey IN s_bwkey
+        AND feh_sta = v_feh
+        AND klvar = p_klvar
+        %_HINTS MSSQLNT 'INDEX("KEKO" "KEKO~ZCO")' .
+*  Begin of change started by Hame on 10-June-2024 CR8000003670
+    ELSEIF s_kadka IS NOT INITIAL.
+      SELECT kalnr
+             kalka
+             kadky
+             tvers
+             bwvar
+             kkzma
+             bwkey
+             stnum
+             stalt
+             losgr
+             klvar
+             poper
+             bdatj
+             cpudt
+             erfnm   " added by Vrushali on 28.03.2016
+             FROM keko
+             INTO TABLE ta_keko2
+             FOR ALL ENTRIES IN ta_mbew
+             WHERE kalnr = ta_mbew-kaln1
+             AND kadky IN s_kadka
+             AND bwkey IN s_bwkey
+             AND feh_sta = v_feh
+             AND klvar = p_klvar
+             %_HINTS MSSQLNT 'INDEX("KEKO" "KEKO~ZCO")' .
+*  End of change started by Hame on 10-June-2024 CR8000003670
+    ELSE.
+
+      SELECT kalnr
+      kalka
+      kadky
+      tvers
+      bwvar
+      kkzma
+      bwkey
+      stnum
+      stalt
+      losgr
+      klvar
+      poper
+      bdatj
+      cpudt
+      erfnm   " added by Vrushali on 28.03.2016
+FROM keko
+ INTO TABLE ta_keko2
+ FOR ALL ENTRIES IN ta_mbew
+ WHERE kalnr = ta_mbew-kaln1
+ AND kadky IN s_kadky
+ AND bwkey IN s_bwkey
+ AND feh_sta = v_feh
+ AND klvar = p_klvar
+ %_HINTS MSSQLNT 'INDEX("KEKO" "KEKO~ZCO")' .
+    ENDIF.
+    "EOC by pooja 05.05.2023 CR# 8000008985
+  ENDIF.
+
+  "SOC by pooja 05.05.2023 CR# 8000008985
+  IF ta_keko1 IS NOT INITIAL.
+    APPEND LINES OF ta_keko1 TO ta_keko.
+  ENDIF.
+  IF ta_keko2 IS NOT INITIAL.
+    APPEND LINES OF ta_keko2 TO ta_keko.
+  ENDIF.
+  "EOC by pooja 05.05.2023 CR# 8000008985
+
+  SORT ta_keko BY kalnr bdatj DESCENDING poper DESCENDING.
+  DELETE ADJACENT DUPLICATES FROM ta_keko COMPARING kalnr.
+
+  SELECT  setname
+      valfrom
+     INTO TABLE ta_set
+  FROM setleaf
+  WHERE setname IN ('CCS002','CCS003','CCS050','CCS090','CCS101','CCS102','CCS103','CCS104','CCS105','CCS202','CCS301','CCS302','CCS303','CCS304','CCS601','CCS701','CCS702').
+
+ENDFORM.                    " GET_DATA_ZFGS
+*&---------------------------------------------------------------------*
+*&      Form  CREATE_FCAT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM create_fcat.
+  PERFORM adding_field_fcat USING :
+                                    'Plant'                                    'WERKS'      '' '04',
+                                    'Material code'                            'MATNR'      '' '10',
+                                    'Material description'                     'MAKTX'      '' '35',
+                                    'Ext. Matl Group'                          'EXTWG'      '' '18',
+                                    'BUOM'                                     'MEINS'      '' '03',
+                                    'Cost Estimation no.'                      'KALN1'      '' '12',
+                                    'Costing Date'                             'KADKY'      '' '10',
+                                    'Year'                                     'BDATJ'      '' '04',
+                                    'Period'                                   'POPER'      '' '03',
+                                    'Costing lot size'                         'LOSGR'      '' '13',
+                                    'BOM'                                      'STNUM'      '' '08',
+                                    'Alt BOM'                                  'STALT'      '' '02',
+                                    'Costing Type'                             'KALKA'      '' '02',
+                                    'Costing variant'                          'KLVAR'      '' '04',
+                                    'FG-PM Cost'                               '32_PM_C'    '' '15',
+                                    'FG-PM Activity/Additive Cost(Fixed)'      '32_PM_F'    '' '15',
+                                    'FG-PM Activity/Additive Cost(Variable)'   '32_PM_V'    '' '15',
+                                    'FG-PM OH Cost(Fixed)'                     '32_OH_F'    '' '15',
+                                    'FG-PM OH Cost(Variable)'                  '32_OH_V'    '' '15',
+                                    'FG-PM Yield'                              '32_PM_Y'    '' '15',
+                                    'FG-PM Freight'                            '32_PM_FRG'  '' '15',
+                                    'BSFG-RM Cost'                             '31_RM_C'    '' '15',
+                                    'BSFG-RM Activity/ Additive Cost(Fixed)'   '31_RM_F'    '' '15',
+                                    'BSFG-RM Activity/Additive Cost(Variable)' '31_RM_V'    '' '15',
+                                    'BSFG-RM OH Cost(Fixed)'                   '31_OH_F'    '' '15',
+                                    'BSFG-RM OH Cost(Variable)'                '31_OH_V'    '' '15',
+                                    'BSFG-RM Yield'                            '31_PM_Y'    '' '15',
+                                    'BSFG-RM Freight'                          '31_PM_FRG'  '' '15',
+                                    'API Inhouse Mat Cost'                     '13_API_I'   '' '15',
+                                    'API Procured Mat Cost'                    '13_API_P'   '' '15',
+                                    'API Activity/ Additive Cost(Fixed)'       '13_API_F'   '' '15',
+                                    'API Activity/ Additive Cost(Variable)'    '13_API_V'   '' '15',
+                                    'API OH Cost(Fixed)'                       '13_API_OH_F' '' '15',
+                                    'API OH Cost(Variable)'                    '13_API_OH_V' '' '15',
+                                    'API Yield'                                '13_API_Y'    '' '15',
+                                    'API Freight'                              '13_API_FRG'  '' '15',
+                                    'Total API Mat Cost(Inhouse)'              'API_MAT'     '' '15',
+                                    'Total API Mat Cost(Procured)'             'API_MAT_P'     '' '15',
+                                    'Total Excepient Material Cost'            'E_MAT'       '' '15',
+                                    'Total Packing Material Cost'              'P_MAT'       '' '15',
+                                    'Total API OH(Fixed)'                      'API_OH_F'    '' '15',
+                                    'Total API OH (Variable)'                  'API_OH_V'    '' '15',
+                                    'Total Formulation OH (Fixed)'             'F_OH_F'      '' '15',
+                                    'Total Formulation OH (Variable)'          'FOR_OH'      '' '15',
+                                    'Grand Total Rate'                         'TOTAL'       '' '15',
+                                    'Do Not Cost'                              'DNC'         '' '3',
+                                    'Recusive'                                 'REC'         '' '3',
+                                    'Current Plan price'                       'PRICE'         '' '16',
+                                    'Diffrence in Rate'                        'DIFF'         '' '16',
+                                    'Precentage of Diffrence'                  'D_PRE'         '' '16'.
+
+ENDFORM.                    " CREATE_FCAT
+*&---------------------------------------------------------------------*
+*&      Form  ADDING_FIELD_FCAT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_2157   text
+*      -->P_2158   text
+*      -->P_2159   text
+*      -->P_2160   text
+*----------------------------------------------------------------------*
+FORM adding_field_fcat  USING p_text TYPE char40
+                              p_fnam TYPE slis_fieldcat_alv-fieldname
+                              p_sum TYPE char1
+                              p_out TYPE char2.
+
+  DATA : gv_count TYPE i.
+
+  gv_count = gv_count + 1.
+  wa_fieldcat-col_pos = gv_count.
+  wa_fieldcat-seltext_l = p_text.
+  wa_fieldcat-fieldname = p_fnam.
+  wa_fieldcat-do_sum    = p_sum.
+  wa_fieldcat-outputlen = p_out.
+  APPEND wa_fieldcat TO ta_fieldcat.
+  CLEAR wa_fieldcat.
+
+
+ENDFORM.                    " ADDING_FIELD_FCAT
+
+*&---------------------------------------------------------------------*
+*&      Form  DISPLAY_ALV
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM display_alv .
+
+  DATA : ls_variant TYPE disvariant.
+  wa_layout-zebra             = 'X'.
+  wa_layout-colwidth_optimize = 'X'.
+
+  ls_variant-report = sy-repid.
+
+  CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+    EXPORTING
+      it_fieldcat   = ta_fieldcat
+      is_layout     = wa_layout
+      is_variant    = ls_variant
+      i_save        = 'X'
+*     is_variant    = variant
+    TABLES
+      t_outtab      = ta_final
+    EXCEPTIONS
+      program_error = 1
+      OTHERS        = 2.
+  IF sy-subrc <> 0.
+* Implement suitable error handling here
+  ENDIF.
+
+
+ENDFORM.                    " DISPLAY_ALV
+
+*&---------------------------------------------------------------------*
+*&      Form  MERGE_DATA
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM merge_data .
+
+  DATA : ta_stru       TYPE  ck_strukturtab,
+         ta_str        TYPE  ck_strukturtab,
+         ta_stru_t     TYPE  ck_strukturtab,
+         ta_stru_32    TYPE  ck_strukturtab,
+         ta_stru_32_t  TYPE  ck_strukturtab,
+         ta_stru_32_t1 TYPE  ck_strukturtab,
+         ta_stru_tmp   TYPE  ck_strukturtab,
+         ta_stru_tmp1  TYPE  ck_strukturtab,
+         ta_stru_31    TYPE  ck_strukturtab,
+         ta_stru_31_t  TYPE  ck_strukturtab,
+         wa_stru_31_t  TYPE ck_strukturtab_typ,
+         ta_stru_13    TYPE  ck_strukturtab,
+         wa_stru       TYPE ck_strukturtab_typ.
+
+  CLEAR : v_pm_c,
+        v_pm_f,
+        v_pm_ft,
+        v_pm_v,
+        v_oh_f,
+        v_oh_v,
+        v_of_v,
+        v_pm_y,
+        v_pm_frg,
+        v_rm_c,
+        v_rm_f,
+        v_rm_v,
+        v_api_i,
+        v_api_p,
+        v_api_f,
+        v_api_v,
+        v_api_oh_f,
+        v_api_oh_v,
+        v_api_y,
+        v_api_frg,
+        v_rm_f_t.
+
+  SELECT bwkey,
+         bukrs
+    FROM t001k
+    INTO TABLE @DATA(ta_t001k)
+    WHERE bwkey IN @s_bwkey.
+
+  IF sy-subrc EQ 0.
+    SELECT  bukrs,
+            waers
+      FROM t001
+      INTO TABLE @DATA(ta_t001)
+      FOR ALL ENTRIES IN @ta_t001k
+      WHERE bukrs = @ta_t001k-bukrs.
+  ENDIF.
+
+
+
+*  break abap4.
+  LOOP AT ta_keko INTO wa_keko.
+    wa_final-werks = wa_keko-bwkey.
+    wa_final-kadky = wa_keko-kadky.
+    wa_final-bdatj = wa_keko-bdatj.
+    wa_final-poper = wa_keko-poper.
+    wa_final-losgr = wa_keko-losgr.
+    wa_final-stnum = wa_keko-stnum.
+    wa_final-stalt = wa_keko-stalt.
+    wa_final-kalka = wa_keko-kalka.
+    wa_final-klvar = wa_keko-klvar.
+
+    READ TABLE ta_mbew INTO wa_mbew WITH KEY kaln1  = wa_keko-kalnr.
+    IF sy-subrc = 0.
+
+      READ TABLE ta_t001k INTO DATA(wa_t001k) WITH KEY bwkey = wa_keko-bwkey.
+      IF sy-subrc EQ 0.
+        READ TABLE ta_t001 INTO DATA(wa_t001) WITH KEY bukrs = wa_t001k-bukrs.
+        IF wa_t001-waers = 'UGX'.
+          wa_final-price = wa_mbew-lplpr * 100.
+        ELSE.
+
+          wa_final-price = wa_mbew-lplpr.
+        ENDIF.
+      ENDIF.
+
+      wa_final-kaln1 = wa_mbew-kaln1.
+      READ TABLE ta_makt INTO wa_makt WITH KEY matnr = wa_mbew-matnr.
+      IF sy-subrc = 0.
+
+        wa_final-matnr = wa_makt-matnr.
+        wa_final-maktx = wa_makt-maktx.
+        READ TABLE ta_mara INTO wa_mara WITH KEY matnr  = wa_makt-matnr.
+        IF sy-subrc = 0.
+          wa_final-extwg = wa_mara-extwg.
+          wa_final-meins = wa_mara-meins.
+        ENDIF.
+
+      ENDIF.
+    ENDIF.
+
+    CALL FUNCTION 'CK_F_CSTG_STRUCTURE_EXPLOSION'
+      EXPORTING
+        klvar              = p_klvar
+        kalnr              = wa_keko-kalnr
+        kadky              = wa_keko-kadky
+        tvers              = wa_keko-tvers
+        werk               = wa_keko-bwkey
+        sicht              = 01
+        s_losgr            = 'X'
+        s_bezugsmenge      = wa_keko-losgr
+*       S_BEZUGSMENGENEINHEIT       =
+*       S_ACCEPT_NULLMENGE = ' '
+        s_aufloesungstiefe = 0
+        s_read_only_db     = 'X'
+*       S_ONLY_MAT_POS     = ' '
+*       S_EXPLODE_KF_TOO   = ' '
+*       S_EXPLODE_RAW      = ' '
+        s_skip_totals      = 'X'
+*       S_USE_KKE3_CACHE   = ' '
+*       S_EXPLODE_BPO      = ' '
+*       S_VUC_READ_ONLY_DB = ' '
+*     IMPORTING
+*       F_KEKO             =
+*       F_HEADER_MAT       =
+*       S_AUFL_UNVOLLSTAENDIG       =
+      TABLES
+        strukturtabelle    = ta_stru
+*       T_KEKO_IMP         =
+      EXCEPTIONS
+        invalid_bzobj      = 1
+        keko_not_found     = 2
+        meta_model_error   = 3
+        ckhs_not_found     = 4
+        OTHERS             = 5.
+    IF sy-subrc <> 0.
+* Implement suitable error handling here
+    ENDIF.
+
+    ta_str[] = ta_stru[].
+
+
+    REFRESH : ta_marc,ta_mast,ta_stpo.
+
+    IF ta_str[] IS NOT INITIAL.
+      SELECT matnr
+               werks
+               sobsk
+               ncost
+          INTO TABLE ta_marc
+          FROM marc
+          FOR ALL ENTRIES IN ta_str
+          WHERE matnr = ta_str-matnr
+          AND werks = ta_str-werks.
+    ENDIF.
+
+    IF ta_marc IS NOT INITIAL.
+      SELECT matnr
+             werks
+             stlnr
+        FROM mast
+        INTO TABLE ta_mast
+        FOR ALL ENTRIES IN ta_marc
+        WHERE matnr  = ta_marc-matnr
+        AND werks = ta_marc-werks.
+    ENDIF.
+
+    IF ta_mast IS NOT INITIAL.
+      SELECT stlnr
+             rekrs
+        FROM stpo
+        INTO TABLE ta_stpo
+        FOR ALL ENTRIES IN ta_mast
+        WHERE stlnr = ta_mast-stlnr.
+    ENDIF.
+
+
+    CLEAR wa_marc.
+    LOOP AT ta_marc INTO wa_marc.
+      IF wa_marc-ncost = 'X'.
+        wa_final-dnc = 'X'.
+      ENDIF.
+    ENDLOOP.
+
+    CLEAR wa_mast.
+    LOOP AT ta_mast INTO wa_mast." WHERE matnr = wa_marc-matnr AND werks = wa_marc-werks.
+      LOOP AT ta_stpo INTO wa_stpo WHERE stlnr = wa_mast-stlnr.
+        IF wa_stpo-rekrs = 'X'.
+          wa_final-rec = 'X'.
+        ENDIF.
+      ENDLOOP.
+    ENDLOOP.
+
+
+    IF ta_str[] IS  NOT INITIAL.
+      IF p_klvar = 'PPC1'.
+        v_feh = 'FR'.
+      ELSE.
+        v_feh = 'KA'.
+      ENDIF.
+      IF lv_kadky IS NOT INITIAL..
+
+
+        SELECT  kalnr
+             kalka
+             kadky
+             tvers
+             bwvar
+             kkzma
+             bwkey
+             stnum
+             stalt
+             losgr
+             klvar
+             poper
+             bdatj
+             cpudt
+        FROM keko
+          INTO TABLE ta_keko13
+          FOR ALL ENTRIES IN ta_str
+          WHERE kalnr = ta_str-kalnr
+*           AND kadky LE p_kadky
+           AND kadky LE lv_kadky
+          AND feh_sta = v_feh
+          AND klvar = p_klvar.
+      ELSE.
+        SELECT  kalnr
+                    kalka
+                    kadky
+                    tvers
+                    bwvar
+                    kkzma
+                    bwkey
+                    stnum
+                    stalt
+                    losgr
+                    klvar
+                    poper
+                    bdatj
+                    cpudt
+                FROM keko
+                 INTO TABLE ta_keko13
+                 FOR ALL ENTRIES IN ta_str
+                 WHERE kalnr = ta_str-kalnr
+                  AND kadky IN s_kadka
+                 AND feh_sta = v_feh
+                 AND klvar = p_klvar.
+      ENDIF.
+    ENDIF.
+
+    IF ta_keko13[] IS NOT INITIAL.
+      SELECT kalnr
+                matnr
+                werks
+                FROM keko
+           INTO TABLE ta_ke_32
+           FOR ALL ENTRIES IN ta_keko13
+         WHERE kalnr = ta_keko13-kalnr
+        AND kadky LE p_kadky
+           AND kalka = ta_keko13-kalka.
+    ENDIF.
+
+    REFRESH : ta_kalnr[].
+
+    DELETE ta_ke_32 WHERE matnr NOT BETWEEN 32000000 AND 32999999.
+
+    LOOP AT ta_ke_32 INTO wa_ke_32.
+      ta_kalnr = wa_ke_32-kalnr.
+      APPEND ta_kalnr TO ta_kalnr[].
+    ENDLOOP.
+
+    DELETE ADJACENT DUPLICATES FROM ta_kalnr[] COMPARING ALL FIELDS.
+
+
+    ta_stru_32[]  =  ta_stru[].
+    ta_stru_t[] = ta_stru[].
+    ta_stru_tmp[] = ta_stru[].
+
+*    DELETE ta_stru_32 WHERE kalnr NE wa_keko-kalnr.
+
+    CLEAR wa_stru.
+    LOOP AT ta_stru_32 INTO wa_stru.
+      READ TABLE ta_kalnr[] INTO ta_kalnr WITH KEY kalnr = wa_stru-kalnr.
+      IF sy-subrc NE 0.
+        DELETE ta_stru_32 WHERE kalnr = wa_stru-kalnr.
+      ENDIF.
+    ENDLOOP.
+
+
+    ta_set1[] = ta_set[].
+    ta_set2[] = ta_set[].
+
+    DELETE ta_set1 WHERE setname NE 'CCS002'.
+    DELETE ta_set2 WHERE setname NE 'CCS003'.
+
+    CLEAR : wa_set, wa_stru,ta_stru_tmp[].
+
+
+    ta_stru_tmp[] = ta_stru_32[].
+    ta_stru_32_t[] = ta_stru_32[].
+    ta_stru_32_t1[] = ta_stru_32[].
+
+    DELETE ta_stru_32_t WHERE baugr EQ 'X' AND matnr NOT BETWEEN 31000000 AND 31999999.
+    DELETE ta_stru_32_t1 WHERE baugr EQ 'X' AND matnr NOT BETWEEN 13000000 AND 13999999.
+    DELETE ta_stru_tmp  WHERE matnr NOT BETWEEN 31000000 AND 31999999.
+    DELETE ta_stru_32  WHERE matnr BETWEEN 31000000 AND 31999999.
+    DELETE ta_stru_32  WHERE matnr BETWEEN 13000000 AND 13999999.
+
+    DELETE ta_stru_32 WHERE baugr EQ 'X' AND matnr BETWEEN 32000000 AND 32999999.
+
+    LOOP AT ta_stru_32 INTO wa_stru.
+      READ TABLE ta_set1 INTO wa_set WITH KEY valfrom  = wa_stru-kstar.
+      IF sy-subrc = 0.
+        v_pm_c = v_pm_c + wa_stru-wertn.
+      ENDIF.
+    ENDLOOP.
+
+    CLEAR : wa_set, wa_stru.
+    LOOP AT ta_stru_32 INTO wa_stru.
+      READ TABLE ta_set2 INTO wa_set WITH KEY valfrom  = wa_stru-kstar.
+      IF sy-subrc = 0.
+        v_pm_c = v_pm_c + wa_stru-wertn.
+      ENDIF.
+    ENDLOOP.
+
+    wa_final-32_pm_c = v_pm_c.
+
+    ta_set1[] = ta_set[].
+    ta_set2[] = ta_set[].
+    ta_set3[] = ta_set[].
+    ta_set4[] = ta_set[].
+    ta_set5[] = ta_set[].
+    ta_set6[] = ta_set[].
+    ta_set7[] = ta_set[].
+    ta_set8[] = ta_set[].
+    ta_set9[] = ta_set[].
+    ta_set10[] = ta_set[].
+
+    DELETE ta_set1 WHERE setname NE 'CCS101'.
+    DELETE ta_set2 WHERE setname NE 'CCS102'.
+    DELETE ta_set3 WHERE setname NE 'CCS103'.
+    DELETE ta_set4 WHERE setname NE 'CCS104'.
+    DELETE ta_set5 WHERE setname NE 'CCS105'.
+    DELETE ta_set6 WHERE setname NE 'CCS301'.
+    DELETE ta_set7 WHERE setname NE 'CCS302'.
+    DELETE ta_set8 WHERE setname NE 'CCS303'.
+    DELETE ta_set9 WHERE setname NE 'CCS304'.
+
+    CLEAR : wa_set, wa_stru.
+    LOOP AT ta_stru_32 INTO wa_stru.
+      READ TABLE ta_set1 INTO wa_set WITH KEY valfrom  = wa_stru-kstar.
+      IF sy-subrc = 0.
+        v_pm_f = v_pm_f + wa_stru-wrtfx.
+        v_pm_ft = v_pm_ft + wa_stru-wertn.
+      ENDIF.
+    ENDLOOP.
+
+    CLEAR : wa_set, wa_stru.
+    LOOP AT ta_stru_32 INTO wa_stru.
+      READ TABLE ta_set2 INTO wa_set WITH KEY valfrom  = wa_stru-kstar.
+      IF sy-subrc = 0.
+        v_pm_f = v_pm_f + wa_stru-wrtfx.
+        v_pm_ft = v_pm_ft + wa_stru-wertn.
+      ENDIF.
+    ENDLOOP.
+    CLEAR : wa_set, wa_stru.
+    LOOP AT ta_stru_32 INTO wa_stru.
+      READ TABLE ta_set3 INTO wa_set WITH KEY valfrom  = wa_stru-kstar.
+      IF sy-subrc = 0.
+        v_pm_f = v_pm_f + wa_stru-wrtfx.
+        v_pm_ft = v_pm_ft + wa_stru-wertn.
+      ENDIF.
+    ENDLOOP.
+
+    CLEAR : wa_set, wa_stru.
+    LOOP AT ta_stru_32 INTO wa_stru.
+      READ TABLE ta_set4 INTO wa_set WITH KEY valfrom  = wa_stru-kstar.
+      IF sy-subrc = 0.
+        v_pm_f = v_pm_f + wa_stru-wrtfx.
+        v_pm_ft = v_pm_ft + wa_stru-wertn.
+      ENDIF.
+    ENDLOOP.
+    CLEAR : wa_set, wa_stru.
+    LOOP AT ta_stru_32 INTO wa_stru.
+      READ TABLE ta_set5 INTO wa_set WITH KEY valfrom  = wa_stru-kstar.
+      IF sy-subrc = 0.
+        v_pm_f = v_pm_f + wa_stru-wrtfx.
+        v_pm_ft = v_pm_ft + wa_stru-wertn.
+      ENDIF.
+    ENDLOOP.
+
+    CLEAR : wa_set, wa_stru.
+    LOOP AT ta_stru_32 INTO wa_stru.
+      READ TABLE ta_set6 INTO wa_set WITH KEY valfrom  = wa_stru-kstar.
+      IF sy-subrc = 0.
+        v_pm_f = v_pm_f + wa_stru-wrtfx.
+        v_pm_ft = v_pm_ft + wa_stru-wertn.
+      ENDIF.
+    ENDLOOP.
+
+    CLEAR : wa_set, wa_stru.
+    LOOP AT ta_stru_32 INTO wa_stru.
+      READ TABLE ta_set7 INTO wa_set WITH KEY valfrom  = wa_stru-kstar.
+      IF sy-subrc = 0.
+        v_pm_f = v_pm_f + wa_stru-wrtfx.
+        v_pm_ft = v_pm_ft + wa_stru-wertn.
+      ENDIF.
+    ENDLOOP.
+
+    CLEAR : wa_set, wa_stru.
+    LOOP AT ta_stru_32 INTO wa_stru.
+      READ TABLE ta_set8 INTO wa_set WITH KEY valfrom  = wa_stru-kstar.
+      IF sy-subrc = 0.
+        v_pm_f = v_pm_f + wa_stru-wrtfx.
+        v_pm_ft = v_pm_ft + wa_stru-wertn.
+      ENDIF.
+    ENDLOOP.
+
+    CLEAR : wa_set, wa_stru.
+    LOOP AT ta_stru_32 INTO wa_stru.
+      READ TABLE ta_set9 INTO wa_set WITH KEY valfrom  = wa_stru-kstar.
+      IF sy-subrc = 0.
+        v_pm_f = v_pm_f + wa_stru-wrtfx.
+        v_pm_ft = v_pm_ft + wa_stru-wertn.
+      ENDIF.
+    ENDLOOP.
+
+    wa_final-32_pm_f = v_pm_f.
+
+    wa_final-32_pm_v = v_pm_ft - wa_final-32_pm_f.
+
+
+    ta_set1[] = ta_set[].
+    ta_set2[] = ta_set[].
+
+    DELETE ta_set1 WHERE setname NE 'CCS202'.
+    DELETE ta_set2 WHERE setname NE 'CCS601'.
+
+    CLEAR : wa_set, wa_stru.
+    LOOP AT ta_stru_32 INTO wa_stru.
+      READ TABLE ta_set1 INTO wa_set WITH KEY valfrom  = wa_stru-kstar.
+      IF sy-subrc = 0.
+        v_oh_f = v_oh_f + wa_stru-wrtfx.
+        v_of_v = v_of_v + wa_stru-wertn.
+      ENDIF.
+    ENDLOOP.
+
+    CLEAR : wa_set, wa_stru.
+    LOOP AT ta_stru_32 INTO wa_stru.
+      READ TABLE ta_set2 INTO wa_set WITH KEY valfrom  = wa_stru-kstar.
+      IF sy-subrc = 0.
+        v_oh_f = v_oh_f + wa_stru-wrtfx.
+        v_of_v = v_of_v + wa_stru-wertn.
+      ENDIF.
+    ENDLOOP.
+
+
+    wa_final-32_oh_f = v_oh_f.
+
+    wa_final-32_oh_v = v_of_v - v_oh_f.
+
+    ta_set1[] = ta_set[].
+    DELETE ta_set1 WHERE setname NE 'CCS050'.
+
+    CLEAR : wa_set, wa_stru.
+    LOOP AT ta_stru_32 INTO wa_stru.
+      READ TABLE ta_set1 INTO wa_set WITH KEY valfrom  = wa_stru-kstar.
+      IF sy-subrc = 0.
+        v_pm_y = v_pm_y + wa_stru-wertn.
+      ENDIF.
+    ENDLOOP.
+
+
+    wa_final-32_pm_y = v_pm_y .
+
+    ta_set1[] = ta_set[].
+    DELETE ta_set1 WHERE setname NE 'CCS701'.
+
+    CLEAR : wa_set, wa_stru.
+    LOOP AT ta_stru_32 INTO wa_stru.
+      READ TABLE ta_set1 INTO wa_set WITH KEY valfrom  = wa_stru-kstar.
+      IF sy-subrc = 0.
+        v_pm_frg = v_pm_frg + wa_stru-wertn.
+      ENDIF.
+    ENDLOOP.
+
+    wa_final-32_pm_frg = v_pm_frg .
+
+********************for 31 lOGIC
+
+    CLEAR : v_pm_frg, v_pm_y ,v_oh_f, v_pm_f, v_pm_ft,v_pm_c,v_of_v.
+
+    DELETE ADJACENT DUPLICATES FROM ta_stru_t  COMPARING kalnr.
+
+    SELECT kalnr
+           matnr
+           werks
+           FROM keko
+      INTO TABLE ta_ke_tmp
+      FOR ALL ENTRIES IN ta_stru_t
+    WHERE kalnr = ta_stru_t-kalnr
+       AND kadky LE p_kadky
+      AND kalka = wa_final-kalka.
+
+    ta_ke_31[] = ta_ke_tmp[].
+    ta_ke_13[] = ta_ke_tmp[].
+
+    DELETE ta_ke_31[] WHERE matnr NOT BETWEEN 31000000 AND 319999999.
+    DELETE ta_ke_31[] WHERE matnr BETWEEN 32000000 AND 329999999.
+    DELETE ta_ke_13[] WHERE matnr BETWEEN 32000000 AND 329999999.
+    DELETE ta_ke_13[] WHERE matnr BETWEEN 31000000 AND 319999999.
+    DELETE ta_ke_13[] WHERE matnr BETWEEN 21000000 AND 219999999.
+
+    REFRESH : ta_kalnr[].
+
+    LOOP AT ta_ke_31 INTO wa_ke_31.
+      ta_kalnr = wa_ke_31-kalnr.
+      APPEND ta_kalnr TO ta_kalnr[].
+    ENDLOOP.
+
+    DELETE ADJACENT DUPLICATES FROM ta_kalnr[] COMPARING ALL FIELDS.
+    ta_stru_31[] = ta_str[].
+
+
+*** BOM dELETE
+    DELETE ta_stru_31 WHERE baugr EQ 'X'.
+
+    LOOP AT ta_stru_31 INTO wa_stru.
+      READ TABLE ta_kalnr[] INTO ta_kalnr WITH KEY kalnr = wa_stru-kalnr.
+      IF sy-subrc NE 0.
+        DELETE ta_stru_31 WHERE kalnr = wa_stru-kalnr.
+      ENDIF.
+    ENDLOOP.
+
+
+    ta_stru_31_t[]  = ta_stru_31[].
+    DELETE ta_stru_31_t[] WHERE matnr NOT BETWEEN 13000000 AND 13999999.
+    DELETE ta_stru_31  WHERE matnr BETWEEN 13000000 AND 13999999.
+
+    DELETE ta_stru_tmp[] WHERE baugr = 'X'.
+
+    APPEND LINES OF ta_stru_tmp[] TO ta_stru_31[].
+
+    CLEAR : wa_stru, v_oh_f,v_oh_v,v_pm_y,v_pm_frg.
+
+    ta_set1[] = ta_set[].
+    ta_set2[] = ta_set[].
+
+    DELETE ta_set1 WHERE setname NE 'CCS002'.
+    DELETE ta_set2 WHERE setname NE 'CCS003'.
+
+    CLEAR : wa_set, wa_stru.
+    LOOP AT ta_stru_31 INTO wa_stru.
+      READ TABLE ta_set1 INTO wa_set WITH KEY valfrom  = wa_stru-kstar.
+      IF sy-subrc = 0.
+        v_rm_c = v_rm_c + wa_stru-wertn.
+      ENDIF.
+    ENDLOOP.
+
+    CLEAR : wa_set, wa_stru.
+    LOOP AT ta_stru_31 INTO wa_stru.
+      READ TABLE ta_set2 INTO wa_set WITH KEY valfrom  = wa_stru-kstar.
+      IF sy-subrc = 0.
+        v_rm_c = v_rm_c + wa_stru-wertn.
+      ENDIF.
+    ENDLOOP.
+
+    ta_set1[] = ta_set[].
+    ta_set2[] = ta_set[].
+    ta_set3[] = ta_set[].
+    ta_set4[] = ta_set[].
+    ta_set5[] = ta_set[].
+    ta_set6[] = ta_set[].
+    ta_set7[] = ta_set[].
+    ta_set8[] = ta_set[].
+    ta_set9[] = ta_set[].
+    ta_set10[] = ta_set[].
+
+
+    DELETE ta_set1 WHERE setname NE 'CCS101'.
+    DELETE ta_set2 WHERE setname NE 'CCS102'.
+    DELETE ta_set3 WHERE setname NE 'CCS103'.
+    DELETE ta_set4 WHERE setname NE 'CCS104'.
+    DELETE ta_set5 WHERE setname NE 'CCS105'.
+    DELETE ta_set6 WHERE setname NE 'CCS301'.
+    DELETE ta_set7 WHERE setname NE 'CCS302'.
+    DELETE ta_set8 WHERE setname NE 'CCS303'.
+    DELETE ta_set9 WHERE setname NE 'CCS304'.
+
+
+    CLEAR : wa_set, wa_stru.
+    LOOP AT ta_stru_31 INTO wa_stru.
+      READ TABLE ta_set1 INTO wa_set WITH KEY valfrom  = wa_stru-kstar.
+      IF sy-subrc = 0.
+        v_rm_f = v_rm_f + wa_stru-wrtfx.
+        v_rm_f_t = v_rm_f_t + wa_stru-wertn.
+      ENDIF.
+    ENDLOOP.
+
+    CLEAR : wa_set, wa_stru.
+    LOOP AT ta_stru_31 INTO wa_stru.
+      READ TABLE ta_set2 INTO wa_set WITH KEY valfrom  = wa_stru-kstar.
+      IF sy-subrc = 0.
+        v_rm_f = v_rm_f + wa_stru-wrtfx.
+        v_rm_f_t = v_rm_f_t + wa_stru-wertn.
+      ENDIF.
+    ENDLOOP.
+    CLEAR : wa_set, wa_stru.
+    LOOP AT ta_stru_31 INTO wa_stru.
+      READ TABLE ta_set3 INTO wa_set WITH KEY valfrom  = wa_stru-kstar.
+      IF sy-subrc = 0.
+        v_rm_f = v_rm_f + wa_stru-wrtfx.
+        v_rm_f_t = v_rm_f_t + wa_stru-wertn.
+      ENDIF.
+    ENDLOOP.
+
+    CLEAR : wa_set, wa_stru.
+    LOOP AT ta_stru_31 INTO wa_stru.
+      READ TABLE ta_set4 INTO wa_set WITH KEY valfrom  = wa_stru-kstar.
+      IF sy-subrc = 0.
+        v_rm_f = v_rm_f + wa_stru-wrtfx.
+        v_rm_f_t = v_rm_f_t + wa_stru-wertn.
+      ENDIF.
+    ENDLOOP.
+    CLEAR : wa_set, wa_stru.
+    LOOP AT ta_stru_31 INTO wa_stru.
+      READ TABLE ta_set5 INTO wa_set WITH KEY valfrom  = wa_stru-kstar.
+      IF sy-subrc = 0.
+        v_rm_f = v_rm_f + wa_stru-wrtfx.
+        v_rm_f_t = v_rm_f_t + wa_stru-wertn.
+      ENDIF.
+    ENDLOOP.
+
+    CLEAR : wa_set, wa_stru.
+    LOOP AT ta_stru_31 INTO wa_stru.
+      READ TABLE ta_set6 INTO wa_set WITH KEY valfrom  = wa_stru-kstar.
+      IF sy-subrc = 0.
+        v_rm_f = v_rm_f + wa_stru-wrtfx.
+        v_rm_f_t = v_rm_f_t + wa_stru-wertn.
+      ENDIF.
+    ENDLOOP.
+    CLEAR : wa_set, wa_stru.
+    LOOP AT ta_stru_31 INTO wa_stru.
+      READ TABLE ta_set7 INTO wa_set WITH KEY valfrom  = wa_stru-kstar.
+      IF sy-subrc = 0.
+        v_rm_f = v_rm_f + wa_stru-wrtfx.
+        v_rm_f_t = v_rm_f_t + wa_stru-wertn.
+      ENDIF.
+    ENDLOOP.
+
+    CLEAR : wa_set, wa_stru.
+    LOOP AT ta_stru_31 INTO wa_stru.
+      READ TABLE ta_set8 INTO wa_set WITH KEY valfrom  = wa_stru-kstar.
+      IF sy-subrc = 0.
+        v_rm_f = v_rm_f + wa_stru-wrtfx.
+        v_rm_f_t = v_rm_f_t + wa_stru-wertn.
+      ENDIF.
+    ENDLOOP.
+
+    CLEAR : wa_set, wa_stru.
+    LOOP AT ta_stru_31 INTO wa_stru.
+      READ TABLE ta_set9 INTO wa_set WITH KEY valfrom  = wa_stru-kstar.
+      IF sy-subrc = 0.
+        v_rm_f = v_rm_f + wa_stru-wrtfx.
+        v_rm_f_t = v_rm_f_t + wa_stru-wertn.
+      ENDIF.
+    ENDLOOP.
+
+    ta_set1[] = ta_set[].
+    ta_set2[] = ta_set[].
+
+    DELETE ta_set1 WHERE setname NE 'CCS202'.
+    DELETE ta_set2 WHERE setname NE 'CCS601'.
+
+    CLEAR : wa_set, wa_stru.
+    LOOP AT ta_stru_31 INTO wa_stru.
+      READ TABLE ta_set1 INTO wa_set WITH KEY valfrom  = wa_stru-kstar.
+      IF sy-subrc = 0.
+        v_oh_f = v_oh_f + wa_stru-wrtfx.
+        v_of_v = v_of_v + wa_stru-wertn.
+      ENDIF.
+    ENDLOOP.
+
+    CLEAR : wa_set, wa_stru.
+    LOOP AT ta_stru_31 INTO wa_stru.
+      READ TABLE ta_set2 INTO wa_set WITH KEY valfrom  = wa_stru-kstar.
+      IF sy-subrc = 0.
+        v_oh_f = v_oh_f + wa_stru-wrtfx.
+        v_of_v = v_of_v + wa_stru-wertn.
+      ENDIF.
+    ENDLOOP.
+
+    ta_set1[] = ta_set[].
+    DELETE ta_set1 WHERE setname NE 'CCS050'.
+
+    CLEAR : wa_set, wa_stru.
+    LOOP AT ta_stru_31 INTO wa_stru.
+      READ TABLE ta_set1 INTO wa_set WITH KEY valfrom  = wa_stru-kstar.
+      IF sy-subrc = 0.
+        v_pm_y = v_pm_y + wa_stru-wertn.
+      ENDIF.
+    ENDLOOP.
+
+    ta_set1[] = ta_set[].
+    DELETE ta_set1 WHERE setname NE 'CCS701'.
+
+    CLEAR : wa_set, wa_stru,v_pm_frg.
+    LOOP AT ta_stru_31 INTO wa_stru.
+      READ TABLE ta_set1 INTO wa_set WITH KEY valfrom  = wa_stru-kstar.
+      IF sy-subrc = 0.
+        v_pm_frg = v_pm_frg + wa_stru-wertn.
+      ENDIF.
+    ENDLOOP.
+*    ENDLOOP.
+
+
+    wa_final-31_rm_c = v_rm_c.
+    wa_final-31_rm_f = v_rm_f.
+    wa_final-31_rm_v = v_rm_f_t  - wa_final-31_rm_f.
+    wa_final-31_oh_f = v_oh_f.
+    wa_final-31_oh_v = v_of_v - v_oh_f.
+    wa_final-31_pm_y = v_pm_y .
+    wa_final-31_pm_frg = v_pm_frg .
+
+**********************************Logic for 13 material
+
+    CLEAR : v_rm_c,v_rm_f,v_rm_f_t,v_oh_f,v_of_v,v_oh_f,v_pm_y,v_pm_frg.
+
+    REFRESH ta_kalnr[].
+    ta_stru_13[] = ta_str[].
+    DELETE ta_stru_13 WHERE baugr = 'X'.
+    CLEAR wa_ke_13.
+
+    LOOP AT ta_ke_13 INTO wa_ke_13.
+      ta_kalnr = wa_ke_13-kalnr.
+      APPEND ta_kalnr TO ta_kalnr[].
+    ENDLOOP.
+
+    DELETE ADJACENT DUPLICATES FROM ta_kalnr[] COMPARING ALL FIELDS.
+
+    LOOP AT ta_stru_13 INTO wa_stru.
+      READ TABLE ta_kalnr[] INTO ta_kalnr WITH KEY kalnr = wa_stru-kalnr.
+      IF sy-subrc NE 0.
+        DELETE ta_stru_13 WHERE kalnr = wa_stru-kalnr.
+      ENDIF.
+    ENDLOOP.
+
+    APPEND LINES OF ta_stru_31_t[]  TO ta_stru_13[].
+
+    CLEAR : wa_stru, v_oh_f,v_oh_v,v_pm_y,v_pm_frg.
+
+    ta_set1[] = ta_set[].
+    ta_set2[] = ta_set[].
+
+    DELETE ta_set1 WHERE setname NE 'CCS002'.
+    DELETE ta_set2 WHERE setname NE 'CCS003'.
+
+    CLEAR : wa_set, wa_stru.
+    LOOP AT ta_stru_13 INTO wa_stru.
+
+      READ TABLE ta_set1 INTO wa_set WITH KEY valfrom  = wa_stru-kstar.
+      IF sy-subrc = 0.
+        CLEAR wa_stru_31_t.
+        READ TABLE ta_stru_31_t INTO wa_stru_31_t WITH KEY matnr = wa_stru-matnr.
+        IF sy-subrc EQ 0.
+          v_api_p = v_api_p + wa_stru-wertn.
+        ELSE.
+          v_api_i = v_api_i + wa_stru-wertn.
+        ENDIF.
+      ENDIF.
+    ENDLOOP.
+
+    CLEAR : wa_set, wa_stru.
+    LOOP AT ta_stru_13 INTO wa_stru.
+      READ TABLE ta_set2 INTO wa_set WITH KEY valfrom  = wa_stru-kstar.
+      IF sy-subrc = 0.
+        CLEAR wa_stru_31_t.
+        READ TABLE ta_stru_31_t INTO wa_stru_31_t WITH KEY matnr = wa_stru-matnr.
+        IF sy-subrc EQ 0.
+          v_api_p = v_api_p + wa_stru-wertn.
+        ELSE.
+          v_api_i = v_api_i + wa_stru-wertn.
+        ENDIF.
+      ENDIF.
+    ENDLOOP.
+
+    ta_set1[] = ta_set[].
+    ta_set2[] = ta_set[].
+    ta_set3[] = ta_set[].
+    ta_set4[] = ta_set[].
+    ta_set5[] = ta_set[].
+    ta_set6[] = ta_set[].
+    ta_set7[] = ta_set[].
+    ta_set8[] = ta_set[].
+    ta_set9[] = ta_set[].
+    ta_set10[] = ta_set[].
+
+    DELETE ta_set1 WHERE setname NE 'CCS101'.
+    DELETE ta_set2 WHERE setname NE 'CCS102'.
+    DELETE ta_set3 WHERE setname NE 'CCS103'.
+    DELETE ta_set4 WHERE setname NE 'CCS104'.
+    DELETE ta_set5 WHERE setname NE 'CCS105'.
+    DELETE ta_set6 WHERE setname NE 'CCS301'.
+    DELETE ta_set7 WHERE setname NE 'CCS302'.
+    DELETE ta_set8 WHERE setname NE 'CCS303'.
+    DELETE ta_set9 WHERE setname NE 'CCS304'.
+
+
+    CLEAR : wa_set, wa_stru.
+    LOOP AT ta_stru_13 INTO wa_stru.
+      READ TABLE ta_set1 INTO wa_set WITH KEY valfrom  = wa_stru-kstar.
+      IF sy-subrc = 0.
+        v_api_v = v_api_v + wa_stru-wertn.
+        v_api_f = v_api_f + wa_stru-wrtfx.
+      ENDIF.
+    ENDLOOP.
+
+    CLEAR : wa_set, wa_stru.
+    LOOP AT ta_stru_13 INTO wa_stru.
+      READ TABLE ta_set2 INTO wa_set WITH KEY valfrom  = wa_stru-kstar.
+      IF sy-subrc = 0.
+        v_api_v = v_api_v + wa_stru-wertn.
+        v_api_f = v_api_f + wa_stru-wrtfx.
+      ENDIF.
+    ENDLOOP.
+    CLEAR : wa_set, wa_stru.
+    LOOP AT ta_stru_13 INTO wa_stru.
+      READ TABLE ta_set3 INTO wa_set WITH KEY valfrom  = wa_stru-kstar.
+      IF sy-subrc = 0.
+        v_api_v = v_api_v + wa_stru-wertn.
+        v_api_f = v_api_f + wa_stru-wrtfx.
+      ENDIF.
+    ENDLOOP.
+
+    CLEAR : wa_set, wa_stru.
+    LOOP AT ta_stru_13 INTO wa_stru.
+      READ TABLE ta_set4 INTO wa_set WITH KEY valfrom  = wa_stru-kstar.
+      IF sy-subrc = 0.
+        v_api_v = v_api_v + wa_stru-wertn.
+        v_api_f = v_api_f + wa_stru-wrtfx.
+      ENDIF.
+    ENDLOOP.
+    CLEAR : wa_set, wa_stru.
+
+    LOOP AT ta_stru_13 INTO wa_stru.
+      READ TABLE ta_set5 INTO wa_set WITH KEY valfrom  = wa_stru-kstar.
+      IF sy-subrc = 0.
+        v_api_v = v_api_v + wa_stru-wertn.
+        v_api_f = v_api_f + wa_stru-wrtfx.
+      ENDIF.
+    ENDLOOP.
+
+    CLEAR : wa_set, wa_stru.
+    LOOP AT ta_stru_13 INTO wa_stru.
+      READ TABLE ta_set6 INTO wa_set WITH KEY valfrom  = wa_stru-kstar.
+      IF sy-subrc = 0.
+        v_api_v = v_api_v + wa_stru-wertn.
+        v_api_f = v_api_f + wa_stru-wrtfx.
+      ENDIF.
+    ENDLOOP.
+
+    CLEAR : wa_set, wa_stru.
+    LOOP AT ta_stru_13 INTO wa_stru.
+      READ TABLE ta_set7 INTO wa_set WITH KEY valfrom  = wa_stru-kstar.
+      IF sy-subrc = 0.
+        v_api_v = v_api_v + wa_stru-wertn.
+        v_api_f = v_api_f + wa_stru-wrtfx.
+      ENDIF.
+    ENDLOOP.
+
+    CLEAR : wa_set, wa_stru.
+    LOOP AT ta_stru_13 INTO wa_stru.
+      READ TABLE ta_set8 INTO wa_set WITH KEY valfrom  = wa_stru-kstar.
+      IF sy-subrc = 0.
+        v_api_v = v_api_v + wa_stru-wertn.
+        v_api_f = v_api_f + wa_stru-wrtfx.
+      ENDIF.
+    ENDLOOP.
+
+    CLEAR : wa_set, wa_stru.
+    LOOP AT ta_stru_13 INTO wa_stru.
+      READ TABLE ta_set9 INTO wa_set WITH KEY valfrom  = wa_stru-kstar.
+      IF sy-subrc = 0.
+        v_api_f = v_api_f + wa_stru-wrtfx.
+        v_api_v = v_api_v + wa_stru-wertn.
+      ENDIF.
+    ENDLOOP.
+
+    ta_set1[] = ta_set[].
+    ta_set2[] = ta_set[].
+
+    DELETE ta_set1 WHERE setname NE 'CCS202'.
+    DELETE ta_set2 WHERE setname NE 'CCS601'.
+
+    CLEAR : wa_set, wa_stru.
+    LOOP AT ta_stru_13 INTO wa_stru.
+      READ TABLE ta_set1 INTO wa_set WITH KEY valfrom  = wa_stru-kstar.
+      IF sy-subrc = 0.
+        v_api_oh_f = v_api_oh_f + wa_stru-wrtfx.
+        v_api_oh_v = v_api_oh_v + wa_stru-wertn.
+      ENDIF.
+    ENDLOOP.
+
+    CLEAR : wa_set, wa_stru.
+    LOOP AT ta_stru_13 INTO wa_stru.
+      READ TABLE ta_set2 INTO wa_set WITH KEY valfrom  = wa_stru-kstar.
+      IF sy-subrc = 0.
+        v_api_oh_f = v_api_oh_f + wa_stru-wrtfx.
+        v_api_oh_v = v_api_oh_v + wa_stru-wertn.
+      ENDIF.
+    ENDLOOP.
+
+    ta_set1[] = ta_set[].
+    DELETE ta_set1 WHERE setname NE 'CCS050'.
+
+    CLEAR : wa_set, wa_stru.
+    LOOP AT ta_stru_13 INTO wa_stru.
+      READ TABLE ta_set1 INTO wa_set WITH KEY valfrom  = wa_stru-kstar.
+      IF sy-subrc = 0.
+        v_api_y = v_api_y + wa_stru-wertn.
+      ENDIF.
+    ENDLOOP.
+
+
+    ta_set1[] = ta_set[].
+    DELETE ta_set1 WHERE setname NE 'CCS701'.
+
+    CLEAR : wa_set, wa_stru,v_pm_frg.
+    LOOP AT ta_stru_13 INTO wa_stru.
+      READ TABLE ta_set1 INTO wa_set WITH KEY valfrom  = wa_stru-kstar.
+      IF sy-subrc = 0.
+        v_api_frg = v_api_frg + wa_stru-wertn.
+      ENDIF.
+    ENDLOOP.
+
+    wa_final-13_api_i = v_api_i.
+    wa_final-13_api_p = v_api_p.
+    wa_final-13_api_f = v_api_f.
+    wa_final-13_api_v = v_api_v - v_api_f.
+    wa_final-13_api_oh_f = v_api_oh_f.
+    wa_final-13_api_oh_v = v_api_oh_v - v_api_oh_f.
+    wa_final-13_api_y = v_api_y.
+    wa_final-13_api_frg = v_api_frg.
+
+
+    wa_final-api_mat = ( wa_final-13_api_i + wa_final-13_api_y + wa_final-13_api_frg ) / wa_final-losgr.
+    wa_final-api_mat_p = (  wa_final-13_api_p ) / wa_final-losgr.
+    wa_final-e_mat = ( wa_final-31_rm_c + wa_final-31_pm_y + wa_final-31_pm_frg ) / wa_final-losgr.
+    wa_final-p_mat = ( wa_final-32_pm_c + wa_final-32_pm_y + wa_final-32_pm_frg ) / wa_final-losgr.
+    wa_final-api_oh_f = ( wa_final-13_api_f + wa_final-13_api_oh_f ) / wa_final-losgr.
+    wa_final-api_oh_v =  ( wa_final-13_api_v + wa_final-13_api_oh_v ) / wa_final-losgr.
+    wa_final-f_oh_f = ( wa_final-31_rm_f + wa_final-31_oh_f + wa_final-32_pm_f + wa_final-32_oh_f ) / wa_final-losgr.
+
+    wa_final-for_oh = ( wa_final-31_rm_v + wa_final-31_oh_v + wa_final-32_pm_v + wa_final-32_oh_v ) / wa_final-losgr.
+    wa_final-total = wa_final-api_mat + wa_final-api_mat_p + wa_final-e_mat + wa_final-p_mat + wa_final-api_oh_f
+                + wa_final-api_oh_v + wa_final-f_oh_f + wa_final-for_oh .
+
+
+    wa_final-diff  = wa_final-price - wa_final-total.
+    IF wa_final-price IS NOT INITIAL.
+      wa_final-d_pre =  ( wa_final-diff / wa_final-price ) * 100.
+    ENDIF.
+    APPEND wa_final TO ta_final.
+    CLEAR : wa_final,v_api_i,v_api_p,v_api_f,v_api_v,v_api_oh_f,v_api_oh_v,v_api_y,v_api_frg.
+  ENDLOOP.
+ENDFORM.                    " MERGE_DATA
+*&---------------------------------------------------------------------*
+*&      Form  GET_DATA_ZBFG
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM get_data_zbfg .
+
+  DATA : v_feh TYPE ck_klvar.
+
+  SELECT matnr
+         extwg
+         meins
+         FROM mara
+    INTO TABLE ta_mara
+    WHERE matnr IN s_matnr
+    AND mtart = 'ZBFG'.
+
+  IF ta_mara IS NOT INITIAL.
+    SELECT matnr
+           maktx
+      FROM makt
+      INTO TABLE ta_makt
+      FOR ALL ENTRIES IN ta_mara
+      WHERE matnr = ta_mara-matnr
+      AND spras = 'E'.
+
+    SELECT matnr
+           bwkey
+           kaln1
+     lplpr
+      FROM mbew
+      INTO TABLE ta_mbew
+      FOR ALL ENTRIES IN ta_mara
+      WHERE matnr = ta_mara-matnr
+      AND bwkey IN s_bwkey.
+  ENDIF.
+
+  IF ta_mbew IS NOT INITIAL.
+
+    SELECT matnr
+           werks
+           sobsk
+      INTO TABLE ta_marc
+      FROM marc
+      FOR ALL ENTRIES IN ta_mbew
+      WHERE matnr = ta_mbew-matnr
+      AND werks = ta_mbew-bwkey.
+
+
+*** Added by vipin 07.02.2017   #8000002889
+    IF rb2 = 'X'.
+      "Soc by pooja 05.05.2023 CR# 8000008985
+      IF s_kadky-low = s_kadky-high.
+        lv_kadky =  s_kadky-low.
+      ENDIF.
+      "Eoc by pooja 05.05.2023 CR# 8000008985
+      v_feh = p_sta.
+*  Begin of change started by Hame on 10-June-2024 CR8000003670
+    ELSEIF rb4 = 'X'.
+      IF s_kadka-low = s_kadka-high.
+        lv_kadky =  s_kadka-low.
+      ENDIF.
+*           v_feh = p_sta.
+      IF p_klvar = 'PPC1'.
+        v_feh = 'FR'.
+      ELSE.
+        v_feh = 'KA'.
+      ENDIF.
+*  End of change started by Hame on 10-June-2024 CR8000003670
+    ELSE.
+      lv_kadky = p_kadky."   "Added by pooja 05.05.2023 CR# 8000008985
+      IF p_klvar = 'PPC1'.
+        v_feh = 'FR'.
+      ELSE.
+        v_feh = 'KA'.
+      ENDIF.
+    ENDIF.
+*** Added by vipin 07.02.2017   #8000002889
+
+*"Soc by pooja 05.05.2023 CR# 8000008985
+    IF lv_kadky IS NOT INITIAL.
+      SELECT kalnr
+             kalka
+             kadky
+             tvers
+             bwvar
+             kkzma
+             bwkey
+             stnum
+             stalt
+             losgr
+             klvar
+             poper
+             bdatj
+             cpudt
+      FROM keko
+        INTO TABLE ta_keko1
+        FOR ALL ENTRIES IN ta_mbew
+        WHERE kalnr = ta_mbew-kaln1
+*          AND kadky LE p_kadky
+          AND kadky LE lv_kadky" Changed by pooja 05.05.2023 CR# 8000008985
+        AND feh_sta = v_feh
+
+        AND klvar = p_klvar.
+*  Begin of change started by Hame on 10-June-2024 CR8000003670
+    ELSEIF s_kadka IS NOT INITIAL .
+      SELECT kalnr
+      kalka
+      kadky
+      tvers
+      bwvar
+      kkzma
+      bwkey
+      stnum
+      stalt
+      losgr
+      klvar
+      poper
+      bdatj
+      cpudt
+      erfnm   " added by Vrushali on 28.03.2016
+FROM keko
+ INTO TABLE ta_keko2
+ FOR ALL ENTRIES IN ta_mbew
+ WHERE kalnr = ta_mbew-kaln1
+ AND kadky IN s_kadka
+ AND bwkey IN s_bwkey
+ AND feh_sta = v_feh
+ AND klvar = p_klvar
+ %_HINTS MSSQLNT 'INDEX("KEKO" "KEKO~ZCO")' .
+*  End of change started by Hame on 10-June-2024 CR8000003670
+    ELSE.
+
+      SELECT kalnr
+      kalka
+      kadky
+      tvers
+      bwvar
+      kkzma
+      bwkey
+      stnum
+      stalt
+      losgr
+      klvar
+      poper
+      bdatj
+      cpudt
+      erfnm   " added by Vrushali on 28.03.2016
+FROM keko
+ INTO TABLE ta_keko2
+ FOR ALL ENTRIES IN ta_mbew
+ WHERE kalnr = ta_mbew-kaln1
+ AND kadky IN s_kadky
+ AND bwkey IN s_bwkey
+ AND feh_sta = v_feh
+ AND klvar = p_klvar
+ %_HINTS MSSQLNT 'INDEX("KEKO" "KEKO~ZCO")' .
+    ENDIF.
+    "EOC by pooja 05.05.2023 CR# 8000008985
+  ENDIF.
+
+  "SOC by pooja 05.05.2023 CR# 8000008985
+  IF ta_keko1 IS NOT INITIAL.
+    APPEND LINES OF ta_keko1 TO ta_keko.
+  ENDIF.
+  IF ta_keko2 IS NOT INITIAL.
+    APPEND LINES OF ta_keko2 TO ta_keko.
+  ENDIF.
+  "EOC by pooja 05.05.2023 CR# 8000008985
+
+  SORT ta_keko BY kalnr bdatj DESCENDING poper DESCENDING.
+  DELETE ADJACENT DUPLICATES FROM ta_keko COMPARING kalnr.
+
+
+  SELECT  setname
+      valfrom
+     INTO TABLE ta_set
+FROM setleaf
+WHERE setname IN ('CCS002','CCS003','CCS050','CCS090','CCS101','CCS102','CCS103','CCS104','CCS105','CCS202','CCS301','CCS302','CCS303','CCS304','CCS601','CCS701','CCS702').
+
+
+ENDFORM.                    " GET_DATA_ZBFG
+*&---------------------------------------------------------------------*
+*&      Form  GET_DATA_ZAPI
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM get_data_zapi .
+  DATA : v_feh TYPE ck_klvar.
+
+  SELECT matnr
+         extwg
+         meins
+         FROM mara
+    INTO TABLE ta_mara
+    WHERE matnr IN s_matnr
+    AND mtart = 'ZAPI'.
+
+  IF ta_mara IS NOT INITIAL.
+    SELECT matnr
+           maktx
+      FROM makt
+      INTO TABLE ta_makt
+      FOR ALL ENTRIES IN ta_mara
+      WHERE matnr = ta_mara-matnr
+      AND spras = 'E'.
+
+    SELECT matnr
+           bwkey
+           kaln1
+           lplpr
+      FROM mbew
+      INTO TABLE ta_mbew
+      FOR ALL ENTRIES IN ta_mara
+      WHERE matnr = ta_mara-matnr
+      AND bwkey IN s_bwkey.
+  ENDIF.
+
+  IF ta_mbew IS NOT INITIAL.
+
+    SELECT matnr
+           werks
+           sobsk
+      INTO TABLE ta_marc
+      FROM marc
+      FOR ALL ENTRIES IN ta_mbew
+      WHERE matnr = ta_mbew-matnr
+      AND werks = ta_mbew-bwkey.
+
+*  *** Added by vipin 07.02.2017   #8000002889
+    IF rb2 = 'X'.
+      "Soc by pooja 05.05.2023 CR# 8000008985
+      IF s_kadky-low = s_kadky-high.
+        lv_kadky =  s_kadky-low.
+      ENDIF.
+      "Eoc by pooja 05.05.2023 CR# 8000008985
+      v_feh = p_sta.
+*  Begin of change started by Hame on 10-June-2024 CR8000003670
+    ELSEIF rb4 = 'X'.
+      IF s_kadka-low = s_kadka-high.
+        lv_kadky =  s_kadka-low.
+      ENDIF.
+*      v_feh = p_sta.
+      IF p_klvar = 'PPC1'.
+        v_feh = 'FR'.
+      ELSE.
+        v_feh = 'KA'.
+      ENDIF.
+*  End of change started by Hame on 10-June-2024 CR8000003670
+    ELSE.
+      lv_kadky = p_kadky."   "Added by pooja 05.05.2023 CR# 8000008985
+      IF p_klvar = 'PPC1'.
+        v_feh = 'FR'.
+      ELSE.
+        v_feh = 'KA'.
+      ENDIF.
+    ENDIF.
+*** Added by vipin 07.02.2017   #8000002889
+
+    "Soc by pooja 05.05.2023 CR# 8000008985
+    IF lv_kadky IS NOT INITIAL.
+      SELECT kalnr
+             kalka
+             kadky
+             tvers
+             bwvar
+             kkzma
+             bwkey
+             stnum
+             stalt
+             losgr
+             klvar
+             poper
+             bdatj
+             cpudt
+      FROM keko
+        INTO TABLE ta_keko1
+        FOR ALL ENTRIES IN ta_mbew
+        WHERE kalnr = ta_mbew-kaln1
+*            AND kadky LE p_kadky
+            AND kadky LE lv_kadky" Changed by pooja 05.05.2023 CR# 8000008985
+        AND feh_sta = v_feh
+        AND klvar = p_klvar.
+*  Begin of change started by Hame on 10-June-2024 CR8000003670
+    ELSEIF s_kadka IS NOT INITIAL.
+      SELECT kalnr
+             kalka
+             kadky
+             tvers
+             bwvar
+             kkzma
+             bwkey
+             stnum
+             stalt
+             losgr
+             klvar
+             poper
+             bdatj
+             cpudt
+             erfnm   " added by Vrushali on 28.03.2016
+             FROM keko
+             INTO TABLE ta_keko2
+             FOR ALL ENTRIES IN ta_mbew
+             WHERE kalnr = ta_mbew-kaln1
+             AND kadky IN s_kadka
+             AND bwkey IN s_bwkey
+             AND feh_sta = v_feh
+             AND klvar = p_klvar
+             %_HINTS MSSQLNT 'INDEX("KEKO" "KEKO~ZCO")' .
+*  End of change started by Hame on 10-June-2024 CR8000003670
+    ELSE.
+
+      SELECT kalnr
+      kalka
+      kadky
+      tvers
+      bwvar
+      kkzma
+      bwkey
+      stnum
+      stalt
+      losgr
+      klvar
+      poper
+      bdatj
+      cpudt
+      erfnm   " added by Vrushali on 28.03.2016
+FROM keko
+ INTO TABLE ta_keko2
+ FOR ALL ENTRIES IN ta_mbew
+ WHERE kalnr = ta_mbew-kaln1
+ AND kadky IN s_kadky
+ AND bwkey IN s_bwkey
+ AND feh_sta = v_feh
+ AND klvar = p_klvar
+ %_HINTS MSSQLNT 'INDEX("KEKO" "KEKO~ZCO")' .
+    ENDIF.
+    "EOC by pooja 05.05.2023 CR# 8000008985
+  ENDIF.
+
+  "SOC by pooja 05.05.2023 CR# 8000008985
+  IF ta_keko1 IS NOT INITIAL.
+    APPEND LINES OF ta_keko1 TO ta_keko.
+  ENDIF.
+  IF ta_keko2 IS NOT INITIAL.
+    APPEND LINES OF ta_keko2 TO ta_keko.
+  ENDIF.
+  "EOC by pooja 05.05.2023 CR# 8000008985
+
+  SORT ta_keko BY kalnr bdatj DESCENDING poper DESCENDING.
+  DELETE ADJACENT DUPLICATES FROM ta_keko COMPARING kalnr.
+
+  SELECT  setname
+      valfrom
+     INTO TABLE ta_set
+FROM setleaf
+WHERE setname IN ('CCS002','CCS003','CCS050','CCS090','CCS101','CCS102','CCS103','CCS104','CCS105','CCS202','CCS301','CCS302','CCS303','CCS304','CCS601','CCS701','CCS702').
+ENDFORM.                    " GET_DATA_ZAPI
+*&---------------------------------------------------------------------*
+*&      Form  GET_DATA_ZINT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM get_data_zint .
+  DATA : v_feh TYPE ck_klvar.
+
+  SELECT matnr
+         extwg
+         meins
+         FROM mara
+    INTO TABLE ta_mara
+    WHERE matnr IN s_matnr
+    AND mtart = 'ZINT'.
+
+  IF ta_mara IS NOT INITIAL.
+    SELECT matnr
+           maktx
+      FROM makt
+      INTO TABLE ta_makt
+      FOR ALL ENTRIES IN ta_mara
+      WHERE matnr = ta_mara-matnr
+      AND spras = 'E'.
+
+    SELECT matnr
+           bwkey
+           kaln1
+           lplpr
+      FROM mbew
+      INTO TABLE ta_mbew
+      FOR ALL ENTRIES IN ta_mara
+      WHERE matnr = ta_mara-matnr
+      AND bwkey IN s_bwkey.
+  ENDIF.
+
+  IF ta_mbew IS NOT INITIAL.
+
+    SELECT matnr
+           werks
+           sobsk
+      INTO TABLE ta_marc
+      FROM marc
+      FOR ALL ENTRIES IN ta_mbew
+      WHERE matnr = ta_mbew-matnr
+      AND werks = ta_mbew-bwkey.
+
+
+    IF rb2 = 'X'.
+      "Soc by pooja 05.05.2023 CR# 8000008985
+      IF s_kadky-low = s_kadky-high.
+        lv_kadky =  s_kadky-low.
+      ENDIF.
+      "Eoc by pooja 05.05.2023 CR# 8000008985
+      v_feh = p_sta.
+*  Begin of change started by Hame on 10-June-2024 CR8000003670
+    ELSEIF rb4 = 'X'.
+      IF s_kadka-low = s_kadka-high.
+        lv_kadky =  s_kadka-low.
+      ENDIF.
+*      v_feh = p_sta.
+      IF p_klvar = 'PPC1'.
+        v_feh = 'FR'.
+      ELSE.
+        v_feh = 'KA'.
+      ENDIF.
+*  End of change started by Hame on 10-June-2024 CR8000003670
+    ELSE.
+      lv_kadky = p_kadky."   "Added by pooja 05.05.2023 CR# 8000008985
+      IF p_klvar = 'PPC1'.
+        v_feh = 'FR'.
+      ELSE.
+        v_feh = 'KA'.
+      ENDIF.
+    ENDIF.
+
+    "Soc by pooja 05.05.2023 CR# 8000008985
+    IF lv_kadky IS NOT INITIAL.
+      SELECT kalnr
+             kalka
+             kadky
+             tvers
+             bwvar
+             kkzma
+             bwkey
+             stnum
+             stalt
+             losgr
+             klvar
+             poper
+             bdatj
+             cpudt
+      FROM keko
+        INTO TABLE ta_keko1
+        FOR ALL ENTRIES IN ta_mbew
+        WHERE kalnr = ta_mbew-kaln1
+*           AND kadky LE p_kadky
+           AND kadky LE lv_kadky" Changed by pooja 05.05.2023 CR# 8000008985
+        AND feh_sta = v_feh
+        AND klvar = p_klvar.
+*  Begin of change started by Hame on 10-June-2024 CR8000003670
+    ELSEIF s_kadka IS NOT INITIAL.
+      SELECT kalnr
+             kalka
+             kadky
+             tvers
+             bwvar
+             kkzma
+             bwkey
+             stnum
+             stalt
+             losgr
+             klvar
+             poper
+             bdatj
+             cpudt
+             erfnm   " added by Vrushali on 28.03.2016
+           FROM keko
+           INTO TABLE ta_keko2
+           FOR ALL ENTRIES IN ta_mbew
+           WHERE kalnr = ta_mbew-kaln1
+           AND kadky IN s_kadka
+           AND bwkey IN s_bwkey
+           AND feh_sta = v_feh
+           AND klvar = p_klvar
+           %_HINTS MSSQLNT 'INDEX("KEKO" "KEKO~ZCO")' .
+*  End of change started by Hame on 10-June-2024 CR8000003670
+    ELSE.
+
+      SELECT kalnr
+      kalka
+      kadky
+      tvers
+      bwvar
+      kkzma
+      bwkey
+      stnum
+      stalt
+      losgr
+      klvar
+      poper
+      bdatj
+      cpudt
+      erfnm   " added by Vrushali on 28.03.2016
+FROM keko
+ INTO TABLE ta_keko2
+ FOR ALL ENTRIES IN ta_mbew
+ WHERE kalnr = ta_mbew-kaln1
+ AND kadky IN s_kadky
+ AND bwkey IN s_bwkey
+ AND feh_sta = v_feh
+ AND klvar = p_klvar
+ %_HINTS MSSQLNT 'INDEX("KEKO" "KEKO~ZCO")' .
+    ENDIF.
+    "EOC by pooja 05.05.2023 CR# 8000008985
+  ENDIF.
+
+  "SOC by pooja 05.05.2023 CR# 8000008985
+  IF ta_keko1 IS NOT INITIAL.
+    APPEND LINES OF ta_keko1 TO ta_keko.
+  ENDIF.
+  IF ta_keko2 IS NOT INITIAL.
+    APPEND LINES OF ta_keko2 TO ta_keko.
+  ENDIF.
+  "EOC by pooja 05.05.2023 CR# 8000008985
+
+  SORT ta_keko BY kalnr bdatj DESCENDING poper DESCENDING.
+  DELETE ADJACENT DUPLICATES FROM ta_keko COMPARING kalnr.
+
+  SELECT  setname
+      valfrom
+     INTO TABLE ta_set
+FROM setleaf
+WHERE setname IN ('CCS002','CCS003','CCS050','CCS090','CCS101','CCS102','CCS103','CCS104','CCS105','CCS202','CCS301','CCS302','CCS303','CCS304','CCS601','CCS701','CCS702').
+ENDFORM.                    " GET_DATA_ZINT
+*&---------------------------------------------------------------------*
+*&      Form  MERGE_DATA_ZINT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM merge_data_zint .
+  DATA : ta_stru      TYPE  ck_strukturtab,
+         ta_stru_t    TYPE  ck_strukturtab,
+         ta_stru_32   TYPE  ck_strukturtab,
+         ta_stru_tmp  TYPE  ck_strukturtab,
+         ta_stru_tmp1 TYPE  ck_strukturtab,
+         ta_stru_31   TYPE  ck_strukturtab,
+         ta_stru_13   TYPE  ck_strukturtab,
+         wa_stru      TYPE ck_strukturtab_typ.
+
+  CLEAR : v_pm_c,
+        v_pm_f,
+        v_pm_ft,
+        v_pm_v,
+        v_oh_f,
+        v_oh_v,
+        v_of_v,
+        v_pm_y,
+        v_pm_frg,
+        v_rm_c,
+        v_rm_f,
+        v_rm_v,
+        v_api_i,
+        v_api_p,
+        v_api_f,
+        v_api_v,
+        v_api_oh_f,
+        v_api_oh_v,
+        v_api_y,
+        v_api_frg,
+        v_rm_f_t.
+
+  SORT ta_keko BY kalnr cpudt DESCENDING bdatj DESCENDING.
+  LOOP AT ta_keko INTO wa_keko.
+    wa_final-werks = wa_keko-bwkey.
+    wa_final-kadky = wa_keko-kadky.
+    wa_final-bdatj = wa_keko-bdatj.
+    wa_final-poper = wa_keko-poper.
+    wa_final-losgr = wa_keko-losgr.
+    wa_final-stnum = wa_keko-stnum.
+    wa_final-stalt = wa_keko-stalt.
+    wa_final-kalka = wa_keko-kalka.
+    wa_final-klvar = wa_keko-klvar.
+
+    READ TABLE ta_mbew INTO wa_mbew WITH KEY kaln1  = wa_keko-kalnr.
+    IF sy-subrc = 0.
+
+*      IF wa_ck_strukturtab-fwaer_kpf EQ 'UGX'.
+
+*        wa_final-price = wa_mbew-lplpr * 100.
+
+*      ELSE.
+      wa_final-price = wa_mbew-lplpr.
+*      ENDIF,.
+      wa_final-kaln1 = wa_mbew-kaln1.
+      READ TABLE ta_makt INTO wa_makt WITH KEY matnr = wa_mbew-matnr.
+      IF sy-subrc = 0.
+
+        wa_final-matnr = wa_makt-matnr.
+        wa_final-maktx = wa_makt-maktx.
+        READ TABLE ta_mara INTO wa_mara WITH KEY matnr  = wa_makt-matnr.
+        IF sy-subrc = 0.
+          wa_final-extwg = wa_mara-extwg.
+          wa_final-meins = wa_mara-meins.
+        ENDIF.
+      ENDIF.
+    ENDIF.
+********************for 31 lOGIC
+
+    CALL FUNCTION 'CK_F_CSTG_STRUCTURE_EXPLOSION'
+      EXPORTING
+        klvar              = p_klvar
+        kalnr              = wa_keko-kalnr
+        kadky              = wa_keko-kadky
+        tvers              = wa_keko-tvers
+        werk               = wa_keko-bwkey
+        sicht              = 01
+        s_losgr            = 'X'
+        s_bezugsmenge      = wa_keko-losgr
+*       S_BEZUGSMENGENEINHEIT       =
+*       S_ACCEPT_NULLMENGE = ' '
+        s_aufloesungstiefe = 0
+        s_read_only_db     = 'X'
+*       S_ONLY_MAT_POS     = ' '
+*       S_EXPLODE_KF_TOO   = ' '
+*       S_EXPLODE_RAW      = ' '
+        s_skip_totals      = 'X'
+*       S_USE_KKE3_CACHE   = ' '
+*       S_EXPLODE_BPO      = ' '
+*       S_VUC_READ_ONLY_DB = ' '
+*     IMPORTING
+*       F_KEKO             =
+*       F_HEADER_MAT       =
+*       S_AUFL_UNVOLLSTAENDIG       =
+      TABLES
+        strukturtabelle    = ta_stru
+*       T_KEKO_IMP         =
+      EXCEPTIONS
+        invalid_bzobj      = 1
+        keko_not_found     = 2
+        meta_model_error   = 3
+        ckhs_not_found     = 4
+        OTHERS             = 5.
+    IF sy-subrc <> 0.
+* Implement suitable error handling here
+    ENDIF.
+
+    DELETE ta_stru WHERE baugr NE ''.
+    ta_stru_13[]  =  ta_stru[].
+    ta_stru_t[] = ta_stru[].
+    ta_stru_tmp[] = ta_stru[].
+
+
+    REFRESH : ta_marc,ta_mast,ta_stpo.
+
+    IF ta_stru[] IS NOT INITIAL.
+      SELECT matnr
+               werks
+               sobsk
+               ncost
+          INTO TABLE ta_marc
+          FROM marc
+          FOR ALL ENTRIES IN ta_stru
+          WHERE matnr = ta_stru-matnr
+          AND werks = ta_stru-werks.
+    ENDIF.
+
+    IF ta_marc IS NOT INITIAL.
+      SELECT matnr
+             werks
+             stlnr
+        FROM mast
+        INTO TABLE ta_mast
+        FOR ALL ENTRIES IN ta_marc
+        WHERE matnr  = ta_marc-matnr
+        AND werks = ta_marc-werks.
+    ENDIF.
+
+    IF ta_mast IS NOT INITIAL.
+      SELECT stlnr
+             rekrs
+        FROM stpo
+        INTO TABLE ta_stpo
+        FOR ALL ENTRIES IN ta_mast
+        WHERE stlnr = ta_mast-stlnr.
+    ENDIF.
+
+
+    CLEAR wa_marc.
+    LOOP AT ta_marc INTO wa_marc.
+      IF wa_marc-ncost = 'X'.
+        wa_final-dnc = 'X'.
+      ENDIF.
+    ENDLOOP.
+
+    CLEAR wa_mast.
+    LOOP AT ta_mast INTO wa_mast." WHERE matnr = wa_marc-matnr AND werks = wa_marc-werks.
+      LOOP AT ta_stpo INTO wa_stpo WHERE stlnr = wa_mast-stlnr.
+        IF wa_stpo-rekrs = 'X'.
+          wa_final-rec = 'X'.
+        ENDIF.
+      ENDLOOP.
+    ENDLOOP.
+
+
+    SELECT kalnr
+               matnr
+               werks
+               FROM keko
+          INTO TABLE ta_ke_tmp
+          FOR ALL ENTRIES IN ta_stru_t
+        WHERE kalnr = ta_stru_t-kalnr
+         AND kalka = wa_final-kalka
+       AND kadky LT p_kadky
+        .
+
+    DELETE ta_ke_tmp WHERE matnr NOT BETWEEN 12000000 AND 12999999.
+    ta_ke_13[] = ta_ke_tmp[].
+
+    LOOP AT ta_ke_13 INTO wa_ke_13.
+      ta_kalnr = wa_ke_13-kalnr.
+      APPEND ta_kalnr TO ta_kalnr[].
+    ENDLOOP.
+
+    ta_kalnr = wa_keko-kalnr.
+    APPEND ta_kalnr TO ta_kalnr[].
+
+    LOOP AT ta_stru_13 INTO wa_stru.
+      READ TABLE ta_kalnr[] INTO ta_kalnr WITH KEY kalnr = wa_stru-kalnr.
+      IF sy-subrc NE 0.
+        DELETE ta_stru_13 WHERE kalnr = wa_stru-kalnr.
+      ENDIF.
+    ENDLOOP.
+
+    ta_set1[] = ta_set[].
+    ta_set2[] = ta_set[].
+
+    DELETE ta_set1 WHERE setname NE 'CCS002'.
+    DELETE ta_set2 WHERE setname NE 'CCS003'.
+
+    CLEAR : wa_set, wa_stru,ta_stru_tmp[].
+    CLEAR : wa_stru, v_oh_f,v_oh_v,v_pm_y,v_pm_frg.
+
+    ta_set1[] = ta_set[].
+    ta_set2[] = ta_set[].
+
+    DELETE ta_set1 WHERE setname NE 'CCS002'.
+    DELETE ta_set2 WHERE setname NE 'CCS003'.
+
+*   **********************************Logic for 13 material
+
+
+
+    CLEAR : v_rm_c,v_rm_f,v_rm_f_t,v_oh_f,v_of_v,v_oh_f,v_pm_y,v_pm_frg.
+
+    CLEAR : wa_stru, v_oh_f,v_oh_v,v_pm_y,v_pm_frg.
+
+
+    ta_set1[] = ta_set[].
+    ta_set2[] = ta_set[].
+
+    DELETE ta_set1 WHERE setname NE 'CCS002'.
+    DELETE ta_set2 WHERE setname NE 'CCS003'.
+
+    CLEAR : wa_set, wa_stru.
+    LOOP AT ta_stru_13 INTO wa_stru.
+
+      READ TABLE ta_set1 INTO wa_set WITH KEY valfrom  = wa_stru-kstar.
+      IF sy-subrc = 0.
+        IF wa_stru-werks =  wa_keko-bwkey.
+          v_api_p = v_api_p + wa_stru-wertn.
+        ELSE.
+          v_api_i = v_api_i + wa_stru-wertn.
+        ENDIF.
+      ENDIF.
+    ENDLOOP.
+
+    CLEAR : wa_set, wa_stru.
+    LOOP AT ta_stru_13 INTO wa_stru.
+      READ TABLE ta_set2 INTO wa_set WITH KEY valfrom  = wa_stru-kstar.
+      IF sy-subrc = 0.
+        IF wa_stru-werks =  wa_keko-bwkey.
+          v_api_p = v_api_p + wa_stru-wertn.
+        ELSE.
+          v_api_i = v_api_i + wa_stru-wertn.
+        ENDIF.
+      ENDIF.
+    ENDLOOP.
+
+
+
+    ta_set1[] = ta_set[].
+    ta_set2[] = ta_set[].
+    ta_set3[] = ta_set[].
+    ta_set4[] = ta_set[].
+    ta_set5[] = ta_set[].
+    ta_set6[] = ta_set[].
+    ta_set7[] = ta_set[].
+    ta_set8[] = ta_set[].
+    ta_set9[] = ta_set[].
+    ta_set10[] = ta_set[].
+
+
+    DELETE ta_set1 WHERE setname NE 'CCS101'.
+    DELETE ta_set2 WHERE setname NE 'CCS102'.
+    DELETE ta_set3 WHERE setname NE 'CCS103'.
+    DELETE ta_set4 WHERE setname NE 'CCS104'.
+    DELETE ta_set5 WHERE setname NE 'CCS105'.
+    DELETE ta_set6 WHERE setname NE 'CCS301'.
+    DELETE ta_set7 WHERE setname NE 'CCS302'.
+    DELETE ta_set8 WHERE setname NE 'CCS303'.
+    DELETE ta_set9 WHERE setname NE 'CCS304'.
+
+
+    CLEAR : wa_set, wa_stru.
+    LOOP AT ta_stru_13 INTO wa_stru.
+      READ TABLE ta_set1 INTO wa_set WITH KEY valfrom  = wa_stru-kstar.
+      IF sy-subrc = 0.
+        v_api_f = v_api_f + wa_stru-wrtfx.
+        v_api_v = v_api_v + wa_stru-wertn.
+      ENDIF.
+    ENDLOOP.
+
+    CLEAR : wa_set, wa_stru.
+    LOOP AT ta_stru_13 INTO wa_stru.
+      READ TABLE ta_set2 INTO wa_set WITH KEY valfrom  = wa_stru-kstar.
+      IF sy-subrc = 0.
+        v_api_f = v_api_f + wa_stru-wrtfx.
+        v_api_v = v_api_v + wa_stru-wertn.
+      ENDIF.
+    ENDLOOP.
+    CLEAR : wa_set, wa_stru.
+    LOOP AT ta_stru_13 INTO wa_stru.
+      READ TABLE ta_set3 INTO wa_set WITH KEY valfrom  = wa_stru-kstar.
+      IF sy-subrc = 0.
+        v_api_f = v_api_f + wa_stru-wrtfx.
+        v_api_v = v_api_v + wa_stru-wertn.
+      ENDIF.
+    ENDLOOP.
+
+    CLEAR : wa_set, wa_stru.
+    LOOP AT ta_stru_13 INTO wa_stru.
+      READ TABLE ta_set4 INTO wa_set WITH KEY valfrom  = wa_stru-kstar.
+      IF sy-subrc = 0.
+        v_api_f = v_api_f + wa_stru-wrtfx.
+        v_api_v = v_api_v + wa_stru-wertn.
+      ENDIF.
+    ENDLOOP.
+    CLEAR : wa_set, wa_stru.
+
+    LOOP AT ta_stru_13 INTO wa_stru.
+      READ TABLE ta_set5 INTO wa_set WITH KEY valfrom  = wa_stru-kstar.
+      IF sy-subrc = 0.
+        v_api_f = v_api_f + wa_stru-wrtfx.
+        v_api_v = v_api_v + wa_stru-wertn.
+      ENDIF.
+    ENDLOOP.
+
+    CLEAR : wa_set, wa_stru.
+    LOOP AT ta_stru_13 INTO wa_stru.
+      READ TABLE ta_set6 INTO wa_set WITH KEY valfrom  = wa_stru-kstar.
+      IF sy-subrc = 0.
+        v_api_f = v_api_f + wa_stru-wrtfx.
+        v_api_v = v_api_v + wa_stru-wertn.
+      ENDIF.
+    ENDLOOP.
+
+    CLEAR : wa_set, wa_stru.
+    LOOP AT ta_stru_13 INTO wa_stru.
+      READ TABLE ta_set7 INTO wa_set WITH KEY valfrom  = wa_stru-kstar.
+      IF sy-subrc = 0.
+        v_api_f = v_api_f + wa_stru-wrtfx.
+        v_api_v = v_api_v + wa_stru-wertn.
+      ENDIF.
+    ENDLOOP.
+
+    CLEAR : wa_set, wa_stru.
+    LOOP AT ta_stru_13 INTO wa_stru.
+      READ TABLE ta_set8 INTO wa_set WITH KEY valfrom  = wa_stru-kstar.
+      IF sy-subrc = 0.
+        v_api_f = v_api_f + wa_stru-wrtfx.
+        v_api_v = v_api_v + wa_stru-wertn.
+      ENDIF.
+    ENDLOOP.
+
+    CLEAR : wa_set, wa_stru.
+    LOOP AT ta_stru_13 INTO wa_stru.
+      READ TABLE ta_set9 INTO wa_set WITH KEY valfrom  = wa_stru-kstar.
+      IF sy-subrc = 0.
+        v_api_f = v_api_f + wa_stru-wrtfx.
+        v_api_v = v_api_v + wa_stru-wertn.
+      ENDIF.
+    ENDLOOP.
+
+
+    ta_set1[] = ta_set[].
+    ta_set2[] = ta_set[].
+
+    DELETE ta_set1 WHERE setname NE 'CCS202'.
+    DELETE ta_set2 WHERE setname NE 'CCS601'.
+
+    CLEAR : wa_set, wa_stru.
+    LOOP AT ta_stru_13 INTO wa_stru.
+      READ TABLE ta_set1 INTO wa_set WITH KEY valfrom  = wa_stru-kstar.
+      IF sy-subrc = 0.
+        v_api_oh_f = v_api_oh_f + wa_stru-wrtfx.
+        v_api_oh_v = v_api_oh_v + wa_stru-wertn.
+      ENDIF.
+    ENDLOOP.
+
+    CLEAR : wa_set, wa_stru.
+    LOOP AT ta_stru_13 INTO wa_stru.
+      READ TABLE ta_set2 INTO wa_set WITH KEY valfrom  = wa_stru-kstar.
+      IF sy-subrc = 0.
+        v_api_oh_f = v_api_oh_f + wa_stru-wrtfx.
+        v_api_oh_v = v_api_oh_v + wa_stru-wertn.
+      ENDIF.
+    ENDLOOP.
+
+    ta_set1[] = ta_set[].
+    DELETE ta_set1 WHERE setname NE 'CCS050'.
+
+    CLEAR : wa_set, wa_stru.
+    LOOP AT ta_stru_13 INTO wa_stru.
+      READ TABLE ta_set1 INTO wa_set WITH KEY valfrom  = wa_stru-kstar.
+      IF sy-subrc = 0.
+        v_api_y = v_api_y + wa_stru-wertn.
+      ENDIF.
+    ENDLOOP.
+
+    ta_set1[] = ta_set[].
+    DELETE ta_set1 WHERE setname NE 'CCS701'.
+
+    CLEAR : wa_set, wa_stru,v_pm_frg.
+    LOOP AT ta_stru_13 INTO wa_stru.
+      READ TABLE ta_set1 INTO wa_set WITH KEY valfrom  = wa_stru-kstar.
+      IF sy-subrc = 0.
+        v_api_frg = v_api_frg + wa_stru-wertn.
+      ENDIF.
+    ENDLOOP.
+
+    wa_final-13_api_i = v_api_i.
+    wa_final-13_api_p = v_api_p.
+    wa_final-13_api_f = v_api_f.
+    wa_final-13_api_v = v_api_v - v_api_f.
+    wa_final-13_api_oh_f = v_api_oh_f.
+    wa_final-13_api_oh_v = v_api_oh_v - v_api_oh_f.
+    wa_final-13_api_y = v_api_y.
+    wa_final-13_api_frg = v_api_frg.
+
+    wa_final-api_mat   = ( wa_final-13_api_i + wa_final-13_api_y + wa_final-13_api_frg ) / wa_final-losgr.
+    wa_final-api_mat_p = (  wa_final-13_api_p ) / wa_final-losgr.
+    wa_final-e_mat     = ( wa_final-31_rm_c + wa_final-31_pm_y + wa_final-31_pm_frg ) / wa_final-losgr.
+    wa_final-p_mat     = ( wa_final-32_pm_c + wa_final-32_pm_y + wa_final-32_pm_frg ) / wa_final-losgr.
+    wa_final-api_oh_f  = ( wa_final-13_api_f + wa_final-13_api_oh_f ) / wa_final-losgr.
+    wa_final-api_oh_v  =  ( wa_final-13_api_v + wa_final-13_api_oh_v ) / wa_final-losgr.
+    wa_final-f_oh_f    = ( wa_final-31_rm_f + wa_final-31_oh_f + wa_final-32_pm_f + wa_final-32_oh_f ) / wa_final-losgr.
+
+    wa_final-for_oh    = ( wa_final-31_rm_v + wa_final-31_oh_v + wa_final-32_pm_v + wa_final-32_oh_v ) / wa_final-losgr.
+    wa_final-total     = wa_final-api_mat + wa_final-e_mat + wa_final-p_mat + wa_final-api_oh_f
+                + wa_final-api_oh_v + wa_final-f_oh_f + wa_final-for_oh + wa_final-api_mat_p.
+
+    wa_final-diff  = wa_final-price - wa_final-total.
+    IF wa_final-price IS NOT INITIAL.
+      wa_final-d_pre =  ( wa_final-diff / wa_final-price ) * 100.
+    ENDIF.
+
+    APPEND wa_final TO ta_final.
+    CLEAR : wa_final,v_api_i,v_api_p,v_api_f,v_api_v,v_api_oh_f,v_api_oh_v,v_api_y,v_api_frg.
+  ENDLOOP.
+ENDFORM.                    " MERGE_DATA_ZINT
+*&---------------------------------------------------------------------*
+*&      Form  UPDATE_TABLE
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM update_table .
+
+  DATA : lv_index TYPE sy-tabix.
+
+  CLEAR ta_cost_breakup.
+  SELECT *
+    FROM zco_cost_breakup CLIENT SPECIFIED
+    INTO TABLE ta_cost_breakup
+    FOR ALL ENTRIES IN ta_final
+    WHERE mandt = sy-mandt
+      AND matnr = ta_final-matnr
+      AND werks = ta_final-werks
+      AND kadky = ta_final-kadky
+      AND klvar = ta_final-klvar.
+  IF sy-subrc = 0.
+    SORT ta_cost_breakup BY matnr werks kadky klvar.
+  ENDIF.
+
+  LOOP AT ta_final INTO wa_final.
+    CLEAR wa_cost_breakup.
+    READ TABLE ta_cost_breakup INTO wa_cost_breakup WITH KEY matnr = wa_final-matnr werks = wa_final-werks
+                                                             kadky = wa_final-kadky klvar = wa_final-klvar BINARY SEARCH.
+    IF sy-subrc = 0.
+      wa_cost_breakup-maktx         = wa_final-maktx.
+      wa_cost_breakup-extwg         = wa_final-extwg.
+      wa_cost_breakup-meins         = wa_final-meins.
+      wa_cost_breakup-kaln1         = wa_final-kaln1.
+      wa_cost_breakup-bdatj         = wa_final-bdatj.
+      wa_cost_breakup-poper         = wa_final-poper.
+      wa_cost_breakup-losgr         = wa_final-losgr.
+      wa_cost_breakup-stnum         = wa_final-stnum.
+      wa_cost_breakup-stalt         = wa_final-stalt.
+      wa_cost_breakup-kalka         = wa_final-kalka.
+      wa_cost_breakup-z32_pm_c      = wa_final-32_pm_c.
+      wa_cost_breakup-z32_pm_f      = wa_final-32_pm_f.
+      wa_cost_breakup-z32_pm_v      = wa_final-32_pm_v.
+      wa_cost_breakup-z32_oh_f      = wa_final-32_oh_f.
+      wa_cost_breakup-z32_oh_v      = wa_final-32_oh_v.
+      wa_cost_breakup-z32_pm_y      = wa_final-32_pm_y.
+      wa_cost_breakup-z32_pm_frg    = wa_final-32_pm_frg.
+      wa_cost_breakup-z31_rm_c      = wa_final-31_rm_c.
+      wa_cost_breakup-z31_rm_f      = wa_final-31_rm_f.
+      wa_cost_breakup-z31_rm_v      = wa_final-31_rm_v.
+      wa_cost_breakup-z31_oh_f      = wa_final-31_oh_f.
+      wa_cost_breakup-z31_oh_v      = wa_final-31_oh_v.
+      wa_cost_breakup-z31_pm_y      = wa_final-31_pm_y.
+      wa_cost_breakup-z31_pm_frg    = wa_final-31_pm_frg.
+      wa_cost_breakup-z13_api_i     = wa_final-13_api_i.
+      wa_cost_breakup-z13_api_p     = wa_final-13_api_p.
+      wa_cost_breakup-z13_api_f     = wa_final-13_api_f.
+      wa_cost_breakup-z13_api_v     = wa_final-13_api_v.
+      wa_cost_breakup-z13_api_oh_f  = wa_final-13_api_oh_f.
+      wa_cost_breakup-z13_api_oh_v  = wa_final-13_api_oh_v.
+      wa_cost_breakup-z13_api_y     = wa_final-13_api_y.
+      wa_cost_breakup-z13_api_frg   = wa_final-13_api_frg.
+      wa_cost_breakup-api_mat       = wa_final-api_mat.
+      wa_cost_breakup-api_mat_p     = wa_final-api_mat_p.
+      wa_cost_breakup-e_mat         = wa_final-e_mat.
+      wa_cost_breakup-p_mat         = wa_final-p_mat.
+      wa_cost_breakup-api_oh_f      = wa_final-api_oh_f.
+      wa_cost_breakup-api_oh_v      = wa_final-api_oh_v.
+      wa_cost_breakup-f_oh_f        = wa_final-f_oh_f.
+      wa_cost_breakup-for_oh        = wa_final-for_oh.
+      wa_cost_breakup-total         = wa_final-total.
+      wa_cost_breakup-dnc           = wa_final-dnc.
+      wa_cost_breakup-rec           = wa_final-rec.
+      wa_cost_breakup-price         = wa_final-price.
+      wa_cost_breakup-diff          = wa_final-diff.
+      wa_cost_breakup-d_pre         = wa_final-d_pre.
+      MODIFY zco_cost_breakup FROM wa_cost_breakup.
+      IF sy-subrc = 0.
+        MESSAGE s147(zsd).
+      ENDIF.
+    ELSE.
+      wa_cost_breakup-matnr         = wa_final-matnr.
+      wa_cost_breakup-werks         = wa_final-werks.
+      wa_cost_breakup-kadky         = wa_final-kadky.
+      wa_cost_breakup-klvar         = wa_final-klvar.
+      wa_cost_breakup-maktx         = wa_final-maktx.
+      wa_cost_breakup-extwg         = wa_final-extwg.
+      wa_cost_breakup-meins         = wa_final-meins.
+      wa_cost_breakup-kaln1         = wa_final-kaln1.
+      wa_cost_breakup-bdatj         = wa_final-bdatj.
+      wa_cost_breakup-poper         = wa_final-poper.
+      wa_cost_breakup-losgr         = wa_final-losgr.
+      wa_cost_breakup-stnum         = wa_final-stnum.
+      wa_cost_breakup-stalt         = wa_final-stalt.
+      wa_cost_breakup-kalka         = wa_final-kalka.
+      wa_cost_breakup-z32_pm_c      = wa_final-32_pm_c.
+      wa_cost_breakup-z32_pm_f      = wa_final-32_pm_f.
+      wa_cost_breakup-z32_pm_v      = wa_final-32_pm_v.
+      wa_cost_breakup-z32_oh_f      = wa_final-32_oh_f.
+      wa_cost_breakup-z32_oh_v      = wa_final-32_oh_v.
+      wa_cost_breakup-z32_pm_y      = wa_final-32_pm_y.
+      wa_cost_breakup-z32_pm_frg    = wa_final-32_pm_frg.
+      wa_cost_breakup-z31_rm_c      = wa_final-31_rm_c.
+      wa_cost_breakup-z31_rm_f      = wa_final-31_rm_f.
+      wa_cost_breakup-z31_rm_v      = wa_final-31_rm_v.
+      wa_cost_breakup-z31_oh_f      = wa_final-31_oh_f.
+      wa_cost_breakup-z31_oh_v      = wa_final-31_oh_v.
+      wa_cost_breakup-z31_pm_y      = wa_final-31_pm_y.
+      wa_cost_breakup-z31_pm_frg    = wa_final-31_pm_frg.
+      wa_cost_breakup-z13_api_i     = wa_final-13_api_i.
+      wa_cost_breakup-z13_api_p     = wa_final-13_api_p.
+      wa_cost_breakup-z13_api_f     = wa_final-13_api_f.
+      wa_cost_breakup-z13_api_v     = wa_final-13_api_v.
+      wa_cost_breakup-z13_api_oh_f  = wa_final-13_api_oh_f.
+      wa_cost_breakup-z13_api_oh_v  = wa_final-13_api_oh_v.
+      wa_cost_breakup-z13_api_y     = wa_final-13_api_y.
+      wa_cost_breakup-z13_api_frg   = wa_final-13_api_frg.
+      wa_cost_breakup-api_mat       = wa_final-api_mat.
+      wa_cost_breakup-api_mat_p     = wa_final-api_mat_p.
+      wa_cost_breakup-e_mat         = wa_final-e_mat.
+      wa_cost_breakup-p_mat         = wa_final-p_mat.
+      wa_cost_breakup-api_oh_f      = wa_final-api_oh_f.
+      wa_cost_breakup-api_oh_v      = wa_final-api_oh_v.
+      wa_cost_breakup-f_oh_f        = wa_final-f_oh_f.
+      wa_cost_breakup-for_oh        = wa_final-for_oh.
+      wa_cost_breakup-total         = wa_final-total.
+      wa_cost_breakup-dnc           = wa_final-dnc.
+      wa_cost_breakup-rec           = wa_final-rec.
+      wa_cost_breakup-price         = wa_final-price.
+      wa_cost_breakup-diff          = wa_final-diff.
+      wa_cost_breakup-d_pre         = wa_final-d_pre.
+
+      INSERT zco_cost_breakup FROM wa_cost_breakup.
+      IF sy-subrc = 0.
+        MESSAGE s147(zsd).
+      ENDIF.
+    ENDIF.
+  ENDLOOP.
+
+ENDFORM.                    " UPDATE_TABLE
+*&---------------------------------------------------------------------*
+*&      Form  CREATE_FCAT_NEW
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM create_fcat_new.
+  CLEAR ta_fieldcat.
+  PERFORM fill_field USING 'FMATNR' 'FMATNR' 'TA_DOWNLOAD' '' 'Header Material' ''.
+  PERFORM fill_field USING 'MAKTX' 'MAKTX'   'TA_DOWNLOAD' '' 'Header Material Description' ''.
+  PERFORM fill_field USING 'WERKS' 'WERKS'   'TA_DOWNLOAD' '' 'Header Material Plant' ''.
+  PERFORM fill_field USING 'KALN1' 'KALN1'   'MBEW' '' 'Header Material Costing Number' ''.
+  PERFORM fill_field USING 'KADKY' 'KADKY'   'TA_DOWNLOAD' '' 'Costing Date' ''.
+  PERFORM fill_field USING 'BDATJ' 'BDATJ'   'TA_DOWNLOAD' '' 'Year' ''.
+  PERFORM fill_field USING 'POPER' 'POPER'   'KEKO' ' ' 'Period' ''.
+  PERFORM fill_field USING 'LOSGR' 'LOSGR'   'KEKO' ' ' 'Costing lot size Header Material' ''.
+  PERFORM fill_field USING 'STNUM' 'STNUM'   'TA_DOWNLOAD' '' 'BOM' ''.
+  PERFORM fill_field USING 'STALT' 'STALT'   'TA_DOWNLOAD' ' ' 'Alt BOM' ''.
+  PERFORM fill_field USING 'KALKA' 'KALKA'   'TA_DOWNLOAD' ' ' 'Costing Type' ''.
+  PERFORM fill_field USING 'KLVAR' 'KLVAR'   'TA_DOWNLOAD' ' ' 'Costing variant' ''.
+  PERFORM fill_field USING 'TVERS' 'TVERS'   'TA_DOWNLOAD' ' ' 'Costing Version' ''.
+  PERFORM fill_field USING 'ERFNM' 'ERFNM'   'TA_DOWNLOAD' ' ' 'User ID' ''.
+  PERFORM fill_field USING 'KALNR' 'KALNR'   'TA_DOWNLOAD' ' ' 'Cost estimation no. from BOM' ''.
+  PERFORM fill_field USING 'KMATNR' 'KMATNR' 'TA_DOWNLOAD' ' ' 'Stage wise header material code' ''.
+  PERFORM fill_field USING 'MATNR' 'MATNR'   'TA_DOWNLOAD' ' ' 'Component Material ' ''.
+  PERFORM fill_field USING 'LTEXT' 'LTEXT'   'TA_DOWNLOAD' ' ' 'Long Text' ''.
+  PERFORM fill_field USING 'FWERKS' 'FWERKS' 'TA_DOWNLOAD' ' ' 'Plant of component material' ''.
+  PERFORM fill_field USING 'KSTAR' 'KSTAR'   'TA_DOWNLOAD' ' ' 'Cost element of Component' ''.
+**  PERFORM fill_field USING 'FLOSGR' 'FLOSGR' 'TA_DOWNLOAD' ' ' 'Costing Lot size' ''.
+  PERFORM fill_field USING 'KLTEXT' 'KLTEXT' 'TA_DOWNLOAD' ' ' 'Cost Element  Text' ''.  " NEW FIELD ADDED BY VRUSHALI 04.04
+  PERFORM fill_field USING 'WERTN' 'WERTN'   'CKPS' ' ' 'Total Value' ''.
+  PERFORM fill_field USING 'WRTFX' 'WRTFX'   'CKIS' '' 'Fixed value' ''.
+  PERFORM fill_field USING 'MENGE' 'MENGE'   'CKIS' '' 'Quantity' ''.
+  PERFORM fill_field USING 'TYPPS' 'TYPPS'   'TA_DOWNLOAD' '' 'Transection Indicator' ''.
+  PERFORM fill_field USING 'ELEMT' 'ELEMT'   'CKIS' '' 'ccs No1' ''.
+  PERFORM fill_field USING 'ELEMTNS' 'ELEMTNS' 'CKIS' '' 'ccs No2' ''.
+  PERFORM fill_field USING 'BAUGR' 'BAUGR'   'TA_DOWNLOAD' '' 'Bom Tag' ''.
+  PERFORM fill_field USING 'MEINS' 'MEINS'   'KEKO' '' 'UOM1' ''.
+  PERFORM fill_field USING 'PMEHT' 'PMEHT'   'CKIS' '' 'UOM2' ''.
+  PERFORM fill_field USING 'MEEHT' 'MEINS'   'KEKO' '' 'UOM3' ''.
+  PERFORM fill_field USING 'ARBPL' 'ARBPL'   'TA_DOWNLOAD' '' 'Resource' ''.
+  PERFORM fill_field USING 'FKLVAR' 'FKLVAR' 'TA_DOWNLOAD' '' 'Varient' ''.
+  PERFORM fill_field USING 'GPREIS' 'GPREIS' 'CKIS' '' 'Rate with Respect to Price unit' ''.
+  PERFORM fill_field USING 'PEINH' 'PEINH'   'CKIS' '' 'Price Unit' ''.
+  PERFORM fill_field USING 'KOSTL' 'KOSTL'   'TA_DOWNLOAD' '' 'Cost Center' ''.
+  PERFORM fill_field USING 'LSTAR' 'LSTAR'   'TA_DOWNLOAD' '' 'Activity Type' ''.
+  PERFORM fill_field USING 'UMREZ' 'UMREZ'   'AFPO' '' 'Numerator for Conversion to Base Units of Measure' ''.
+  PERFORM fill_field USING 'UMREN' 'UMREN'   'AFPO' '' 'Denominator for conversion to base units of measure' ''.
+  PERFORM fill_field USING 'PAROB' 'PAROB'   'TA_DOWNLOAD' '' 'Partner Object' ''.
+  PERFORM fill_field USING 'PRCTR' 'PRCTR'   'TA_DOWNLOAD' '' 'Profit Center' ''.
+  PERFORM fill_field USING 'NCOST' 'NCOST'   'TA_DOWNLOAD' '' 'Do not Cost ' ''.
+  PERFORM fill_field USING 'REKRS' 'REKRS'   'TA_DOWNLOAD' '' 'Recursive' ''.
+  PERFORM fill_field USING 'LPLPR' 'LPLPR'   'MBEW' '' 'Std.Rate' ''.
+
+
+
+
+ENDFORM.                    " CREATE_FCAT_NEW
+*&---------------------------------------------------------------------*
+*&      Form  DISPLAY_ALV_NEW
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM display_alv_new .
+  DATA : lwa_layout TYPE slis_layout_alv.
+
+  CLEAR lwa_layout.
+  lwa_layout-zebra = 'X'.
+  lwa_layout-colwidth_optimize = 'X'.
+  DATA: n  TYPE i VALUE 1,
+        n1 TYPE i VALUE 2.
+
+*  break abap4.
+*  WHILE n ne n1.
+*    n1 = 2.
+*  ENDWHILE.
+*  DO n TIMES.
+*    n = n + 1.
+*  ENDDO.
+
+  CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+    EXPORTING
+      i_callback_program = sy-repid
+      is_layout          = lwa_layout
+      it_fieldcat        = ta_fieldcat
+      i_default          = 'X'
+      i_save             = 'A'
+      is_variant         = g_variant
+    TABLES
+      t_outtab           = ta_download
+    EXCEPTIONS
+      program_error      = 1
+      OTHERS             = 2.
+  IF sy-subrc <> 0.
+* Implement suitable error handling here
+  ENDIF.
+
+ENDFORM.                    " DISPLAY_ALV_NEW
+*&---------------------------------------------------------------------*
+*&      Form  FM_DATA
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM fm_data .
+  DATA : lta_download TYPE STANDARD TABLE OF ty_download,
+         lwa_download TYPE ty_download.
+
+*  break abap4.
+  CLEAR ta_final_struc.
+  LOOP AT ta_final INTO wa_final.
+
+    CLEAR wa_keko.
+    READ TABLE ta_keko INTO wa_keko WITH KEY kalnr = wa_final-kaln1.
+    IF sy-subrc = 0.
+
+      CALL FUNCTION 'CK_F_CSTG_STRUCTURE_EXPLOSION'
+        EXPORTING
+          klvar              = wa_final-klvar
+          kalnr              = wa_final-kaln1
+          kadky              = wa_final-kadky
+          tvers              = wa_keko-tvers
+          werk               = wa_final-werks
+          sicht              = 01
+          s_losgr            = 'X'
+          s_bezugsmenge      = wa_final-losgr
+*         S_BEZUGSMENGENEINHEIT       =
+*         S_ACCEPT_NULLMENGE = ' '
+          s_aufloesungstiefe = 0
+          s_read_only_db     = 'X'
+*         S_ONLY_MAT_POS     = ' '
+*         S_EXPLODE_KF_TOO   = ' '
+*         S_EXPLODE_RAW      = ' '
+          s_skip_totals      = 'X'
+*         S_USE_KKE3_CACHE   = ' '
+*         S_EXPLODE_BPO      = ' '
+*         S_VUC_READ_ONLY_DB = ' '
+* IMPORTING
+*         F_KEKO             =
+*         F_HEADER_MAT       =
+*         S_AUFL_UNVOLLSTAENDIG       =
+        TABLES
+          strukturtabelle    = ta_ck_strukturtab
+*         T_KEKO_IMP         =
+        EXCEPTIONS
+          invalid_bzobj      = 1
+          keko_not_found     = 2
+          meta_model_error   = 3
+          ckhs_not_found     = 4
+          OTHERS             = 5.
+      IF sy-subrc = 0.
+*      APPEND LINES OF ta_ck_strukturtab TO ta_final_struc.
+        LOOP AT ta_ck_strukturtab INTO wa_ck_strukturtab.
+          MOVE-CORRESPONDING wa_ck_strukturtab TO wa_download.
+
+          IF wa_ck_strukturtab-fwaer_kpf EQ 'UGX'.
+
+            wa_download-wertn = wa_ck_strukturtab-wrtfw_kpf * 100.
+            wa_download-wrtfx = wa_ck_strukturtab-wrtfw_kfx * 100.
+            wa_download-gpreis = wa_ck_strukturtab-opreis * 100.
+
+          ELSE.
+            wa_download-wertn = wa_ck_strukturtab-wrtfw_kpf .
+            wa_download-wrtfx = wa_ck_strukturtab-wrtfw_kfx .
+
+          ENDIF.
+
+*          MOVE-CORRESPONDING wa_ck_strukturtab TO wa_download.
+          wa_download-fmatnr = wa_final-matnr.
+          wa_download-maktx  = wa_final-maktx.
+          wa_download-werks  = wa_final-werks.
+          wa_download-kaln1  = wa_final-kaln1.
+          wa_download-kadky  = wa_final-kadky.
+          wa_download-bdatj  = wa_final-bdatj.
+          wa_download-poper  = wa_final-poper.
+          wa_download-losgr  = wa_final-losgr.
+          wa_download-stnum  = wa_final-stnum.
+          wa_download-stalt  = wa_final-stalt.
+          wa_download-kalka  = wa_final-kalka.
+          wa_download-klvar  = wa_final-klvar.
+          wa_download-erfnm  = wa_keko-erfnm.
+          wa_download-fwerks = wa_ck_strukturtab-werks.
+          wa_download-fklvar = wa_ck_strukturtab-klvar.
+          APPEND wa_download TO ta_download.
+        ENDLOOP.
+
+      ENDIF.
+    ENDIF.
+  ENDLOOP.
+
+  lta_download = ta_download.
+  SORT lta_download BY kalnr.
+  DELETE ADJACENT DUPLICATES FROM lta_download COMPARING kalnr.
+
+  IF lta_download IS NOT INITIAL.
+    CLEAR ta_keko_dwn.
+    SELECT kalnr  matnr  werks
+      FROM keko CLIENT SPECIFIED
+      INTO TABLE ta_keko_dwn
+      FOR ALL ENTRIES IN lta_download
+      WHERE mandt = sy-mandt
+        AND kalnr = lta_download-kalnr
+       AND kadky LE p_kadky.
+    IF sy-subrc = 0.
+      CLEAR ta_marc_dwn.
+      SELECT  matnr   werks   sobsk   ncost
+        FROM  marc CLIENT SPECIFIED
+        INTO TABLE ta_marc_dwn
+        FOR ALL ENTRIES IN ta_keko_dwn
+        WHERE mandt = sy-mandt
+          AND matnr = ta_keko_dwn-matnr
+          AND werks = ta_keko_dwn-werks.
+
+      CLEAR ta_mast_dwn.
+      SELECT matnr  werks  stlnr
+        FROM mast CLIENT SPECIFIED
+        INTO TABLE ta_mast_dwn
+        FOR ALL ENTRIES IN ta_keko_dwn
+        WHERE mandt = sy-mandt
+         AND matnr = ta_keko_dwn-matnr
+         AND werks = ta_keko_dwn-werks.
+      IF sy-subrc = 0.
+
+        CLEAR ta_stpo_dwn.
+        SELECT stlnr  rekrs
+          FROM stpo CLIENT SPECIFIED
+          INTO TABLE ta_stpo_dwn
+          FOR ALL ENTRIES IN ta_mast_dwn
+          WHERE mandt = sy-mandt
+            AND stlnr = ta_mast_dwn-stlnr.
+      ENDIF.
+    ENDIF.
+  ENDIF.
+
+  CLEAR ta_csku.
+  SELECT spras  ktopl  kstar  ltext
+    FROM csku CLIENT SPECIFIED
+    INTO TABLE ta_csku
+    FOR ALL ENTRIES IN ta_download
+    WHERE mandt = sy-mandt
+      AND spras = 'EN'
+      AND ktopl = 'OCOA'
+      AND kstar = ta_download-kstar.
+
+
+  LOOP AT ta_download INTO wa_download.
+    CLEAR wa_keko_dwn.
+    READ TABLE ta_keko_dwn INTO wa_keko_dwn WITH KEY kalnr = wa_download-kalnr.
+    IF sy-subrc = 0.
+      wa_download-kmatnr = wa_keko_dwn-matnr.
+
+      CLEAR wa_marc_dwn.
+      READ TABLE ta_marc_dwn INTO wa_marc_dwn WITH KEY matnr = wa_keko_dwn-matnr werks = wa_keko_dwn-werks.
+      IF sy-subrc = 0.
+        IF wa_marc_dwn-ncost IS NOT INITIAL.
+          wa_download-ncost = 'X'.
+        ENDIF.
+*        wa_download-ncost = wa_marc_dwn-ncost.
+      ENDIF.
+
+      CLEAR wa_mast_dwn.
+      READ TABLE ta_mast_dwn INTO wa_mast_dwn WITH KEY matnr = wa_keko_dwn-matnr werks = wa_keko_dwn-werks.
+      IF sy-subrc = 0.
+        CLEAR wa_stpo_dwn.
+        READ TABLE ta_stpo_dwn INTO wa_stpo_dwn WITH KEY stlnr = wa_mast_dwn-stlnr.
+        IF sy-subrc = 0.
+          IF wa_stpo_dwn-rekrs IS NOT INITIAL .
+            wa_download-rekrs = 'X'.
+          ENDIF.
+        ENDIF.
+      ENDIF.
+    ENDIF.
+
+    CLEAR wa_mbew.
+    READ TABLE ta_mbew INTO wa_mbew WITH KEY matnr = wa_download-fmatnr.
+    IF sy-subrc = 0.
+      IF wa_ck_strukturtab-fwaer_kpf EQ 'UGX'.
+        wa_download-lplpr = wa_mbew-lplpr * 100.
+      ELSE.
+        wa_download-lplpr = wa_mbew-lplpr.
+      ENDIF.
+    ENDIF.
+
+    CLEAR wa_csku.
+    READ TABLE ta_csku INTO wa_csku WITH KEY kstar = wa_download-kstar.
+    IF sy-subrc = 0.
+      wa_download-kltext = wa_csku-ltext.
+    ENDIF.
+
+    MODIFY ta_download FROM wa_download TRANSPORTING kmatnr kltext ncost rekrs lplpr.
+  ENDLOOP.
+
+ENDFORM.                    " FM_DATA
+*&---------------------------------------------------------------------*
+*&      Form  FILL_FIELD
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_7603   text
+*      -->P_7604   text
+*      -->P_7605   text
+*      -->P_7606   text
+*      -->P_7607   text
+*      -->P_7608   text
+*----------------------------------------------------------------------*
+FORM fill_field  USING  p_tab_field_name TYPE slis_fieldcat_alv-fieldname
+                        p_ref_field_name TYPE slis_fieldcat_alv-ref_fieldname
+                        p_ref_field_table TYPE slis_fieldcat_alv-ref_tabname
+                        p_dosum TYPE slis_fieldcat_alv-do_sum
+                        p_short_text
+                        p_edit.
+
+  CLEAR wa_fieldcat.
+  g_pos = g_pos + 1.
+
+  wa_fieldcat-col_pos       = g_pos.
+  wa_fieldcat-fieldname     = p_tab_field_name.
+  wa_fieldcat-ref_fieldname = p_ref_field_name.
+  wa_fieldcat-ref_tabname   = p_ref_field_table.
+  wa_fieldcat-do_sum        = p_dosum.
+  wa_fieldcat-seltext_l     = p_short_text.
+  wa_fieldcat-seltext_m     = p_short_text.
+  wa_fieldcat-seltext_s     = p_short_text.
+  wa_fieldcat-reptext_ddic  = p_short_text.
+  wa_fieldcat-edit          = p_edit.
+
+  APPEND wa_fieldcat TO  ta_fieldcat.
+
+
+ENDFORM.                    " FILL_FIELD
+*&---------------------------------------------------------------------*
+*&      Form  SEND_TO_ALL11
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM send_to_all11 .
+  DATA: lv_fpath TYPE string,
+        lv_data  TYPE string,
+        ta_dump  TYPE TABLE OF ty1_final,
+        lwa_dump TYPE ty1_final,
+        lv_spath TYPE string. " Added by Sharan CR#8000007328
+  IF ta_final IS NOT INITIAL.
+
+    SELECT SINGLE param_name
+      FROM zparam_table
+      INTO lv_fpath
+      WHERE id_name EQ 'ZCK13N'.
+
+    IF sy-subrc EQ 0.
+*    CONCATENATE 'H:\Analytics\SCM\ZCO_CK13N\ZCO_CK13N_' sy-datum '.CSV' INTO lv_fpath.
+      CONCATENATE lv_fpath 'ZCO_CK13N_' sy-datum '_' sy-uzeit '.CSV' INTO lv_fpath.
+    ENDIF.
+    "Commented by Shravani Gadhikar for CR 8000003398 and TR CRDK990210 on 19-03-2024
+*    IF r3 = 'X' OR
+*       r4 = 'X'.
+* CR#8000007328
+*      CONCATENATE 'D:\' 'ZFI_SOLVENTS\' 'ZFI_SOLVENTS_' sy-datum '_' sy-uzeit '.CSV' INTO lv_spath. "For Solvents
+*    ENDIF.
+    LOOP AT ta_download INTO wa_download.
+      MOVE-CORRESPONDING wa_download TO lwa_dump.
+      APPEND lwa_dump TO ta_dump.
+    ENDLOOP.
+    "Open the file to write internal table data into AL11 file path
+    OPEN DATASET lv_fpath FOR OUTPUT IN TEXT MODE ENCODING DEFAULT.
+
+    "Commented by Shravani Gadhikar for CR 8000003398 and TR CRDK990210 on 19-03-2024
+*    IF r3 = 'X' OR " CR#8000007328
+*    r4 = 'X'.
+*      OPEN DATASET lv_spath FOR OUTPUT IN TEXT MODE ENCODING DEFAULT.
+*    ENDIF.
+
+    IF sy-subrc NE 0.
+      "Throw error message if not able to process AL11 file path
+      MESSAGE e035(zmm).
+    ELSE.
+      "Move column headings and value data to file path in AL11
+      CONCATENATE  'Header Mat'
+     'Header Mat Desc'
+     'Header Mat Plant'
+     'Header Mat Costng No.'
+     'Costng Date'
+     'Year'
+     'Period'
+     'Cost lot size Hr Mat'
+     'BOM'
+     'Alt BOM'
+     'Costng Typ'
+     'Costng var'
+     'Costng Ver'
+     'User ID'
+     'Cost est.no.BOM'
+     'Stage wise HR mat code'
+     'Comp Mat'
+     'Long Text'
+     'Plant of Comp Mat'
+     'Cost element of Comp'
+     'Costng Lot size'
+     'Cost element Text'
+     'Total Val'
+     'Fixed val'
+     'Qty'
+     'Transtn Ind'
+     'ccs No1'
+     'ccs No2'
+     'Bom Tag'
+     'UOM1'
+     'UOM2'
+     'UOM3'
+     'Resource'
+     'Variant'
+     'Rate wrt U/P'
+     'Price Unit'
+     'Cost Center'
+     'Act Typ'
+     'Numerator'
+     'Denominator'
+     'Partner Obj'
+     'Profit CEN'
+     'D/N Cost'
+     'Recursive'
+     'Std.Rate'
+         INTO lv_data SEPARATED BY '|'.
+      TRANSFER lv_data TO lv_fpath.
+
+* "Commented by Shravani Gadhikar for CR 8000003398 and TR CRDK990210 on 19-03-2024
+*      IF r3 = 'X' OR
+*    r4 = 'X'.
+*        TRANSFER lv_data TO lv_spath.
+*      ENDIF.
+      CLEAR lv_data.
+
+      LOOP AT ta_dump ASSIGNING FIELD-SYMBOL(<lwa_dump>).
+        "Merge data into single line with tab separated in text file
+        CONCATENATE <lwa_dump>-fmatnr
+        <lwa_dump>-maktx
+        <lwa_dump>-werks
+        <lwa_dump>-kaln1
+        <lwa_dump>-kadky
+        <lwa_dump>-bdatj
+        <lwa_dump>-poper
+        <lwa_dump>-losgr
+        <lwa_dump>-stnum
+        <lwa_dump>-stalt
+        <lwa_dump>-kalka
+        <lwa_dump>-klvar
+        <lwa_dump>-tvers
+        <lwa_dump>-erfnm
+        <lwa_dump>-kalnr
+        <lwa_dump>-kmatnr
+        <lwa_dump>-matnr
+        <lwa_dump>-ltext
+        <lwa_dump>-fwerks
+        <lwa_dump>-kstar
+        <lwa_dump>-flosgr
+        <lwa_dump>-kltext
+        <lwa_dump>-wertn
+        <lwa_dump>-wrtfx
+        <lwa_dump>-menge
+        <lwa_dump>-typps
+        <lwa_dump>-elemt
+        <lwa_dump>-elemtns
+        <lwa_dump>-baugr
+        <lwa_dump>-meins
+        <lwa_dump>-pmeht
+        <lwa_dump>-meeht
+        <lwa_dump>-arbpl
+        <lwa_dump>-fklvar
+        <lwa_dump>-gpreis
+        <lwa_dump>-peinh
+        <lwa_dump>-kostl
+        <lwa_dump>-lstar
+        <lwa_dump>-umrez
+        <lwa_dump>-umren
+        <lwa_dump>-parob
+        <lwa_dump>-prctr
+        <lwa_dump>-ncost
+        <lwa_dump>-rekrs
+        <lwa_dump>-lplpr
+                        INTO lv_data SEPARATED BY '|'.
+
+        TRANSFER lv_data TO lv_fpath.
+
+        "Commented by Shravani Gadhikar for CR 8000003398 and TR CRDK990210 on 19-03-2024
+*        IF r3 = 'X' OR "CR#8000007328
+*           r4 = 'X'.
+*          TRANSFER lv_data TO lv_spath.
+*        ENDIF.
+        CLEAR lv_data.
+      ENDLOOP.
+
+      UNASSIGN <lwa_dump>.
+      CLEAR:
+        lv_data.
+    ENDIF.
+    "Close file
+    CLOSE DATASET lv_fpath.
+    "Commented by Shravani Gadhikar for CR 8000003398 and TR CRDK990210 on 19-03-2024
+*    IF r3 = 'X' OR
+*    r4 = 'X'.
+*      CLOSE DATASET lv_spath.
+*    ENDIF.
+    MESSAGE 'File send to AL11' TYPE 'S'.
+  ELSE.
+    MESSAGE e004(zmm).
+  ENDIF.
+
+  REFRESH: ta_dump.
+ENDFORM.
+
+"Soc by Pooja on 04.05.2023 CR# 8000008985
+
+INITIALIZATION.
+  g_variant-report = sy-repid.
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_var.
+  CALL FUNCTION 'REUSE_ALV_VARIANT_F4'
+    EXPORTING
+      is_variant    = g_variant
+      i_save        = 'A'
+    IMPORTING
+      es_variant    = g_variant
+    EXCEPTIONS
+      not_found     = 1
+      program_error = 2
+      OTHERS        = 3.
+  IF sy-subrc = 0.
+    p_var = g_variant-variant.
+  ELSE.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+            WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ENDIF.
+  "EOC by Pooja on 04.05.2023 CR# 8000008985
+
+
+  "SOC Added by Shravani Gadhikar for CR 8000003398 and TR CRDK990135 on 19-03-2024
+*&---------------------------------------------------------------------*
+*&      Form  SEND_TO_ALL11
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM send_to_all.
+  DATA: lv_fpath TYPE string,
+        lv_data  TYPE string,
+        ta_dump  TYPE TABLE OF ty1_final,
+        lwa_dump TYPE ty1_final,
+        lv_spath TYPE string.
+
+  IF ta_final IS NOT INITIAL.
+
+    CLEAR: lv_fpath.
+
+    SELECT SINGLE param_name
+      FROM zparam_table
+      INTO lv_fpath
+      WHERE id_name EQ co_id.
+
+    IF sy-subrc EQ 0.
+*      CONCATENATE lv_fpath '\' co_file_name sy-datum '.CSV' INTO lv_fpath.
+      CONCATENATE lv_fpath 'ZFI_SOLVENTS_' sy-datum '_' sy-uzeit '.csv' INTO lv_fpath.
+    ENDIF.
+
+    LOOP AT ta_download INTO wa_download.
+      MOVE-CORRESPONDING wa_download TO lwa_dump.
+      APPEND lwa_dump TO ta_dump.
+    ENDLOOP.
+    "Open the file to write internal table data into AL11 file path
+    OPEN DATASET lv_fpath FOR OUTPUT IN TEXT MODE ENCODING DEFAULT.
+
+    IF sy-subrc NE 0.
+      "Throw error message if not able to process AL11 file path
+      MESSAGE e035(zmm).
+    ELSE.
+      "Move column headings and value data to file path in AL11
+      CONCATENATE  'Header Mat'
+     'Header Mat Desc'
+     'Header Mat Plant'
+     'Header Mat Costng No.'
+     'Costng Date'
+     'Year'
+     'Period'
+     'Cost lot size Hr Mat'
+     'BOM'
+     'Alt BOM'
+     'Costng Typ'
+     'Costng var'
+     'Costng Ver'
+     'User ID'
+     'Cost est.no.BOM'
+     'Stage wise HR mat code'
+     'Comp Mat'
+     'Long Text'
+     'Plant of Comp Mat'
+     'Cost element of Comp'
+     'Costng Lot size'
+     'Cost element Text'
+     'Total Val'
+     'Fixed val'
+     'Qty'
+     'Transtn Ind'
+     'ccs No1'
+     'ccs No2'
+     'Bom Tag'
+     'UOM1'
+     'UOM2'
+     'UOM3'
+     'Resource'
+     'Variant'
+     'Rate wrt U/P'
+     'Price Unit'
+     'Cost Center'
+     'Act Typ'
+     'Numerator'
+     'Denominator'
+     'Partner Obj'
+     'Profit CEN'
+     'D/N Cost'
+     'Recursive'
+     'Std.Rate'
+         INTO lv_data SEPARATED BY '|'.
+      TRANSFER lv_data TO lv_fpath.
+      CLEAR lv_data.
+
+      LOOP AT ta_dump ASSIGNING FIELD-SYMBOL(<lwa_dump>).
+        "Merge data into single line with tab separated in text file
+        CONCATENATE <lwa_dump>-fmatnr
+        <lwa_dump>-maktx
+        <lwa_dump>-werks
+        <lwa_dump>-kaln1
+        <lwa_dump>-kadky
+        <lwa_dump>-bdatj
+        <lwa_dump>-poper
+        <lwa_dump>-losgr
+        <lwa_dump>-stnum
+        <lwa_dump>-stalt
+        <lwa_dump>-kalka
+        <lwa_dump>-klvar
+        <lwa_dump>-tvers
+        <lwa_dump>-erfnm
+        <lwa_dump>-kalnr
+        <lwa_dump>-kmatnr
+        <lwa_dump>-matnr
+        <lwa_dump>-ltext
+        <lwa_dump>-fwerks
+        <lwa_dump>-kstar
+        <lwa_dump>-flosgr
+        <lwa_dump>-kltext
+        <lwa_dump>-wertn
+        <lwa_dump>-wrtfx
+        <lwa_dump>-menge
+        <lwa_dump>-typps
+        <lwa_dump>-elemt
+        <lwa_dump>-elemtns
+        <lwa_dump>-baugr
+        <lwa_dump>-meins
+        <lwa_dump>-pmeht
+        <lwa_dump>-meeht
+        <lwa_dump>-arbpl
+        <lwa_dump>-fklvar
+        <lwa_dump>-gpreis
+        <lwa_dump>-peinh
+        <lwa_dump>-kostl
+        <lwa_dump>-lstar
+        <lwa_dump>-umrez
+        <lwa_dump>-umren
+        <lwa_dump>-parob
+        <lwa_dump>-prctr
+        <lwa_dump>-ncost
+        <lwa_dump>-rekrs
+        <lwa_dump>-lplpr
+                        INTO lv_data SEPARATED BY '|'.
+
+        TRANSFER lv_data TO lv_fpath.
+        CLEAR lv_data.
+      ENDLOOP.
+
+      UNASSIGN <lwa_dump>.
+      CLEAR:
+        lv_data.
+    ENDIF.
+    "Close file
+    CLOSE DATASET lv_fpath.
+    MESSAGE 'File send to AL11' TYPE 'S'.
+  ELSE.
+    MESSAGE e004(zmm).
+  ENDIF.
+
+  REFRESH: ta_dump.
+ENDFORM.
+
+"EOC Added by Shravani Gadhikar for CR 8000003398 and TR CRDK990135 on 19-03-2024

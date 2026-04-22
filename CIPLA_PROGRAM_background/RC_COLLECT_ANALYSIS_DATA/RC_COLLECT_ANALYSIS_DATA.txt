@@ -1,0 +1,5440 @@
+REPORT rc_collect_analysis_data.
+
+**********************************************************************
+* Include section
+**********************************************************************
+**********************************************************************
+TYPE-POOLS: bcwbn.
+
+INCLUDE <icon>.
+INCLUDE tmw_rc_download_top.
+
+INCLUDE rc_collect_ana_global_types.
+
+**********************************************************************
+* Classes declaration section
+**********************************************************************
+**********************************************************************
+INTERFACE lif_text DEFERRED.
+
+" Collection helper class
+CLASS lcl_data_collection_helper DEFINITION DEFERRED.
+
+" Sub-checks Data Collection
+INTERFACE lif_sub_checks_collector DEFERRED.
+INTERFACE lif_sub_checks_in_sub_job DEFERRED.
+INTERFACE lif_sub_checks_multimode DEFERRED.
+
+" Interface data collector
+CLASS lcl_interface_data_coll DEFINITION DEFERRED.
+
+" FDQ
+CLASS lcx_fdq_data_coll DEFINITION DEFERRED.
+CLASS lcl_fdq_data_coll DEFINITION DEFERRED.
+
+" Custom Code Analysis
+CLASS lcl_cca DEFINITION DEFERRED.
+
+" Scope selection mode
+CLASS lcx_main_exception DEFINITION DEFERRED.
+CLASS lcx_scope_sel_mode DEFINITION DEFERRED.
+CLASS lcl_scope_sel_mode  DEFINITION DEFERRED.
+
+
+**********************************************************************
+
+**********************************************************************
+* Global variables section
+**********************************************************************
+**********************************************************************
+TYPES ty_scope_sel_mode TYPE c LENGTH 1.
+
+TYPES:
+  BEGIN OF ty_fdq_wp_popup,
+    in_popup              TYPE boolean,
+    question_answered_yes TYPE boolean,
+  END OF ty_fdq_wp_popup.
+
+DATA:
+  go_scope_sel_mode              TYPE REF TO lcl_scope_sel_mode,
+  go_interface_data_coll         TYPE REF TO lif_sub_checks_collector, "lcl_interface_data_coll,
+  go_fdq_data_coll               TYPE REF TO lif_sub_checks_collector, "lcl_fdq_data_coll.
+  gv_fdq_prerequisites_fulfilled TYPE boolean VALUE abap_false,
+  gv_fdq_nbr_available_wp        TYPE int4,
+  gv_fdq_total_nbr_wp            TYPE int4,
+  gv_fdq_date_wp_check           TYPE sy-datum,
+  gv_fdq_time_wp_check           TYPE tims,
+  gs_fdq_wp_popup                TYPE ty_fdq_wp_popup,
+  gv_cca_prereq_ok               TYPE xfeld VALUE abap_false,
+  gv_cca_dl_prereq_ok            TYPE xfeld VALUE abap_false.
+
+
+DATA:
+  lv_mesg_text          TYPE string,
+  lv_xml_content        TYPE xstring,
+  lt_conv_targ_stack    TYPE ty_conv_target_stack_tab,
+  ls_target_stack       TYPE ty_conv_target_stack_str,
+  lv_ucomm              TYPE sy-ucomm,
+  lt_ucomm              TYPE TABLE OF sy-ucomm,
+  lt_cvers              TYPE TABLE OF cvers,
+  ls_data               TYPE srtm_datax,
+  lv_configuration_ok   TYPE flag,
+  gv_s4                 TYPE flag,
+  gv_cvers_basis        type saprelease,
+  lv_bpa_kpi            TYPE text132,
+  gt_allowed_bpa_kpi_id TYPE ty_t_bpa_kpi_id,
+  ls_bpa_kpi            TYPE ty_bpa_kpi_str,
+  lt_bpa_kpi_rang       TYPE RANGE OF text132,
+  ls_bpa_kpi_rang       LIKE LINE OF lt_bpa_kpi_rang.
+
+**********************************************************************
+* Selection screen section
+**********************************************************************
+**********************************************************************
+
+" Selection Screen Definition - Scope Selection for Discover Phase
+**********************************************************************
+SELECTION-SCREEN BEGIN OF BLOCK block0 WITH FRAME TITLE cv_t0.
+"Target S/4HANA Version
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN COMMENT 1(52) c_prd_st FOR FIELD p_prd_st .
+PARAMETERS: p_prd_st TYPE char20 AS LISTBOX VISIBLE LENGTH 60 OBLIGATORY.
+SELECTION-SCREEN END OF LINE.
+SELECTION-SCREEN END OF BLOCK block0.
+
+" Selection Screen Definition - Scope Selection for Discover Phase
+" Sub-check selection
+**********************************************************************
+SELECTION-SCREEN BEGIN OF BLOCK block1 WITH FRAME TITLE cv_t1.
+
+"Check for productive client(s)
+SELECTION-SCREEN SKIP.
+SELECTION-SCREEN BEGIN OF BLOCK sub_block1 WITH FRAME TITLE cv_t01.
+
+"Business Process Analytics
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN COMMENT 1(52) c_bpa FOR FIELD p_bpa MODIF ID cov.
+PARAMETERS p_bpa  TYPE c AS CHECKBOX DEFAULT 'X' USER-COMMAND bpa MODIF ID cov.
+SELECTION-SCREEN END OF LINE.
+
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN COMMENT 1(49) c_bpa_k FOR FIELD so_bpa_k MODIF ID cov.
+SELECT-OPTIONS: so_bpa_k FOR lv_bpa_kpi NO INTERVALS MODIF ID bpa.
+SELECTION-SCREEN END OF LINE.
+
+"Business Partner
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN COMMENT 1(52) c_bp FOR FIELD p_bp MODIF ID cov.
+PARAMETERS p_bp TYPE c AS CHECKBOX DEFAULT 'X' MODIF ID bpn.
+SELECTION-SCREEN END OF LINE.
+
+"Financial Data Quality
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN COMMENT 1(52) c_fdq FOR FIELD p_fdq MODIF ID fqs.
+PARAMETERS p_fdq  TYPE c AS CHECKBOX DEFAULT space USER-COMMAND fqs MODIF ID fqs.
+SELECTION-SCREEN END OF LINE.
+
+"-->>>>>
+
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN COMMENT 1(52) c_fdqex  MODIF ID fqe.
+SELECTION-SCREEN END OF LINE.
+
+SELECTION-SCREEN BEGIN OF BLOCK b_em_fdq WITH FRAME TITLE cv_t001.
+
+"--> Financial Areas in scope
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN COMMENT 1(70) cfqarea MODIF ID fqe.
+SELECTION-SCREEN END OF LINE.
+
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN COMMENT 3(48) c_fdqgl FOR FIELD p_fdqgl MODIF ID fqe.
+PARAMETERS p_fdqgl  TYPE c AS CHECKBOX USER-COMMAND fqe MODIF ID fqe.
+SELECTION-SCREEN END OF LINE.
+
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN COMMENT 3(48) c_fdqaa FOR FIELD p_fdqaa MODIF ID fqe.
+PARAMETERS p_fdqaa TYPE c AS CHECKBOX USER-COMMAND fqe MODIF ID fqe.
+SELECTION-SCREEN END OF LINE.
+
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN COMMENT 3(48) c_fdqml FOR FIELD p_fdqml MODIF ID fqe.
+PARAMETERS p_fdqml TYPE c AS CHECKBOX USER-COMMAND fqe MODIF ID fqe.
+SELECTION-SCREEN END OF LINE.
+
+"--> Collection Mode: Sequential vs parallel
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN COMMENT 1(70) cfqmode MODIF ID fqe.
+SELECTION-SCREEN END OF LINE.
+
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN COMMENT 3(48) c_fdqsq FOR FIELD p_fdqsq MODIF ID fqe.
+PARAMETERS p_fdqsq RADIOBUTTON GROUP fdqm DEFAULT 'X' USER-COMMAND fqe MODIF ID fqe.
+SELECTION-SCREEN END OF LINE.
+
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN COMMENT 3(48) c_fdqpa FOR FIELD p_fdqpa MODIF ID fqe.
+PARAMETERS p_fdqpa RADIOBUTTON GROUP fdqm MODIF ID fqe.
+SELECTION-SCREEN END OF LINE.
+
+"--> Number of parallel job
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN COMMENT 1(70) cfq_job MODIF ID fqe.
+SELECTION-SCREEN END OF LINE.
+
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN COMMENT 3(48) c_fdqglj FOR FIELD p_fdqglj MODIF ID fqe.
+PARAMETERS p_fdqglj TYPE numc2 MODIF ID fqe.
+SELECTION-SCREEN COMMENT 55(15) c1fdqglj MODIF ID fqe.
+SELECTION-SCREEN END OF LINE.
+
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN COMMENT 3(48) c_fdqaaj FOR FIELD p_fdqaaj MODIF ID fqe.
+PARAMETERS p_fdqaaj TYPE numc2 MODIF ID fqe.
+SELECTION-SCREEN COMMENT 55(15) c1fdqaaj MODIF ID fqe.
+SELECTION-SCREEN END OF LINE.
+
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN COMMENT 3(48) c_fdqmlj FOR FIELD p_fdqmlj MODIF ID fqe.
+PARAMETERS p_fdqmlj TYPE numc2 MODIF ID fqe.
+SELECTION-SCREEN COMMENT 55(15) c1fdqmlj MODIF ID fqe.
+SELECTION-SCREEN END OF LINE.
+
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN COMMENT 4(71) c1fdqji MODIF ID fqe.
+SELECTION-SCREEN END OF LINE.
+
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN COMMENT 4(71) c2fdqji MODIF ID fqe.
+SELECTION-SCREEN END OF LINE.
+
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN COMMENT 4(71) c3fdqji MODIF ID fqe.
+SELECTION-SCREEN END OF LINE.
+
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN PUSHBUTTON 4(47) btn_fjr USER-COMMAND btn_fdq_job_reco MODIF ID fqe.
+SELECTION-SCREEN END OF LINE.
+
+"--> Entity per job
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN COMMENT 1(70) cfqepj MODIF ID fqe.
+SELECTION-SCREEN END OF LINE.
+
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN COMMENT 3(48) c_fdqgle FOR FIELD p_fdqgle MODIF ID fqe.
+PARAMETERS p_fdqgle TYPE numc2 MODIF ID fqe.
+SELECTION-SCREEN COMMENT 55(25) c1fdqgle  MODIF ID fqe.
+SELECTION-SCREEN END OF LINE.
+
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN COMMENT 3(48) c_fdqaae FOR FIELD p_fdqaae MODIF ID fqe.
+PARAMETERS p_fdqaae TYPE numc2 MODIF ID fqe.
+SELECTION-SCREEN COMMENT 55(25) c1fdqaae  MODIF ID fqe.
+SELECTION-SCREEN END OF LINE.
+
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN COMMENT 3(48) c_fdqmle FOR FIELD p_fdqmle MODIF ID fqe.
+PARAMETERS p_fdqmle TYPE numc2 MODIF ID fqe.
+SELECTION-SCREEN COMMENT 55(25) c1fdqmle  MODIF ID fqe.
+SELECTION-SCREEN END OF LINE.
+
+SELECTION-SCREEN END OF BLOCK b_em_fdq.
+"-->>>>>
+
+"Innovation Potential
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN COMMENT 1(52) c_innova FOR FIELD p_innova.
+PARAMETERS p_innova  TYPE c AS CHECKBOX DEFAULT 'X' USER-COMMAND inp MODIF ID inn.
+SELECTION-SCREEN END OF LINE.
+
+"Interface // integration: Standard mode
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN COMMENT 1(52) c_intfac FOR FIELD p_intfac MODIF ID ifs.
+PARAMETERS p_intfac  TYPE c AS CHECKBOX DEFAULT 'X' USER-COMMAND ifs MODIF ID ifs.
+SELECTION-SCREEN END OF LINE.
+
+"--> Interface: Expert Mode
+SELECTION-SCREEN COMMENT 1(35) c_if_et MODIF ID ife.
+SELECTION-SCREEN BEGIN OF BLOCK b_em_int WITH FRAME TITLE cv_t002. " TITLE cv_ifexp. "b_em_int: block expert mode: interface
+
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN COMMENT 1(35) c_if_ty MODIF ID ife.
+SELECTION-SCREEN COMMENT 55(35) c_if_cty MODIF ID ife.
+SELECTION-SCREEN END OF LINE.
+
+SELECTION-SCREEN BEGIN OF LINE.
+
+"--> BW Extractor
+SELECTION-SCREEN COMMENT 3(48) c_bwextr FOR FIELD p_bwextr MODIF ID ife.
+PARAMETERS p_bwextr  TYPE c AS CHECKBOX DEFAULT 'X' USER-COMMAND ife MODIF ID ife.
+
+"--> IDoc Interface --> IDoc Statistic
+SELECTION-SCREEN COMMENT 58(35) c_idoc_s FOR FIELD p_idoc_s MODIF ID ife.
+PARAMETERS p_idoc_s TYPE c AS CHECKBOX DEFAULT 'X' USER-COMMAND ife MODIF ID ife.
+
+SELECTION-SCREEN END OF LINE.
+
+SELECTION-SCREEN BEGIN OF LINE.
+
+"--> IDoc Interface
+SELECTION-SCREEN COMMENT 3(48) c_ifidoc FOR FIELD p_ifidoc MODIF ID ife.
+PARAMETERS p_ifidoc  TYPE c AS CHECKBOX DEFAULT 'X' USER-COMMAND ife MODIF ID ife.
+
+"--> Collect Minimum Data Set
+SELECTION-SCREEN COMMENT 58(35) c_if_min FOR FIELD p_if_min MODIF ID ife.
+PARAMETERS p_if_min TYPE c AS CHECKBOX DEFAULT space USER-COMMAND ife MODIF ID ife.
+
+SELECTION-SCREEN END OF LINE.
+
+
+"--> RFC/BAPI
+SELECTION-SCREEN BEGIN OF LINE.
+
+SELECTION-SCREEN COMMENT 3(48) c_if_rfc FOR FIELD p_if_rfc MODIF ID ife.
+PARAMETERS p_if_rfc  TYPE c AS CHECKBOX DEFAULT 'X' USER-COMMAND ife MODIF ID ife.
+SELECTION-SCREEN END OF LINE.
+
+"--> Web Service Interfaces
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN COMMENT 3(48) c_ifwebs FOR FIELD p_ifwebs MODIF ID ife.
+PARAMETERS p_ifwebs  TYPE c AS CHECKBOX DEFAULT 'X' USER-COMMAND ife MODIF ID ife.
+SELECTION-SCREEN END OF LINE.
+
+"--> oData
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN COMMENT 3(48) c_if_oda FOR FIELD p_if_odt MODIF ID ife.
+PARAMETERS p_if_odt  TYPE c AS CHECKBOX DEFAULT 'X' USER-COMMAND ife MODIF ID ife.
+SELECTION-SCREEN END OF LINE.
+
+"--> SLT
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN COMMENT 3(48) c_if_slt FOR FIELD p_if_slt MODIF ID ife.
+PARAMETERS p_if_slt  TYPE c AS CHECKBOX DEFAULT 'X' USER-COMMAND ife MODIF ID ife.
+SELECTION-SCREEN END OF LINE.
+
+SELECTION-SCREEN END OF BLOCK b_em_int.
+
+"Recommended SAP Fiori Apps  "Transaction (ST03)
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN COMMENT 1(52) c_tr_usg FOR FIELD p_tr_usg.
+PARAMETERS p_tr_usg  TYPE c AS CHECKBOX DEFAULT 'X'.
+SELECTION-SCREEN END OF LINE.
+
+"HANA Sizing
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN COMMENT 1(52) c_h_size FOR FIELD p_h_size MODIF ID cov.
+PARAMETERS p_h_size  TYPE c AS CHECKBOX DEFAULT 'X' MODIF ID siz.
+SELECTION-SCREEN END OF LINE.
+
+"Data Volume Management
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN COMMENT 1(52) c_dvm FOR FIELD p_dvm MODIF ID cov.
+PARAMETERS p_dvm  TYPE c AS CHECKBOX DEFAULT 'X' USER-COMMAND dvm MODIF ID cov.
+SELECTION-SCREEN END OF LINE.
+
+"Simplification Item Relevance
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN COMMENT 1(52) c_si_rel FOR FIELD p_si_rel.
+PARAMETERS p_si_rel  TYPE c AS CHECKBOX DEFAULT 'X' MODIF ID sic.
+SELECTION-SCREEN END OF LINE.
+
+"Simplification Item Effort Drivers
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN COMMENT 1(52) c_si_efd FOR FIELD p_si_efd.
+PARAMETERS p_si_efd  TYPE c AS CHECKBOX DEFAULT space USER-COMMAND si_efd.
+SELECTION-SCREEN END OF LINE.
+
+*Usage data   "8/10
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN COMMENT 1(52) c_usg FOR FIELD p_usg MODIF ID m1.
+PARAMETERS p_usg  TYPE c AS CHECKBOX DEFAULT 'X' USER-COMMAND usg MODIF ID m1.
+SELECTION-SCREEN END OF LINE.
+
+SELECTION-SCREEN END OF BLOCK sub_block1.
+
+
+"Check for client 000
+**********************************************************************
+SELECTION-SCREEN SKIP.
+SELECTION-SCREEN BEGIN OF BLOCK sub_block2 WITH FRAME TITLE cv_t02.
+
+"Simplification Item Consistency
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN COMMENT 1(35) c_si_con FOR FIELD p_si_con.
+PARAMETERS p_si_con TYPE c AS CHECKBOX DEFAULT space USER-COMMAND si_con.
+SELECTION-SCREEN END OF LINE.
+
+SELECTION-SCREEN END OF BLOCK sub_block2.
+
+"Custom Code Analysis
+SELECTION-SCREEN SKIP.
+SELECTION-SCREEN BEGIN OF BLOCK sub_cca WITH FRAME TITLE ft_cca.
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN COMMENT 1(35) c_cca FOR FIELD p_cca MODIF ID cca.
+PARAMETERS p_cca  TYPE c AS CHECKBOX DEFAULT space USER-COMMAND si_cca MODIF ID cca.
+"SELECTION-SCREEN PUSHBUTTON 60(10) c_cca_d USER-COMMAND ucca.
+SELECTION-SCREEN END OF LINE.
+SELECTION-SCREEN END OF BLOCK sub_cca.
+
+SELECTION-SCREEN END OF BLOCK block1.
+
+"Refresh Buffered Data
+**********************************************************************
+SELECTION-SCREEN SKIP.
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN PUSHBUTTON 1(47) btn_del USER-COMMAND del_buff.
+SELECTION-SCREEN END OF LINE.
+
+"Other internal parameters
+**********************************************************************
+PARAMETERS p_subjob  TYPE char10  NO-DISPLAY.  "For sub jobs
+PARAMETERS pver_n TYPE char100  NO-DISPLAY.  "For interface usage
+PARAMETERS pstack_n TYPE char100  NO-DISPLAY.  "For interface usage
+PARAMETERS psel_mod TYPE ty_scope_sel_mode NO-DISPLAY.  "selection Mode
+
+* Schedule Analysis Pop Up
+**********************************************************************
+SELECTION-SCREEN BEGIN OF SCREEN 1100 TITLE c_title AS WINDOW.
+
+SELECTION-SCREEN PUSHBUTTON 1(10) c_immed  USER-COMMAND imm.
+SELECTION-SCREEN PUSHBUTTON 14(10) c_sched  USER-COMMAND sch.
+
+SELECTION-SCREEN BEGIN OF BLOCK block3 WITH FRAME TITLE c_blckt NO INTERVALS.
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN COMMENT 1(32) c_date FOR FIELD p_sdate.
+PARAMETERS p_sdate TYPE sy-datum MODIF ID dat.
+SELECTION-SCREEN END OF LINE.
+
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN COMMENT 1(32) c_time FOR FIELD p_stime.
+PARAMETERS p_stime TYPE sy-timlo MODIF ID dat.
+SELECTION-SCREEN END OF LINE.
+
+SELECTION-SCREEN END OF BLOCK block3.
+
+SELECTION-SCREEN PUSHBUTTON 29(30) btn_skd USER-COMMAND schedule_analysis. "SELECTION-SCREEN FUNCTION KEY 5.
+SELECTION-SCREEN END OF SCREEN 1100.
+
+* FDQ WP Check Pop Up
+**********************************************************************
+SELECTION-SCREEN BEGIN OF SCREEN 1200 TITLE c_dfq_t AS WINDOW.
+
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN COMMENT 4(71) c1fdqwp.
+SELECTION-SCREEN END OF LINE.
+
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN COMMENT 4(71) c2fdqwp.
+SELECTION-SCREEN END OF LINE.
+
+SELECTION-SCREEN SKIP.
+
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN COMMENT 4(71) c3fdqwp.
+SELECTION-SCREEN END OF LINE.
+
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN COMMENT 4(71) c4fdqwp.
+SELECTION-SCREEN END OF LINE.
+
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN COMMENT 4(71) c5fdqwp.
+SELECTION-SCREEN END OF LINE.
+
+SELECTION-SCREEN SKIP.
+
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN COMMENT 4(71) c6fdqwp.
+SELECTION-SCREEN END OF LINE.
+
+SELECTION-SCREEN SKIP.
+
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN PUSHBUTTON 18(20) btn_wp_y USER-COMMAND btn_wp_y.
+SELECTION-SCREEN PUSHBUTTON 40(20) btn_wp_n USER-COMMAND btn_wp_n.
+SELECTION-SCREEN END OF LINE.
+
+SELECTION-SCREEN END OF SCREEN 1200.
+* Tool bar options
+**********************************************************************
+SELECTION-SCREEN FUNCTION KEY 1.
+SELECTION-SCREEN FUNCTION KEY 2.
+SELECTION-SCREEN FUNCTION KEY 3.
+SELECTION-SCREEN FUNCTION KEY 4.
+SELECTION-SCREEN FUNCTION KEY 5.
+
+**********************************************************************
+* Classes implementation section
+**********************************************************************
+**********************************************************************
+INTERFACE lif_text .
+  METHODS get_full_text
+    RETURNING
+      value(rv_text) TYPE string .
+ENDINTERFACE.                    "lif_text .
+
+*----------------------------------------------------------------------*
+*       CLASS lcx_main_exception DEFINITION
+*----------------------------------------------------------------------*
+*
+*----------------------------------------------------------------------*
+CLASS lcx_main_exception DEFINITION
+  INHERITING FROM cx_static_check.
+
+  PUBLIC SECTION.
+
+    INTERFACES lif_text .
+
+    ALIASES get_full_text FOR lif_text~get_full_text.
+
+    TYPES ty_text TYPE c LENGTH 200.
+    TYPES ty_text_variable TYPE c LENGTH 50.
+
+    DATA text TYPE ty_text READ-ONLY .
+    DATA text_v1 TYPE ty_text_variable READ-ONLY .
+    DATA text_v2 TYPE ty_text_variable READ-ONLY .
+    DATA text_v3 TYPE ty_text_variable READ-ONLY .
+    DATA text_v4 TYPE ty_text_variable READ-ONLY .
+
+    METHODS constructor
+      IMPORTING
+        !textid   LIKE textid OPTIONAL
+        !previous LIKE previous OPTIONAL
+        !text     TYPE ty_text OPTIONAL
+        !text_v1  TYPE ty_text_variable OPTIONAL
+        !text_v2  TYPE ty_text_variable OPTIONAL
+        !text_v3  TYPE ty_text_variable OPTIONAL
+        !text_v4  TYPE ty_text_variable OPTIONAL.
+
+    METHODS if_message~get_text REDEFINITION.
+ENDCLASS.                    "lcx_main_exception DEFINITION
+
+*----------------------------------------------------------------------*
+*       CLASS lcx_main_exception IMPLEMENTATION
+*----------------------------------------------------------------------*
+*
+*----------------------------------------------------------------------*
+CLASS lcx_main_exception IMPLEMENTATION.
+  METHOD constructor.
+    CALL METHOD super->constructor
+      EXPORTING
+        textid   = textid
+        previous = previous.
+
+    me->text = text.
+    me->text_v1 = text_v1.
+    me->text_v2 = text_v2.
+    me->text_v3 = text_v3.
+    me->text_v4 = text_v4.
+  ENDMETHOD.                    "constructor
+
+  METHOD lif_text~get_full_text.
+    rv_text = text.
+
+    REPLACE '&1' IN rv_text WITH text_v1.
+    REPLACE '&2' IN rv_text WITH text_v2.
+    REPLACE '&3' IN rv_text WITH text_v3.
+    REPLACE '&4' IN rv_text WITH text_v4.
+  ENDMETHOD.                    "lif_text~get_full_text
+
+  METHOD if_message~get_text.
+    IF text IS NOT INITIAL.
+      result = get_full_text( ).
+    ELSE.
+      result = super->get_text( ).
+    ENDIF.
+  ENDMETHOD.                    "if_message~get_text
+ENDCLASS.                    "lcx_main_exception IMPLEMENTATION
+
+*----------------------------------------------------------------------*
+*       CLASS lcl_cca DEFINITION
+*----------------------------------------------------------------------*
+*
+*----------------------------------------------------------------------*
+CLASS lcl_cca DEFINITION.
+  PUBLIC SECTION.
+    CLASS-METHODS check_prerequisites
+      RETURNING value(rv_ok) TYPE xfeld.
+    CLASS-METHODS trigger_analysis
+      RETURNING value(rv_ok) TYPE xfeld.
+    CLASS-METHODS collect_data
+      RETURNING
+        value(rv_xml_file_xstring) TYPE xstring.
+    CLASS-METHODS check_variant
+      RETURNING value(rv_ok) TYPE xfeld.
+    CLASS-METHODS download.
+    CLASS-METHODS check_download_prereq
+      RETURNING value(rv_ok) TYPE xfeld.
+    CLASS-METHODS ready_for_execution
+      RETURNING value(rv_ok) TYPE xfeld.
+    CLASS-DATA _messages TYPE TABLE OF string.
+
+  PRIVATE SECTION.
+    DATA _mv_api_prog_name   LIKE sy-repid.
+    DATA _mv_pf_mode        TYPE c LENGTH 30.
+    DATA _mv_subid TYPE int4 VALUE '333'.
+ENDCLASS.                    "lcl_cca DEFINITION
+
+*----------------------------------------------------------------------*
+*       CLASS lcl_data_collection_helper DEFINITION
+*----------------------------------------------------------------------*
+*
+*----------------------------------------------------------------------*
+CLASS lcl_data_collection_helper DEFINITION.
+  PUBLIC SECTION.
+    TYPES:
+      BEGIN OF ty_s_files_2_add,
+        file_name     TYPE string,
+        xml_file_xstr TYPE xstring,
+      END OF ty_s_files_2_add,
+      ty_t_files_2_add TYPE STANDARD TABLE OF ty_s_files_2_add WITH DEFAULT KEY.
+
+    CLASS-METHODS add_content_to_zip
+      IMPORTING
+        iv_file_name   TYPE string
+        iv_content     TYPE xstring
+        iv_coll_report TYPE progname
+        iv_without_bom TYPE flag DEFAULT space .
+    CLASS-METHODS add_data_2_buffer
+      IMPORTING
+        iv_trigid           TYPE srtm_datax-trigid
+        iv_trigoffset       TYPE srtm_datax-trigoffset
+        iv_subid            TYPE srtm_datax-subid
+        iv_counter          TYPE srtm_datax-counter OPTIONAL
+        iv_data_2_buffer    TYPE xstring
+        iv_client_dependent TYPE boolean.
+    CLASS-METHODS is_data_in_buffer_old
+      IMPORTING
+        iv_trigid                TYPE srtm_datax-trigid
+        iv_trigoffset            TYPE srtm_datax-trigoffset
+        iv_subid                 TYPE srtm_datax-subid
+        iv_client_dependent      TYPE boolean
+      EXPORTING
+        ev_data_in_buffer_is_old TYPE boolean
+        ev_buffered_data         TYPE xstring.
+    CLASS-METHODS add_data_2_zip_file
+      IMPORTING
+        it_file_2_data TYPE ty_t_files_2_add
+        iv_report_name TYPE progname.
+ENDCLASS.                    "lcl_data_collection_helper DEFINITION
+
+*----------------------------------------------------------------------*
+*       CLASS lcx_scope_sel_mode DEFINITION
+*----------------------------------------------------------------------*
+*
+*----------------------------------------------------------------------*
+CLASS lcx_scope_sel_mode DEFINITION
+  INHERITING FROM lcx_main_exception.
+
+  PUBLIC SECTION.
+    CONSTANTS wrong_scope_selection_mode TYPE lcx_main_exception=>ty_text VALUE 'Wrong scope selection mode (&1)'.
+    CONSTANTS save_failure               TYPE lcx_main_exception=>ty_text VALUE 'Save scope selection mode failure (DB table &1)'.
+ENDCLASS.                    "lcx_scope_sel_mode DEFINITION
+
+*----------------------------------------------------------------------*
+*       CLASS lcl_scope_sel_mode DEFINITION
+*----------------------------------------------------------------------*
+*
+*----------------------------------------------------------------------*
+CLASS lcl_scope_sel_mode DEFINITION.
+  PUBLIC SECTION.
+
+    CONSTANTS:
+      BEGIN OF cs_scope_sel_mode,
+        parameter_key TYPE bcos_cust-appli   VALUE 'RC_SCO_SEL',
+        standard      TYPE ty_scope_sel_mode VALUE 'S',
+        expert        TYPE ty_scope_sel_mode VALUE 'E',
+      END OF cs_scope_sel_mode.
+
+    CLASS-METHODS on_selection_mode.
+    METHODS constructor.
+
+    METHODS get_scope_sel_mode
+      RETURNING
+        value(rv_scope_sel_mode) TYPE ty_scope_sel_mode.
+
+    METHODS get_scope_sel_mode_text
+      RETURNING
+        value(rv_scope_sel_mode_text) TYPE char50.
+
+    METHODS get_scope_sel_mode_button
+      RETURNING
+        value(rs_scope_sel_mode_button) TYPE smp_dyntxt.
+
+    METHODS save_scope_sel_mode
+      RAISING
+        lcx_scope_sel_mode.
+
+    METHODS set_standard_mode
+      RETURNING
+        value(ro_scope_sel_mode_object) TYPE REF TO lcl_scope_sel_mode.
+
+    METHODS set_expert_mode
+      RETURNING
+        value(ro_scope_sel_mode_object) TYPE REF TO lcl_scope_sel_mode.
+
+    METHODS switch_mode.
+
+  PRIVATE SECTION.
+    DATA _mv_scope_sel_mode TYPE ty_scope_sel_mode.
+
+    METHODS _det_current_scope_sel_mode.
+
+    METHODS _set_mode
+      IMPORTING
+        iv_scope_sel_mode TYPE ty_scope_sel_mode
+      RAISING
+        lcx_scope_sel_mode.
+ENDCLASS.                    "lcl_scope_sel_mode DEFINITION
+
+*----------------------------------------------------------------------*
+*       INTERFACE lif_sub_checks_collector DEFINITION
+*----------------------------------------------------------------------*
+*
+*----------------------------------------------------------------------*
+INTERFACE lif_sub_checks_collector.
+  TYPES:
+    BEGIN OF ty_s_file_name,
+      file_name TYPE string,
+    END OF ty_s_file_name,
+    ty_t_file_name TYPE STANDARD TABLE OF ty_s_file_name WITH DEFAULT KEY.
+
+
+  TYPES:
+    BEGIN OF ty_s_error_message,
+      type TYPE char1,
+      text TYPE char255,
+    END OF ty_s_error_message.
+  TYPES:
+    ty_t_error_message TYPE STANDARD TABLE OF ty_s_error_message.
+
+  CLASS-METHODS are_prerequisites_fulfilled
+    EXPORTING
+      ev_are_prerequisites_fulfilled TYPE boolean
+      et_prerequisites_error_message TYPE ty_t_error_message.
+  CLASS-METHODS used_xsl_files
+    RETURNING
+      value(rt_xsl_files) TYPE ty_t_file_name.
+  CLASS-METHODS delete_buffer_data.
+  METHODS prepare_data_collection.
+  METHODS collect_data.
+  METHODS get_header
+    RETURNING
+      value(rt_header) TYPE ty_header_entry_tab.
+ENDINTERFACE.                    "lif_sub_checks_collector DEFINITION
+
+*----------------------------------------------------------------------*
+*       INTERFACE lif_sub_checks_in_sub_job DEFINITION
+*----------------------------------------------------------------------*
+*
+*----------------------------------------------------------------------*
+INTERFACE lif_sub_checks_in_sub_job.
+  METHODS execute_analysis.
+ENDINTERFACE.                    "lif_sub_checks_in_sub_job DEFINITION
+
+*----------------------------------------------------------------------*
+*       INTERFACE lif_sub_checks_multimode DEFINITION
+*----------------------------------------------------------------------*
+*
+*----------------------------------------------------------------------*
+INTERFACE lif_sub_checks_multimode.
+  CLASS-METHODS on_standard_mode_change.
+  CLASS-METHODS on_standard_mode_selection.
+
+  CLASS-METHODS on_expert_mode_change.
+  CLASS-METHODS on_expert_mode_selection.
+ENDINTERFACE.                    "lif_sub_checks_multimode DEFINITION
+
+INCLUDE rc_collect_ana_sc_intf.
+
+*----------------------------------------------------------------------*
+*       CLASS lcx_fdq_data_coll DEFINITION
+*----------------------------------------------------------------------*
+*
+*----------------------------------------------------------------------*
+CLASS lcx_fdq_data_coll DEFINITION
+  INHERITING FROM lcx_main_exception.
+
+  PUBLIC SECTION.
+    CONSTANTS wrong_checks_selection TYPE lcx_main_exception=>ty_text VALUE 'Wrong FDQ checks selection'.
+ENDCLASS.                    "lcx_fdq_data_coll DEFINITION
+
+*----------------------------------------------------------------------*
+*       CLASS lcl_fdq_data_coll DEFINITION
+*----------------------------------------------------------------------*
+*
+*----------------------------------------------------------------------*
+CLASS lcl_fdq_data_coll DEFINITION.
+  PUBLIC SECTION.
+    INTERFACES lif_sub_checks_collector.
+    INTERFACES lif_sub_checks_in_sub_job.
+    INTERFACES lif_sub_checks_multimode.
+
+    CONSTANTS:
+      BEGIN OF cs_file_name,
+        fdq_fi_gl TYPE string VALUE if_tmw_rc_collect_bpa=>c_file_name-fdq, " 'fdq.xml',     "#NO_TEXT
+        fdq_fi_aa TYPE string VALUE 'fdq_aa.xml',  "#NO_TEXT
+        fdq_fi_ml TYPE string VALUE 'fdq_ml.xml',  "#NO_TEXT
+      END OF cs_file_name.
+    CONSTANTS:
+      BEGIN OF cs_wp_text,
+        text_1 TYPE string VALUE 'X out of Y were available based on the check background',     "#NO_TEXT
+        text_2 TYPE string VALUE 'work processes on DD.MM.YYYY at hh.mm.ss.',  "#NO_TEXT
+        text_3 TYPE string VALUE 'As result, we recommend scheduling no more than X jobs in total.',  "#NO_TEXT
+      END OF cs_wp_text.
+
+    CLASS-METHODS update_wp_parameter.
+    CLASS-METHODS get_total_parallel_jobs_nbr
+      RETURNING
+        value(rv_total_parallel_jobs_nbr) TYPE int4.
+
+    METHODS constructor
+      IMPORTING
+        iv_report_name    TYPE progname
+        iv_fi_gl_in_scope TYPE boolean OPTIONAL
+        iv_fi_aa_in_scope TYPE boolean OPTIONAL
+        iv_fi_ml_in_scope TYPE boolean OPTIONAL.
+
+  PRIVATE SECTION.
+
+    CONSTANTS:
+      BEGIN OF _cs_data_key,
+        subid_old   TYPE int4 VALUE c_data_key-subid_fdq_data, "970,                   "#EC NOTEXT
+        subid_fi_gl TYPE int4 VALUE 971,                    "#EC NOTEXT
+        subid_fi_aa TYPE int4 VALUE 972,                    "#EC NOTEXT
+        subid_fi_ml TYPE int4 VALUE 973,                    "#EC NOTEXT
+      END OF _cs_data_key.
+
+    DATA _mv_report_name TYPE progname.
+    DATA _mv_fi_gl_in_scope TYPE boolean.
+    DATA _mv_fi_aa_in_scope TYPE boolean.
+    DATA _mv_fi_ml_in_scope TYPE boolean.
+
+    CLASS-METHODS _update_entities_parameters.
+    CLASS-METHODS _delete_old_version_buffer.
+    METHODS _is_data_in_buffer_old
+      EXPORTING
+        ev_fi_gl_in_buffer_is_old TYPE boolean
+        ev_fi_aa_in_buffer_is_old TYPE boolean
+        ev_fi_ml_in_buffer_is_old TYPE boolean.
+
+    METHODS _collect_data
+      EXPORTING
+        ev_fi_gl_xml TYPE xstring
+        ev_fi_aa_xml TYPE xstring
+        ev_fi_ml_xml TYPE xstring.
+    METHODS _del_buff_data_before_collect.
+
+    METHODS _store_settings
+      RAISING
+        lcx_fdq_data_coll.
+    METHODS _update_area_from_fdq_settings.
+ENDCLASS.                    "lcl_fdq_data_coll DEFINITION
+
+*----------------------------------------------------------------------*
+*       CLASS lcl_cca IMPLEMENTATION
+*----------------------------------------------------------------------*
+*
+*----------------------------------------------------------------------*
+CLASS lcl_cca IMPLEMENTATION.
+
+  METHOD ready_for_execution.
+    DATA:
+       l_check_rc TYPE sysubrc.
+
+    CLEAR rv_ok.
+    " check presence of where-used-list data
+    CALL FUNCTION 'RS_WHERE_USED_LIST_CHECK_STATE'
+      IMPORTING
+        check_rc = l_check_rc.
+    IF l_check_rc NE 0.
+      RETURN.
+    ENDIF.
+
+    "return true
+    rv_ok = 'X'.
+  ENDMETHOD.                    "ready_for_execution
+
+  METHOD check_variant.
+    DATA: lv_xml_content     TYPE xstring,
+          lt_conv_targ_stack TYPE ty_conv_target_stack_tab,
+          ls_target_stack    TYPE ty_conv_target_stack_str,
+          l_name             TYPE string,
+          l_len              TYPE i,
+          l_var              TYPE sci_chkv,
+          ls_variant         TYPE scichkv_hd,
+          l_lines            TYPE i,
+          lt_inst_prod_ver   TYPE tt_instswprod,
+          ls_prod            LIKE LINE OF lt_inst_prod_ver.
+
+    CONSTANTS: lc_simdb_rel TYPE string VALUE 'SYCM_REL_STACK'.
+
+
+" messages shouldn't be longer than 128 char, otherwise they are truncated
+
+* Check current S4 ATC variant
+    FREE               lt_inst_prod_ver.
+    "Get installed Product Versions
+    CALL FUNCTION 'OCS_GET_INSTALLED_SWPRODUCTS'
+      IMPORTING
+        et_swproducts = lt_inst_prod_ver
+      EXCEPTIONS
+        OTHERS        = 0.
+    DESCRIBE TABLE lt_inst_prod_ver LINES l_lines.
+    CHECK l_lines NE 0.
+
+    " search specifically for S4CORE
+    CLEAR l_var.
+    LOOP AT lt_inst_prod_ver INTO ls_prod.
+      IF ls_prod-name CS 'S4HANA ON PREMISE' OR ls_prod-name CS 'SAP S/4HANA PRIVATE CLOUD'.
+        CONCATENATE 'S4HANA_READINESS_' ls_prod-version INTO l_var. "#EC NOTEXT
+      ENDIF.
+    ENDLOOP.
+
+    "think positive!
+    rv_ok = 'X'.
+
+* check if that variant exists here
+    SELECT SINGLE *
+      FROM scichkv_hd
+      INTO ls_variant
+      WHERE checkvname LIKE l_var.
+    IF sy-subrc NE 0.
+* variant does not exist, abort.
+      APPEND 'There is no check variant for the ABAP test cockpit available for the source release. See SAP Note 2436688 for more information.' TO _messages. "#EC NOTEXT
+      rv_ok = ' '.
+    ENDIF.
+
+* Get S/4HANA conversion target release
+    CALL FUNCTION 'FUNCTION_EXISTS'
+      EXPORTING
+        funcname           = if_tmw_rc_collect_bpa=>c_fm-sitem_targ_stk_get
+      EXCEPTIONS
+        function_not_exist = 1
+        OTHERS             = 2.
+    IF sy-subrc <> 0.
+      APPEND 'The function module /SDF/GEN_FUNCS_S4_TARG_STK_GET is not available in this system. Implement SAP Note 2399707.' TO _messages.
+      rv_ok = ' '.
+      RETURN. "we cannot proceed from here as the FM is required for the next checks
+    ENDIF.
+
+    "Get S/4HANA conversion target release
+    CALL FUNCTION if_tmw_rc_collect_bpa=>c_fm-sitem_targ_stk_get
+      IMPORTING
+        ev_result_xstr = lv_xml_content.
+    IF lv_xml_content IS NOT INITIAL.
+      CALL TRANSFORMATION id
+        SOURCE XML lv_xml_content
+        RESULT conv_targ_stack = lt_conv_targ_stack.
+    ENDIF.
+    " get the entry corresponding to the input param of the report
+    READ TABLE lt_conv_targ_stack INTO ls_target_stack
+    WITH KEY stack_number = p_prd_st.
+    CHECK sy-subrc EQ 0.
+    " try to get the corresponding S/4HANA version from the name
+    CLEAR l_var.
+    l_len = strlen( ls_target_stack-prod_ver_name ) - 4.
+    l_name = ls_target_stack-prod_ver_name+l_len(4).
+    CONCATENATE 'S4HANA_READINESS_' l_name '%' INTO l_var.
+
+* check if that variant exists here
+    SELECT SINGLE *
+      FROM scichkv_hd
+      INTO ls_variant
+      WHERE checkvname LIKE l_var.
+    IF sy-subrc NE 0.
+* variant does not exist, abort.
+      APPEND 'There is no check variant for the ABAP test cockpit available for the target release. See SAP Note 2436688 for more information.' TO _messages. "#EC NOTEXT
+      rv_ok = ' '.
+    ENDIF.
+
+* check if simDB is up to date
+    SELECT COUNT(*) FROM (LC_SIMDB_REL)
+      INTO l_lines
+      WHERE release_id LIKE l_var.
+    IF sy-subrc ne 0.
+      APPEND 'The simplification database content is not up to date in this system. For more information, see SAP Note 2241080.' TO _messages. "#EC NOTEXT
+      rv_ok = ' '.
+    ENDIF.
+  ENDMETHOD.                    "check_variant
+
+  METHOD check_prerequisites.
+    DATA: ls_tab     TYPE dd02l,
+          lv_tabname TYPE dd02l-tabname VALUE 'SATC_CI_CFG_SRIE',
+          lv_comp    TYPE cvers-component VALUE 'SAP_BASIS',
+          ls_cvers   TYPE cvers,
+          l_clsname  TYPE seoclass-clsname,
+          l_entries  TYPE i,
+          l_jobname  TYPE tbtco-jobname.
+
+    CONSTANTS:
+      lc_atc_export TYPE string VALUE 'CL_YCM_ATC_EXPORT',
+      lc_simdb      TYPE string VALUE 'SYCM_SITEM'.
+
+
+" messages shouldn't be longer than 128 char, otherwise they are truncated
+
+    "init
+    CLEAR rv_ok.
+
+    " think positive!
+    rv_ok = 'X'.
+
+    " check presence of S4CORE
+    IF gv_s4 <> abap_true.
+      rv_ok = ' '.
+      APPEND 'The system is not an SAP S/4HANA system. For more information, see SAP Note 3059197.' TO _messages. "#EC NOTEXT
+    ENDIF.
+
+    " check if atc run series table exists, if not ATC is not available at all
+    SELECT SINGLE * FROM dd02l
+      INTO ls_tab
+      WHERE tabname = lv_tabname.
+    IF sy-subrc NE 0.
+      rv_ok = ' '.
+      APPEND 'The ABAP test cockpit is not available on this system. For more information, see SAP Note 3059197.' TO _messages. "#EC NOTEXT
+    ENDIF.
+
+    " check if SimDB is filled
+    SELECT COUNT(*) FROM (lc_simdb)
+      INTO l_entries
+      WHERE note IS NOT NULL.
+    IF l_entries EQ 0.
+      rv_ok = ' '.
+      APPEND 'Content is missing in the simplification database. For more information, see SAP Note 2241080.' TO _messages. "#EC NOTEXT
+    ENDIF.
+
+    " check authorizations to execute ATC runs
+    DATA lv_auth_missing TYPE boolean.
+    lv_auth_missing = abap_false.
+
+    AUTHORITY-CHECK OBJECT 'S_Q_ADM'
+    ID 'ACTVT'    FIELD '16'.
+    IF sy-subrc NE 0.
+      lv_auth_missing = abap_true.
+    ENDIF.
+
+    " check authorizations to create ATC runs series
+    AUTHORITY-CHECK OBJECT 'S_Q_ADM'
+    ID 'ACTVT'    FIELD '01'.
+    IF sy-subrc NE 0.
+      lv_auth_missing = abap_true.
+    ENDIF.
+
+    IF lv_auth_missing = abap_true.
+      rv_ok = ' '.
+      APPEND 'Your user doesn’t have the authorization to execute the ABAP test cockpit. For more information, see SAP Note 3059197.' TO _messages. "#EC NOTEXT
+    ENDIF.
+
+    " check if ATC export class exists
+    SELECT SINGLE clsname FROM seoclass
+      INTO l_clsname
+      WHERE clsname = lc_atc_export.
+    IF sy-subrc NE 0.
+      rv_ok = ' '.
+      APPEND 'Class CL_YCM_ATC_EXPORT for exporting ABAP test cockpit results is missing. Implement SAP Notes 2781766 and 3293011.'
+       TO _messages.                                             "#EC NOTEXT
+    ENDIF.
+
+    " check if another CCA analysis is already running
+    SELECT SINGLE jobname FROM tbtco
+      INTO l_jobname
+      WHERE jobname = c_job_name-cca AND
+            status = 'R'. "running?
+    IF sy-subrc = 0.
+      rv_ok = ' '.
+      APPEND 'There is already an analysis in process. For details, check the active jobs.' TO _messages.
+    ENDIF.
+
+  ENDMETHOD.                    "check_prerequisites
+
+  METHOD trigger_analysis.
+    IF check_variant( ) NE abap_true.
+      MESSAGE 'Failure to trigger the Custom Code Analysis' TYPE 'W'. "#EC NOTEXT
+      RETURN.
+    ENDIF.
+    MESSAGE 'Triggering ATC analysis report' TYPE 'S'.      "#EC NOTEXT
+    SUBMIT rc_cca_atc_analysis WITH p_var2 = p_prd_st.
+    MESSAGE 'ATC analysis report finished' TYPE 'S'.        "#EC NOTEXT
+  ENDMETHOD.                    "trigger_analysis
+
+  METHOD collect_data.
+    " get zip file of ATC run
+    DATA: lr_tab        TYPE REF TO data,
+          lr_run        TYPE REF TO data,
+          lr_id         TYPE REF TO data,
+          lr_atc        TYPE REF TO object,
+          lr_zip        TYPE REF TO cl_abap_zip,
+          ls_file       LIKE LINE OF lr_zip->files,
+          l_atc_content TYPE xstring,
+          l_atc_id      TYPE sysuuid, "satc_d_ac_display_id,
+          l_where       TYPE string,
+          l_order       TYPE string,
+          l_lines       TYPE i.
+
+    CONSTANTS:
+      lc_atc_export TYPE string VALUE 'CL_YCM_ATC_EXPORT',
+      lc_atc_meth   TYPE string VALUE 'GENERATE_ZIP_FOR_RDY_CHECK',
+      lc_series_2   TYPE char16 VALUE 'SAP_S4U_2',
+      lc_atc_db     TYPE string VALUE 'SATC_AC_RESULTH',
+      lc_display_id TYPE string VALUE 'DISPLAY_ID'.
+
+    FIELD-SYMBOLS: <l_tab>  TYPE table,
+                   <ls_run> TYPE any,
+                   <l_id>   TYPE any.
+
+    " check if the latest run is existing, and finished successfully:
+    MESSAGE 'Start of CCA data collection' TYPE 'I'.        "#EC NOTEXT
+    " re-trigger the prereq check
+    gv_cca_dl_prereq_ok = lcl_cca=>check_download_prereq( ).
+    IF gv_cca_dl_prereq_ok NE abap_true.
+      MESSAGE 'CCA data collection aborted. Download prerequisites are not met.' TYPE 'I'. "#EC NOTEXT
+      RETURN.
+    ENDIF.
+
+    CREATE DATA lr_tab TYPE TABLE OF (lc_atc_db).
+    ASSIGN lr_tab->* TO <l_tab>.
+    CREATE DATA lr_run TYPE (lc_atc_db).
+    ASSIGN lr_run->* TO <ls_run>.
+    " create where clause
+    CLEAR l_where.
+    CONCATENATE 'run_series_name =''' lc_series_2 '''' INTO l_where.
+    " create order by condition
+    CLEAR l_order.
+    MOVE 'scheduled_on_ts DESCENDING' TO l_order.
+    " determine the ID of the ATC run to export
+    SELECT * FROM (lc_atc_db)
+      INTO CORRESPONDING FIELDS OF TABLE <l_tab>
+      WHERE (l_where)
+      ORDER BY (l_order).
+
+    " extract run if found
+    DESCRIBE TABLE <l_tab> LINES l_lines.
+    IF l_lines EQ 0.
+      MESSAGE 'CCA Upgrade ATC run not found' TYPE 'I'.     "#EC NOTEXT
+      RETURN.
+    ENDIF.
+    " get the latest run
+    READ TABLE <l_tab> INTO <ls_run> INDEX 1.
+    " get the run id
+    ASSIGN COMPONENT lc_display_id OF STRUCTURE <ls_run> TO <l_id>.
+    "MOVE <l_id> TO l_atc_id.
+    " export the ATC run result to zip with the RC API
+    "lr_atc = NEW cl_ycm_atc_export( i_display_id = l_atc_id ). " ID du deuxieme run
+    "CREATE OBJECT lr_atc TYPE (lc_atc_export) EXPORTING i_display_id = l_atc_id.
+    CREATE OBJECT lr_atc TYPE (lc_atc_export) EXPORTING i_display_id = <l_id>.
+    "lr_zip = lr_atc->generate_zip_for_rdy_check( ).
+    CALL METHOD lr_atc->(lc_atc_meth) RECEIVING r_zip = lr_zip.
+    " transfer the content of the exported zip to the global zip file
+    MESSAGE 'Starting ATC file transfer to ZIP' TYPE 'I'.   "#EC NOTEXT
+    LOOP AT lr_zip->files INTO ls_file.
+      lr_zip->get( EXPORTING
+                     name = ls_file-name
+                   IMPORTING
+                     content = l_atc_content ).
+      cl_tmw_rc_collect_bpa=>so_data_file->add(
+          name    = ls_file-name
+          content = l_atc_content ).
+    ENDLOOP.
+
+  ENDMETHOD.                    "collect_data
+
+  METHOD download.
+    " get zip file of ATC run
+    DATA: lr_tab   TYPE REF TO data,
+          lr_run   TYPE REF TO data,
+          lr_id    TYPE REF TO data,
+          lr_atc   TYPE REF TO object,
+          lr_zip   TYPE REF TO cl_abap_zip,
+          l_atc_id TYPE sysuuid, "satc_d_ac_display_id,
+          l_where  TYPE string,
+          l_order  TYPE string,
+          l_lines  TYPE i.
+
+    CONSTANTS:
+      lc_atc_export TYPE string VALUE 'CL_YCM_ATC_EXPORT',
+      lc_atc_meth   TYPE string VALUE 'DOWNLAOD_ZIP_FOR_RDY_CHECK',
+      lc_series_2   TYPE char16 VALUE 'SAP_S4U_2',
+      lc_atc_db     TYPE string VALUE 'SATC_AC_RESULTH',
+      lc_display_id TYPE string VALUE 'DISPLAY_ID'.
+
+    FIELD-SYMBOLS: <l_tab>  TYPE table,
+                   <ls_run> TYPE any,
+                   <l_id>   TYPE any.
+
+    CREATE DATA lr_tab TYPE TABLE OF (lc_atc_db).
+    ASSIGN lr_tab->* TO <l_tab>.
+    CREATE DATA lr_run TYPE (lc_atc_db).
+    ASSIGN lr_run->* TO <ls_run>.
+    " create where clause
+    CLEAR l_where.
+    CONCATENATE 'run_series_name =''' lc_series_2 '''' INTO l_where.
+    CONCATENATE l_where ' AND is_complete = ''X''' INTO l_where.
+    " create order by condition
+    CLEAR l_order.
+    MOVE 'scheduled_on_ts DESCENDING' TO l_order.
+    " determine the ID of the ATC run to export
+    SELECT * FROM (lc_atc_db)
+      INTO CORRESPONDING FIELDS OF TABLE <l_tab>
+      WHERE (l_where)
+      ORDER BY (l_order).
+
+    " extract run if found
+    DESCRIBE TABLE <l_tab> LINES l_lines.
+    IF l_lines EQ 0.
+      MESSAGE 'CCA Upgrade ATC run not found' TYPE 'I'.     "#EC NOTEXT
+      RETURN.
+    ENDIF.
+    " get the latest run
+    READ TABLE <l_tab> INTO <ls_run> INDEX 1.
+    " get the run id
+    ASSIGN COMPONENT lc_display_id OF STRUCTURE <ls_run> TO <l_id>.
+    "MOVE <l_id> TO l_atc_id.
+    " export the ATC run result to zip with the RC API
+    "lr_atc = NEW cl_ycm_atc_export( i_display_id = l_atc_id ). " ID du deuxieme run
+    "CREATE OBJECT lr_atc TYPE (lc_atc_export) EXPORTING i_display_id = l_atc_id.
+    CREATE OBJECT lr_atc TYPE (lc_atc_export) EXPORTING i_display_id = <l_id>.
+    "lr_atc->download_zip_for_rdy_check( ).
+    CALL METHOD lr_atc->(lc_atc_meth).
+  ENDMETHOD.                    "download
+
+  METHOD check_download_prereq.
+    " get zip file of ATC run
+    DATA: lr_tab  TYPE REF TO data,
+          lr_run  TYPE REF TO data,
+          lr_id   TYPE REF TO data,
+          lr_atc  TYPE REF TO object,
+          l_where TYPE string,
+          l_order TYPE string,
+          l_lines TYPE i.
+
+    CONSTANTS:
+      lc_atc_export TYPE string VALUE 'CL_YCM_ATC_EXPORT',
+      lc_atc_meth   TYPE string VALUE 'DOWNLAOD_ZIP_FOR_RDY_CHECK',
+      lc_series_2   TYPE char16 VALUE 'SAP_S4U_2',
+      lc_atc_db     TYPE string VALUE 'SATC_AC_RESULTH',
+      lc_display_id TYPE string VALUE 'DISPLAY_ID'.
+
+    FIELD-SYMBOLS: <l_tab>  TYPE table,
+                   <ls_run> TYPE any,
+                   <l_id>   TYPE any.
+
+    " initialize: default condition is false
+    CLEAR rv_ok.
+    " check if second run exists and is finished
+    CREATE DATA lr_tab TYPE TABLE OF (lc_atc_db).
+    ASSIGN lr_tab->* TO <l_tab>.
+    CREATE DATA lr_run TYPE (lc_atc_db).
+    ASSIGN lr_run->* TO <ls_run>.
+    " create where clause
+    CLEAR l_where.
+    CONCATENATE 'run_series_name =''' lc_series_2 '''' INTO l_where.
+    CONCATENATE l_where ' AND is_complete = ''X''' INTO l_where.
+    " create order by condition
+    CLEAR l_order.
+    MOVE 'scheduled_on_ts DESCENDING' TO l_order.
+    " determine the ID of the ATC run to export
+    SELECT * FROM (lc_atc_db)
+      INTO CORRESPONDING FIELDS OF TABLE <l_tab>
+      WHERE (l_where)
+      ORDER BY (l_order).
+
+    " extract run if found
+    DESCRIBE TABLE <l_tab> LINES l_lines.
+    IF l_lines EQ 0.
+      "MESSAGE 'CCA Upgrade ATC run not found' TYPE 'I'.
+      RETURN.
+    ELSE.
+      " run exists
+      rv_ok = 'X'.
+      RETURN.
+    ENDIF.
+  ENDMETHOD.                    "check_download_prereq
+ENDCLASS.                    "lcl_cca IMPLEMENTATION
+
+*----------------------------------------------------------------------*
+*       CLASS lcl_fdq_data_coll IMPLEMENTATION
+*----------------------------------------------------------------------*
+*
+*----------------------------------------------------------------------*
+CLASS lcl_fdq_data_coll IMPLEMENTATION.
+  METHOD constructor.
+    _mv_report_name    = iv_report_name.
+    _mv_fi_gl_in_scope = iv_fi_gl_in_scope.
+    _mv_fi_aa_in_scope = iv_fi_aa_in_scope.
+    _mv_fi_ml_in_scope = iv_fi_ml_in_scope.
+  ENDMETHOD.                    "constructor
+
+  METHOD lif_sub_checks_collector~prepare_data_collection.
+    DATA:
+      lv_error_message_text  TYPE string,
+      lr_fdq_data_coll_error TYPE REF TO lcx_fdq_data_coll.
+
+    TRY.
+        _store_settings( ).
+      CATCH lcx_fdq_data_coll INTO lr_fdq_data_coll_error.
+        lv_error_message_text = lr_fdq_data_coll_error->get_full_text(  ).
+
+        MESSAGE lv_error_message_text TYPE 'E'.
+    ENDTRY.
+  ENDMETHOD.                    "lif_sub_checks_collector~prepare_data_collection
+
+  METHOD lif_sub_checks_collector~are_prerequisites_fulfilled.
+    TYPES:
+      BEGIN OF ty_s_error_message,
+        type TYPE char1,
+        text TYPE char255,
+      END OF ty_s_error_message.
+    TYPES:
+      ty_t_error_message TYPE STANDARD TABLE OF ty_s_error_message.
+
+    CONSTANTS:
+      lc_fm_2_check_prerequisites(30) TYPE c VALUE '/SDF/FDQ_CHECK_PREREQUISITES',
+      lc_check_figl_parameter         TYPE rfc_funint-parameter VALUE 'IV_CHECK_FIGL',
+      lc_check_fiaa_parameter         TYPE rfc_funint-parameter VALUE 'IV_CHECK_FIAA',
+      lc_check_fiml_parameter         TYPE rfc_funint-parameter VALUE 'IV_CHECK_FIML'.
+
+    DATA:
+      lt_fm_used_parameter          TYPE TABLE OF rfc_funint-parameter,
+      lv_fm_used_parameter          TYPE rfc_funint-parameter,
+      lt_fm_2_check_preqs_parameter TYPE TABLE OF rfc_funint,
+      ls_fm_2_check_preqs_parameter TYPE rfc_funint.
+
+    DATA:
+      lt_prerequisites_error_message TYPE ty_t_error_message,
+      ls_prerequisites_error_message TYPE ty_s_error_message..
+
+    ev_are_prerequisites_fulfilled = abap_false.
+    CLEAR et_prerequisites_error_message.
+
+    APPEND lc_check_figl_parameter TO lt_fm_used_parameter.
+    APPEND lc_check_fiaa_parameter TO lt_fm_used_parameter.
+    APPEND lc_check_fiml_parameter TO lt_fm_used_parameter.
+
+    "--> Old code
+    CALL FUNCTION 'FUNCTION_EXISTS'
+      EXPORTING
+        funcname           = lc_fm_2_check_prerequisites
+      EXCEPTIONS
+        function_not_exist = 1
+        OTHERS             = 99.
+
+    IF sy-subrc <> 0.
+      ev_are_prerequisites_fulfilled = abap_false.
+
+      RETURN.
+    ENDIF.
+
+    CALL FUNCTION 'RFC_GET_FUNCTION_INTERFACE'
+      EXPORTING
+        funcname      = lc_fm_2_check_prerequisites
+*       language      = sy-langu
+      TABLES
+        params        = lt_fm_2_check_preqs_parameter
+      EXCEPTIONS
+        fu_not_found  = 1
+        nametab_fault = 2
+        OTHERS        = 99.
+
+    IF sy-subrc <> 0.
+      ev_are_prerequisites_fulfilled = abap_false.
+
+      RETURN.
+    ENDIF.
+
+    LOOP AT lt_fm_used_parameter INTO lv_fm_used_parameter.
+      READ TABLE lt_fm_2_check_preqs_parameter TRANSPORTING NO FIELDS
+        WITH KEY parameter = lv_fm_used_parameter.
+
+      IF sy-subrc <> 0.
+        ev_are_prerequisites_fulfilled = abap_false.
+
+        RETURN.
+      ENDIF.
+    ENDLOOP.
+
+    CALL FUNCTION lc_fm_2_check_prerequisites               "#EC EXISTS
+      EXPORTING
+        iv_caller         = 'RC_SRV'
+        iv_check_figl     = p_fdqgl
+        iv_check_fiaa     = p_fdqaa
+        iv_check_fiml     = p_fdqml
+      IMPORTING
+        et_error_msg      = lt_prerequisites_error_message
+      EXCEPTIONS
+        abap_online_error = 1
+        OTHERS            = 99.
+
+
+
+    IF sy-subrc <> 0 OR lt_prerequisites_error_message IS NOT INITIAL.
+      ev_are_prerequisites_fulfilled = abap_false.
+
+      IF lt_prerequisites_error_message IS INITIAL.
+        ls_prerequisites_error_message-text = 'Financial Data Quality call function module /SDF/FDQ_CHECK_PREREQUISITES failed'.
+        ls_prerequisites_error_message-type = 'W'.
+
+        APPEND ls_prerequisites_error_message TO et_prerequisites_error_message.
+      ENDIF.
+
+      APPEND LINES OF lt_prerequisites_error_message TO et_prerequisites_error_message.
+
+      RETURN.
+    ENDIF.
+
+    ev_are_prerequisites_fulfilled = abap_true.
+  ENDMETHOD.                    "lif_sub_checks_collector~are_prerequisites_fulfilled
+
+  METHOD lif_sub_checks_collector~used_xsl_files.
+    DATA ls_xsl_file TYPE lif_sub_checks_collector=>ty_s_file_name.
+
+    ls_xsl_file-file_name = 'fdq.xsl'.
+    APPEND ls_xsl_file TO rt_xsl_files.
+
+    ls_xsl_file-file_name = 'fdq_aa.xsl'.
+    APPEND ls_xsl_file TO rt_xsl_files.
+
+    ls_xsl_file-file_name = 'fdq_ml.xsl'.
+    APPEND ls_xsl_file TO rt_xsl_files.
+  ENDMETHOD.                    "lif_sub_checks_collector~used_xsl_files
+
+  METHOD lif_sub_checks_collector~delete_buffer_data.
+    DATA:
+      lt_subid_2_delete TYPE TABLE OF srtm_datax-subid,
+      lv_subid_2_delete TYPE srtm_datax-subid.
+
+    _delete_old_version_buffer( ).
+
+    APPEND _cs_data_key-subid_fi_gl TO lt_subid_2_delete.
+    APPEND _cs_data_key-subid_fi_aa TO lt_subid_2_delete.
+    APPEND _cs_data_key-subid_fi_ml TO lt_subid_2_delete.
+
+    LOOP AT lt_subid_2_delete INTO lv_subid_2_delete.
+      TRY.
+          cl_rc_collect_client_handler=>delete_w_clt_considration(
+            EXPORTING
+              iv_trigid     = c_data_key-data_trigid
+              iv_trigoffset = c_data_key-data_trigoffset
+              iv_subid      = lv_subid_2_delete
+          ).
+        CATCH cx_rc_collect_client_handler.
+          CONTINUE.
+      ENDTRY.
+    ENDLOOP.
+  ENDMETHOD.                    "lif_sub_checks_collector~delete_buffer_data
+
+  METHOD lif_sub_checks_collector~get_header.
+    DATA ls_header TYPE ty_header_entry_str.
+
+    ls_header-key   = if_tmw_rc_collect_bpa=>c_file_data-fdq_analysis.
+    IF p_fdq IS NOT INITIAL.
+      ls_header-value = if_tmw_rc_collect_bpa=>c_file_data-yes.
+    ELSE.
+      ls_header-value = if_tmw_rc_collect_bpa=>c_file_data-no.
+    ENDIF.
+    APPEND ls_header TO rt_header.
+  ENDMETHOD.                    "lif_sub_checks_collector~get_header
+
+  METHOD  lif_sub_checks_collector~collect_data.
+    DATA:
+      ls_data       TYPE srtm_datax,
+      lt_file_2_add TYPE lcl_data_collection_helper=>ty_t_files_2_add,
+      ls_file_2_add TYPE lcl_data_collection_helper=>ty_s_files_2_add.
+
+    IF _mv_fi_gl_in_scope = abap_true.
+      ls_data = cl_rc_collect_client_handler=>select_w_clt_considration(
+        iv_trigid     = c_data_key-data_trigid
+        iv_trigoffset = c_data_key-data_trigoffset
+        iv_subid      = _cs_data_key-subid_fi_gl
+      ).
+
+      IF ls_data IS NOT INITIAL.
+        ls_file_2_add-file_name     = cs_file_name-fdq_fi_gl.
+        ls_file_2_add-xml_file_xstr = ls_data-xtext.
+
+        APPEND ls_file_2_add TO lt_file_2_add.
+      ENDIF.
+    ENDIF.
+
+    IF _mv_fi_aa_in_scope = abap_true.
+      CLEAR ls_file_2_add.
+
+      ls_data = cl_rc_collect_client_handler=>select_w_clt_considration(
+        iv_trigid     = c_data_key-data_trigid
+        iv_trigoffset = c_data_key-data_trigoffset
+        iv_subid      = _cs_data_key-subid_fi_aa
+      ).
+
+      IF ls_data IS NOT INITIAL.
+        ls_file_2_add-file_name     = cs_file_name-fdq_fi_aa.
+        ls_file_2_add-xml_file_xstr = ls_data-xtext.
+
+        APPEND ls_file_2_add TO lt_file_2_add.
+      ENDIF.
+    ENDIF.
+
+    IF _mv_fi_ml_in_scope = abap_true.
+      CLEAR ls_file_2_add.
+
+      ls_data = cl_rc_collect_client_handler=>select_w_clt_considration(
+        iv_trigid     = c_data_key-data_trigid
+        iv_trigoffset = c_data_key-data_trigoffset
+        iv_subid      = _cs_data_key-subid_fi_ml
+      ).
+
+      IF ls_data IS NOT INITIAL.
+        ls_file_2_add-file_name     = cs_file_name-fdq_fi_ml.
+        ls_file_2_add-xml_file_xstr = ls_data-xtext.
+
+        APPEND ls_file_2_add TO lt_file_2_add.
+      ENDIF.
+    ENDIF.
+
+    lcl_data_collection_helper=>add_data_2_zip_file(
+      EXPORTING
+        it_file_2_data = lt_file_2_add
+        iv_report_name = _mv_report_name
+    ).
+  ENDMETHOD.                    "lif_sub_checks_collector~collect_data
+
+  METHOD lif_sub_checks_in_sub_job~execute_analysis.
+    DATA:
+      lv_fi_gl_in_buffer_is_old TYPE boolean VALUE abap_true,
+      lv_fi_aa_in_buffer_is_old TYPE boolean VALUE abap_true,
+      lv_fi_ml_in_buffer_is_old TYPE boolean VALUE abap_true.
+
+    _update_area_from_fdq_settings( ). "to be able to identify the areas in scope
+
+    _delete_old_version_buffer( ).
+
+    _is_data_in_buffer_old(
+      IMPORTING
+        ev_fi_gl_in_buffer_is_old = lv_fi_gl_in_buffer_is_old
+        ev_fi_aa_in_buffer_is_old = lv_fi_aa_in_buffer_is_old
+        ev_fi_ml_in_buffer_is_old = lv_fi_ml_in_buffer_is_old
+    ).
+
+    IF  ( _mv_fi_gl_in_scope = abap_true AND  lv_fi_gl_in_buffer_is_old = abap_true )
+          OR
+        ( _mv_fi_aa_in_scope = abap_true AND lv_fi_aa_in_buffer_is_old = abap_true  )
+          OR
+        ( _mv_fi_ml_in_scope = abap_true AND lv_fi_ml_in_buffer_is_old = abap_true  ).
+      _collect_data( ).
+    ENDIF.
+  ENDMETHOD.                    "lif_sub_checks_in_sub_job~execute_analysis
+
+  METHOD lif_sub_checks_multimode~on_standard_mode_change.
+    lif_sub_checks_multimode~on_standard_mode_selection( ).
+  ENDMETHOD.                    "lif_sub_checks_multimode~on_standard_mode_change
+
+  METHOD lif_sub_checks_multimode~on_standard_mode_selection.
+    p_fdqgl = p_fdq.
+    p_fdqaa = p_fdq.
+    p_fdqml = p_fdq.
+
+    p_fdqsq = 'X'.
+    p_fdqpa = ''.
+
+    p_fdqglj = ' '.
+    p_fdqaaj = ' '.
+    p_fdqmlj = ' '.
+
+    p_fdqgle = ' '.
+    p_fdqaae = ' '.
+    p_fdqmle = ' '.
+  ENDMETHOD.                    "lif_sub_checks_multimode~on_standard_mode_selection
+
+  METHOD lif_sub_checks_multimode~on_expert_mode_change.
+
+    IF p_fdqgl <> 'X' AND p_fdqaa <> 'X' AND p_fdqml <> 'X'.
+      p_fdq = ''.
+    ELSE.
+      p_fdq = 'X'.
+    ENDIF.
+  ENDMETHOD.                    "lif_sub_checks_multimode~on_expert_mode_change
+
+  METHOD lif_sub_checks_multimode~on_expert_mode_selection.
+    lif_sub_checks_multimode~on_standard_mode_selection( ).
+
+    update_wp_parameter(  ).
+
+    _update_entities_parameters( ).
+  ENDMETHOD.                    "lif_sub_checks_multimode~on_expert_mode_selection
+
+  METHOD update_wp_parameter.
+    DATA:
+      lv_mode                    TYPE boolean,
+      lv_total_nbr_wp            TYPE int4,
+      lv_total_nbr_wp_string     TYPE string,
+      lv_nbr_available_wp        TYPE int4,
+      lv_nbr_available_wp_string TYPE string,
+      lv_date                    TYPE sy-datum,
+      lv_date_string             TYPE c LENGTH 20,
+      lv_time                    TYPE tims,
+      lv_time_string             TYPE c LENGTH 20,
+      lv_nbr_job_figl            TYPE int4,
+      lv_nbr_job_fiaa            TYPE int4,
+      lv_nbr_job_fiml            TYPE int4.
+
+    IF gv_fdq_prerequisites_fulfilled <> abap_true.
+      RETURN.
+    ENDIF.
+
+    IF p_fdqpa = 'X'.
+      lv_mode = abap_true.
+    ELSE.
+      lv_mode = abap_false.
+    ENDIF.
+
+    c1fdqji = lcl_fdq_data_coll=>cs_wp_text-text_1.
+    c2fdqji = lcl_fdq_data_coll=>cs_wp_text-text_2.
+    c3fdqji = lcl_fdq_data_coll=>cs_wp_text-text_3.
+
+    CALL METHOD ('CL_RC_FDQ_HANDLER')=>('GET_JOB_PARAM_PER_MODE')
+      EXPORTING
+        iv_fiaa             = p_fdqaa
+        iv_figl             = p_fdqgl
+        is_para_mode        = lv_mode
+      IMPORTING
+        ev_nbr_available_wp = lv_nbr_available_wp
+        ev_total_nbr_wp     = lv_total_nbr_wp
+        ev_date             = lv_date
+        ev_time             = lv_time
+        ev_nbr_job_figl     = lv_nbr_job_figl
+        ev_nbr_job_fiaa     = lv_nbr_job_fiaa
+        ev_nbr_job_fiml     = lv_nbr_job_fiml
+      EXCEPTIONS
+        work_process_error  = 1
+        OTHERS              = 99.
+
+    IF sy-subrc <> 0.
+      p_fdqglj = 1.
+      p_fdqaaj = 1.
+      p_fdqmlj = 1.
+
+      MESSAGE 'Failure to calculate work process' TYPE 'W'.
+
+      RETURN.
+    ENDIF.
+
+    p_fdqglj = lv_nbr_job_figl.
+    p_fdqaaj = lv_nbr_job_fiaa.
+    p_fdqmlj = lv_nbr_job_fiml.
+
+    "Update global variables for WP check
+    gv_fdq_nbr_available_wp = lv_nbr_available_wp.
+    gv_fdq_total_nbr_wp     = lv_total_nbr_wp.
+    gv_fdq_date_wp_check    = lv_date.
+    gv_fdq_time_wp_check    = lv_time.
+
+
+    WRITE lv_date TO lv_date_string.
+    REPLACE 'DD.MM.YYYY' IN c2fdqji WITH lv_date_string.
+
+    WRITE lv_time TO lv_time_string.
+    REPLACE 'hh.mm.ss' IN c2fdqji WITH lv_time_string.
+
+    lv_total_nbr_wp_string     = lv_total_nbr_wp.
+    REPLACE 'Y' IN c1fdqji WITH lv_total_nbr_wp_string.
+
+    lv_nbr_available_wp_string = lv_nbr_available_wp.
+    REPLACE 'X' IN c1fdqji WITH lv_nbr_available_wp_string.
+    REPLACE 'X' IN c3fdqji WITH lv_nbr_available_wp_string.
+
+    CONDENSE c1fdqji.
+    CONDENSE c2fdqji.
+    CONDENSE c3fdqji.
+  ENDMETHOD.                    "update_wp_parameter
+
+  METHOD get_total_parallel_jobs_nbr.
+    rv_total_parallel_jobs_nbr = 0.
+
+    IF p_fdqpa = 'X'. "parallel mode
+      IF p_fdqgl = 'X'.
+        rv_total_parallel_jobs_nbr = rv_total_parallel_jobs_nbr + p_fdqglj.
+      ENDIF.
+
+      IF p_fdqaa = 'X'.
+        rv_total_parallel_jobs_nbr = rv_total_parallel_jobs_nbr + p_fdqaaj.
+      ENDIF.
+
+      IF p_fdqml = 'X'.
+        rv_total_parallel_jobs_nbr = rv_total_parallel_jobs_nbr + p_fdqmlj.
+      ENDIF.
+    ELSE. "Sequential mode
+      IF p_fdqgl = 'X' AND p_fdqglj > rv_total_parallel_jobs_nbr.
+        rv_total_parallel_jobs_nbr =  p_fdqglj.
+      ENDIF.
+
+      IF p_fdqaa = 'X' AND p_fdqaaj > rv_total_parallel_jobs_nbr.
+        rv_total_parallel_jobs_nbr = p_fdqaaj.
+      ENDIF.
+
+      IF  p_fdqml = 'X' AND p_fdqmlj > rv_total_parallel_jobs_nbr.
+        rv_total_parallel_jobs_nbr = p_fdqmlj.
+      ENDIF.
+    ENDIF.
+  ENDMETHOD.                    "get_total_parallel_jobs_nbr
+
+  METHOD _update_entities_parameters.
+    DATA:
+      lv_nbr_fy_figl      TYPE int4,
+      lv_nbr_cocd_fiaa    TYPE int4,
+      lv_nbr_valarea_fiml TYPE int4.
+
+    IF gv_fdq_prerequisites_fulfilled <> abap_true.
+      RETURN.
+    ENDIF.
+
+    IF ( p_fdqgle IS NOT INITIAL AND p_fdqaae IS NOT INITIAL AND p_fdqmle IS NOT INITIAL
+          AND p_fdqgle <> 0 AND p_fdqaae <> 0 AND p_fdqmle <> 0 ).
+      RETURN.
+    ENDIF.
+
+    CALL METHOD ('CL_RC_FDQ_HANDLER')=>('GET_ENTITIES_PARAMETERS')
+      IMPORTING
+        ev_nbr_fy_figl      = lv_nbr_fy_figl
+        ev_nbr_cocd_fiaa    = lv_nbr_cocd_fiaa
+        ev_nbr_valarea_fiml = lv_nbr_valarea_fiml.
+
+    p_fdqgle = lv_nbr_fy_figl.
+    p_fdqaae = lv_nbr_cocd_fiaa.
+    p_fdqmle = lv_nbr_valarea_fiml.
+  ENDMETHOD.                    "_update_entities_parameters
+
+  METHOD _is_data_in_buffer_old.
+    ev_fi_gl_in_buffer_is_old = abap_true.
+    ev_fi_aa_in_buffer_is_old = abap_true.
+    ev_fi_ml_in_buffer_is_old = abap_true.
+
+    IF _mv_fi_gl_in_scope = abap_true.
+      lcl_data_collection_helper=>is_data_in_buffer_old(
+         EXPORTING
+           iv_trigid             = c_data_key-data_trigid
+           iv_trigoffset         = c_data_key-data_trigoffset
+           iv_subid              = _cs_data_key-subid_fi_gl
+           iv_client_dependent   = abap_true
+         IMPORTING
+           ev_data_in_buffer_is_old = ev_fi_gl_in_buffer_is_old
+       ).
+    ENDIF.
+
+    IF _mv_fi_aa_in_scope = abap_true.
+      lcl_data_collection_helper=>is_data_in_buffer_old(
+        EXPORTING
+          iv_trigid             = c_data_key-data_trigid
+          iv_trigoffset         = c_data_key-data_trigoffset
+          iv_subid              = _cs_data_key-subid_fi_aa
+          iv_client_dependent   = abap_true
+        IMPORTING
+          ev_data_in_buffer_is_old = ev_fi_aa_in_buffer_is_old
+      ).
+    ENDIF.
+
+    IF _mv_fi_ml_in_scope = abap_true.
+      lcl_data_collection_helper=>is_data_in_buffer_old(
+        EXPORTING
+          iv_trigid             = c_data_key-data_trigid
+          iv_trigoffset         = c_data_key-data_trigoffset
+          iv_subid              = _cs_data_key-subid_fi_ml
+          iv_client_dependent   = abap_true
+        IMPORTING
+          ev_data_in_buffer_is_old = ev_fi_ml_in_buffer_is_old
+      ).
+    ENDIF.
+  ENDMETHOD.                    "_is_data_in_buffer_old
+
+  METHOD _collect_data.
+    DATA:
+      lv_fi_gl_xml_string TYPE string,
+      lv_fi_aa_xml_string TYPE string,
+      lv_fi_ml_xml_string TYPE string.
+
+    DATA:
+      lv_fi_gl_xml_xstring TYPE xstring,
+      lv_fi_aa_xml_xstring TYPE xstring,
+      lv_fi_ml_xml_xstring TYPE xstring.
+
+    CALL FUNCTION '/SDF/FDQ_START_ANALYSIS_RC'              "#EC EXISTS
+      IMPORTING
+*       EV_XSTRING  =
+        ev_figl_xml = lv_fi_gl_xml_string
+        ev_fiaa_xml = lv_fi_aa_xml_string
+        ev_fiml_xml = lv_fi_ml_xml_string
+*       ET_ERROR_MSG =
+     .
+
+    IF _mv_fi_gl_in_scope = abap_true.
+      IF lv_fi_gl_xml_string IS NOT INITIAL.
+        CALL FUNCTION 'SCMS_STRING_TO_XSTRING'
+          EXPORTING
+            text   = lv_fi_gl_xml_string
+          IMPORTING
+            buffer = lv_fi_gl_xml_xstring.
+
+        IF sy-subrc <> 0.
+          CLEAR lv_fi_gl_xml_xstring.
+        ENDIF.
+
+        IF lv_fi_gl_xml_xstring IS NOT INITIAL.
+          lcl_data_collection_helper=>add_data_2_buffer(
+            EXPORTING
+              iv_trigid           = c_data_key-data_trigid
+              iv_trigoffset       = c_data_key-data_trigoffset
+              iv_subid            = _cs_data_key-subid_fi_gl
+              iv_data_2_buffer    = lv_fi_gl_xml_xstring
+              iv_client_dependent = abap_true
+          ).
+        ENDIF.
+      ELSE.
+        MESSAGE 'Empty FI GL XML File' TYPE 'I'.
+      ENDIF.
+    ENDIF.
+
+    IF _mv_fi_aa_in_scope = abap_true.
+      IF lv_fi_aa_xml_string IS NOT INITIAL.
+        CALL FUNCTION 'SCMS_STRING_TO_XSTRING'
+          EXPORTING
+            text   = lv_fi_aa_xml_string
+          IMPORTING
+            buffer = lv_fi_aa_xml_xstring.
+
+        IF sy-subrc <> 0.
+          CLEAR lv_fi_gl_xml_xstring.
+        ENDIF.
+
+        IF lv_fi_aa_xml_xstring IS NOT INITIAL.
+          lcl_data_collection_helper=>add_data_2_buffer(
+            EXPORTING
+              iv_trigid           = c_data_key-data_trigid
+              iv_trigoffset       = c_data_key-data_trigoffset
+              iv_subid            = _cs_data_key-subid_fi_aa
+              iv_data_2_buffer    = lv_fi_aa_xml_xstring
+              iv_client_dependent = abap_true
+          ).
+        ENDIF.
+      ELSE.
+        MESSAGE 'Empty FI AA XML File' TYPE 'I'.
+      ENDIF.
+    ENDIF.
+
+    IF _mv_fi_ml_in_scope = abap_true.
+      IF lv_fi_ml_xml_string IS NOT INITIAL.
+        CALL FUNCTION 'SCMS_STRING_TO_XSTRING'
+          EXPORTING
+            text   = lv_fi_ml_xml_string
+          IMPORTING
+            buffer = lv_fi_ml_xml_xstring.
+
+        IF sy-subrc <> 0.
+          CLEAR lv_fi_ml_xml_xstring.
+        ENDIF.
+
+        IF lv_fi_ml_xml_xstring IS NOT INITIAL.
+          lcl_data_collection_helper=>add_data_2_buffer(
+            EXPORTING
+              iv_trigid           = c_data_key-data_trigid
+              iv_trigoffset       = c_data_key-data_trigoffset
+              iv_subid            = _cs_data_key-subid_fi_ml
+              iv_data_2_buffer    = lv_fi_ml_xml_xstring
+              iv_client_dependent = abap_true
+          ).
+        ENDIF.
+      ELSE.
+        MESSAGE 'Empty FI ML XML File' TYPE 'I'.
+      ENDIF.
+    ENDIF.
+  ENDMETHOD.                    "_collect_data
+
+  METHOD _del_buff_data_before_collect.
+    DATA:
+      lt_subid_2_delete TYPE TABLE OF srtm_datax-subid,
+      lv_subid_2_delete TYPE srtm_datax-subid.
+
+    IF _mv_fi_gl_in_scope <> abap_true.
+      APPEND _cs_data_key-subid_fi_gl TO lt_subid_2_delete.
+    ENDIF.
+
+    IF _mv_fi_aa_in_scope <> abap_true.
+      APPEND _cs_data_key-subid_fi_aa TO lt_subid_2_delete.
+    ENDIF.
+
+    IF _mv_fi_ml_in_scope <> abap_true.
+      APPEND _cs_data_key-subid_fi_ml TO lt_subid_2_delete.
+    ENDIF.
+
+    LOOP AT lt_subid_2_delete INTO lv_subid_2_delete.
+      TRY.
+          cl_rc_collect_client_handler=>delete_w_clt_considration(
+            EXPORTING
+              iv_trigid     = c_data_key-data_trigid
+              iv_trigoffset = c_data_key-data_trigoffset
+              iv_subid      = lv_subid_2_delete
+          ).
+        CATCH cx_rc_collect_client_handler.
+          CONTINUE.
+      ENDTRY.
+    ENDLOOP.
+  ENDMETHOD.                    "_del_buff_data_before_collect
+
+  METHOD _delete_old_version_buffer.
+    TRY.
+        cl_rc_collect_client_handler=>delete_w_clt_considration(
+          EXPORTING
+            iv_trigid     = c_data_key-data_trigid
+            iv_trigoffset = c_data_key-data_trigoffset
+            iv_subid      = _cs_data_key-subid_old
+        ).
+      CATCH cx_rc_collect_client_handler.
+        RETURN.
+    ENDTRY.
+  ENDMETHOD.                    "_delete_old_version_buffer
+
+  METHOD _store_settings.
+    TYPES:
+      BEGIN OF ty_s_area,
+        area TYPE char12,
+      END OF ty_s_area.
+    TYPES:
+      ty_t_area TYPE STANDARD TABLE OF ty_s_area  WITH DEFAULT KEY .
+
+    TYPES:
+      BEGIN OF ty_s_collector_mode,
+        collector_mode TYPE char30,
+      END OF ty_s_collector_mode.
+    TYPES:
+      ty_t_collector_mode TYPE STANDARD TABLE OF ty_s_collector_mode WITH DEFAULT KEY .
+
+    DATA:
+      lt_areas              TYPE ty_t_area, "cl_rc_fdq_handler=>tt_area,
+      lt_collector_mode     TYPE ty_t_collector_mode, "cl_rc_fdq_handler=>tt_collector_mode,
+      lv_mode               TYPE char12,
+      lv_number_figl_jobs   TYPE int4,
+      lv_number_fiaa_jobs   TYPE int4,
+      lv_number_fiml_jobs   TYPE int4,
+      lv_number_figl_entity TYPE int4,
+      lv_number_fiaa_entity TYPE int4,
+      lv_number_fiml_entity TYPE int4.
+
+    CALL METHOD ('CL_RC_FDQ_HANDLER')=>('DELETE_OLD_FIGL_PARAM').
+
+    IF psel_mod = lcl_scope_sel_mode=>cs_scope_sel_mode-standard.
+      CALL METHOD ('CL_RC_FDQ_HANDLER')=>('SAVE_DEFAULT_PARAMETERS').
+    ELSE.
+      CALL METHOD ('CL_RC_FDQ_HANDLER')=>('DELETE_PARAMETER').
+
+      CALL METHOD ('CL_RC_FDQ_HANDLER')=>('GET_MODE_FROM_RCUI')
+        EXPORTING
+          iv_seq_mode  = p_fdqsq
+          iv_para_mode = p_fdqpa
+        RECEIVING
+          ev_mode      = lv_mode.
+
+      CALL METHOD ('CL_RC_FDQ_HANDLER')=>('GET_AREAS_FROM_RCUI')
+        EXPORTING
+          iv_figl     = _mv_fi_gl_in_scope
+          iv_fiaa     = _mv_fi_aa_in_scope
+          iv_fiml     = _mv_fi_ml_in_scope
+        RECEIVING
+          et_areas    = lt_areas
+        EXCEPTIONS
+          wrong_input = 1
+          OTHERS      = 99.
+
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE lcx_fdq_data_coll
+          EXPORTING
+            text = lcx_fdq_data_coll=>wrong_checks_selection.
+      ENDIF.
+
+      CALL METHOD ('CL_RC_FDQ_HANDLER')=>('GET_ONL_COLL_FROM_RCUI')
+        EXPORTING
+          iv_figl           = _mv_fi_gl_in_scope
+          iv_fiaa           = _mv_fi_aa_in_scope
+          iv_fiml           = _mv_fi_ml_in_scope
+        RECEIVING
+          et_collector_mode = lt_collector_mode
+        EXCEPTIONS
+          wrong_input       = 1
+          OTHERS            = 99.
+
+      IF sy-subrc <> 0.
+        RAISE EXCEPTION TYPE lcx_fdq_data_coll
+          EXPORTING
+            text = lcx_fdq_data_coll=>wrong_checks_selection.
+      ENDIF.
+
+      lv_number_figl_jobs   = p_fdqglj.
+      lv_number_fiaa_jobs   = p_fdqaaj.
+      lv_number_fiml_jobs   = p_fdqmlj.
+
+      lv_number_figl_entity = p_fdqgle.
+      lv_number_fiaa_entity = p_fdqaae.
+      lv_number_fiml_entity = p_fdqmle.
+
+      CALL METHOD ('CL_RC_FDQ_HANDLER')=>('SAVE_CUSTOM_PARAMETERS')
+        EXPORTING
+          iv_mode              = lv_mode
+          it_area              = lt_areas
+          it_collector_mode    = lt_collector_mode
+          iv_figl_jobs         = lv_number_figl_jobs
+          iv_fiaa_jobs         = lv_number_fiaa_jobs
+          iv_fiml_jobs         = lv_number_fiml_jobs
+          iv_figl_nbr_fy       = lv_number_figl_entity
+          iv_fiaa_nbr_cc       = lv_number_fiaa_entity
+          iv_fiml_nbr_val_area = lv_number_fiml_entity.
+    ENDIF.
+  ENDMETHOD.                    "_store_settings
+
+  METHOD _update_area_from_fdq_settings.
+    CONSTANTS:
+      BEGIN OF cs_fdq_area,
+        fi_gl TYPE bcos_cust-appli VALUE 'RC_FIGL',
+        fi_aa TYPE bcos_cust-appli VALUE 'RC_FIAA',
+        fi_ml TYPE bcos_cust-appli VALUE 'RC_FIML',
+      END OF cs_fdq_area.
+
+    DATA lt_bcos_cust  TYPE TABLE OF bcos_cust.
+
+    _mv_fi_gl_in_scope = abap_false.
+    _mv_fi_aa_in_scope = abap_false.
+    _mv_fi_ml_in_scope = abap_false.
+
+    SELECT *
+      FROM  bcos_cust
+      INTO TABLE lt_bcos_cust
+     WHERE appli = cs_fdq_area-fi_gl
+        OR appli = cs_fdq_area-fi_aa
+        OR appli = cs_fdq_area-fi_ml.
+
+    IF sy-subrc <> 0.
+      RETURN.
+    ENDIF.
+
+    READ TABLE lt_bcos_cust TRANSPORTING NO FIELDS WITH KEY appli = cs_fdq_area-fi_gl.
+
+    IF sy-subrc = 0.
+      _mv_fi_gl_in_scope = abap_true.
+    ENDIF.
+
+    READ TABLE lt_bcos_cust TRANSPORTING NO FIELDS WITH KEY appli = cs_fdq_area-fi_aa.
+
+    IF sy-subrc = 0.
+      _mv_fi_aa_in_scope = abap_true.
+    ENDIF.
+
+    READ TABLE lt_bcos_cust TRANSPORTING NO FIELDS WITH KEY appli = cs_fdq_area-fi_ml.
+
+    IF sy-subrc = 0.
+      _mv_fi_ml_in_scope = abap_true.
+    ENDIF.
+  ENDMETHOD.                    "_update_area_from_fdq_settings
+ENDCLASS.                    "lcl_fdq_data_coll IMPLEMENTATION
+
+*----------------------------------------------------------------------*
+*       CLASS lcl_data_collection_helper IMPLEMENTATION
+*----------------------------------------------------------------------*
+*
+*----------------------------------------------------------------------*
+CLASS lcl_data_collection_helper IMPLEMENTATION.
+  METHOD add_content_to_zip.
+
+    DATA: lv_content_xstr TYPE xstring,
+          lv_content_str  TYPE string,
+          lv_xsl_str8     TYPE string,
+          lv_bom_3(3)     TYPE x,
+          lt_content      TYPE TABLE OF x255,
+          lv_length       TYPE i.
+
+**********************************************************************
+* Strange behavior XML handling which seems related to ending character
+* of string 'encoding="utf-8"?>'. Looks '>' is a special character.
+* 1. REPLACE FIRST OCCURRENCE does not work
+* 2. SHIFT lv_content_str LEFT DELETING LEADING remove one more character '<'
+*
+* For UTF-8 and UTF-16 handling of XML, refer to:
+* Refer to below links:
+* https://archive.sap.com/discussions/thread/3511165
+* https://gary5496.github.io/2018/04/encoding-issue/
+**********************************************************************
+
+*--------------------------------------------------------------------*
+* Add the data directly for RC1.0 TMW report
+
+    IF iv_coll_report = if_tmw_rc_collect_bpa=>c_prog-tmw_coll.
+      cl_tmw_rc_collect_bpa=>so_data_file->add(
+        name    = iv_file_name
+        content = iv_content ).
+      RETURN.
+    ENDIF.
+
+
+*--------------------------------------------------------------------*
+* Manipulate the XML content
+
+    "Convert the XSTRING to STRING
+    CALL FUNCTION 'SCMS_XSTRING_TO_BINARY'
+      EXPORTING
+        buffer        = iv_content
+      IMPORTING
+        output_length = lv_length
+      TABLES
+        binary_tab    = lt_content.
+    CALL FUNCTION 'SCMS_BINARY_TO_STRING'
+      EXPORTING
+        input_length = lv_length
+      IMPORTING
+        text_buffer  = lv_content_str
+      TABLES
+        binary_tab   = lt_content.
+    IF iv_file_name <> if_tmw_rc_collect_bpa=>c_file_name-bpcc.
+      "Insert the XSL file name to the XML content
+      CASE iv_file_name.
+        WHEN if_tmw_rc_collect_bpa=>c_file_name-ana_sys_add_info.
+          lv_xsl_str8  = '<?xml version="1.0" encoding="utf-8"?><?xml-stylesheet type="text/xsl" href="ana_sys_add_info.xsl"?><'.
+        WHEN if_tmw_rc_collect_bpa=>c_file_name-ana_sys_header.
+          lv_xsl_str8  = '<?xml version="1.0" encoding="utf-8"?><?xml-stylesheet type="text/xsl" href="ana_sys_header.xsl"?><'.
+        WHEN if_tmw_rc_collect_bpa=>c_file_name-bpa.
+          lv_xsl_str8  = '<?xml version="1.0" encoding="utf-8"?><?xml-stylesheet type="text/xsl" href="bpa.xsl"?><'.
+        WHEN if_tmw_rc_collect_bpa=>c_file_name-bw_extra.
+          lv_xsl_str8  = '<?xml version="1.0" encoding="utf-8"?><?xml-stylesheet type="text/xsl" href="bw_extra.xsl"?><'.
+        WHEN if_tmw_rc_collect_bpa=>c_file_name-dvm.
+          lv_xsl_str8  = '<?xml version="1.0" encoding="utf-8"?><?xml-stylesheet type="text/xsl" href="dvm.xsl"?><'.
+        WHEN if_tmw_rc_collect_bpa=>c_file_name-hana_sizing.
+          lv_xsl_str8  = '<?xml version="1.0" encoding="utf-8"?><?xml-stylesheet type="text/xsl" href="hana_sizing.xsl"?><'.
+        WHEN if_tmw_rc_collect_bpa=>c_file_name-sitem_relevance.
+          lv_xsl_str8  = '<?xml version="1.0" encoding="utf-8"?><?xml-stylesheet type="text/xsl" href="sitem_relevance.xsl"?><'.
+        WHEN if_tmw_rc_collect_bpa=>c_file_name-sitem_consistency.
+          lv_xsl_str8  = '<?xml version="1.0" encoding="utf-8"?><?xml-stylesheet type="text/xsl" href="sitem_consistency.xsl"?><'.
+        WHEN if_tmw_rc_collect_bpa=>c_file_name-transaction_usage.
+          lv_xsl_str8  = '<?xml version="1.0" encoding="utf-8"?><?xml-stylesheet type="text/xsl" href="transaction_usage.xsl"?><'.
+        WHEN if_tmw_rc_collect_bpa=>c_file_name-interface.
+          lv_xsl_str8  = '<?xml version="1.0" encoding="utf-8"?><?xml-stylesheet type="text/xsl" href="interface.xsl"?><'.
+        WHEN if_tmw_rc_collect_bpa=>c_file_name-innovation.
+          lv_xsl_str8  = '<?xml version="1.0" encoding="utf-8"?><?xml-stylesheet type="text/xsl" href="innovation.xsl"?><'.
+
+          "FDQ
+        WHEN lcl_fdq_data_coll=>cs_file_name-fdq_fi_gl.
+          lv_xsl_str8  = '<?xml version="1.0" encoding="utf-8"?><?xml-stylesheet type="text/xsl" href="fdq.xsl"?><'.
+        WHEN lcl_fdq_data_coll=>cs_file_name-fdq_fi_aa.
+          lv_xsl_str8  = '<?xml version="1.0" encoding="utf-8"?><?xml-stylesheet type="text/xsl" href="fdq_aa.xsl"?><'.
+        WHEN lcl_fdq_data_coll=>cs_file_name-fdq_fi_ml.
+          lv_xsl_str8  = '<?xml version="1.0" encoding="utf-8"?><?xml-stylesheet type="text/xsl" href="fdq_ml.xsl"?><'.
+
+        WHEN if_tmw_rc_collect_bpa=>c_file_name-st03n.
+          lv_xsl_str8  = '<?xml version="1.0" encoding="utf-8"?><?xml-stylesheet type="text/xsl" href="st03n.xsl"?><'.
+        WHEN if_tmw_rc_collect_bpa=>c_file_name-ttcode.
+          lv_xsl_str8  = '<?xml version="1.0" encoding="utf-8"?><?xml-stylesheet type="text/xsl" href="ttcode.xsl"?><'.
+        WHEN if_tmw_rc_collect_bpa=>c_file_name-sitem_effort_driver.
+          lv_xsl_str8  = '<?xml version="1.0" encoding="utf-8"?><?xml-stylesheet type="text/xsl" href="sitem_effortdriver.xsl"?><'.
+
+          "interface files
+        WHEN gcs_xml_file_name-interface.
+          lv_xsl_str8 = '<?xml version="1.0" encoding="utf-8"?><?xml-stylesheet type="text/xsl" href="interface.xsl"?><'.
+        WHEN gcs_xml_file_name-interface_bwe.
+          lv_xsl_str8 = '<?xml version="1.0" encoding="utf-8"?><?xml-stylesheet type="text/xsl" href="interface_bwe.xsl"?><'.
+        WHEN gcs_xml_file_name-interface_idoc.
+          lv_xsl_str8 = '<?xml version="1.0" encoding="utf-8"?><?xml-stylesheet type="text/xsl" href="interface_idoc.xsl"?><'.
+        WHEN gcs_xml_file_name-interface_soap.
+          lv_xsl_str8 = '<?xml version="1.0" encoding="utf-8"?><?xml-stylesheet type="text/xsl" href="interface_soap.xsl"?><'.
+        WHEN gcs_xml_file_name-interface_rfc.
+          lv_xsl_str8 = '<?xml version="1.0" encoding="utf-8"?><?xml-stylesheet type="text/xsl" href="interface_rfc.xsl"?><'.
+        WHEN gcs_xml_file_name-interface_odata.
+          lv_xsl_str8 = '<?xml version="1.0" encoding="utf-8"?><?xml-stylesheet type="text/xsl" href="interface_odata.xsl"?><'.
+        WHEN gcs_xml_file_name-interface_slt.
+          lv_xsl_str8 = '<?xml version="1.0" encoding="utf-8"?><?xml-stylesheet type="text/xsl" href="interface_slt.xsl"?><'.
+      ENDCASE.
+
+      FIND FIRST OCCURRENCE OF 'utf-8' IN lv_content_str.
+
+      IF sy-subrc = 0.
+        SHIFT lv_content_str LEFT DELETING LEADING '<?xml version="1.0" encoding="utf-8"?>'.
+      ENDIF.
+
+      FIND FIRST OCCURRENCE OF 'utf-16' IN lv_content_str.
+
+      IF sy-subrc = 0.
+        SHIFT lv_content_str LEFT DELETING LEADING '<?xml version="1.0" encoding="utf-16"?>'.
+      ENDIF.
+
+      "In non-unicode system, XML contains illegal character '#<'(0A3C) for unknown reason. This need to be removed
+      SHIFT lv_content_str UP TO 'asx:abap xmlns'.
+      CONCATENATE lv_xsl_str8 lv_content_str INTO lv_content_str.
+      "REPLACE FIRST OCCURRENCE OF lv_str_utf8 IN lv_content_str WITH lv_xsl_str8.
+    ENDIF.
+
+
+*--------------------------------------------------------------------*
+* Add the content to the ZIP
+
+    CALL FUNCTION 'SCMS_STRING_TO_XSTRING'
+      EXPORTING
+        text   = lv_content_str
+      IMPORTING
+        buffer = lv_content_xstr
+      EXCEPTIONS
+        OTHERS = 0.
+    IF iv_without_bom IS NOT INITIAL. "BOM (Byte Order Mask) is EFBBBF for UTF-8 (encoding 4110)
+      lv_bom_3 = lv_content_xstr.
+      IF lv_bom_3 EQ 'EFBBBF'.
+        SHIFT lv_content_xstr LEFT BY 3 PLACES IN BYTE MODE. " remove byte-order-mark
+      ENDIF.
+    ENDIF.
+
+    cl_tmw_rc_collect_bpa=>so_data_file->add(
+      name    = iv_file_name
+      content = lv_content_xstr ).
+  ENDMETHOD.                    "add_content_to_zip
+
+  METHOD add_data_2_buffer.
+    DATA ls_data TYPE srtm_datax.
+
+    IF iv_client_dependent = abap_true.
+      TRY.
+          cl_rc_collect_client_handler=>modify_w_clt_considration(
+            EXPORTING
+              iv_trigid     = iv_trigid
+              iv_trigoffset = iv_trigoffset
+              iv_subid      = iv_subid
+              iv_ddate      = sy-datum
+              iv_dtime      = sy-uzeit
+              iv_counter    = iv_counter
+              iv_xtext      = iv_data_2_buffer
+          ).
+        CATCH cx_rc_collect_client_handler.
+      ENDTRY.
+    ELSE.
+      ls_data-trigid     = iv_trigid.
+      ls_data-trigoffset = iv_trigoffset.
+      ls_data-subid      = iv_subid.
+      ls_data-ddate      = sy-datum.
+      ls_data-dtime      = sy-uzeit.
+      ls_data-xtext      = iv_data_2_buffer.
+
+      IF iv_counter IS NOT INITIAL.
+        ls_data-counter    = iv_counter.
+      ENDIF.
+
+      MODIFY srtm_datax
+        FROM ls_data.
+    ENDIF.
+  ENDMETHOD.                    "add_data_2_buffer
+
+  METHOD is_data_in_buffer_old.
+    DATA:
+      ls_data                        TYPE srtm_datax,
+      lv_current_timestamp           TYPE timestamp,
+      lv_old_timestamp               TYPE timestamp,
+      lv_buffered_data_age_in_second TYPE i,
+      lv_expiration_age_in_second    TYPE i,
+      lv_message                     TYPE string,
+      lv_sting                       TYPE string.
+
+    ev_data_in_buffer_is_old = abap_true.
+    CLEAR ev_buffered_data.
+
+    IF iv_client_dependent = abap_true.
+      ls_data = cl_rc_collect_client_handler=>select_w_clt_considration(
+        iv_trigid     = iv_trigid
+        iv_trigoffset = iv_trigoffset
+        iv_subid      = iv_subid
+      ).
+    ELSE.
+      SELECT SINGLE *
+        FROM srtm_datax
+        INTO ls_data
+       WHERE trigid     = iv_trigid
+         AND trigoffset = iv_trigoffset
+         AND subid      = iv_subid.
+
+      IF sy-subrc <> 0.
+        RETURN.
+      ENDIF.
+    ENDIF.
+
+    IF ls_data IS INITIAL OR xstrlen( ls_data-xtext ) = 0.
+      RETURN.
+    ENDIF.
+
+    GET TIME STAMP FIELD lv_current_timestamp.
+
+    CONVERT DATE ls_data-ddate TIME ls_data-dtime
+      INTO TIME STAMP lv_old_timestamp TIME ZONE sy-zonlo.
+
+    CALL FUNCTION 'TIMECALC_DIFF'
+      EXPORTING
+        timestamp1 = lv_old_timestamp
+        timestamp2 = lv_current_timestamp
+        timezone   = sy-zonlo
+      IMPORTING
+        difference = lv_buffered_data_age_in_second.
+
+    lv_expiration_age_in_second = 60 * 60 * 24 * gv_expired_dat.
+
+    IF lv_buffered_data_age_in_second <= lv_expiration_age_in_second.
+      lv_message = 'Buffered data less than 30 days( &1 ) is used.'.
+      lv_sting = lv_old_timestamp.
+      REPLACE '&1' IN lv_message WITH lv_sting.
+      CONDENSE lv_message.
+
+      add_info_mesg lv_message.
+
+      ev_data_in_buffer_is_old = abap_false.
+      ev_buffered_data         = ls_data-xtext.
+    ENDIF.
+  ENDMETHOD.                    "is_data_in_buffer_old
+
+  METHOD add_data_2_zip_file.
+    DATA ls_file_2_add TYPE ty_s_files_2_add.
+
+    LOOP AT it_file_2_data INTO ls_file_2_add WHERE file_name IS NOT INITIAL.
+      add_content_to_zip(
+        iv_file_name   = ls_file_2_add-file_name
+        iv_content     = ls_file_2_add-xml_file_xstr
+        iv_coll_report = iv_report_name
+      ).
+    ENDLOOP.
+  ENDMETHOD.                    "add_data_2_zip_file
+ENDCLASS.                    "lcl_data_collection_helper IMPLEMENTATION
+
+
+*----------------------------------------------------------------------*
+*       CLASS lcl_scope_sel_mode IMPLEMENTATION
+*----------------------------------------------------------------------*
+*
+*----------------------------------------------------------------------*
+CLASS lcl_scope_sel_mode IMPLEMENTATION.
+  METHOD on_selection_mode.
+    DATA:
+      lv_error_message_text   TYPE string,
+      lo_scope_sel_mode_error TYPE REF TO  lcx_scope_sel_mode.
+*    lv_scope_sel_mode       TYPE ty_scope_sel_mode,
+
+    TRY.
+        go_scope_sel_mode->switch_mode( ).
+        go_scope_sel_mode->save_scope_sel_mode( ).
+      CATCH lcx_scope_sel_mode INTO lo_scope_sel_mode_error.
+        lv_error_message_text = lo_scope_sel_mode_error->get_full_text(  ).
+
+        MESSAGE lv_error_message_text TYPE 'I'.
+    ENDTRY.
+
+    sscrfields-functxt_04 = go_scope_sel_mode->get_scope_sel_mode_button( ).
+
+    psel_mod = go_scope_sel_mode->get_scope_sel_mode( ).
+    IF psel_mod = lcl_scope_sel_mode=>cs_scope_sel_mode-standard.
+
+      lcl_interface_data_coll=>lif_sub_checks_multimode~on_standard_mode_selection( ).
+      lcl_fdq_data_coll=>lif_sub_checks_multimode~on_standard_mode_selection( ).
+    ELSE.
+      lcl_interface_data_coll=>lif_sub_checks_multimode~on_expert_mode_selection( ).
+      lcl_fdq_data_coll=>lif_sub_checks_multimode~on_expert_mode_selection( ).
+    ENDIF.
+  ENDMETHOD.                    "on_selection_mode
+
+  METHOD constructor.
+    _det_current_scope_sel_mode( ).
+  ENDMETHOD.                    "constructor
+
+  METHOD  get_scope_sel_mode.
+    rv_scope_sel_mode = _mv_scope_sel_mode.
+  ENDMETHOD.                    "get_scope_sel_mode
+
+  METHOD get_scope_sel_mode_text.
+    CASE _mv_scope_sel_mode.
+      WHEN cs_scope_sel_mode-standard.
+        rv_scope_sel_mode_text = 'Standard Mode'.
+      WHEN cs_scope_sel_mode-expert.
+        rv_scope_sel_mode_text = 'Expert Mode'.
+      WHEN  OTHERS.
+        CLEAR rv_scope_sel_mode_text.
+    ENDCASE.
+  ENDMETHOD.                    "get_scope_sel_mode_text
+
+  METHOD get_scope_sel_mode_button.
+    CASE _mv_scope_sel_mode.
+      WHEN cs_scope_sel_mode-standard.
+        rs_scope_sel_mode_button-icon_id   = '@3L@'.  "ICON_VIEW_HIER_LIST
+        rs_scope_sel_mode_button-icon_text = 'Expert Mode'.
+        rs_scope_sel_mode_button-quickinfo = 'Expert Mode'.
+
+      WHEN cs_scope_sel_mode-expert.
+        rs_scope_sel_mode_button-icon_id   = '@3K@'.  "ICON_TOGGLE_DISPLAY
+        rs_scope_sel_mode_button-icon_text = 'Standard Mode'.
+        rs_scope_sel_mode_button-quickinfo = 'Standard Mode'.
+      WHEN  OTHERS.
+        CLEAR rs_scope_sel_mode_button-text.
+    ENDCASE.
+  ENDMETHOD.                    "get_scope_sel_mode_button
+
+  METHOD save_scope_sel_mode.
+    DATA ls_bcos_cust TYPE bcos_cust.
+
+    ls_bcos_cust-appli = cs_scope_sel_mode-parameter_key.
+    ls_bcos_cust-destinat = _mv_scope_sel_mode.
+
+    MODIFY bcos_cust
+      FROM ls_bcos_cust.
+
+    IF sy-subrc <> 0.
+      RAISE EXCEPTION TYPE lcx_scope_sel_mode
+        EXPORTING
+          text    = lcx_scope_sel_mode=>save_failure
+          text_v1 = 'BCOS_CUST'.
+    ENDIF.
+  ENDMETHOD.                    "save_scope_sel_mode
+
+  METHOD _det_current_scope_sel_mode.
+    DATA ls_bcos_cust TYPE bcos_cust.
+
+    SELECT SINGLE *
+      FROM bcos_cust
+      BYPASSING BUFFER
+      INTO ls_bcos_cust
+     WHERE appli = cs_scope_sel_mode-parameter_key.
+
+    IF sy-subrc = 0.
+      _mv_scope_sel_mode = ls_bcos_cust-destinat.
+    ELSE.
+      _mv_scope_sel_mode = cs_scope_sel_mode-standard.
+    ENDIF.
+  ENDMETHOD.                    "_det_current_scope_sel_mode
+
+  METHOD set_standard_mode.
+    TRY.
+        _set_mode( iv_scope_sel_mode = cs_scope_sel_mode-standard ).
+      CATCH lcx_scope_sel_mode.
+
+    ENDTRY.
+
+    ro_scope_sel_mode_object = me.
+  ENDMETHOD.                    "set_standard_mode
+
+  METHOD set_expert_mode.
+    TRY.
+        _set_mode( iv_scope_sel_mode = cs_scope_sel_mode-expert ).
+      CATCH lcx_scope_sel_mode.
+    ENDTRY.
+
+    ro_scope_sel_mode_object = me.
+  ENDMETHOD.                    "set_expert_mode
+
+  METHOD _set_mode.
+    DATA lv_text_v1 TYPE c LENGTH 50.
+
+    CASE iv_scope_sel_mode.
+      WHEN cs_scope_sel_mode-standard.
+        _mv_scope_sel_mode = cs_scope_sel_mode-standard.
+      WHEN cs_scope_sel_mode-expert.
+        _mv_scope_sel_mode = cs_scope_sel_mode-expert.
+      WHEN  OTHERS.
+        lv_text_v1 = iv_scope_sel_mode.
+
+        RAISE EXCEPTION TYPE lcx_scope_sel_mode
+          EXPORTING
+            text    = lcx_scope_sel_mode=>wrong_scope_selection_mode
+            text_v1 = lv_text_v1.
+    ENDCASE.
+  ENDMETHOD.                    "_set_mode
+
+  METHOD switch_mode.
+    IF  _mv_scope_sel_mode = cs_scope_sel_mode-standard.
+      set_expert_mode( ).
+    ELSE.
+      set_standard_mode( ).
+    ENDIF.
+  ENDMETHOD.                    "switch_mode
+ENDCLASS.                    "lcl_scope_sel_mode IMPLEMENTATION
+
+**********************************************************************
+
+
+
+**********************************************************************
+* Program events
+**********************************************************************
+**********************************************************************
+INITIALIZATION.
+* switch to authorization check using authorization group
+* => assign RC_COLL in report properties
+* => user need to have authorization object S_PROGRAM assigned afterwards
+*      P_GROUP = RC_COLL
+*      P_ACTION  = SUBMIT, BTCSUBMIT (maybe also VARIANT)
+* OLD CHECK:
+*  AUTHORITY-CHECK OBJECT 'S_DEVELOP'
+*           ID 'DEVCLASS' DUMMY
+*           ID 'OBJTYPE'  DUMMY
+*           ID 'OBJNAME'  DUMMY
+*           ID 'P_GROUP'  DUMMY
+*           ID 'ACTVT'    FIELD '16'.
+*  IF sy-subrc <> 0.
+*    lv_mesg_text = 'You have no authorization to execute this report'.
+*    MESSAGE lv_mesg_text TYPE 'E'.
+*    EXIT.
+*  ENDIF.
+
+*  --------------------------------------------------------------------*
+*   Check whether the system is S4 or ERP
+  SELECT * FROM cvers INTO TABLE lt_cvers
+    WHERE component = 'S4CORE'.
+  "if is S4 system, hide some check and set these CheckBox to false
+  IF sy-subrc = 0.
+    gv_s4 = abap_true.
+  ELSE.
+    "if there's no S4CORE component, we need to check it's not a foundation system
+     SELECT * FROM cvers INTO TABLE lt_cvers
+      WHERE component = 'S4FND'.
+     IF sy-subrc = 0.
+      lv_mesg_text = 'As per SAP Note 3059197, SAP Readiness Check for SAP S/4HANA does not support SAP S/4HANA Foundation systems.'.
+      MESSAGE lv_mesg_text TYPE 'E'.
+      EXIT.
+     ENDIF.
+  ENDIF.
+
+* get sap basis release
+  SELECT SINGLE release
+    FROM cvers INTO gv_cvers_basis
+    WHERE component = 'SAP_BASIS'.
+
+  IF sy-batch <> abap_true.
+    PERFORM initialization.
+  ENDIF.
+
+AT SELECTION-SCREEN OUTPUT.
+  DATA lv_scope_sel_mode TYPE ty_scope_sel_mode.
+
+  IF sy-batch <> 'X'.
+    lv_scope_sel_mode = go_scope_sel_mode->get_scope_sel_mode( ).
+  ENDIF.
+
+  "Remove the Execute button(F8)
+  APPEND 'ONLI' TO lt_ucomm.
+
+  CALL FUNCTION 'RS_SET_SELSCREEN_STATUS'
+    EXPORTING
+      p_status  = sy-pfkey
+    TABLES
+      p_exclude = lt_ucomm.
+
+  IF lv_scope_sel_mode = lcl_scope_sel_mode=>cs_scope_sel_mode-standard.
+    "Standard Mode
+    LOOP AT SCREEN.
+
+      IF screen-group1 = 'IFS' "Interface // integration: Standard mode
+          OR screen-group1 = 'FQS'. "FDQ : Standard mode
+        screen-invisible = 0.
+        screen-input = 1.
+
+        MODIFY SCREEN.
+      ENDIF.
+
+      IF screen-group1 = 'IFE' "Interface: Expert Mode (include: IDoc Statistic, Collect Minimum Data Set)
+          OR screen-group1 = 'FQE'. "FDQ : Expert mode
+        screen-invisible = 1.
+        screen-input = 0.
+
+        MODIFY SCREEN.
+      ENDIF.
+    ENDLOOP.
+  ELSE.
+    "Expert Mode
+    LOOP AT SCREEN.
+      IF screen-group1 = 'IFS' "Interface // integration: Standard mode
+          OR screen-group1 = 'FQS'. "FDQ : Standard mode
+        screen-invisible = 1.
+        screen-input = 0.
+
+        MODIFY SCREEN.
+      ENDIF.
+
+      IF screen-group1 = 'IFE' "Interface: Expert Mode
+          OR screen-group1 = 'FQE'. "FDQ : Standard mode
+        screen-invisible = 0.
+        screen-input = 1.
+
+        MODIFY SCREEN.
+      ENDIF.
+
+      IF screen-name = 'C_IDOC_S' OR screen-name = 'P_IDOC_S'.
+        "Interface: Expert Mode,  IDoc Statistic
+        IF p_ifidoc = 'X'.
+          screen-input = 1.
+        ELSE.
+          screen-input = 0.
+        ENDIF.
+
+        MODIFY SCREEN.
+      ENDIF.
+
+      IF screen-name = 'C_IF_MIN' OR screen-name = 'P_IF_MIN'.
+        "Interface: Expert Mode, Collect Minimum Data Set
+        IF p_bwextr = 'X' OR p_ifidoc = 'X' OR p_idoc_s = 'X' OR p_if_rfc = 'X' OR p_ifwebs  = 'X'.
+          screen-input = 1.
+        ELSE.
+          screen-input = 0.
+        ENDIF.
+
+        MODIFY SCREEN.
+      ENDIF.
+
+      IF screen-name = 'C_FDQGLJ'  OR screen-name = 'P_FDQGLJ'
+          OR screen-name = 'C_FDQGLE'  OR screen-name = 'P_FDQGLE'.
+        "FDQ: Expert Mode,  General Ledger
+        IF p_fdqgl = 'X'.
+          screen-input = 1.
+        ELSE.
+          screen-input = 0.
+        ENDIF.
+
+        MODIFY SCREEN.
+      ENDIF.
+
+      IF screen-name = 'C_FDQAAJ' OR screen-name = 'P_FDQAAJ'
+          OR screen-name = 'C_FDQAAE' OR screen-name = 'P_FDQAAE'.
+        "FDQ: Expert Mode,  Asset Accounting
+        IF p_fdqaa = 'X'.
+          screen-input = 1.
+        ELSE.
+          screen-input = 0.
+        ENDIF.
+
+        MODIFY SCREEN.
+      ENDIF.
+
+      IF screen-name = 'C_FDQMLJ' OR screen-name = 'P_FDQMLJ'
+          OR screen-name = 'C_FDQMLE' OR screen-name = 'P_FDQMLE'.
+        "FDQ: Expert Mode,  Material Ledger
+        IF p_fdqml = 'X'.
+          screen-input = 1.
+        ELSE.
+          screen-input = 0.
+        ENDIF.
+
+        MODIFY SCREEN.
+      ENDIF.
+
+
+      IF screen-name = 'P_FDQSQ' OR screen-name = 'P_FDQPA'.
+        IF p_fdqgl = 'X' OR p_fdqaa = 'X' OR p_fdqml = 'X'.
+          screen-input = 1.
+        ELSE.
+          screen-input = 0.
+        ENDIF.
+
+        MODIFY SCREEN.
+      ENDIF.
+    ENDLOOP.
+
+    IF p_ifidoc <> 'X'. "Interface: Expert Mode,  IDoc Statistic
+      p_idoc_s = p_ifidoc.
+    ENDIF.
+  ENDIF.
+
+  "Hide some check when system is S4, and set check box to unchecked
+  IF gv_s4 = abap_true.
+    LOOP AT SCREEN.
+      IF screen-group1 = 'COV'
+          OR screen-group1 = 'SIZ'
+          OR screen-group1 = 'BPN'
+          OR screen-group1 = 'BPA'
+          OR screen-group1 = 'FQS' OR screen-group1 = 'FQE'. "FDQ Stnadard Mode, FDQ Expert Mode
+
+*       or screen-group1 = 'IFS' OR screen-group1 = 'IFE'. "interface
+
+        screen-invisible = 1.
+        screen-input = 0.
+
+        MODIFY SCREEN.
+      ENDIF.
+    ENDLOOP.
+
+    p_bpa = abap_false.
+    p_dvm = abap_false.
+    p_h_size = abap_false.
+    p_bp = abap_false.
+    p_fdq = abap_false.
+  ENDIF.
+
+  IF gv_s4 = abap_false OR gv_cvers_basis < '752'.
+    "no S4 system -> hide CCA
+    LOOP AT SCREEN.
+      IF screen-group1 = 'CCA'.
+        screen-invisible = 1.
+        screen-input = 0.
+        MODIFY SCREEN.
+      ENDIF.
+    ENDLOOP.
+  ENDIF.
+
+  "BPA
+  IF p_bpa = 'X'.
+    LOOP AT SCREEN.
+      IF screen-group1 = 'BPA'.
+        screen-input = '1'.
+        MODIFY SCREEN.
+      ENDIF.
+    ENDLOOP.
+  ELSE.
+    LOOP AT SCREEN.
+      IF screen-group1 = 'BPA'.
+        screen-input = '0'.
+        MODIFY SCREEN.
+      ENDIF.
+    ENDLOOP.
+  ENDIF.
+
+  "SIC Relevance is madatory for SIC Cosnsitency
+  "SIC Relevance is madatory for SIC Effort Driver
+  IF p_si_con = 'X' OR p_si_efd = 'X'.
+    p_si_rel = 'X'.
+    LOOP AT SCREEN.
+      IF screen-group1 = 'SIC'.
+        screen-input = '0'.
+        MODIFY SCREEN.
+      ENDIF.
+    ENDLOOP.
+  ELSE.
+    LOOP AT SCREEN.
+      IF screen-group1 = 'SIC'.
+        screen-input = '1'.
+        MODIFY SCREEN.
+      ENDIF.
+    ENDLOOP.
+  ENDIF.
+
+  "HANA Sizing is madatory for DVM
+  IF p_dvm = 'X'.
+    p_h_size = 'X'.
+    LOOP AT SCREEN.
+      IF screen-group1 = 'SIZ'.
+        screen-input = '0'.
+        MODIFY SCREEN.
+      ENDIF.
+    ENDLOOP.
+  ELSE.
+    LOOP AT SCREEN.
+      IF screen-group1 = 'SIZ'.
+        screen-input = '1'.
+        MODIFY SCREEN.
+      ENDIF.
+    ENDLOOP.
+  ENDIF.
+
+  "Job scheduler
+  LOOP AT SCREEN.
+    IF screen-group1 = 'DAT'.
+      IF gv_immediate = 'X'.
+        screen-input = '0'.
+        MODIFY SCREEN.
+      ELSE.
+        screen-input = '1'.
+        MODIFY SCREEN.
+      ENDIF.
+    ENDIF.
+  ENDLOOP.
+
+  "FDQ, prerequisites not fulfilled, recommendation in expert mode cannot be used:
+  IF gv_fdq_prerequisites_fulfilled <> abap_true.
+    LOOP AT SCREEN.
+      IF screen-name = 'C1FDQJI'
+          OR screen-name = 'C2FDQJI'
+          OR screen-name = 'C3FDQJI'
+          OR screen-name = 'BTN_FJR'.
+        screen-invisible = 1.
+        screen-input = 0.
+
+      ENDIF.
+
+      MODIFY SCREEN.
+    ENDLOOP.
+  ENDIF.
+
+
+  "Sync values with the object
+*  PERFORM sync_sub_checks_value.
+
+AT SELECTION-SCREEN ON EXIT-COMMAND.
+
+  IF sscrfields-ucomm   = 'CBAC'  "Back
+    OR sscrfields-ucomm = 'CEND'  "Exit
+    OR sscrfields-ucomm = 'CCAN'. "Cancel
+    LEAVE PROGRAM.
+  ENDIF.
+
+  IF sscrfields-ucomm = 'ECAN'.    "Exist from popup
+    IF gv_in_popup = 'X'.
+      gv_in_popup = ' '.
+      CLEAR: p_sdate, p_stime.
+      LEAVE TO SCREEN 0.
+    ENDIF.
+
+    IF gs_fdq_wp_popup-in_popup = 'X'.
+      gs_fdq_wp_popup-in_popup = ' '.
+      LEAVE TO SCREEN 0.
+    ENDIF.
+  ENDIF.
+
+AT SELECTION-SCREEN.
+  CASE sscrfields-ucomm.
+    WHEN 'BTN_FDQ_JOB_RECO'.
+      lcl_fdq_data_coll=>update_wp_parameter( ).
+
+    WHEN 'IFS'. "Interface standard mode user action
+      lcl_interface_data_coll=>lif_sub_checks_multimode~on_standard_mode_change( ).
+
+    WHEN 'IFE'. "Interface expert mode user action
+      lcl_interface_data_coll=>lif_sub_checks_multimode~on_expert_mode_change( ).
+
+    WHEN 'FQS'.
+      lcl_fdq_data_coll=>lif_sub_checks_multimode~on_standard_mode_change( ).
+
+    WHEN 'FQE'.
+      lcl_fdq_data_coll=>lif_sub_checks_multimode~on_expert_mode_change( ).
+
+    WHEN 'FC01'. "Schedule analysis
+      "Only validate the input when Schedule Analysis button is clicked
+
+      DATA lv_stop_process TYPE boolean.
+
+      PERFORM validate_input CHANGING lv_stop_process.
+
+      IF lv_stop_process = abap_true.
+        EXIT.
+      ENDIF.
+
+      PERFORM check_configuration.
+      IF lv_configuration_ok = 'X'.
+        gv_in_popup = 'X'.
+        CALL SELECTION-SCREEN 1100
+          STARTING AT 10 10.
+        IF sy-subrc <> 0.
+          gv_in_popup = ' '.
+          LEAVE TO SCREEN 0.
+        ENDIF.
+      ENDIF.
+
+    WHEN 'FC02'. "SM37
+      CALL TRANSACTION 'SM37'.
+
+    WHEN 'FC03'. "Download analysis
+      PERFORM download_analysis_data IN PROGRAM tmw_rc_download_analysis_data
+        USING c_data_key-subid_rc_ana_20 'RC2AnalysisData' lt_conv_targ_stack.
+
+    WHEN 'FC04'. "Scope selection mode
+      lcl_scope_sel_mode=>on_selection_mode( ).
+
+    WHEN 'FC05'. "'FC04'. "Help
+      IF gv_s4 = abap_true.
+        CALL FUNCTION 'CALL_BROWSER'
+          EXPORTING
+            url    = 'https://launchpad.support.sap.com/#/notes/3059197'
+          EXCEPTIONS
+            OTHERS = 1.
+        IF sy-subrc <> 0.
+          MESSAGE ID sy-msgid TYPE 'S' NUMBER sy-msgno
+                  WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4 DISPLAY LIKE 'W'.
+        ENDIF.
+      ELSE.
+        CALL FUNCTION 'CALL_BROWSER'
+          EXPORTING
+            url    = 'https://launchpad.support.sap.com/#/notes/2913617'
+          EXCEPTIONS
+            OTHERS = 1.
+        IF sy-subrc <> 0.
+          MESSAGE ID sy-msgid TYPE 'S' NUMBER sy-msgno
+                  WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4 DISPLAY LIKE 'W'.
+        ENDIF.
+      ENDIF.
+
+    WHEN 'SCHEDULE_ANALYSIS'. "'FC05'. "Trigger analysis job
+      IF gv_immediate <> 'X'.
+        IF p_sdate IS INITIAL.
+          lv_mesg_text = 'Specify a complete start time'.
+          MESSAGE lv_mesg_text TYPE 'E'.
+          EXIT.
+        ELSEIF p_sdate < sy-datum OR ( p_sdate = sy-datum  AND p_stime <= sy-timlo ).
+          lv_mesg_text = 'Start date is in the past'.
+          MESSAGE lv_mesg_text TYPE 'E'.
+          EXIT.
+        ENDIF.
+      ENDIF.
+
+      PERFORM schedule_data_collection.
+
+      gv_in_popup = ' '.
+      CLEAR: p_sdate, p_stime.
+      LEAVE TO SCREEN 0.
+
+    WHEN 'DEL_BUFF'.
+      PERFORM delete_buffered_result.
+
+    WHEN 'BTN_WP_Y' OR 'BTN_WP_N'.
+      IF sscrfields-ucomm = 'BTN_WP_Y'.
+        gs_fdq_wp_popup-question_answered_yes = abap_true.
+      ENDIF.
+
+      gs_fdq_wp_popup-in_popup = ' '.
+      LEAVE TO SCREEN 0.
+    WHEN 'IMM'.
+      gv_immediate = abap_true.
+
+    WHEN 'SCH'.
+      gv_immediate = abap_false.
+  ENDCASE.
+
+START-OF-SELECTION.
+  IF p_subjob IS INITIAL.
+    IF p_bpa IS NOT INITIAL "Business Process Analytics
+        OR p_bp IS NOT INITIAL "Business Partner
+        OR p_fdq IS NOT INITIAL "FDQ
+        "OR p_intfac IS NOT INITIAL "Interface // integration: Standard mode
+          OR p_bwextr IS NOT INITIAL "BW Extractor
+          OR p_ifidoc IS NOT INITIAL "IDoc Interface
+          OR p_idoc_s IS NOT INITIAL "IDoc Statistic
+          OR p_if_rfc IS NOT INITIAL "RFC/BAPI
+          OR p_ifwebs IS NOT INITIAL "Web Service Interfaces
+          OR p_if_odt IS INITIAL "oData
+          OR p_if_slt IS INITIAL "SLT
+          OR p_if_min IS NOT INITIAL "
+        OR p_h_size IS NOT INITIAL "HANA Sizing
+        OR p_dvm IS NOT INITIAL "Data Volume Management
+        OR p_si_rel IS NOT INITIAL "Simplification Item Relevance
+        OR p_si_efd IS NOT INITIAL "Simplification Item Effort Drivers
+        OR p_si_con IS NOT INITIAL "Simplification Item Consistency
+        OR p_usg    IS NOT INITIAL "App Availability  8/10
+        OR p_tr_usg IS NOT INITIAL. "Transaction (ST03)
+
+      "Double check in case the job is scheduled directly in SM36
+      PERFORM check_configuration.
+
+      IF lv_configuration_ok = abap_false.
+        EXIT.
+      ENDIF.
+
+      PERFORM collect_data.
+    ENDIF.
+  ELSE.
+    CASE p_subjob.
+      WHEN c_sub_job_type-sic_relv.
+        add_info_mesg 'Start to perform simplification item relevance check'.
+        PERFORM collect_sic_relevance_data IN PROGRAM tmw_rc_download_analysis_data
+          USING p_prd_st.
+        add_info_mesg 'Simplification item relevance check is finished'.
+
+      WHEN c_sub_job_type-sic_cons.  "get_collected_data_sic_rel
+        add_info_mesg 'Start to perform simplification item consistency check'.
+        PERFORM collect_sic_consistency_data USING p_prd_st.
+        add_info_mesg 'Simplification item consistency check is finished'.
+
+      WHEN c_sub_job_type-hana_size.
+        add_info_mesg 'Start to collect HANA Sizing data'.
+        PERFORM collect_hana_sizing_data IN PROGRAM tmw_rc_download_analysis_data.
+        add_info_mesg 'HANA Sizing data is collected'.
+
+      WHEN c_sub_job_type-bpa.
+        add_info_mesg 'Start to collect Business Process Analytics data'.
+        PERFORM collect_bpa_data.
+        add_info_mesg 'Business Process Analytics data is collected'.
+
+      WHEN c_sub_job_type-dvm.
+        add_info_mesg 'Start to collect Data Volume Management data'.
+        PERFORM collect_dvm_data IN PROGRAM tmw_rc_download_analysis_data.
+        add_info_mesg 'Data Volume Management data is collected'.
+
+      WHEN c_sub_job_type-innova.
+        add_info_mesg 'Start to collect Innovation Potential data'.
+        PERFORM collect_ip_data.
+        add_info_mesg 'Innovation Potential data is collected'.
+
+      WHEN c_sub_job_type-fdq.
+        add_info_mesg 'Start to collect Financial Data Quality'.
+        PERFORM collect_fdq_data.
+        add_info_mesg 'Financial Data Quality data is collected'.
+
+      WHEN c_sub_job_type-sic_efd.
+        add_info_mesg 'Start to collect simplification item effort driver data'.
+        PERFORM collect_sic_effort_driver_data.
+        add_info_mesg 'Simplification item effort driver data is collected'.
+
+      WHEN c_sub_job_type-cca.
+        add_info_mesg 'Start to collect custom code analysis data'.
+        PERFORM collect_cca_data.
+        add_info_mesg 'Custom code analysis data is collected'.
+
+    ENDCASE.
+  ENDIF.
+
+**********************************************************************
+* Sub-routines
+**********************************************************************
+**********************************************************************
+FORM check_configuration.
+  DATA:
+    ls_note             TYPE bcwbn_note,
+    lv_note_impl_status TYPE cwbprstat,
+    lv_str_tmp          TYPE string.
+
+  DATA:
+    lv_note            TYPE cwbntnumm,
+    lv_note_str        TYPE string,
+    ls_note_status     TYPE if_tmw_rc_collect_bpa=>ty_note_stat_str,
+    lr_table           TYPE REF TO cl_salv_table,
+    lr_disply_settings TYPE REF TO cl_salv_display_settings,
+    lr_columns         TYPE REF TO cl_salv_columns_table,
+    lr_column          TYPE REF TO cl_salv_column,
+    lr_flowfoot        TYPE REF TO cl_salv_form_layout_flow,
+    lr_eol             TYPE REF TO cl_salv_form_element,
+    lv_text            TYPE string,
+    lv_message_count   TYPE i.
+
+  DATA:
+    lv_are_prerequisites_fulfilled TYPE boolean,
+    lt_prerequisites_error_message TYPE lif_sub_checks_collector=>ty_t_error_message,
+    ls_prerequisites_error_message TYPE lif_sub_checks_collector=>ty_s_error_message.
+
+  lv_configuration_ok = abap_false.
+
+  IF p_bpa IS INITIAL "Business Process Analytics
+      AND p_bp IS INITIAL "Business Partner
+      AND p_fdq IS INITIAL "Financial Data Quality
+      AND p_cca IS INITIAL "Custom Code Analysis
+      AND p_innova IS INITIAL "Innovation Potential
+      AND p_intfac IS INITIAL "Interface // integration: Standard mode
+        AND  p_bwextr IS INITIAL "BW Extractor
+        AND p_ifidoc IS INITIAL "IDoc Statistic
+        AND p_if_rfc IS INITIAL "RFC/BAPI
+        AND p_ifwebs IS INITIAL "Web Service Interfaces
+        AND p_if_odt IS INITIAL "oData
+        AND p_if_slt IS INITIAL "SLT
+      AND p_h_size IS INITIAL "HANA Sizing
+        AND p_dvm IS INITIAL "Data Volume Management
+      AND p_si_rel IS INITIAL "Simplification Item Relevance
+      AND p_si_efd IS INITIAL "Simplification Item Effort Drivers
+      AND p_si_con IS INITIAL "Simplification Item Consistency
+      AND p_usg    IS INITIAL "Usage data 8/10
+      AND p_tr_usg IS INITIAL. "Transaction (ST03)
+
+    lv_mesg_text = 'Select at least one item to be downloaded.'.
+    MESSAGE lv_mesg_text TYPE 'W'.
+    EXIT.
+  ENDIF.
+
+  IF p_innova IS NOT INITIAL. "Innovation Potential
+    DATA lv_int_need_check TYPE flag.
+    DATA ls_cvers          TYPE cvers.
+    DATA lv_ext_rel_num    TYPE i.
+
+    lv_int_need_check = abap_true.
+    CLEAR ls_cvers.
+    "The note is not required anymore with ST-PI SP28 or SP18 *
+    SELECT SINGLE * FROM cvers INTO ls_cvers WHERE component = 'ST-PI'.
+    IF sy-subrc = 0.
+      lv_ext_rel_num = ls_cvers-extrelease.
+      IF ( ( ls_cvers-release CS '710' OR ls_cvers-release CS '700' ) AND lv_ext_rel_num > 27 )
+        OR ( ls_cvers-release CS '740' AND lv_ext_rel_num > 17 ).
+        lv_int_need_check = abap_false.
+      ENDIF.
+    ENDIF.
+
+    IF lv_int_need_check = abap_true.
+      CLEAR: ls_note, lv_mesg_text.
+      ls_note-key-numm = '2827612'.
+      CALL FUNCTION 'SCWB_NOTE_READ'
+        EXPORTING
+          iv_read_attributes          = 'X'
+          iv_read_customer_attributes = 'X'
+        CHANGING
+          cs_note                     = ls_note
+        EXCEPTIONS
+          note_not_found              = 1
+          corr_instruction_not_found  = 2
+          OTHERS                      = 8.
+      lv_note_impl_status = ls_note-customer_attributes-prstatus.
+      IF   lv_note_impl_status = ' '
+        OR lv_note_impl_status = 'N'
+        OR lv_note_impl_status = '-'
+        OR lv_note_impl_status = 'O'.
+        lv_str_tmp = cl_tmw_rc_collect_bpa=>sv_update_nt_str.
+        REPLACE ALL OCCURRENCES OF '&PARA1&' IN lv_str_tmp WITH '2827612'.
+        REPLACE ALL OCCURRENCES OF '&PARA2&' IN lv_str_tmp WITH 'Innovation Potential'.
+        CONCATENATE lv_mesg_text lv_str_tmp INTO lv_mesg_text.
+        MESSAGE lv_mesg_text TYPE 'W'.
+        EXIT.
+      ENDIF.
+    ENDIF.
+  ENDIF.
+
+  "Interface impact analysis
+  IF p_intfac IS NOT INITIAL.
+    lv_are_prerequisites_fulfilled = abap_false.
+    lcl_interface_data_coll=>set_odata_is_selected( iv_odata_is_selected = p_if_odt ).
+
+
+    lcl_interface_data_coll=>lif_sub_checks_collector~are_prerequisites_fulfilled(
+      IMPORTING
+        ev_are_prerequisites_fulfilled = lv_are_prerequisites_fulfilled
+    ).
+
+    IF lv_are_prerequisites_fulfilled <> abap_true.
+      lv_str_tmp = 'Prerequisite for &PARA1& not fulfilled. Check SAP Note &PARA2& for more details.'.
+      REPLACE ALL OCCURRENCES OF '&PARA1&' IN lv_str_tmp WITH 'Integration'.
+      REPLACE ALL OCCURRENCES OF '&PARA2&' IN lv_str_tmp WITH '3061414'.
+      CONCATENATE lv_mesg_text lv_str_tmp INTO lv_mesg_text.
+      MESSAGE lv_mesg_text TYPE 'W'.
+      EXIT.
+    ENDIF.
+  ENDIF.
+
+  IF p_si_efd IS NOT INITIAL. "Simplification Item Effort Drivers
+    DATA:
+      lr_typedescr  TYPE REF TO cl_abap_typedescr,
+      lr_classdescr TYPE REF TO cl_abap_classdescr,
+      lv_passed     TYPE bool VALUE abap_false.
+
+    CALL METHOD cl_abap_typedescr=>describe_by_name(
+      EXPORTING
+        p_name         = '/SDF/CL_RC_COMPLEXITY_FACTORY'
+      RECEIVING
+        p_descr_ref    = lr_typedescr
+      EXCEPTIONS
+        type_not_found = 1 ).
+    IF sy-subrc = 0.
+      lr_classdescr ?= lr_typedescr.
+      READ TABLE lr_classdescr->methods WITH KEY name = 'CHECK_COMPLEXITY_DRIVERS' TRANSPORTING NO FIELDS.
+      IF sy-subrc = 0.
+        lv_passed = abap_true.
+      ENDIF.
+    ENDIF.
+
+    IF lv_passed <> abap_true.
+      lv_str_tmp = cl_tmw_rc_collect_bpa=>sv_update_nt_str.
+      REPLACE ALL OCCURRENCES OF '&PARA1&' IN lv_str_tmp WITH '2903677'.
+      REPLACE ALL OCCURRENCES OF '&PARA2&' IN lv_str_tmp WITH 'Simplification Item Effort Driver'.
+      CONCATENATE lv_mesg_text lv_str_tmp INTO lv_mesg_text.
+      MESSAGE lv_mesg_text TYPE 'W'.
+      EXIT.
+    ENDIF.
+  ENDIF.
+
+* check if CCA can be triggered
+  IF p_cca IS NOT INITIAL.
+
+    "clear messages before performing the checks
+    CLEAR lcl_cca=>_messages.
+    lcl_cca=>check_prerequisites( ).
+    lcl_cca=>check_variant( ).
+
+    "looking for messages and displaying them if any
+    DATA l_lines TYPE i.
+    DESCRIBE TABLE lcl_cca=>_messages LINES l_lines.
+    IF l_lines NE 0.
+      "popup to inform
+      DATA: l_message        TYPE string,
+            lt_messages      TYPE rs_t_msg,
+            ls_message       TYPE bal_s_msg,
+            lt_message_lines TYPE STANDARD TABLE OF sotr_txt.
+
+      CLEAR lt_messages.
+      LOOP AT lcl_cca=>_messages INTO l_message.
+        CLEAR ls_message.
+        CLEAR lt_message_lines.
+
+        CALL FUNCTION 'SOTR_SERV_STRING_TO_TABLE'
+          EXPORTING
+            text        = l_message                 " Text
+            line_length = 50
+            langu       = 'E'         " SAP R/3 System, Current Language
+          TABLES
+            text_tab    = lt_message_lines.                  " Text Table
+
+        READ TABLE lt_message_lines INTO ls_message-msgv1 INDEX 1.
+        READ TABLE lt_message_lines INTO ls_message-msgv2 INDEX 2.
+        READ TABLE lt_message_lines INTO ls_message-msgv3 INDEX 3.
+        READ TABLE lt_message_lines INTO ls_message-msgv4 INDEX 4.
+
+        ls_message-msgty = 'E'.
+        ls_message-msgid = '01'.
+        ls_message-msgno = '319'.
+        APPEND ls_message TO lt_messages.
+      ENDLOOP.
+
+      " display messages
+      CALL FUNCTION 'RSDC_SHOW_MESSAGES_POPUP'
+        EXPORTING
+          i_one_msg_direct = abap_false
+          i_t_msg          = lt_messages
+          i_txt            = 'The analysis cannot be scheduled for the following reasons:'.
+
+      "return to selection screen.
+      EXIT.
+    ENDIF.
+
+    IF lcl_cca=>ready_for_execution( ) NE abap_true.
+      " popup to inform
+      DATA: l_answer TYPE c.
+      CALL FUNCTION 'POPUP_TO_CONFIRM'
+        EXPORTING
+          titlebar              = 'Warning'                 "#EC NOTEXT
+*         DIAGNOSE_OBJECT       = ' '
+          text_question         = 'The index for the where-used list is unavailable or not up to date in this system. For more information, see SAP Note 2234970. Do you want to continue without updating the index for the where-used list?' "#EC NOTEXT
+          text_button_1         = 'Yes'(001)                "#EC NOTEXT
+          text_button_2         = 'No'(002)                 "#EC NOTEXT
+          display_cancel_button = ' '
+        IMPORTING
+          answer                = l_answer.
+      CASE l_answer.
+        WHEN '1'. "Yes
+          "do nothing
+        WHEN '2' OR 'A'. "No/Cancel
+          "abort, go back to sel screen
+          EXIT.
+      ENDCASE.
+    ENDIF.
+  ENDIF.
+
+* Check FDQ prerequisites for note 2972792
+  IF p_fdq IS NOT INITIAL.
+    lv_are_prerequisites_fulfilled = abap_false.
+
+    lcl_fdq_data_coll=>lif_sub_checks_collector~are_prerequisites_fulfilled(
+      IMPORTING
+        ev_are_prerequisites_fulfilled = lv_are_prerequisites_fulfilled
+        et_prerequisites_error_message = lt_prerequisites_error_message
+    ).
+
+    IF lv_are_prerequisites_fulfilled <> abap_true.
+      IF lt_prerequisites_error_message IS INITIAL.
+        lv_str_tmp = cl_tmw_rc_collect_bpa=>sv_update_nt_str.
+        REPLACE ALL OCCURRENCES OF '&PARA1&' IN lv_str_tmp WITH '2972792'.
+        REPLACE ALL OCCURRENCES OF '&PARA2&' IN lv_str_tmp WITH 'Financial Data Quality'.
+        CONCATENATE lv_mesg_text lv_str_tmp INTO lv_mesg_text.
+        MESSAGE lv_mesg_text TYPE 'W'.
+
+        EXIT.
+      ENDIF.
+
+      IF lt_prerequisites_error_message IS NOT INITIAL.
+        DESCRIBE TABLE lt_prerequisites_error_message LINES lv_message_count.
+        IF lv_message_count = 1.
+          READ TABLE lt_prerequisites_error_message INDEX 1 INTO ls_prerequisites_error_message.
+          MESSAGE ls_prerequisites_error_message-text TYPE 'W'.
+          EXIT.
+        ENDIF.
+
+        TRY.
+            cl_salv_table=>factory(
+              IMPORTING
+                r_salv_table   = lr_table
+              CHANGING
+                t_table        = lt_prerequisites_error_message
+            ).
+            IF lr_table IS NOT INITIAL.
+              lr_table->set_screen_popup(
+                EXPORTING
+                  start_column = 1
+                  end_column   = 100
+                  start_line   = 1
+                  end_line     = 20
+              ).
+              lr_disply_settings = lr_table->get_display_settings( ).
+              lr_disply_settings->set_list_header( 'Financial Data Quality prerequisities check' ). "#EC NOTEXT
+              lr_columns = lr_table->get_columns( ).
+              lr_column = lr_columns->get_column( 'TYPE' ).
+              lr_column->set_short_text( 'Type' ).          "#EC NOTEXT
+              lr_column = lr_columns->get_column( 'TEXT' ).
+              lr_column->set_short_text( 'Message' ).       "#EC NOTEXT
+
+              CREATE OBJECT lr_flowfoot.
+              CONCATENATE 'The error message came from Financial Data Quality prerequisites check.' "#EC NOTEXT
+              'If you want to schedule Financial Data Quality check, you have to implement these SAP Notes.' "#EC NOTEXT
+              INTO lv_text SEPARATED BY space.
+              CONCATENATE lv_text 'Otherwise you can deselect the checkbox to continue to schedule the analysis jobs.' "#EC NOTEXT
+              INTO lv_text SEPARATED BY space.
+              lr_flowfoot->create_text(
+                position = 1
+                text     = lv_text
+              ).
+              lr_eol ?= lr_flowfoot.
+              lr_table->set_end_of_list( lr_eol ).
+              lr_table->display( ).
+            ENDIF.
+          CATCH cx_salv_error.
+        ENDTRY.
+
+        MESSAGE 'Prerequisites notes are not ready for Financial Data Quality check.' TYPE 'W'. "#EC NOTEXT
+
+        EXIT.
+      ENDIF.
+    ENDIF.
+  ENDIF.
+
+*--------------------------------------------------------------------*
+* Check prerequisite for the system
+
+  CLEAR lv_mesg_text.
+  CALL FUNCTION 'TMW_RC_CHECK_ANALYZED_SYS_NEW'
+    EXPORTING
+      iv_si_rel_ana     = p_si_rel
+      iv_si_con_ana     = p_si_con
+      iv_hana_size_ana  = p_h_size
+      iv_trans_usg_ana  = p_tr_usg
+      iv_bpa_ana        = p_bpa
+      iv_dvm_ana        = p_dvm
+                                                  "iv_intface_ana    = p_intfac
+      iv_bp_ana         = p_bp
+      iv_target_stack   = p_prd_st
+      iv_support_s4_sys = abap_true
+    IMPORTING
+      ev_err_mesg       = lv_mesg_text.
+
+  IF lv_mesg_text IS NOT INITIAL.
+    MESSAGE lv_mesg_text TYPE 'W'.
+    EXIT.
+  ENDIF.
+
+  IF p_bpa IS NOT INITIAL. "Business Process Analytics
+    "Check the KPIs are provided
+    IF so_bpa_k[] IS INITIAL. "Business Process Analytics KPIs
+      lv_mesg_text = 'Business Process Analytics KPIs need to be provided.'.
+      MESSAGE lv_mesg_text TYPE 'W'.
+      EXIT.
+    ENDIF.
+
+    "Valid the BPA KPIs
+    LOOP AT so_bpa_k[] INTO ls_bpa_kpi_rang.
+      IF ls_bpa_kpi_rang-sign <> 'I' OR ls_bpa_kpi_rang-option <> 'EQ'.
+        lv_mesg_text = 'Only Include Single Value format is supported for Business Process Analytics KPIs.'.
+        MESSAGE lv_mesg_text TYPE 'W'.
+        EXIT.
+      ENDIF.
+
+      IF sy-batch = space.
+        READ TABLE gt_bpa_kpi TRANSPORTING NO FIELDS
+          WITH KEY id = ls_bpa_kpi_rang-low(10).
+
+        IF sy-subrc <> 0.
+          lv_mesg_text = '&1 is not a valid Business Process Analytics KPI.'.
+          REPLACE '&1' IN lv_mesg_text WITH ls_bpa_kpi_rang-low.
+          MESSAGE lv_mesg_text TYPE 'W'.
+          EXIT.
+        ENDIF.
+      ENDIF.
+
+*      "Check user authorization for the BPA KPIs
+*      AUTHORITY-CHECK OBJECT 'SM_BPM_DET'
+*               ID 'APPARA_MS' DUMMY
+*               ID 'FUNC_MS'   DUMMY
+*               ID 'OBJECT_MS' FIELD ls_bpa_kpi_rang-low(10).
+*
+*      IF sy-subrc <> 0.
+*        lv_mesg_text = 'User has no authorization to collect Business Process Analytics data for KPI &1.'.
+*        REPLACE '&1' IN lv_mesg_text WITH ls_bpa_kpi_rang-low.
+*        IF sy-batch = space.
+*          MESSAGE lv_mesg_text TYPE 'S' DISPLAY LIKE 'W'.
+*        ELSE.
+*          MESSAGE lv_mesg_text TYPE 'I' DISPLAY LIKE 'W'.
+*        ENDIF.
+*      ENDIF.
+    ENDLOOP.
+
+    "Check user authorization for the BPA KPIs
+    LOOP AT so_bpa_k[] INTO ls_bpa_kpi_rang.
+      "Check user authorization for the BPA KPIs
+      AUTHORITY-CHECK OBJECT 'SM_BPM_DET'               "#EC AUTOBJ_WRO
+               ID 'APPARA_MS' DUMMY
+               ID 'FUNC_MS'   DUMMY
+               ID 'OBJECT_MS' FIELD ls_bpa_kpi_rang-low(10).
+
+      IF sy-subrc <> 0.
+        lv_mesg_text = 'User has no authorization to collect Business Process Analytics data for KPI &1.'.
+        REPLACE '&1' IN lv_mesg_text WITH ls_bpa_kpi_rang-low.
+        IF sy-batch = space.
+          MESSAGE lv_mesg_text TYPE 'S' DISPLAY LIKE 'W'.
+        ELSE.
+          MESSAGE lv_mesg_text TYPE 'I' DISPLAY LIKE 'W'.
+        ENDIF.
+      ENDIF.
+    ENDLOOP.
+  ENDIF.
+
+  lv_configuration_ok = abap_true.
+ENDFORM.                    "check_configuration
+
+*&---------------------------------------------------------------------*
+*&      Form  delete_buffered_result
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM delete_buffered_result.
+  DATA:
+    lv_table_name  TYPE tabname VALUE '/SDF/HDBSIZING',
+    lv_note        TYPE cwbntnumm,
+    lv_note_str    TYPE string,
+    ls_note_status TYPE if_tmw_rc_collect_bpa=>ty_note_stat_str,
+    lv_mesg_text   TYPE string.
+
+*--------------------------------------------------------------------*
+* Clear buffered data on-demand
+
+  "SIC relevance
+  IF p_si_rel = abap_true OR p_si_con = abap_true.
+    lv_note_str = '2399707'.
+    lv_note     = lv_note_str.
+    CALL METHOD ('/SDF/CL_RC_CHK_UTILITY')=>('CHECK_NOTE_STATUS')
+      EXPORTING
+        iv_note_number = lv_note
+        iv_action      = 'RC2_SIC_CK' "RC2: Simplification Item Check
+      RECEIVING
+        rs_note_status = ls_note_status.
+    IF ls_note_status-min_ver_implmented <> 'Y'.
+      lv_mesg_text = cl_tmw_rc_collect_bpa=>sv_update_nt_str.
+      REPLACE ALL OCCURRENCES OF '&PARA1&' IN lv_mesg_text WITH lv_note_str.
+      REPLACE ALL OCCURRENCES OF '&PARA2&' IN lv_mesg_text WITH 'deleting buffered data'.
+      MESSAGE lv_mesg_text TYPE 'W'.
+      EXIT.
+    ENDIF.
+  ENDIF.
+
+  "SIC relevance
+  IF p_si_rel = abap_true.
+    CALL METHOD ('/SDF/CL_RC_CHK_UTILITY')=>('SITEM_RELEVANCE_RESULT_DEL')
+      EXPORTING
+        iv_target_stack = p_prd_st.
+  ENDIF.
+
+  "SIC consistency
+  IF p_si_con = abap_true.
+    CALL METHOD ('/SDF/CL_RC_CHK_UTILITY')=>('SITEM_CONSISTENCY_RESULT_DEL')
+      EXPORTING
+        iv_target_stack = p_prd_st.
+  ENDIF.
+
+  "DPT Usage data    8/10
+  IF p_usg = abap_true.
+    TRY.
+        cl_rc_collect_client_handler=>delete_w_clt_considration(
+          EXPORTING
+            iv_trigid     = c_data_key-data_trigid
+            iv_trigoffset = c_data_key-data_trigoffset
+            iv_subid      = 3100
+        ).
+      CATCH cx_rc_collect_client_handler.
+    ENDTRY.
+  ENDIF.
+
+  "SIC effort driver
+  IF p_si_efd = abap_true.
+    DELETE FROM srtm_datax
+      WHERE trigid     = c_data_key-data_trigid
+        AND trigoffset = c_data_key-data_trigoffset
+        AND subid      = c_data_key-subid_efd_data.
+  ENDIF.
+
+  "HANA Sizing
+  IF p_h_size = abap_true.
+    DATA: lv_prog_name TYPE progname VALUE '/SDF/HDB_SIZING_CLEAN',
+          ls_prog      TYPE  trdir,
+          lt_guids     TYPE TABLE OF guid_16,
+          lv_guid      TYPE guid_16.
+
+
+    "check program exists
+    SELECT SINGLE * FROM trdir INTO ls_prog.
+    IF sy-subrc EQ 0. "if program exists, it will be used
+      SELECT SIZING_GUID FROM (lv_table_name) INTO TABLE lt_guids WHERE report_name = '/SDF/HDB_SIZING_SM'.
+      LOOP AT lt_guids INTO lv_guid.
+        SUBMIT (lv_prog_name) EXPORTING LIST TO MEMORY
+          WITH p_dgui = abap_true
+          WITH p_guid = lv_guid
+        AND RETURN.
+      ENDLOOP.
+    ELSE.
+      CALL FUNCTION 'DDIF_NAMETAB_GET'
+        EXPORTING
+          tabname   = lv_table_name
+          all_types = 'X'
+        EXCEPTIONS
+          not_found = 1
+          OTHERS    = 2.
+      IF sy-subrc = 0.
+        DELETE FROM (lv_table_name) WHERE report_name = '/SDF/HDB_SIZING_SM'.
+    ENDIF.
+    ENDIF. " if program exists
+  ENDIF.
+
+  "BPA
+  IF p_bpa = abap_true.
+    TRY.
+        cl_rc_collect_client_handler=>delete_w_clt_considration(
+          EXPORTING
+            iv_trigid     = c_data_key-data_trigid
+            iv_trigoffset = c_data_key-data_trigoffset
+            iv_subid      = c_data_key-subid_bpa_data
+        ).
+      CATCH cx_rc_collect_client_handler.
+        "do nothing
+    ENDTRY.
+  ENDIF.
+
+  "IP
+  IF p_innova = abap_true.
+    DELETE FROM srtm_datax
+      WHERE trigid     = c_data_key-data_trigid
+        AND trigoffset = c_data_key-data_trigoffset
+        AND subid      = c_data_key-subid_ip_data.
+  ENDIF.
+
+  "interface
+  IF p_intfac = abap_true.
+    lcl_interface_data_coll=>lif_sub_checks_collector~delete_buffer_data( ).
+  ENDIF.
+
+  "FDQ
+  IF p_fdq = abap_true.
+    lcl_fdq_data_coll=>lif_sub_checks_collector~delete_buffer_data( ).
+  ENDIF.
+
+  "Custom Code Analysis
+  IF p_cca = abap_true.
+    TRY.
+        cl_rc_collect_client_handler=>delete_w_clt_considration(
+          EXPORTING
+            iv_trigid     = c_data_key-data_trigid
+            iv_trigoffset = c_data_key-data_trigoffset
+            iv_subid      = c_data_key-subid_cca_data
+        ).
+      CATCH cx_rc_collect_client_handler.
+    ENDTRY.
+  ENDIF.
+
+  "DVM
+  IF p_dvm = abap_true.
+    TRY.
+        cl_rc_collect_client_handler=>delete_w_clt_considration(
+          EXPORTING
+            iv_trigid     = c_data_key-data_trigid
+            iv_trigoffset = c_data_key-data_trigoffset
+            iv_subid      = c_data_key-subid_dvm_data
+        ).
+      CATCH cx_rc_collect_client_handler.
+    ENDTRY.
+  ENDIF.
+
+  "Business Parnter
+  IF p_bp = abap_true.
+    TRY.
+        cl_rc_collect_client_handler=>delete_w_clt_considration(
+          EXPORTING
+            iv_trigid     = c_data_key-data_trigid
+            iv_trigoffset = c_data_key-data_trigoffset
+            iv_subid      = c_data_key-subid_bpnxml_data
+        ).
+      CATCH cx_rc_collect_client_handler.
+    ENDTRY.
+
+    TRY.
+        cl_rc_collect_client_handler=>delete_w_clt_considration(
+          EXPORTING
+            iv_trigid     = c_data_key-data_trigid
+            iv_trigoffset = c_data_key-data_trigoffset
+            iv_subid      = c_data_key-subid_bpnxsl_data
+        ).
+      CATCH cx_rc_collect_client_handler.
+    ENDTRY.
+  ENDIF.
+
+  "All results
+  TRY.
+      cl_rc_collect_client_handler=>delete_w_clt_considration(
+        EXPORTING
+          iv_trigid     = c_data_key-data_trigid
+          iv_trigoffset = c_data_key-data_trigoffset
+          iv_subid      = c_data_key-subid_rc_ana_20
+      ).
+    CATCH cx_rc_collect_client_handler.
+  ENDTRY.
+
+  lv_mesg_text = 'Buffered data is deleted successfully.'.
+  MESSAGE lv_mesg_text TYPE 'S'.
+ENDFORM.                    "delete_buffered_result
+
+*&---------------------------------------------------------------------*
+*&      Form  schedule_data_collection
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM schedule_data_collection.
+  DATA:
+    lv_job_count TYPE btcjobcnt,
+    lv_job_name  TYPE btcjob VALUE c_job_name-rc2,
+    lv_date      TYPE tbtcjob-sdlstrtdt,
+    lv_time      TYPE tbtcjob-sdlstrttm.
+
+  DATA lv_is_odata_selected TYPE boolean.
+
+  lv_is_odata_selected =  p_if_odt.
+
+  IF lcl_interface_data_coll=>get_ignore_odata( ) = abap_true.
+    lv_is_odata_selected = abap_false.
+  ENDIF.
+
+*--------------------------------------------------------------------*
+* Schedule data collection job
+
+  "Open job-planning without dialog
+  CALL FUNCTION 'SET_PRINT_PARAMETERS'
+    EXPORTING
+      immediately = ''.
+
+  IF gv_immediate <> abap_true.
+    lv_date = p_sdate.
+    lv_time = p_stime.
+    CALL FUNCTION 'JOB_OPEN'
+      EXPORTING
+        jobname   = lv_job_name
+        sdlstrtdt = lv_date
+        sdlstrttm = lv_time
+      IMPORTING
+        jobcount  = lv_job_count
+      EXCEPTIONS
+        OTHERS    = 1.
+
+    IF sy-subrc <> 0.
+      MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+        WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+      RETURN.
+    ENDIF.
+  ELSE.
+    CALL FUNCTION 'JOB_OPEN'
+      EXPORTING
+        jobname  = lv_job_name
+      IMPORTING
+        jobcount = lv_job_count
+      EXCEPTIONS
+        OTHERS   = 1.
+
+    IF sy-subrc <> 0.
+      MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+        WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+      RETURN.
+    ENDIF.
+  ENDIF.
+
+  READ TABLE lt_conv_targ_stack INTO ls_target_stack
+    WITH KEY stack_number = p_prd_st.
+
+  pver_n = ls_target_stack-prod_ver_name.
+  pstack_n = ls_target_stack-stack_name.
+
+  "Submit the report as a job
+  SUBMIT (sy-repid) "rc_collect_analysis_data
+    WITH p_prd_st  = p_prd_st
+    WITH pver_n    = pver_n
+    WITH pstack_n  = pstack_n
+
+    WITH psel_mod  = psel_mod
+
+    WITH p_bpa     = p_bpa
+      WITH so_bpa_k  IN so_bpa_k
+    WITH p_bp      = p_bp
+    WITH p_fdq     = p_fdq
+      WITH p_fdqgl  = p_fdqgl
+      WITH p_fdqaa  = p_fdqaa
+      WITH p_fdqml  = p_fdqml
+
+      WITH p_fdqsq  = p_fdqsq
+      WITH p_fdqpa  = p_fdqpa
+
+      WITH p_fdqglj = p_fdqglj
+      WITH p_fdqaaj = p_fdqaaj
+      WITH p_fdqmlj = p_fdqmlj
+
+      WITH p_fdqgle = p_fdqgle
+      WITH p_fdqaae = p_fdqaae
+      WITH p_fdqmle = p_fdqmle
+
+    WITH p_cca     = p_cca
+    WITH p_innova  = p_innova
+    WITH p_intfac  = p_intfac
+      WITH p_bwextr  = p_bwextr
+      WITH p_ifidoc  = p_ifidoc
+      WITH p_idoc_s  = p_idoc_s
+      WITH  p_if_rfc =  p_if_rfc
+      WITH p_ifwebs  = p_ifwebs
+      WITH p_if_odt = lv_is_odata_selected "p_if_odt
+      WITH p_if_slt = p_if_slt
+      WITH p_if_min  = p_if_min
+    WITH p_tr_usg  = p_tr_usg
+    WITH p_h_size  = p_h_size
+    WITH p_dvm     = p_dvm
+    WITH p_si_rel  = p_si_rel
+    WITH p_si_efd  = p_si_efd
+    WITH p_si_con  = p_si_con
+    WITH p_usg     = p_usg
+
+    USER sy-uname
+    VIA JOB lv_job_name NUMBER lv_job_count
+    AND RETURN.
+
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+      WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+    RETURN.
+  ENDIF.
+
+  IF gv_immediate <> abap_true.
+    "Close the job
+    CALL FUNCTION 'JOB_CLOSE'
+      EXPORTING
+        jobcount  = lv_job_count
+        jobname   = lv_job_name
+        sdlstrtdt = lv_date
+        sdlstrttm = lv_time
+      EXCEPTIONS
+        OTHERS    = 1.
+    IF sy-subrc <> 0.
+      MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+        WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+      RETURN.
+    ENDIF.
+
+  ELSE.
+    "Close the job
+    CALL FUNCTION 'JOB_CLOSE'
+      EXPORTING
+        jobcount  = lv_job_count
+        jobname   = lv_job_name
+        strtimmed = 'X'
+      EXCEPTIONS
+        OTHERS    = 1.
+    IF sy-subrc <> 0.
+      MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+        WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+      RETURN.
+    ENDIF.
+
+  ENDIF.
+
+  lv_mesg_text = 'Job &1 is scheduled. Check the status in transaction SM37 and download the analysis data once it is finished.'.
+  REPLACE '&1' IN lv_mesg_text WITH lv_job_name.
+  add_info_mesg lv_mesg_text.
+
+ENDFORM.                    "schedule_data_collection
+
+*&---------------------------------------------------------------------*
+*&      Form  collect_sic_consistency_data
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->PV_TARGET_STACK  text
+*----------------------------------------------------------------------*
+FORM collect_sic_consistency_data USING pv_target_stack TYPE char20.
+  DATA:
+    lv_rel_xstr  TYPE xstring,
+    lv_cons_xstr TYPE xstring.
+
+  CLEAR lv_mesg_text.
+  CALL FUNCTION if_tmw_rc_collect_bpa=>c_fm-sitem_check     "#EC EXISTS
+    EXPORTING
+      iv_conv_target_stack = pv_target_stack
+      iv_result_expire_day = gv_expired_dat
+    IMPORTING
+      ev_err_mesg          = lv_mesg_text
+      ev_result_xstr       = lv_rel_xstr
+      ev_consis_xstr       = lv_cons_xstr
+    EXCEPTIONS
+      OTHERS               = 0.
+
+  IF lv_mesg_text IS NOT INITIAL.
+    MESSAGE lv_mesg_text TYPE 'E' DISPLAY LIKE 'I'.
+  ENDIF.
+ENDFORM.                    "collect_sic_consistency_data
+
+*&---------------------------------------------------------------------*
+*&      Form  collect_data
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM collect_data.
+  DATA lv_program_name TYPE progname VALUE if_tmw_rc_collect_bpa=>c_prog-rc_coll.
+
+  CLEAR cl_tmw_rc_collect_bpa=>st_sched_sub_job.
+
+  CREATE OBJECT cl_tmw_rc_collect_bpa=>so_data_file.
+
+  lv_mesg_text = 'Start to collect analysis data'.
+  add_info_mesg lv_mesg_text.
+
+  lv_mesg_text = 'Target S/4HANA PPMS stack: &1'.
+  REPLACE '&1' IN lv_mesg_text WITH p_prd_st.
+  add_info_mesg lv_mesg_text.
+
+
+*--------------------------------------------------------------------*
+* Business Process Analytics data
+  IF p_bpa IS NOT INITIAL.
+    PERFORM schedule_sub_job USING c_job_name-bpa
+                                   c_sub_job_type-bpa.
+    lv_mesg_text = 'Job &1 is scheduled to collect Business Process Analytics data.'.
+    REPLACE '&1' IN lv_mesg_text WITH c_job_name-bpa.
+    add_info_mesg lv_mesg_text.
+  ENDIF.
+
+
+*--------------------------------------------------------------------*
+* HANA Sizing data
+
+  IF p_h_size IS NOT INITIAL.
+    PERFORM schedule_sub_job USING c_job_name-hana_size
+                                   c_sub_job_type-hana_size.
+    lv_mesg_text = 'Job &1 is scheduled to collect HANA Sizing data.'.
+    REPLACE '&1' IN lv_mesg_text WITH c_job_name-hana_size.
+    add_info_mesg lv_mesg_text.
+  ENDIF.
+
+
+*--------------------------------------------------------------------*
+* Data Volume Management data
+
+  IF p_dvm IS NOT INITIAL.
+    PERFORM schedule_sub_job USING c_job_name-dvm
+                                   c_sub_job_type-dvm.
+    lv_mesg_text = 'Job &1 is scheduled to collect Data Volume Management data.'.
+    REPLACE '&1' IN lv_mesg_text WITH c_job_name-dvm.
+    add_info_mesg lv_mesg_text.
+  ENDIF.
+
+
+*--------------------------------------------------------------------*
+* Simplification Item relevance check
+
+  IF p_si_con IS NOT INITIAL.
+    PERFORM schedule_sub_job USING c_job_name-sitem
+                                   c_sub_job_type-sic_cons.
+    lv_mesg_text = 'Job &1 is scheduled to collect Simplification Item consistency check data.'.
+    REPLACE '&1' IN lv_mesg_text WITH c_job_name-sitem.
+    add_info_mesg lv_mesg_text.
+  ELSEIF p_si_rel IS NOT INITIAL.
+    PERFORM schedule_sub_job USING c_job_name-sitem
+                                   c_sub_job_type-sic_relv.
+    lv_mesg_text = 'Job &1 is scheduled to collect Simplification Item relevance check data.'.
+    REPLACE '&1' IN lv_mesg_text WITH c_job_name-sitem.
+    add_info_mesg lv_mesg_text.
+  ENDIF.
+
+*--------------------------------------------------------------------*
+* Simplification Item Effort Driver
+  IF p_si_efd IS NOT INITIAL.
+    PERFORM schedule_sub_job USING c_job_name-efd
+                                   c_sub_job_type-sic_efd.
+    lv_mesg_text = 'Job &1 is scheduled to collect Simplification Item Effort Driver data.'.
+    REPLACE '&1' IN lv_mesg_text WITH c_job_name-efd.
+    add_info_mesg lv_mesg_text.
+  ENDIF.
+
+*--------------------------------------------------------------------*
+* Innovation Potential data
+
+  IF p_innova IS NOT INITIAL.
+    PERFORM schedule_sub_job USING c_job_name-innova
+                                   c_sub_job_type-innova.
+    lv_mesg_text = 'Job &1 is scheduled to collect Innovation Potential data.'.
+    REPLACE '&1' IN lv_mesg_text WITH c_job_name-innova.
+    add_info_mesg lv_mesg_text.
+  ENDIF.
+
+*--------------------------------------------------------------------*
+* Financial Data Quality
+  CREATE OBJECT go_fdq_data_coll TYPE lcl_fdq_data_coll "lif_sub_checks_collector.
+    EXPORTING
+      iv_report_name    = lv_program_name
+      iv_fi_gl_in_scope = p_fdqgl
+      iv_fi_aa_in_scope = p_fdqaa
+      iv_fi_ml_in_scope = p_fdqml.
+
+  IF p_fdq IS NOT INITIAL.
+    go_fdq_data_coll->prepare_data_collection( ).
+
+    PERFORM schedule_sub_job USING c_job_name-fdq
+                                   c_sub_job_type-fdq.
+    lv_mesg_text = 'Job &1 is scheduled to collect Financial Data Quality data.'.
+    REPLACE '&1' IN lv_mesg_text WITH c_job_name-fdq.
+    add_info_mesg lv_mesg_text.
+  ENDIF.
+
+*--------------------------------------------------------------------*
+* S/4 Upgrade analysis
+  IF p_cca IS NOT INITIAL.
+    IF lcl_cca=>check_variant( ) NE abap_true.
+      MESSAGE 'Custom Code Analysis cannot be triggered, variant does not exist' TYPE 'E'.
+    ELSE.
+      PERFORM schedule_sub_job USING c_job_name-cca
+                                     c_sub_job_type-cca.
+      lv_mesg_text = 'Job &1 is scheduled to collect Custom Code Analysis data.'.
+      REPLACE '&1' IN lv_mesg_text WITH c_job_name-cca.
+      add_info_mesg lv_mesg_text.
+    ENDIF.
+  ENDIF.
+
+*--------------------------------------------------------------------*
+* Recommended SAP Fiori Apps // Transaction data
+
+  IF p_tr_usg IS NOT INITIAL.
+*    add_info_mesg 'Start to collect Transaction Usage (ST03N) data'.
+    add_info_mesg 'Start to collect Recommended SAP Fiori Apps data'.
+    PERFORM collect_transaction_data IN PROGRAM tmw_rc_download_analysis_data
+                                     USING lv_program_name.
+*    add_info_mesg 'Transaction Usage (ST03N) data is collected'.
+    add_info_mesg 'Recommended SAP Fiori Apps data is collected'.
+  ENDIF.
+
+*--------------------------------------------------------------------*
+*data collection for all interface sub-checks
+  CREATE OBJECT go_interface_data_coll TYPE lcl_interface_data_coll
+    EXPORTING
+      iv_report_name = lv_program_name
+      iv_ver_name    = pver_n
+      iv_stack_name  = pstack_n
+      iv_bwextr      = p_bwextr
+      iv_ifidoc      = p_ifidoc
+      iv_idoc_s      = p_ifidoc
+      iv_if_rfc      = p_if_rfc
+      iv_soap        = p_ifwebs
+      iv_odata       = p_if_odt
+      iv_slt         = p_if_slt
+      iv_no_txt      = p_if_min.
+
+  IF p_intfac IS NOT INITIAL.
+    go_interface_data_coll->collect_data( ).
+  ENDIF.
+
+*--------------------------------------------------------------------*
+* Business partner data
+
+  IF p_bp IS NOT INITIAL.
+    PERFORM collect_bp_data USING lv_program_name.
+  ENDIF.
+
+*--------------------------------------------------------------------*
+* App Availability / DPT
+
+  IF p_usg IS NOT INITIAL.
+    PERFORM collect_usage_data.
+  ENDIF.
+
+*--------------------------------------------------------------------*
+* Collect additional information
+
+  add_info_mesg 'Start to collect system information'.
+  PERFORM collect_additional_data IN PROGRAM tmw_rc_download_analysis_data
+                                  USING lv_program_name.
+  add_info_mesg 'System information collected'.
+
+
+*--------------------------------------------------------------------*
+* Collect result from sub jobs
+
+  PERFORM collect_sub_job_results IN PROGRAM tmw_rc_download_analysis_data
+    USING p_prd_st
+          lv_program_name.
+
+
+*--------------------------------------------------------------------*
+* Add additiona header info
+
+  PERFORM add_header_info.
+
+*--------------------------------------------------------------------*
+* Add CCA data to the zip file
+* This step could/should be moved the the TMW_RC... report like the rest ?
+  IF p_cca IS NOT INITIAL.
+    lcl_cca=>collect_data( ).
+  ENDIF.
+
+*--------------------------------------------------------------------*
+
+  DATA lv_zip_file TYPE srtm_datax-xtext.
+
+  lv_zip_file = cl_tmw_rc_collect_bpa=>so_data_file->save( ).
+
+  TRY.
+      cl_rc_collect_client_handler=>modify_w_clt_considration(
+        EXPORTING
+          iv_trigid     = c_data_key-data_trigid
+          iv_trigoffset = c_data_key-data_trigoffset
+          iv_subid      = c_data_key-subid_rc_ana_20
+          iv_ddate      = sy-datum
+          iv_dtime      = sy-uzeit
+          iv_xtext      = lv_zip_file
+      ).
+    CATCH cx_rc_collect_client_handler.
+  ENDTRY.
+
+  add_info_mesg 'Analysis data collection is finished'.
+  add_info_mesg 'Analysis data is ready to be downloaded with report RC_COLLECT_ANALYSIS_DATA in transaction SA38'.
+ENDFORM.                    "collect_data
+
+*&---------------------------------------------------------------------*
+*&      Form  collect_bp_data
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->PV_REPORT_NAME  text
+*----------------------------------------------------------------------*
+FORM collect_bp_data USING pv_report_name TYPE progname.
+  DATA:
+    lv_xml           TYPE string,
+    lv_xsl           TYPE string,
+    lv_xml_xstring   TYPE xstring,
+    lv_xsl_xstring   TYPE xstring,
+    lv_buffered      TYPE flag VALUE abap_false,
+    lv_timestamp_cur TYPE timestamp,
+    lv_timestamp_old TYPE timestamp,
+    lv_str_tmp       TYPE string,
+    lv_age_second    TYPE i,
+    lv_exp_second    TYPE i.
+
+  "Collect the data
+  add_info_mesg 'Start to collect Business Partner data'.
+
+  CLEAR ls_data.
+  ls_data = cl_rc_collect_client_handler=>select_w_clt_considration(
+      iv_trigid     = c_data_key-data_trigid
+      iv_trigoffset = c_data_key-data_trigoffset
+      iv_subid      = c_data_key-subid_bpnxml_data
+  ).
+
+  IF ls_data IS NOT INITIAL AND xstrlen( ls_data-xtext ) > 0.
+    GET TIME STAMP FIELD lv_timestamp_cur.
+
+    CONVERT DATE ls_data-ddate TIME ls_data-dtime
+      INTO TIME STAMP lv_timestamp_old TIME ZONE sy-zonlo.
+
+    CALL FUNCTION 'TIMECALC_DIFF'
+      EXPORTING
+        timestamp1 = lv_timestamp_old
+        timestamp2 = lv_timestamp_cur
+        timezone   = sy-zonlo
+      IMPORTING
+        difference = lv_age_second.
+    lv_exp_second = 60 * 60 * 24 * gv_expired_dat.
+
+    IF lv_age_second <= lv_exp_second.
+      lv_mesg_text = 'Buffered data less than 30 days( &1 ) is used.'.
+      lv_str_tmp = lv_timestamp_old.
+      REPLACE '&1' IN lv_mesg_text WITH lv_str_tmp.
+      MESSAGE lv_mesg_text TYPE 'I'.
+
+      lv_xml_xstring = ls_data-xtext.
+      CLEAR ls_data.
+
+      ls_data = cl_rc_collect_client_handler=>select_w_clt_considration(
+          iv_trigid     = c_data_key-data_trigid
+          iv_trigoffset = c_data_key-data_trigoffset
+          iv_subid      = c_data_key-subid_bpnxsl_data
+      ).
+
+      lv_xsl_xstring = ls_data-xtext.
+      lv_buffered = abap_true.
+    ENDIF.
+  ENDIF.
+
+  IF lv_buffered <> abap_true.
+    CLEAR lv_mesg_text.
+    CALL FUNCTION 'CVI_READINESS_CHECK'                     "#EC EXISTS
+      IMPORTING
+        ev_xml               = lv_xml
+        ev_xsl               = lv_xsl
+      EXCEPTIONS
+        transformation_error = 1
+        OTHERS               = 2.
+    IF sy-subrc <> 0.
+      MESSAGE 'Business Partner call function CVI_READINESS_CHECK failed' TYPE 'E' DISPLAY LIKE 'I'.
+      RETURN.
+    ELSE.
+      CLEAR ls_data.
+      CALL FUNCTION 'SCMS_STRING_TO_XSTRING'
+        EXPORTING
+          text   = lv_xml
+        IMPORTING
+          buffer = lv_xml_xstring
+        EXCEPTIONS
+          OTHERS = 0.
+
+      TRY.
+          cl_rc_collect_client_handler=>modify_w_clt_considration(
+              iv_trigid     = c_data_key-data_trigid
+              iv_trigoffset = c_data_key-data_trigoffset
+              iv_subid      = c_data_key-subid_bpnxml_data
+              iv_ddate      = sy-datum
+              iv_dtime      = sy-uzeit
+              iv_xtext      = lv_xml_xstring
+          ).
+        CATCH cx_rc_collect_client_handler.
+      ENDTRY.
+
+      CLEAR ls_data.
+      CALL FUNCTION 'SCMS_STRING_TO_XSTRING'
+        EXPORTING
+          text   = lv_xsl
+        IMPORTING
+          buffer = lv_xsl_xstring
+        EXCEPTIONS
+          OTHERS = 0.
+
+      TRY.
+          cl_rc_collect_client_handler=>modify_w_clt_considration(
+            EXPORTING
+              iv_trigid     = c_data_key-data_trigid
+              iv_trigoffset = c_data_key-data_trigoffset
+              iv_subid      = c_data_key-data_trigoffset
+              iv_ddate      = sy-datum
+              iv_dtime      = sy-uzeit
+              iv_xtext      = lv_xsl_xstring
+          ).
+        CATCH cx_rc_collect_client_handler.
+      ENDTRY.
+
+      "Delete old BP data once new bp collects with success
+      SELECT SINGLE *
+        FROM srtm_datax
+        INTO ls_data
+      WHERE trigid     = c_data_key-data_trigid
+        AND trigoffset = c_data_key-data_trigoffset
+        AND subid      = c_data_key-subid_bpxml_data.
+
+      IF sy-subrc = 0 AND xstrlen( ls_data-xtext ) > 0.
+        DELETE FROM srtm_datax
+          WHERE trigid     = c_data_key-data_trigid
+            AND trigoffset = c_data_key-data_trigoffset
+            AND subid      = c_data_key-subid_bpxml_data.
+      ENDIF.
+
+      SELECT SINGLE *
+        FROM srtm_datax
+        INTO ls_data
+      WHERE trigid     = c_data_key-data_trigid
+        AND trigoffset = c_data_key-data_trigoffset
+        AND subid      = c_data_key-subid_bpxsl_data.
+
+      IF sy-subrc = 0 AND xstrlen( ls_data-xtext ) > 0.
+        DELETE FROM srtm_datax
+          WHERE trigid     = c_data_key-data_trigid
+            AND trigoffset = c_data_key-data_trigoffset
+            AND subid      = c_data_key-subid_bpxsl_data.
+      ENDIF.
+    ENDIF.
+  ENDIF.
+
+  "Add xml data to the ZIP file
+  cl_tmw_rc_collect_bpa=>add_content_to_zip(
+    iv_file_name   = 'bpccn.xml'
+    iv_content     = lv_xml_xstring
+    iv_coll_report = 'RC_COLLECT_ANALYSIS_DATA' ).
+  "Add xsl data to the ZIP file
+  "bpcc.xsl related with bpccn.xml as design
+  cl_tmw_rc_collect_bpa=>add_content_to_zip(
+    iv_file_name   = 'bpcc.xsl'
+    iv_content     = lv_xsl_xstring
+    iv_coll_report = 'RC_COLLECT_ANALYSIS_DATA' ).
+
+  add_info_mesg 'Business Partner data is collected'.
+ENDFORM.                    "collect_bp_data
+
+*&---------------------------------------------------------------------*
+*&      Form  collect_ip_data
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM collect_ip_data.
+  DATA:
+    lv_xml_content TYPE xstring,
+    lv_mesg_text   TYPE string.
+
+  CALL FUNCTION 'FUNCTION_EXISTS'
+    EXPORTING
+      funcname           = '/SDF/GEN_FUNCS_S4_IP_CHKS'
+    EXCEPTIONS
+      function_not_exist = 1
+      OTHERS             = 2.
+  IF sy-subrc = 0.
+    CALL FUNCTION '/SDF/GEN_FUNCS_S4_IP_CHKS'               "#EC EXISTS
+      EXPORTING
+        iv_result_expire_day = gv_expired_dat
+      IMPORTING
+        ev_err_mesg          = lv_mesg_text
+        ev_result_xstr       = lv_xml_content
+      EXCEPTIONS
+        OTHERS               = 0.
+
+    ls_data-xtext = lv_xml_content.
+    ls_data-trigid     = c_data_key-data_trigid.
+    ls_data-trigoffset = c_data_key-data_trigoffset.
+    ls_data-subid      = c_data_key-subid_ip_data.
+    ls_data-ddate      = sy-datum.
+    ls_data-dtime      = sy-uzeit.
+    MODIFY srtm_datax FROM ls_data.
+
+  ELSE.
+    add_info_mesg 'The function module /SDF/GEN_FUNCS_S4_IP_CHKS does not exist'.
+  ENDIF.
+ENDFORM.                    "collect_ip_data
+
+*&---------------------------------------------------------------------*
+*&      Form  collect_fdq_data
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM collect_fdq_data.
+  DATA lr_fdq_collector TYPE REF TO lif_sub_checks_in_sub_job.
+
+  CREATE OBJECT lr_fdq_collector TYPE lcl_fdq_data_coll
+    EXPORTING
+      iv_report_name = if_tmw_rc_collect_bpa=>c_prog-rc_coll.
+
+  lr_fdq_collector->execute_analysis( ).
+ENDFORM.                    "collect_fdq_data
+
+*&---------------------------------------------------------------------*
+*&      Form  collect_cca_data
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM collect_cca_data.
+  lcl_cca=>trigger_analysis( ).
+ENDFORM.                    "collect_cca_data
+
+*&---------------------------------------------------------------------*
+*&      Form  collect_sic_effort_driver_data
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM collect_sic_effort_driver_data.
+  "call function collect data, save 30 days as buffer
+  DATA:
+    lv_xml_xstring   TYPE xstring,
+    lv_timestamp_cur TYPE timestamp,
+    lv_timestamp_old TYPE timestamp,
+    lv_str_tmp       TYPE string,
+    lv_age_second    TYPE i,
+    lv_exp_second    TYPE i,
+    lv_buffered      TYPE flag VALUE abap_false.
+
+  CLEAR ls_data.
+
+  SELECT SINGLE * FROM srtm_datax INTO ls_data
+    WHERE trigid = c_data_key-data_trigid
+    AND trigoffset = c_data_key-data_trigoffset
+    AND subid = c_data_key-subid_efd_data.
+  IF sy-subrc = 0 AND xstrlen( ls_data-xtext ) > 0.
+    GET TIME STAMP FIELD lv_timestamp_cur.
+
+    CONVERT DATE ls_data-ddate TIME ls_data-dtime
+      INTO TIME STAMP lv_timestamp_old TIME ZONE sy-zonlo.
+
+    CALL FUNCTION 'TIMECALC_DIFF'
+      EXPORTING
+        timestamp1 = lv_timestamp_old
+        timestamp2 = lv_timestamp_cur
+        timezone   = sy-zonlo
+      IMPORTING
+        difference = lv_age_second.
+    lv_exp_second = 60 * 60 * 24 * gv_expired_dat.
+
+    IF lv_age_second <= lv_exp_second.
+      lv_mesg_text = 'Buffered data less than 30 days( &1 ) is used.'.
+      lv_str_tmp = lv_timestamp_old.
+      REPLACE '&1' IN lv_mesg_text WITH lv_str_tmp.
+      MESSAGE lv_mesg_text TYPE 'I'.
+      lv_buffered = abap_true.
+    ENDIF.
+  ENDIF.
+
+  IF lv_buffered <> abap_true.
+    CLEAR lv_mesg_text.
+    CALL METHOD ('/SDF/CL_RC_COMPLEXITY_FACTORY')=>('CHECK_COMPLEXITY_DRIVERS')
+      RECEIVING
+        rv_complexity_result = lv_xml_xstring.
+
+    IF sy-subrc <> 0.
+      MESSAGE 'SItem Effort Driver call method /sdf/cl_rc_complexity_api=>get_collected_data failed' TYPE 'E' DISPLAY LIKE 'I'.
+      RETURN.
+    ELSE.
+      ls_data-xtext = lv_xml_xstring.
+      ls_data-trigid = c_data_key-data_trigid.
+      ls_data-trigoffset = c_data_key-data_trigoffset.
+      ls_data-subid      = c_data_key-subid_efd_data.
+      ls_data-ddate      = sy-datum.
+      ls_data-dtime      = sy-uzeit.
+      MODIFY srtm_datax FROM ls_data.
+    ENDIF.
+  ENDIF.
+ENDFORM.                    "collect_sic_effort_driver_data
+
+*&---------------------------------------------------------------------*
+*&      Form  schedule_sub_job
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->PV_JOB_NAME  text
+*      -->PV_JOB_TYPE  text
+*----------------------------------------------------------------------*
+FORM schedule_sub_job  USING pv_job_name      TYPE btcjob
+                             pv_job_type      TYPE char10.
+
+  DATA:
+    lv_job_count     TYPE btcjobcnt,
+    ls_sched_sub_job LIKE LINE OF cl_tmw_rc_collect_bpa=>st_sched_sub_job.
+
+*--------------------------------------------------------------------*
+* Schedule data collector in batch mode
+
+  "Open job-planning without dialog
+  CALL FUNCTION 'SET_PRINT_PARAMETERS'
+    EXPORTING
+      immediately = ''.
+
+  CALL FUNCTION 'JOB_OPEN'
+    EXPORTING
+      jobname  = pv_job_name
+    IMPORTING
+      jobcount = lv_job_count
+    EXCEPTIONS
+      OTHERS   = 1.
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+      WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+    RETURN.
+  ENDIF.
+
+  SUBMIT (sy-repid) "rc_collect_analysis_data
+    WITH p_subjob = pv_job_type
+    WITH p_prd_st = p_prd_st
+    WITH so_bpa_k  IN so_bpa_k
+    USER sy-uname
+    VIA JOB pv_job_name NUMBER lv_job_count
+    AND RETURN.
+
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+      WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+    RETURN.
+  ENDIF.
+
+  "Close the job
+  CALL FUNCTION 'JOB_CLOSE'
+    EXPORTING
+      jobcount  = lv_job_count
+      jobname   = pv_job_name
+      strtimmed = 'X'
+    EXCEPTIONS
+      OTHERS    = 1.
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+      WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+    RETURN.
+  ENDIF.
+
+  CLEAR ls_sched_sub_job.
+  ls_sched_sub_job-count = lv_job_count.
+  ls_sched_sub_job-name  = pv_job_name.
+  ls_sched_sub_job-type  = pv_job_type.
+
+  CASE pv_job_type.
+    WHEN c_sub_job_type-sic_relv OR c_sub_job_type-sic_cons.
+      ls_sched_sub_job-descr = 'Simplification Item Check'.
+    WHEN c_sub_job_type-hana_size.
+      ls_sched_sub_job-descr = 'HANA Sizing'.
+    WHEN c_sub_job_type-bpa.
+      ls_sched_sub_job-descr = 'Business Process Analytics'.
+    WHEN c_sub_job_type-dvm.
+      ls_sched_sub_job-descr = 'Data Volume Management'.
+    WHEN c_sub_job_type-innova.
+      ls_sched_sub_job-descr = 'Innovation Potential'.
+    WHEN c_sub_job_type-fdq.
+      ls_sched_sub_job-descr = 'Financial Data Quality'.
+    WHEN c_sub_job_type-sic_efd.
+      ls_sched_sub_job-descr = 'Simplification Item Effort Driver'.
+    WHEN OTHERS.
+  ENDCASE.
+
+  APPEND ls_sched_sub_job TO cl_tmw_rc_collect_bpa=>st_sched_sub_job.
+
+ENDFORM.                    "schedule_sub_job
+
+*&---------------------------------------------------------------------*
+*&      Form  collect_bpa_data
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM collect_bpa_data.
+  DATA:
+    lv_xml               TYPE string,
+    lt_bpa_kpi_2_exclude TYPE ty_bpa_kpi_tab,
+    lv_mesg              TYPE char255,
+    lt_all_bpa_kpi       TYPE ty_bpa_kpi_tab.
+
+  PERFORM build_allowed_list_4_bpa_kpi.
+
+  CALL FUNCTION if_tmw_rc_collect_bpa=>c_fm-bpa_new_get_kpi "#EC EXISTS
+    EXPORTING
+      pif_scenario = if_tmw_rc_collect_bpa=>c_bpa_scenario-real_check
+    IMPORTING
+      pet_kpi      = lt_all_bpa_kpi.
+
+  LOOP AT lt_all_bpa_kpi INTO ls_bpa_kpi.
+    READ TABLE gt_allowed_bpa_kpi_id TRANSPORTING NO FIELDS WITH KEY bpa_kpi_id = ls_bpa_kpi-id.
+
+    IF sy-subrc <> 0.
+      APPEND ls_bpa_kpi TO lt_bpa_kpi_2_exclude.
+
+      CONTINUE.
+    ENDIF.
+
+    APPEND ls_bpa_kpi TO gt_bpa_kpi.
+  ENDLOOP.
+
+  lv_mesg = 'Target Business Process Analytics KPIs:'.
+  MESSAGE lv_mesg TYPE 'I'.
+
+  LOOP AT so_bpa_k[] INTO ls_bpa_kpi_rang.
+    READ TABLE gt_bpa_kpi INTO ls_bpa_kpi
+      WITH KEY id = ls_bpa_kpi_rang-low(10).
+
+    IF sy-subrc = 0.
+      CONCATENATE ls_bpa_kpi-id ' - ' ls_bpa_kpi-text INTO lv_mesg RESPECTING BLANKS.
+      MESSAGE lv_mesg TYPE 'I'.
+    ENDIF.
+  ENDLOOP.
+
+  LOOP AT gt_bpa_kpi INTO ls_bpa_kpi.
+    READ TABLE so_bpa_k[] TRANSPORTING NO FIELDS
+      WITH KEY low(10) = ls_bpa_kpi-id.
+
+    IF sy-subrc = 0.
+      "KPI found, no need to include it into excluding KPI list
+      CONTINUE.
+    ENDIF.
+
+    READ TABLE lt_bpa_kpi_2_exclude TRANSPORTING NO FIELDS
+          WITH KEY id = ls_bpa_kpi-id.
+
+    IF sy-subrc = 0.
+      "KPI found in the excluding KPI list
+      CONTINUE.
+    ENDIF.
+
+    "The API accept excluding KPI list
+    APPEND ls_bpa_kpi TO lt_bpa_kpi_2_exclude.
+  ENDLOOP.
+
+  CALL FUNCTION '/SDF/BPM_7X_S4RC20_GET_DATA'               "#EC EXISTS
+    EXPORTING
+      pif_scenario = if_tmw_rc_collect_bpa=>c_bpa_scenario-real_check
+      pit_kpi      = lt_bpa_kpi_2_exclude
+    IMPORTING
+      pef_data_xml = lv_xml.
+
+  IF lv_xml IS INITIAL.
+    lv_mesg_text = 'No Business Process Analytics data is return from /SDF/BPM_7X_S4RC20_GET_DATA.'.
+    MESSAGE lv_mesg_text TYPE 'E'.
+  ENDIF.
+
+  CALL FUNCTION 'SCMS_STRING_TO_XSTRING'
+    EXPORTING
+      text   = lv_xml
+    IMPORTING
+      buffer = ls_data-xtext
+    EXCEPTIONS
+      OTHERS = 0.
+
+  TRY.
+      cl_rc_collect_client_handler=>modify_w_clt_considration(
+        EXPORTING
+          iv_trigid     = c_data_key-data_trigid
+          iv_trigoffset = c_data_key-data_trigoffset
+          iv_subid      = c_data_key-subid_bpa_data
+          iv_ddate      = sy-datum
+          iv_dtime      = sy-uzeit
+          iv_xtext      = ls_data-xtext
+      ).
+    CATCH cx_rc_collect_client_handler.
+  ENDTRY.
+ENDFORM.                    "collect_bpa_data
+
+*&---------------------------------------------------------------------*
+*&      Form  get_collected_data_bpa
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM get_collected_data_bpa .
+  DATA ls_data TYPE srtm_datax.
+
+  ls_data = cl_rc_collect_client_handler=>select_w_clt_considration(
+      iv_trigid     = c_data_key-data_trigid
+      iv_trigoffset = c_data_key-data_trigoffset
+      iv_subid      = c_data_key-subid_bpa_data
+  ).
+
+  IF ls_data IS NOT INITIAL.
+    cl_tmw_rc_collect_bpa=>add_content_to_zip(
+      iv_file_name   = if_tmw_rc_collect_bpa=>c_file_name-bpa
+      iv_content     = ls_data-xtext
+      iv_coll_report = if_tmw_rc_collect_bpa=>c_prog-rc_coll ).
+  ENDIF.
+ENDFORM.                    "get_collected_data_bpa
+
+*&---------------------------------------------------------------------*
+*&      Form  get_collected_data_innova
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM get_collected_data_innova .
+  SELECT SINGLE *
+    FROM srtm_datax
+    INTO ls_data
+   WHERE trigid     = c_data_key-data_trigid
+     AND trigoffset = c_data_key-data_trigoffset
+     AND subid      = c_data_key-subid_ip_data.
+
+  IF sy-subrc = 0.
+    cl_tmw_rc_collect_bpa=>add_content_to_zip(
+      iv_file_name   = if_tmw_rc_collect_bpa=>c_file_name-innovation
+      iv_content     = ls_data-xtext
+      iv_coll_report = if_tmw_rc_collect_bpa=>c_prog-rc_coll ).
+  ENDIF.
+ENDFORM.                    "get_collected_data_innova
+
+*&---------------------------------------------------------------------*
+*&      Form  get_collected_data_fdq
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM get_collected_data_fdq.
+  DATA lo_fdq_data_coll TYPE REF TO lif_sub_checks_collector. "lcl_fdq_data_coll.
+
+  CREATE OBJECT lo_fdq_data_coll TYPE lcl_fdq_data_coll
+    EXPORTING
+      iv_report_name    = if_tmw_rc_collect_bpa=>c_prog-rc_coll
+      iv_fi_gl_in_scope = p_fdqgl
+      iv_fi_aa_in_scope = p_fdqaa
+      iv_fi_ml_in_scope = p_fdqml.
+
+  lo_fdq_data_coll->collect_data( ).
+ENDFORM.                    "get_collected_data_fdq
+
+*&---------------------------------------------------------------------*
+*&      Form  get_collected_data_efd
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM get_collected_data_efd .
+  SELECT SINGLE *
+    FROM srtm_datax
+    INTO ls_data
+    WHERE trigid     = c_data_key-data_trigid
+      AND trigoffset = c_data_key-data_trigoffset
+      AND subid      = c_data_key-subid_efd_data.
+
+  IF sy-subrc = 0.
+    cl_tmw_rc_collect_bpa=>add_content_to_zip(
+      iv_file_name   = if_tmw_rc_collect_bpa=>c_file_name-sitem_effort_driver
+      iv_content     = ls_data-xtext
+      iv_coll_report = if_tmw_rc_collect_bpa=>c_prog-rc_coll ).
+  ENDIF.
+ENDFORM.                    "get_collected_data_efd
+
+*&---------------------------------------------------------------------*
+*&      Form  add_header_info
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM add_header_info.
+
+*--------------------------------------------------------------------*
+* Add header data
+
+  DATA:
+    lt_header    TYPE ty_header_entry_tab,
+    ls_header    TYPE ty_header_entry_str,
+    lv_timestamp TYPE timestamp,
+    lo_mime_rep  TYPE REF TO if_mr_api,
+    lt_mime_obj  TYPE TABLE OF string,
+    lv_mime_obj  TYPE string,
+    lv_mime_url  TYPE string,
+    lv_mime_xstr TYPE xstring.
+
+  DATA:
+    lt_xsl_file TYPE lif_sub_checks_collector=>ty_t_file_name,
+    ls_xsl_file TYPE lif_sub_checks_collector=>ty_s_file_name.
+
+  ls_header-key   = if_tmw_rc_collect_bpa=>c_file_data-analyzed_system.
+  ls_header-value = sy-sysid.
+  APPEND ls_header TO lt_header.
+
+  ls_header-key   = if_tmw_rc_collect_bpa=>c_file_data-analyzed_system_client.
+  ls_header-value = sy-mandt.
+  APPEND ls_header TO lt_header.
+
+  ls_header-key   = if_tmw_rc_collect_bpa=>c_file_data-hana_sizing_analysis.
+  IF p_h_size IS NOT INITIAL.
+    ls_header-value = if_tmw_rc_collect_bpa=>c_file_data-yes.
+  ELSE.
+    ls_header-value = if_tmw_rc_collect_bpa=>c_file_data-no.
+  ENDIF.
+  APPEND ls_header TO lt_header.
+
+  ls_header-key   = if_tmw_rc_collect_bpa=>c_file_data-transaction_analysis.
+  IF p_tr_usg IS NOT INITIAL.
+    ls_header-value = if_tmw_rc_collect_bpa=>c_file_data-yes.
+  ELSE.
+    ls_header-value = if_tmw_rc_collect_bpa=>c_file_data-no.
+  ENDIF.
+  APPEND ls_header TO lt_header.
+
+  ls_header-key   = if_tmw_rc_collect_bpa=>c_file_data-sitem_relevan_analysis.
+  IF p_si_rel IS NOT INITIAL.
+    ls_header-value = if_tmw_rc_collect_bpa=>c_file_data-yes.
+  ELSE.
+    ls_header-value = if_tmw_rc_collect_bpa=>c_file_data-no.
+  ENDIF.
+  APPEND ls_header TO lt_header.
+
+  ls_header-key   = if_tmw_rc_collect_bpa=>c_file_data-sitem_consis_analysis.
+  IF p_si_con IS NOT INITIAL.
+    ls_header-value = if_tmw_rc_collect_bpa=>c_file_data-yes.
+  ELSE.
+    ls_header-value = if_tmw_rc_collect_bpa=>c_file_data-no.
+  ENDIF.
+  APPEND ls_header TO lt_header.
+
+  ls_header-key   = if_tmw_rc_collect_bpa=>c_file_data-sitem_efd_analysis.
+  IF p_si_efd IS NOT INITIAL.
+    ls_header-value = if_tmw_rc_collect_bpa=>c_file_data-yes.
+  ELSE.
+    ls_header-value = if_tmw_rc_collect_bpa=>c_file_data-no.
+  ENDIF.
+  APPEND ls_header TO lt_header.
+
+  ls_header-key   = if_tmw_rc_collect_bpa=>c_file_data-bpa_analysis.
+  IF p_bpa IS NOT INITIAL.
+    ls_header-value = if_tmw_rc_collect_bpa=>c_file_data-yes.
+  ELSE.
+    ls_header-value = if_tmw_rc_collect_bpa=>c_file_data-no.
+  ENDIF.
+  APPEND ls_header TO lt_header.
+
+  ls_header-key   = if_tmw_rc_collect_bpa=>c_file_data-dvm_analysis.
+  IF p_dvm IS NOT INITIAL.
+    ls_header-value = if_tmw_rc_collect_bpa=>c_file_data-yes.
+  ELSE.
+    ls_header-value = if_tmw_rc_collect_bpa=>c_file_data-no.
+  ENDIF.
+  APPEND ls_header TO lt_header.
+
+*  ls_header-key   = if_tmw_rc_collect_bpa=>c_file_data-bw_extra_analysis.
+*  IF p_bwextr IS NOT INITIAL.
+*    ls_header-value = if_tmw_rc_collect_bpa=>c_file_data-yes.
+*  ELSE.
+*    ls_header-value = if_tmw_rc_collect_bpa=>c_file_data-no.
+*  ENDIF.
+*  APPEND ls_header TO lt_header.
+
+  ls_header-key   = if_tmw_rc_collect_bpa=>c_file_data-bp_analysis.
+  IF p_bp IS NOT INITIAL.
+    ls_header-value = if_tmw_rc_collect_bpa=>c_file_data-yes.
+  ELSE.
+    ls_header-value = if_tmw_rc_collect_bpa=>c_file_data-no.
+  ENDIF.
+  APPEND ls_header TO lt_header.
+
+  ls_header-key   = if_tmw_rc_collect_bpa=>c_file_data-innovation_analysis.
+  IF p_innova IS NOT INITIAL.
+    ls_header-value = if_tmw_rc_collect_bpa=>c_file_data-yes.
+  ELSE.
+    ls_header-value = if_tmw_rc_collect_bpa=>c_file_data-no.
+  ENDIF.
+  APPEND ls_header TO lt_header.
+
+*  ls_header-key   = if_tmw_rc_collect_bpa=>c_file_data-fdq_analysis.
+*  IF p_fdq IS NOT INITIAL.
+*    ls_header-value = if_tmw_rc_collect_bpa=>c_file_data-yes.
+*  ELSE.
+*    ls_header-value = if_tmw_rc_collect_bpa=>c_file_data-no.
+*  ENDIF.
+*  APPEND ls_header TO lt_header.
+
+  ls_header-key   = if_tmw_rc_collect_bpa=>c_file_data-s4_target_stack.
+  ls_header-value = p_prd_st.
+  APPEND ls_header TO lt_header.
+
+  ls_header-key   = if_tmw_rc_collect_bpa=>c_file_data-value_discovery_scenario.
+  IF gv_s4 = abap_true.
+    ls_header-value = if_tmw_rc_collect_bpa=>c_file_data-scenario_s4_upgrade.
+  ELSE.
+    ls_header-value = if_tmw_rc_collect_bpa=>c_file_data-scenario_s4_conversion.
+  ENDIF.
+  APPEND ls_header TO lt_header.
+
+  ls_header-key = if_tmw_rc_collect_bpa=>c_file_data-data_collection_time_utc.
+  CALL METHOD ('/SDF/CL_RC_CHK_UTILITY')=>('GET_TIMESTAMP')
+    IMPORTING
+      ev_timestamp_utc = lv_timestamp.
+  ls_header-value = lv_timestamp.
+  APPEND ls_header TO lt_header.
+
+  ls_header-key   = if_tmw_rc_collect_bpa=>c_file_data-extracting_program.
+  ls_header-value = if_tmw_rc_collect_bpa=>c_prog-rc_coll.
+  APPEND ls_header TO lt_header.
+
+  "**********"
+  " interface
+  DATA lt_sub_check_header  TYPE ty_header_entry_tab.
+
+  lt_sub_check_header = go_interface_data_coll->get_header( ).
+  APPEND LINES OF lt_sub_check_header TO lt_header.
+
+  "FDQ
+  CLEAR lt_sub_check_header.
+  lt_sub_check_header = go_fdq_data_coll->get_header( ).
+  APPEND LINES OF lt_sub_check_header TO lt_header.
+
+*--------------------------------------------------------------------*
+* HANA Sizing: "Planned avg count of Material Ledger currency types per company code (Max. 3.0)" and "Planned avg count of standard ledgers per company code" parameters
+TYPES:
+  BEGIN OF ty_source,
+    crdate           TYPE string,
+    report_name      TYPE string,
+    report_version   TYPE string,
+    db_vendor        TYPE string,
+    db_release       TYPE string,
+    unicode          TYPE string,
+    sid              TYPE string,
+    sapversion       TYPE string,
+    kernversion      TYPE string,
+    osversion        TYPE string,
+    success_cnt      TYPE string,
+    partial_cnt      TYPE string,
+    error_cnt        TYPE string,
+    count_1          TYPE string,
+    count_2          TYPE string,
+    mss1691513       TYPE string,
+    lcerror          TYPE string,
+    prec             TYPE string,
+    daag             TYPE string,
+    paral            TYPE string,
+    hdbload          TYPE string,
+    hl               TYPE string,
+    mac              TYPE string,
+    hdbv             TYPE string,
+    calib            TYPE string,
+    do_soh           TYPE string,
+    do_sfin          TYPE string,
+    do_slog          TYPE string,
+    in_sfin          TYPE string,
+    in_slog          TYPE string,
+    duration         TYPE string,
+    hdb_empty_tables TYPE string,
+    anydbsize_n      TYPE string,
+    anydbsizedate    TYPE string,
+    basis_753        TYPE string,
+    clustprec        TYPE string,
+    taana            TYPE string,
+    taana_used       TYPE string,
+    is_pers_mem      TYPE string,
+    curr             TYPE string,
+    ledg             TYPE string,
+    do_ml            TYPE string,
+  END OF ty_source.
+
+  DATA:
+        lv_techd TYPE xstring,
+        ls_techd_params TYPE ty_source.
+
+  IF p_h_size IS NOT INITIAL.
+    CALL FUNCTION if_tmw_rc_collect_bpa=>c_fm-hana_sizing
+    DESTINATION 'NONE'
+    IMPORTING
+      e_techd = lv_techd
+    EXCEPTIONS
+      OTHERS  = 1.
+
+    IF sy-subrc = 0 AND xstrlen( lv_techd ) > 0.
+      CALL TRANSFORMATION id SOURCE XML lv_techd
+        RESULT source = ls_techd_params.
+
+      IF ls_techd_params-curr IS NOT INITIAL.
+        ls_header-key = 'HanaSizing_CURR'.
+        ls_header-value = ls_techd_params-curr.
+        APPEND ls_header TO lt_header.
+        CLEAR ls_header.
+      ENDIF.
+
+      IF ls_techd_params-ledg IS NOT INITIAL.
+        ls_header-key = 'HanaSizing_LEDG'.
+        ls_header-value = ls_techd_params-ledg.
+        APPEND ls_header TO lt_header.
+        CLEAR ls_header.
+      ENDIF.
+    ENDIF.
+  ENDIF.
+
+
+  CLEAR lv_xml_content.
+  CALL TRANSFORMATION id
+    SOURCE header_data = lt_header
+    RESULT XML lv_xml_content.
+  cl_tmw_rc_collect_bpa=>add_content_to_zip(
+    iv_file_name   = if_tmw_rc_collect_bpa=>c_file_name-ana_sys_header
+    iv_content     = lv_xml_content
+    iv_coll_report = if_tmw_rc_collect_bpa=>c_prog-rc_coll ).
+
+
+*--------------------------------------------------------------------*
+* Add MIME objects
+
+  " Remove unnecessary xsl file in S4 system
+  IF gv_s4 <> abap_true.
+    lv_mime_obj = 'BPRealCheck.xsl'.
+    APPEND lv_mime_obj TO lt_mime_obj.
+    lv_mime_obj = 'bw_extra.xsl'.
+    APPEND lv_mime_obj TO lt_mime_obj.
+    lv_mime_obj = 'dvm.xsl'.
+    APPEND lv_mime_obj TO lt_mime_obj.
+    lv_mime_obj = 'hana_sizing.xsl'.
+    APPEND lv_mime_obj TO lt_mime_obj.
+*    lv_mime_obj = 'fdq.xsl'.
+*    APPEND lv_mime_obj TO lt_mime_obj.
+    CLEAR lt_xsl_file.
+    lt_xsl_file = lcl_fdq_data_coll=>lif_sub_checks_collector~used_xsl_files( ).
+
+    LOOP AT lt_xsl_file INTO ls_xsl_file.
+      APPEND ls_xsl_file-file_name TO lt_mime_obj.
+    ENDLOOP.
+
+  ENDIF.
+
+  lv_mime_obj = 'ana_sys_add_info.xsl'.
+  APPEND lv_mime_obj TO lt_mime_obj.
+  lv_mime_obj = 'ana_sys_header.xsl'.
+  APPEND lv_mime_obj TO lt_mime_obj.
+
+*  lv_mime_obj = 'interface.xsl'.
+*  APPEND lv_mime_obj TO lt_mime_obj.
+  CLEAR lt_xsl_file.
+  lt_xsl_file = lcl_interface_data_coll=>lif_sub_checks_collector~used_xsl_files( ).
+
+  LOOP AT lt_xsl_file INTO ls_xsl_file.
+    APPEND ls_xsl_file-file_name TO lt_mime_obj.
+  ENDLOOP.
+
+  lv_mime_obj = 'sitem_relevance.xsl'.
+  APPEND lv_mime_obj TO lt_mime_obj.
+  lv_mime_obj = 'sitem_consistency.xsl'.
+  APPEND lv_mime_obj TO lt_mime_obj.
+  lv_mime_obj = 'transaction_usage.xsl'.
+  APPEND lv_mime_obj TO lt_mime_obj.
+  lv_mime_obj = 'innovation.xsl'.
+  APPEND lv_mime_obj TO lt_mime_obj.
+  lv_mime_obj = 'sitem_effortdriver.xsl'.
+  APPEND lv_mime_obj TO lt_mime_obj.
+  lv_mime_obj = 'fui-site.css'.
+  APPEND lv_mime_obj TO lt_mime_obj.
+
+  lo_mime_rep  = cl_mime_repository_api=>get_api( ).
+  LOOP AT lt_mime_obj INTO lv_mime_obj.
+    CONCATENATE '/SAP/PUBLIC/BC/ABAP/' lv_mime_obj INTO lv_mime_url.
+    lo_mime_rep->get(
+      EXPORTING
+        i_url              = lv_mime_url
+        i_check_authority  = abap_false
+      IMPORTING
+        e_content          = lv_mime_xstr
+      EXCEPTIONS
+        OTHERS             = 1 ).
+    IF sy-subrc = 0.
+      IF lv_mime_obj = 'BPRealCheck.xsl'.
+        lv_mime_obj = 'bpa.xsl'. "Name specified in cl_tmw_rc_collect_bpa=>add_content_to_zip
+      ENDIF.
+      cl_tmw_rc_collect_bpa=>so_data_file->add(
+        name    = lv_mime_obj
+        content = lv_mime_xstr ).
+    ENDIF.
+  ENDLOOP.
+ENDFORM.                    "add_header_info
+
+*&---------------------------------------------------------------------*
+*&      Form  initialization
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM initialization.
+  DATA:
+    lv_target_stack     TYPE char20,
+    ls_bpa_kpi          TYPE ty_bpa_kpi_str,
+    lt_all_bpa_kpi      TYPE ty_bpa_kpi_tab,
+    lt_bpa_kpi_rang     LIKE RANGE OF lv_bpa_kpi,
+    ls_bpa_kpi_rang     LIKE LINE OF lt_bpa_kpi_rang,
+    ls_note             TYPE bcwbn_note,
+    lv_note_impl_status TYPE cwbprstat.
+
+*--------------------------------------------------------------------*
+* Initialize texts and buttons
+
+  sy-title = 'SAP Readiness Check for SAP S/4HANA'. " - Prepare Analysis Data'.
+
+  "Execution Parameters
+  "*******************************
+  "*******************************
+  cv_t0    = 'Execution Parameters'.
+  c_prd_st = 'Target S/4HANA Version'.
+
+  "Scope Selection
+  "*******************************
+  "*******************************
+  cv_t1    = 'Scope Selection'.
+
+  "Productive client
+  """"""""""""""""""""""""""""""""
+  cv_t01 = 'Check for Productive Client(s)'.
+
+  "Business Process Analytics
+  c_bpa    = 'Business Process Analytics'.
+  c_bpa_k  = 'Business Process Analytics KPIs'.
+
+  "Customer Vendor integration
+  c_bp     = 'Customer Vendor Integration Analysis'.
+
+  "FDQ
+  c_fdq    = 'Financial Data Quality'.
+
+  c_fdqex = c_fdq.
+
+  cfqarea  = 'Financial Areas in Scope for Analysis'.
+  c_fdqgl  = 'General Ledger'.
+  c_fdqaa  = 'Asset Accounting'.
+  c_fdqml  = 'Material Ledger'.
+
+  cfqmode  = 'Data Collection Mode for Financial Areas'.
+  c_fdqsq  = 'Sequential Analysis'.
+  c_fdqpa  = 'Parallel Analysis'.
+
+  cfq_job  = 'Number of Parallel Jobs per Financial Area'.
+  c_fdqglj = c_fdqgl.
+  c_fdqaaj = c_fdqaa.
+  c_fdqmlj = c_fdqml.
+
+  c1fdqglj = 'jobs'.
+  c1fdqaaj = c1fdqglj.
+  c1fdqmlj = c1fdqglj.
+
+  cfqepj   = 'Number of Parallel Entities to Be Analyzed per Financial Area'.
+  c_fdqgle = c_fdqgl.
+  c_fdqaae = c_fdqaa.
+  c_fdqmle = c_fdqml.
+
+  c1fdqgle = 'fiscal years per job'.
+  c1fdqaae = 'company codes per job'.
+  c1fdqmle = 'valuation areas per job'.
+
+  c1fdqji = lcl_fdq_data_coll=>cs_wp_text-text_1.
+  c2fdqji = lcl_fdq_data_coll=>cs_wp_text-text_2.
+  c3fdqji = lcl_fdq_data_coll=>cs_wp_text-text_3.
+
+  btn_fjr = 'Apply Recommended Parallel Job Values'.
+
+  "only when the system is ERP system and not S/4HANA system, then the FDQ check is make sense
+  IF gv_s4 = abap_false.
+    lcl_fdq_data_coll=>lif_sub_checks_collector~are_prerequisites_fulfilled(
+      IMPORTING
+        ev_are_prerequisites_fulfilled = gv_fdq_prerequisites_fulfilled
+    ).
+  ENDIF.
+
+  "Innovation Potential
+  c_innova = 'Innovation Potential'.
+
+  "interface // integration
+  c_intfac = 'Integration'. "c_intfac = 'Interface'.
+
+  "cv_ifexp = 'Integration'.
+  c_if_et = 'Integration'.
+
+  c_if_ty = 'Interface Type:'.
+  c_if_cty = 'Collection Options:'.
+
+  c_bwextr = 'Business Warehouse Extractors'.
+  c_ifidoc = 'IDoc Interfaces'.
+  c_idoc_s = 'Read IDoc Statistics (EDIDC) '.
+  c_if_rfc = 'RFC/BAPI Interfaces'.
+  c_ifwebs = 'Web Service Interfaces'. "'webServices Interfaces'.
+
+  c_if_oda = 'OData Services'.
+  c_if_slt = 'SLT Replication'.
+  c_if_min = 'Collect minimum data set'.
+
+  c_tr_usg = 'Recommended SAP Fiori Apps'. "'Transaction Usage'.
+
+  "HANA Sizing
+  c_h_size = 'HANA Sizing'.
+  c_dvm    = '  Data Volume Management  '.
+
+
+  c_si_rel = 'Simplification Item and Compatibility Scope relevance'. " 'Simplification Item Relevance'.
+  c_si_efd = ' Simplification Item Effort Drivers '.
+
+  "Custom Code Analysis
+  c_cca = 'Custom Code Analysis'.
+  ft_cca = 'Check for Non-Productive System'.
+
+  " perform check for CCA prerequisistes
+*  gv_cca_prereq_ok = lcl_cca=>check_prerequisites( ).
+*  gv_cca_dl_prereq_ok = lcl_cca=>check_download_prereq( ).
+
+  "client 000
+  """"""""""""""""""""""""""""""""
+  cv_t02 = 'Check for Client 000'.
+
+  c_si_con = 'Simplification Item Consistency'.
+
+  "Pop up to schedule the analysis
+  c_date   = 'Start Date'.
+  c_time   = 'Start Time'.
+  c_sched  = 'Date/Time'.
+  c_blckt  = 'Date/Time'.
+  c_immed  = 'Immediate'.
+  c_title  = 'Schedule Analysis'.
+
+  c_usg = 'App Availability'.  "8/10
+
+  "Pop up to schedule the analysis
+  gs_fdq_wp_popup-in_popup              = abap_false.
+*  gs_fdq_wp_popup-with_yes_no_question  = abap_false.
+  gs_fdq_wp_popup-question_answered_yes = abap_false.
+
+  c_dfq_t  = 'Background Work Processes Availability Check'.
+  btn_wp_y = 'Yes'.
+  btn_wp_n = 'No'.
+
+  CALL FUNCTION 'ICON_CREATE'
+    EXPORTING
+      name       = icon_delete
+      text       = 'Delete Buffered Data for Selected Items'
+      add_stdinf = space
+    IMPORTING
+      result     = btn_del
+    EXCEPTIONS
+      OTHERS     = 0.
+
+*--------------------------------------------------------------------*
+* Initialize scope selection mode
+  DATA lv_scope_sel_mode TYPE ty_scope_sel_mode.
+
+  CREATE OBJECT go_scope_sel_mode.
+*  CREATE OBJECT go_scope_selection.
+  lv_scope_sel_mode = go_scope_sel_mode->get_scope_sel_mode( ).
+
+  IF lv_scope_sel_mode <> lcl_scope_sel_mode=>cs_scope_sel_mode-standard.
+    lcl_fdq_data_coll=>lif_sub_checks_multimode~on_expert_mode_selection( ).
+  ENDIF.
+*--------------------------------------------------------------------*
+
+*  PERFORM update_sub_checks_value.
+
+* Initialize UI
+
+  "Get S/4HANA conversion target release
+  CALL FUNCTION 'FUNCTION_EXISTS'
+    EXPORTING
+      funcname           = if_tmw_rc_collect_bpa=>c_fm-sitem_targ_stk_get
+    EXCEPTIONS
+      function_not_exist = 1
+      OTHERS             = 99.
+
+  IF sy-subrc = 0.
+    CALL FUNCTION if_tmw_rc_collect_bpa=>c_fm-sitem_targ_stk_get "#EC EXISTS
+      IMPORTING
+        ev_result_xstr = lv_xml_content.
+
+    IF lv_xml_content IS NOT INITIAL.
+      CALL TRANSFORMATION id
+        SOURCE XML lv_xml_content
+        RESULT conv_targ_stack = lt_conv_targ_stack.
+    ENDIF.
+  ENDIF.
+
+  PERFORM initialize_ui IN PROGRAM tmw_rc_download_analysis_data
+    USING lv_target_stack abap_false.
+  p_prd_st = lv_target_stack.
+
+
+*--------------------------------------------------------------------*
+*Over write the standard initialization
+
+  "Help button, get the func05
+  sscrfields-functxt_05 = sscrfields-functxt_04.
+
+  sscrfields-functxt_04 = go_scope_sel_mode->get_scope_sel_mode_button( ).
+
+  "Execute button in pop-up is not anymore part of the standard Func. button
+  CALL FUNCTION 'ICON_CREATE'
+    EXPORTING
+      name       = '@0V@'
+      text       = 'Schedule Analysis'
+      add_stdinf = space
+    IMPORTING
+      result     = btn_skd
+    EXCEPTIONS
+      OTHERS     = 0.
+*--------------------------------------------------------------------*
+
+
+*--------------------------------------------------------------------*
+* Initialize the BPA KPI selection option
+
+
+  IF sy-batch = space.
+    PERFORM build_allowed_list_4_bpa_kpi.
+
+    CALL FUNCTION 'FUNCTION_EXISTS'
+      EXPORTING
+        funcname           = if_tmw_rc_collect_bpa=>c_fm-bpa_new_get_kpi
+      EXCEPTIONS
+        function_not_exist = 1
+        OTHERS             = 2.
+
+    IF sy-subrc = 0.
+      CALL FUNCTION if_tmw_rc_collect_bpa=>c_fm-bpa_new_get_kpi "#EC EXISTS
+        EXPORTING
+          pif_scenario = if_tmw_rc_collect_bpa=>c_bpa_scenario-real_check
+        IMPORTING
+          pet_kpi      = lt_all_bpa_kpi.
+
+      ls_bpa_kpi_rang-sign   = 'I'.
+      ls_bpa_kpi_rang-option = 'EQ'.
+
+      LOOP AT lt_all_bpa_kpi INTO ls_bpa_kpi.
+
+        READ TABLE gt_allowed_bpa_kpi_id TRANSPORTING NO FIELDS WITH KEY bpa_kpi_id = ls_bpa_kpi-id.
+
+        IF sy-subrc <> 0.
+          CONTINUE.
+        ENDIF.
+
+        APPEND ls_bpa_kpi TO gt_bpa_kpi.
+
+*        ls_bpa_kpi_rang-low = ls_bpa_kpi-id.
+        CONCATENATE ls_bpa_kpi-id ' - ' ls_bpa_kpi-text INTO ls_bpa_kpi_rang-low RESPECTING BLANKS.
+        APPEND ls_bpa_kpi_rang TO so_bpa_k[].
+      ENDLOOP.
+    ENDIF.
+  ENDIF.
+
+ENDFORM.                    "initialization
+
+*&---------------------------------------------------------------------*
+*&      Form  validate_input
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      <--CV_STOP_PROCESS  text
+*----------------------------------------------------------------------*
+FORM validate_input CHANGING cv_stop_process TYPE boolean.
+  "Currently only for FDQ
+  DATA lv_scope_sel_mode TYPE ty_scope_sel_mode.
+
+  "check WP input
+  DATA lv_total_parallel_jobs_nbr TYPE int4 VALUE 0.
+
+  IF p_fdq <> abap_true.
+    EXIT.
+  ENDIF.
+
+  lv_scope_sel_mode = go_scope_sel_mode->get_scope_sel_mode( ).
+
+
+  IF lv_scope_sel_mode <> lcl_scope_sel_mode=>cs_scope_sel_mode-standard.
+    IF p_fdqgl = 'X'.
+      IF p_fdqglj < 1.
+        MESSAGE 'Wrong number of jobs for General Ledger' TYPE 'W'.
+
+        EXIT.
+      ENDIF.
+
+      IF p_fdqgle < 1.
+        MESSAGE 'Wrong number of entities for General Ledger' TYPE 'W'.
+
+        EXIT.
+      ENDIF.
+    ENDIF.
+
+    IF p_fdqaa = 'X'.
+      IF p_fdqaaj  < 1 OR p_fdqaae  < 1.
+        MESSAGE 'Wrong number of jobs for Asset Accounting' TYPE 'W'.
+
+        EXIT.
+      ENDIF.
+
+      IF p_fdqaae  < 1.
+        MESSAGE 'Wrong number of entities for Asset Accounting' TYPE 'W'.
+
+        EXIT.
+      ENDIF.
+    ENDIF.
+
+    IF p_fdqml = 'X'.
+      IF p_fdqmlj  < 1 OR p_fdqmle  < 1.
+        MESSAGE 'Wrong number of jobs for Material Ledger' TYPE 'W'.
+
+        EXIT.
+      ENDIF.
+
+      IF p_fdqmle  < 1.
+        MESSAGE 'Wrong number of entities for Material Ledger' TYPE 'W'.
+
+        EXIT.
+      ENDIF.
+    ENDIF.
+
+    lv_total_parallel_jobs_nbr = lcl_fdq_data_coll=>get_total_parallel_jobs_nbr( ).
+
+    IF lv_total_parallel_jobs_nbr > gv_fdq_nbr_available_wp.
+      PERFORM show_popup_fdq_wp USING    lv_total_parallel_jobs_nbr
+                                CHANGING cv_stop_process.
+    ENDIF.
+  ENDIF.
+ENDFORM.                    "validate_input
+
+*&---------------------------------------------------------------------*
+*&      Form  show_popup_fdq_wp
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->PV_TOTAL_PARALLEL_JOBS_NBR  text
+*      <--CV_STOP_PROCESS             text
+*----------------------------------------------------------------------*
+FORM show_popup_fdq_wp USING    pv_total_parallel_jobs_nbr TYPE int4
+                       CHANGING cv_stop_process TYPE boolean.
+  CONSTANTS:
+    BEGIN OF cs_wp_text,
+      text_1 TYPE string VALUE 'The specified number of jobs (CC jobs) for the Financial Data Quality', "#NO_TEXT
+      text_2 TYPE string VALUE 'check exceeds our recommended threshold (AA jobs).',                    "#NO_TEXT
+      text_3 TYPE string VALUE 'Continuing with this configuration could result in the queuing of',     "#NO_TEXT
+      text_4 TYPE string VALUE 'background jobs, which could delay normal business operations and',     "#NO_TEXT
+      text_5 TYPE string VALUE 'system maintenance activities.',                                        "#NO_TEXT
+      text_6 TYPE string VALUE 'Do you want to continue with the current values?',                      "#NO_TEXT
+    END OF cs_wp_text.
+
+  DATA:
+    lv_total_para_jobs_nbr_string TYPE string,
+    lv_fdq_nbr_available_wp       TYPE string.
+
+  cv_stop_process = abap_true.
+
+  c1fdqwp = cs_wp_text-text_1.
+  c2fdqwp = cs_wp_text-text_2.
+  c3fdqwp = cs_wp_text-text_3.
+  c4fdqwp = cs_wp_text-text_4.
+  c5fdqwp = cs_wp_text-text_5.
+  c6fdqwp = cs_wp_text-text_6.
+
+  lv_total_para_jobs_nbr_string  = pv_total_parallel_jobs_nbr.
+  lv_fdq_nbr_available_wp        = gv_fdq_nbr_available_wp.
+
+  REPLACE 'CC' IN c1fdqwp WITH lv_total_para_jobs_nbr_string.
+  REPLACE 'AA' IN c2fdqwp WITH lv_fdq_nbr_available_wp.
+
+  gs_fdq_wp_popup-question_answered_yes = abap_false.
+
+  CONDENSE c1fdqwp.
+  CONDENSE c2fdqwp.
+
+  gs_fdq_wp_popup-in_popup = 'X'.
+  CALL SELECTION-SCREEN 1200
+    STARTING AT 10 10.
+
+  IF sy-subrc <> 0.
+    gs_fdq_wp_popup-in_popup = ' '.
+    LEAVE TO SCREEN 0.
+  ENDIF.
+
+  IF gs_fdq_wp_popup-question_answered_yes = abap_true.
+    cv_stop_process = abap_false.
+  ENDIF.
+ENDFORM.                    "show_popup_fdq_wp
+
+*&---------------------------------------------------------------------*
+*&      Form  build_allowed_list_4_bpa_kpi
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM build_allowed_list_4_bpa_kpi.
+  "---------------------------"
+  "build allowed list         "
+  DATA ls_allowed_bpa_kpi_id TYPE ty_s_bpa_kpi_id.
+
+  ls_allowed_bpa_kpi_id-bpa_kpi_id = 'KPSD000140'.
+  APPEND ls_allowed_bpa_kpi_id TO gt_allowed_bpa_kpi_id.
+
+  ls_allowed_bpa_kpi_id-bpa_kpi_id = 'KPLE000140'.
+  APPEND ls_allowed_bpa_kpi_id TO gt_allowed_bpa_kpi_id.
+
+  ls_allowed_bpa_kpi_id-bpa_kpi_id = 'KPSD000240'.
+  APPEND ls_allowed_bpa_kpi_id TO gt_allowed_bpa_kpi_id.
+
+  ls_allowed_bpa_kpi_id-bpa_kpi_id = 'KPPURCH340'.
+  APPEND ls_allowed_bpa_kpi_id TO gt_allowed_bpa_kpi_id.
+
+  ls_allowed_bpa_kpi_id-bpa_kpi_id = 'KPPURCH241'.
+  APPEND ls_allowed_bpa_kpi_id TO gt_allowed_bpa_kpi_id.
+
+  ls_allowed_bpa_kpi_id-bpa_kpi_id = 'KPPURCH440'.
+  APPEND ls_allowed_bpa_kpi_id TO gt_allowed_bpa_kpi_id.
+
+  ls_allowed_bpa_kpi_id-bpa_kpi_id = 'KPPP000140'.
+  APPEND ls_allowed_bpa_kpi_id TO gt_allowed_bpa_kpi_id.
+
+  ls_allowed_bpa_kpi_id-bpa_kpi_id = 'KPPP000240'.
+  APPEND ls_allowed_bpa_kpi_id TO gt_allowed_bpa_kpi_id.
+
+  ls_allowed_bpa_kpi_id-bpa_kpi_id = 'KPSD000121'.
+  APPEND ls_allowed_bpa_kpi_id TO gt_allowed_bpa_kpi_id.
+
+  ls_allowed_bpa_kpi_id-bpa_kpi_id = 'KPLE000110'.
+  APPEND ls_allowed_bpa_kpi_id TO gt_allowed_bpa_kpi_id.
+
+  ls_allowed_bpa_kpi_id-bpa_kpi_id = 'KFFI000302'.
+  APPEND ls_allowed_bpa_kpi_id TO gt_allowed_bpa_kpi_id.
+
+  ls_allowed_bpa_kpi_id-bpa_kpi_id = 'KPPURCH303'.
+  APPEND ls_allowed_bpa_kpi_id TO gt_allowed_bpa_kpi_id.
+
+  ls_allowed_bpa_kpi_id-bpa_kpi_id = 'KPPURCH203'.
+  APPEND ls_allowed_bpa_kpi_id TO gt_allowed_bpa_kpi_id.
+
+  ls_allowed_bpa_kpi_id-bpa_kpi_id = 'KFFI000202'.
+  APPEND ls_allowed_bpa_kpi_id TO gt_allowed_bpa_kpi_id.
+
+  ls_allowed_bpa_kpi_id-bpa_kpi_id = 'KPPP000106'.
+  APPEND ls_allowed_bpa_kpi_id TO gt_allowed_bpa_kpi_id.
+
+  ls_allowed_bpa_kpi_id-bpa_kpi_id = 'KPPP000206'.
+  APPEND ls_allowed_bpa_kpi_id TO gt_allowed_bpa_kpi_id.
+
+  ls_allowed_bpa_kpi_id-bpa_kpi_id = 'KWPM000209'.
+  APPEND ls_allowed_bpa_kpi_id TO gt_allowed_bpa_kpi_id.
+
+  ls_allowed_bpa_kpi_id-bpa_kpi_id = 'KFFI000701'.
+  APPEND ls_allowed_bpa_kpi_id TO gt_allowed_bpa_kpi_id.
+
+  ls_allowed_bpa_kpi_id-bpa_kpi_id = 'KFFI000705'.
+  APPEND ls_allowed_bpa_kpi_id TO gt_allowed_bpa_kpi_id.
+
+  ls_allowed_bpa_kpi_id-bpa_kpi_id = 'KPLE000111'.
+  APPEND ls_allowed_bpa_kpi_id TO gt_allowed_bpa_kpi_id.
+
+  ls_allowed_bpa_kpi_id-bpa_kpi_id = 'KPLE000203'.
+  APPEND ls_allowed_bpa_kpi_id TO gt_allowed_bpa_kpi_id.
+
+  ls_allowed_bpa_kpi_id-bpa_kpi_id = 'KPSD000190'.
+  APPEND ls_allowed_bpa_kpi_id TO gt_allowed_bpa_kpi_id.
+
+  ls_allowed_bpa_kpi_id-bpa_kpi_id = 'KPPP000190'.
+  APPEND ls_allowed_bpa_kpi_id TO gt_allowed_bpa_kpi_id.
+  .
+  ls_allowed_bpa_kpi_id-bpa_kpi_id = 'KPPP000290'.
+  APPEND ls_allowed_bpa_kpi_id TO gt_allowed_bpa_kpi_id.
+
+  ls_allowed_bpa_kpi_id-bpa_kpi_id = 'KWPM000290'.
+  APPEND ls_allowed_bpa_kpi_id TO gt_allowed_bpa_kpi_id.
+
+  ls_allowed_bpa_kpi_id-bpa_kpi_id = 'KFFI002395'.
+  APPEND ls_allowed_bpa_kpi_id TO gt_allowed_bpa_kpi_id.
+
+  " end of build allowed list "
+  "---------------------------"
+ENDFORM.                    "build_allowed_list_4_bpa_kpi
+
+*----------------------------------------------------------------------*
+*  MODULE 1100_back INPUT
+*----------------------------------------------------------------------*
+*
+*----------------------------------------------------------------------*
+MODULE 1100_back INPUT.
+  gv_in_popup = ' '.
+  LEAVE TO SCREEN 0.
+ENDMODULE.                    "1100_back INPUT
+
+*----------------------------------------------------------------------*
+*  MODULE 1200_back INPUT
+*----------------------------------------------------------------------*
+*
+*----------------------------------------------------------------------*
+MODULE 1200_back INPUT.
+  gs_fdq_wp_popup-in_popup = ' '.
+  LEAVE TO SCREEN 0.
+ENDMODULE.                    "1200_back INPUT
+*&---------------------------------------------------------------------*
+*&      Form  COLLECT_USAGE_DATA
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM collect_usage_data .    "8/10
+
+  CONSTANTS: subid_dpt     TYPE int4 VALUE 3100.            "#EC NOTEXT
+
+  DATA:
+    lv_data_in_buffer_is_old TYPE boolean VALUE abap_true,
+    lo_dpt_api               TYPE REF TO lcl_dpt_data_coll,
+    xml_file_xstr            TYPE xstring.
+
+  add_info_mesg 'Start to collect DPT Usage data'.
+
+  "Check buffer
+  lcl_data_collection_helper=>is_data_in_buffer_old(
+     EXPORTING
+       iv_trigid             = c_data_key-data_trigid
+       iv_trigoffset         = c_data_key-data_trigoffset
+       iv_subid              = subid_dpt
+       iv_client_dependent   = abap_true
+     IMPORTING
+       ev_data_in_buffer_is_old = lv_data_in_buffer_is_old
+       ev_buffered_data         = xml_file_xstr
+   ).
+
+  IF lv_data_in_buffer_is_old <> abap_true.
+
+  ELSE.
+    CREATE OBJECT lo_dpt_api TYPE lcl_dpt_data_coll.
+
+    CLEAR xml_file_xstr.
+    xml_file_xstr = lo_dpt_api->collect_data( ).
+
+    IF xml_file_xstr IS NOT INITIAL.
+      lcl_data_collection_helper=>add_data_2_buffer(
+        EXPORTING
+          iv_trigid           = c_data_key-data_trigid
+          iv_trigoffset       = c_data_key-data_trigoffset
+          iv_subid            = subid_dpt
+          iv_data_2_buffer    = xml_file_xstr
+          iv_client_dependent = abap_true
+      ).
+    ENDIF.
+  ENDIF.
+
+  IF xml_file_xstr IS INITIAL.
+    " string is empty because no / not enough data are available
+     add_info_mesg 'DPT Usage data not available'.
+  ELSE.
+    "Add xml data to the ZIP file
+    cl_tmw_rc_collect_bpa=>so_data_file->add(
+      name    = 'usage_data.xml'
+      content = xml_file_xstr ).
+
+    add_info_mesg 'DPT Usage data is collected'.
+  ENDIF.
+ENDFORM.                    " COLLECT_USAGE_DATA

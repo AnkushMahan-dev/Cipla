@@ -1,0 +1,71 @@
+*&---------------------------------------------------------------------*
+*&  Include           CIFUCTLS                                         *
+*&---------------------------------------------------------------------*
+DEFINE DESCRIBE_FIELD_BYTE_LENGTH.
+  DESCRIBE FIELD &1 LENGTH &2 IN BYTE MODE.
+END-OF-DEFINITION.
+
+DEFINE DESCRIBE_FIELD_CHAR_LENGTH.
+  DESCRIBE FIELD &1 LENGTH &2 IN CHARACTER MODE.
+END-OF-DEFINITION.
+
+* Replaces previous CLEAR ... WITH ... Statements.
+* This was used a lot for setting X-field structures.
+* Instead of trying to set all fields if a structure with one
+* CLEAR statement we're using a field symbol and do it field by
+* field in a LOOP. Since a MOVE of a character variable or
+* constant to a non-character-like field (type P,F,I) will give
+* us a dump we have to avoid this.
+DEFINE CLEAR_STRUCTURE_WITH.
+  FIELD-SYMBOLS: <FS_&1> TYPE ANY.
+  DATA: FS_&1_TYPE_ TYPE C,
+        CONST_&1_TYPE_ TYPE C.
+  DESCRIBE FIELD &2 TYPE CONST_&1_TYPE_.
+  DO.
+    ASSIGN COMPONENT SY-INDEX OF STRUCTURE &1 TO <FS_&1>.
+    IF SY-SUBRC <> 0.
+      EXIT.
+    ELSE.
+      DESCRIBE FIELD <FS_&1> TYPE FS_&1_TYPE_.
+      IF CONST_&1_TYPE_ = 'C'
+      AND NOT (    FS_&1_TYPE_ = 'P'
+                OR FS_&1_TYPE_ = 'F'
+                OR FS_&1_TYPE_ = 'I'
+                OR FS_&1_TYPE_ = 'b'
+                OR FS_&1_TYPE_ = 'B' ).
+        MOVE &2 TO <FS_&1>.
+      ELSE.
+        CLEAR <FS_&1>.
+      ENDIF.
+    ENDIF.
+  ENDDO.
+END-OF-DEFINITION.
+
+* Macro to copy values from a structure into a generic container
+* in a Unicode-System this is done using a FIELD-SYMBOL which is
+* cast to the correct structure. A MOVE-CORRESPONDING does the
+* copying of the fields with the correct types
+* Parameter &5 which indicates an offset into the structure is
+* not needed in this case because the MOVE-CORRESPONDING will use
+* the field names and does not need an offset.
+DEFINE MOVE_GENKEY_TO_STRUC_MACRO.
+  ASSIGN &1 to &3 CASTING TYPE &4.
+  MOVE-CORRESPONDING &3 TO &2.
+  SY-LISEL = '&5'.            " stupid macro syntax
+END-OF-DEFINITION.
+
+* Same thing, just the other way round
+DEFINE MOVE_STRUC_TO_GENKEY_MACRO.
+  ASSIGN &2 to &3 CASTING TYPE &4.
+  MOVE-CORRESPONDING &1 TO &3.
+  SY-LISEL = '&5'.            " stupid macro syntax
+END-OF-DEFINITION.
+
+* in lower releases a 'CLEAR ... WITH SPACE'
+* in R/3 Enterprise this does not really matter since
+* the MOVE_STRUC_TO_GENKEY_MACRO doesn't copy segment
+* and position anyway
+DEFINE CLEAR_SEGMENT_POS.
+  CLEAR &1-SEGMENT.
+  CLEAR &1-POS.
+END-OF-DEFINITION.

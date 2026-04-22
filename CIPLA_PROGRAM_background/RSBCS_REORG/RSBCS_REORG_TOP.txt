@@ -1,0 +1,50 @@
+*&---------------------------------------------------------------------*
+*&  Include           RSBCS_REORG_TOP
+*&---------------------------------------------------------------------*
+
+data sel_age    type bcs_age.
+data sel_adrtp  type sx_addrtyp.
+data sel_status type sx_statusc.
+
+tables: sood.
+
+selection-screen begin of block reorg with frame title text-re0.
+selection-screen begin of line.
+parameters srdel type bcs_resrdel default 'X' user-command com.
+selection-screen comment 3(65) text-re1 for field srdel.
+selection-screen end of line.
+selection-screen begin of line.
+parameters docdel type bcs_redocdel default 'X'.
+selection-screen comment 3(65) text-re2 for field docdel.
+selection-screen end of line.
+selection-screen end of block reorg.
+
+selection-screen begin of block age with frame title text-ag1.
+parameters absolute radiobutton group age user-command com default 'X'.
+parameters relative radiobutton group age.
+select-options days_old for sel_age no-extension modif id da2.
+select-options created for sood-crdat modif id da1.
+select-options crdat for sood-crdat modif id da3.
+selection-screen end of block age.
+
+selection-screen begin of block selection with frame title text-do1.
+select-options cronam  for sood-cronam.
+select-options objdes for sood-objdes.
+selection-screen skip.
+select-options objtp for sood-objtp.
+select-options objyr for sood-objyr.
+select-options objno for sood-objno.
+selection-screen end of block selection.
+
+selection-screen begin of block send with frame title text-sd1.
+select-options sndart for sel_adrtp modif id del.
+select-options status for sel_status modif id del.
+parameters exponly type bcs_srexponly modif id del.
+selection-screen end of block send.
+
+selection-screen begin of block opt with frame title text-op1.
+parameters maxsel type bcs_maxsel.
+parameters packsize type bcs_packsize default 500.
+parameters showlog type bcs_showlog.
+parameters testmode type bcs_testmode default 'X'.
+selection-screen end of block opt.

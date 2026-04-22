@@ -1,0 +1,379 @@
+*&---------------------------------------------------------------------*
+*& Report  ZSD_FTP_CNDN
+*&
+*&---------------------------------------------------------------------*
+*&
+*&
+*&---------------------------------------------------------------------*
+* Program         : ZSD_FTP_CNDN_CC
+* Title           : Customer connect PDF to FTP
+* Author          : Swapnil Pable
+* Program Type    : Executable
+* Creation Date   : 17/05/2019
+* Transaction     : ZSD_FTP_CNDN_CC
+* Functional      : Sarang Lonkar
+* Change request  : 8000005021
+* Transport no    :
+* Description     : Customer connect PDF to FTP
+*----------------------------------------------------------------------*
+*----------------------------------------------------------------------*
+* Modification Information
+* Date            : 26.02.2021
+* Author          : Charitha
+* Functional      : Sarang Lonkar
+* Change request  : 8000006921
+* Transport number: CRDK976423
+* Description     : Customer connect PDF to FTP
+*----------------------------------------------------------------------*
+* Modification Information
+* Date            : 25.04.2022
+* Author          : Gauri Tandel
+* Change request  : 8000008118
+* Transport number: CRDK982912
+* Description     : Change for performance
+*----------------------------------------------------------------------*
+* Modification Information
+* Date            : 09.09.2025
+* Author          : Uday Reddy
+* Change request  : 8000004427
+* Transport number: CRDK997523
+* Description     : Change for the plant 3800 with new id_name.
+*----------------------------------------------------------------------*
+REPORT zsd_ftp_cndn_cc.
+
+TABLES: vbrk, nast.
+TYPE-POOLS zcdt.
+
+
+SELECTION-SCREEN : BEGIN OF BLOCK b1 WITH FRAME TITLE text-001.
+SELECT-OPTIONS : s_bukrs FOR vbrk-bukrs OBLIGATORY,
+                 s_vkorg FOR vbrk-vkorg OBLIGATORY,
+*                 s_fkart FOR vbrk-fkart OBLIGATORY,
+                 s_fkdat FOR vbrk-fkdat OBLIGATORY.
+SELECTION-SCREEN : END OF BLOCK b1.
+
+
+CLASS cl_cndn_ftp DEFINITION.
+  PUBLIC SECTION.
+
+    TYPES:BEGIN OF ty_vbrk,
+            vbeln TYPE bkpf-xblnr,  "vbrk-vbeln,
+            bukrs TYPE vbrk-bukrs,
+            vkorg TYPE vbrk-vkorg,
+            gjahr TYPE vbrk-gjahr,
+            fkart TYPE vbrk-fkart,
+            vbtyp TYPE vbrk-vbtyp,
+            fkdat TYPE vbrk-fkdat,
+            kunag TYPE vbrk-kunag,
+            fksto TYPE vbrk-fksto,
+            rfbsk TYPE vbrk-rfbsk,
+          END OF ty_vbrk,
+
+          BEGIN OF ty_kna1,
+            kunnr TYPE kna1-kunnr,
+            name1 TYPE kna1-name1,
+          END OF ty_kna1,
+
+          BEGIN OF ty_zsd_inv_out,
+            fkart TYPE vbrk-fkart,
+            kschl TYPE konv-kschl,
+          END OF ty_zsd_inv_out,
+
+          BEGIN OF ty_tnapr,
+            kschl TYPE tnapr-kschl,
+            nacha TYPE tnapr-nacha,
+            kappl TYPE tnapr-kappl,
+            pgnam TYPE tnapr-pgnam,
+            sform TYPE tnapr-sform,
+          END OF ty_tnapr,
+
+          BEGIN OF ty_bkpf,
+            bukrs TYPE bkpf-bukrs,
+            belnr TYPE bkpf-belnr,
+            gjahr TYPE bkpf-gjahr,
+            xblnr TYPE bkpf-xblnr,
+          END OF ty_bkpf.
+
+    DATA: ta_vbrk  TYPE TABLE OF ty_vbrk,
+          wa_vbrk  TYPE ty_vbrk,
+          ta_kna1  TYPE TABLE OF ty_kna1,
+          wa_kna1  TYPE ty_kna1,
+          lwa_nast TYPE nast,
+          ta_out   TYPE TABLE OF ty_zsd_inv_out,
+          wa_out   TYPE ty_zsd_inv_out,
+          ta_tnapr TYPE TABLE OF ty_tnapr,
+          wa_tnapr TYPE ty_tnapr,
+          ta_log   TYPE TABLE OF zsd_cndn_ftplog,
+          wa_log   TYPE zsd_cndn_ftplog,
+          ta_bkpf  TYPE TABLE OF ty_bkpf,
+          wa_bkpf  TYPE ty_bkpf,
+          lv_kschl TYPE konv-kschl.
+
+    CONSTANTS: co_o       TYPE c VALUE 'O',
+               co_p       TYPE c VALUE 'P',
+               co_m       TYPE c VALUE 'M',
+               co_v3(2)   TYPE c VALUE 'V3',
+               co_a       TYPE c VALUE 'A',
+               co_b       TYPE c VALUE 'B',
+               co_yrd5(4) TYPE c VALUE 'YRD5',
+               co_yins(4) TYPE c VALUE 'YINS',
+               co_f2(2)   TYPE c VALUE 'F2'.
+
+    DATA: lv_gjahr(4) TYPE c.  "gjahr.
+
+    METHODS:
+      m_get_data,
+      m_procee_credit_note_data IMPORTING wa_vbrk TYPE ty_vbrk,
+      f_del_pre_month_data,
+      error_log.
+
+ENDCLASS.
+
+DATA : lo_cndn  TYPE REF TO cl_cndn_ftp,
+       co_ftp   TYPE string VALUE 'FTP_CC',
+       flg_nast TYPE c,
+       flg_bkpf TYPE c.
+FIELD-SYMBOLS : <fs_ftp> TYPE string.
+ASSIGN co_ftp TO <fs_ftp>.
+
+CREATE OBJECT lo_cndn.
+lo_cndn->m_get_data( ).
+lo_cndn->f_del_pre_month_data( ).
+
+CLASS cl_cndn_ftp IMPLEMENTATION.
+
+  METHOD m_get_data.
+
+    "Start of Addition by Charitha on 26.02.2021 for CR# 8000006921
+
+    CONSTANTS:
+      lc_id1(10) TYPE c VALUE 'CCSPLINC',
+      lc_id2(10) TYPE c VALUE 'CCSTKYRD',
+      lc_id3(10) TYPE c VALUE 'CCSALESO',
+      lc_id4(10) TYPE c VALUE 'CCOUTPUT'.
+
+    SELECT *
+      FROM zparam_table
+      INTO TABLE @DATA(lta_param)
+      WHERE id_name IN ( @lc_id1 , @lc_id2 , @lc_id3, @lc_id4  ).
+
+    IF sy-subrc EQ 0.
+
+      "End of Addition by Charitha on 26.02.2021 for CR# 8000006921
+
+      SELECT fkart kschl
+      FROM zsd_inv_out_cc INTO TABLE ta_out.
+
+      IF sy-subrc EQ 0.
+        SELECT kschl nacha kappl pgnam sform
+          FROM tnapr
+          INTO TABLE ta_tnapr
+          FOR ALL ENTRIES IN ta_out
+        WHERE kschl EQ ta_out-kschl.
+
+        SELECT vbeln vkorg bukrs gjahr fkart vbtyp fkdat kunag fksto rfbsk
+          FROM vbrk
+          INTO TABLE ta_vbrk
+          FOR ALL ENTRIES IN ta_out
+          WHERE fkart	EQ ta_out-fkart
+            AND vkorg	IN s_vkorg
+            AND fkdat	IN s_fkdat
+*        AND rfbsk  EQ zcdt_co_c
+            AND bukrs	IN s_bukrs
+        AND vbtyp IN (co_o, co_p, co_m)
+*        AND kunrg in s_kunrg
+*        AND fksto EQ space.
+        %_HINTS MSSQLNT 'INDEX("VBRK" "VBRK-ZAB")'.                    "Added by Gauri Tandel - 8000008115 - 25.04.2022
+
+        IF sy-subrc EQ 0.
+
+          SELECT bukrs belnr gjahr xblnr
+            FROM bkpf
+            INTO TABLE ta_bkpf
+            FOR ALL ENTRIES IN ta_vbrk
+            WHERE bukrs EQ ta_vbrk-bukrs
+*          AND gjahr eq ta_vbrk-gjahr
+          AND xblnr EQ ta_vbrk-vbeln
+          %_HINTS MSSQLNT 'INDEX("BKPF" "BKPF-ZBC")'.                  "Added by Gauri Tandel - 8000008115 - 25.04.2022
+
+
+
+          SELECT kunnr name1
+            FROM kna1 INTO TABLE ta_kna1
+            FOR ALL ENTRIES IN ta_vbrk
+          WHERE kunnr EQ ta_vbrk-kunag.
+
+          SELECT kunnr, vkorg, vtweg, spart, kalks
+                 FROM knvv
+                 INTO TABLE @DATA(ta_knvv)
+                 FOR ALL ENTRIES IN @ta_vbrk
+                 WHERE kunnr = @ta_vbrk-kunag
+          AND   vkorg = @ta_vbrk-vkorg.
+        ENDIF.
+      ENDIF.
+
+    ELSE.
+
+      "Start of Addition by Charitha on 26.02.2021 for CR# 8000006921
+
+      MESSAGE e297(zsd).
+    ENDIF.
+
+    "End of Addition by Charitha on 26.02.2021 for CR# 8000006921
+
+*SOC by Uday Reddy CR#8000004427 on 12-09-2025
+    READ TABLE lta_param WITH KEY id_name = 'CCSALESO' INTO DATA(ls_saleso).
+    READ TABLE lta_param WITH KEY id_name = 'CCOUTPUT' INTO DATA(ls_output).
+*EOC by Uday Reddy CR#8000004427 on 12-09-2025
+
+
+    LOOP AT ta_vbrk INTO wa_vbrk.
+
+      IF line_exists( ta_out[ fkart = wa_vbrk-fkart ] ).
+        DATA(wa_out) = ta_out[ fkart = wa_vbrk-fkart ] .
+        IF wa_vbrk-fkart = co_f2.
+***SOC by Uday Reddy CR#8000004427 on 09-09-2025.
+          IF ls_saleso-param_name IS NOT INITIAL
+            AND wa_vbrk-vkorg = ls_saleso-param_name.
+
+            IF ls_output-param_name IS NOT INITIAL.
+              lv_kschl = ls_output-param_name.
+            ENDIF.
+          ELSE.
+***EOC by Uday Reddy CR#8000004427 on 09-09-2025.
+            DATA(wa_knvv) = ta_knvv[ kunnr = wa_vbrk-kunag vkorg = wa_vbrk-vkorg ].
+            IF sy-subrc = 0 AND ( wa_knvv-kalks = co_a OR wa_knvv-kalks = co_b ).
+
+              IF wa_knvv-kalks = co_a.
+
+                "Start of Change by Charitha on 26.02.2021 for CR# 8000006921
+
+*              lv_kschl = co_yrd5.
+                lv_kschl = CONV char04( VALUE #( lta_param[ id_name = lc_id2 ]-param_name OPTIONAL ) ).
+
+              ELSE.
+*              lv_kschl = co_yins.
+                lv_kschl = CONV char04( VALUE #( lta_param[ id_name = lc_id1 ]-param_name OPTIONAL ) ).
+
+                "End of Change by Charitha on 26.02.2021 for CR# 8000006921
+
+              ENDIF.
+*
+            ENDIF.
+          ENDIF.
+          SELECT SINGLE *
+          FROM nast
+          INTO lwa_nast
+          WHERE kappl EQ zcdt_co_v3
+            AND objky EQ wa_vbrk-vbeln
+          AND kschl = lv_kschl.
+        ELSE.
+          SELECT SINGLE *
+        FROM nast
+        INTO lwa_nast
+        WHERE kappl EQ zcdt_co_v3
+          AND objky EQ wa_vbrk-vbeln
+          AND kschl = wa_out-kschl.
+        ENDIF.
+        IF sy-subrc EQ 0 AND wa_vbrk-fksto IS INITIAL AND wa_vbrk-rfbsk  EQ zcdt_co_c.
+          nast = lwa_nast.
+
+          CALL FUNCTION 'GM_GET_FISCAL_YEAR'
+            EXPORTING
+              i_date                     = wa_vbrk-fkdat    "sy-datum
+              i_fyv                      = co_v3
+            IMPORTING
+              e_fy                       = lv_gjahr
+            EXCEPTIONS
+              fiscal_year_does_not_exist = 1
+              not_defined_for_date       = 2
+              OTHERS                     = 3.
+          IF sy-subrc <> 0.
+* Implement suitable error handling here
+          ENDIF.
+
+          READ TABLE ta_bkpf INTO wa_bkpf WITH KEY bukrs = wa_vbrk-bukrs xblnr = wa_vbrk-vbeln gjahr = lv_gjahr.
+          IF sy-subrc = 0.
+            lo_cndn->m_procee_credit_note_data( wa_vbrk ).
+          ELSE.
+            flg_bkpf = 'X'.
+            lo_cndn->error_log( ).   "PERFORM f_error_log.
+          ENDIF.
+
+*          ELSE.
+        ELSEIF sy-subrc = 4.
+          flg_nast = 'X'.
+*          wa_log-remarks = text-004.
+          lo_cndn->error_log( ).      "PERFORM f_error_log.
+
+        ELSE.
+
+          lo_cndn->error_log( ).
+
+        ENDIF.
+      ENDIF.
+    ENDLOOP.
+
+    IF ta_log IS NOT INITIAL.
+      MODIFY zsd_cc_ftplog FROM TABLE ta_log.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD m_procee_credit_note_data.
+    "call print program.
+    PERFORM einzelnachricht_screen IN PROGRAM rsnast00 USING sy-subrc.
+
+  ENDMETHOD.
+
+  METHOD f_del_pre_month_data.
+
+    DATA : lv_first TYPE d,
+           lv_last  TYPE d.
+    DATA:
+      lv_monthn(2) TYPE n,
+      lv_yearn(4)  TYPE n,
+      lv_fromdate  TYPE d,
+      lv_todate    TYPE d.
+    DATA:newdate    TYPE sy-datum.
+
+    CALL FUNCTION 'CCM_GO_BACK_MONTHS'
+      EXPORTING
+        currdate   = sy-datum "p_date
+        backmonths = 004
+      IMPORTING
+        newdate    = newdate.
+
+    DELETE FROM zsd_cndn_spool WHERE spool_date LE newdate ."#EC
+    DELETE FROM zsd_job_num WHERE spool_date LE newdate ."#EC
+
+  ENDMETHOD.
+
+
+  METHOD error_log.
+
+    READ TABLE ta_kna1 INTO wa_kna1 WITH KEY kunnr = wa_vbrk-kunag.
+    IF sy-subrc = 0.
+      wa_log-name1        = wa_kna1-name1.
+    ENDIF.
+    wa_log-vbeln        = wa_vbrk-vbeln.
+    wa_log-created_date = sy-datum.
+    wa_log-created_time = sy-uzeit.
+    wa_log-fkart        = wa_vbrk-fkart.
+    wa_log-fkdat        = wa_vbrk-fkdat.
+    wa_log-kunnr        = wa_vbrk-kunag.
+    IF wa_vbrk-fksto IS NOT INITIAL AND flg_nast IS INITIAL.  "wa_log-remarks IS INITIAL .
+      wa_log-remarks = text-002.
+    ELSEIF wa_vbrk-rfbsk  NE zcdt_co_c AND flg_nast IS INITIAL.  "wa_log-remarks IS INITIAL .
+      wa_log-remarks = text-003.
+    ELSEIF flg_nast = 'X'.
+      wa_log-remarks = text-004.
+    ELSEIF flg_bkpf = 'X'.
+      wa_log-remarks = text-003.
+    ENDIF.
+    wa_log-created_by   = sy-uname.
+    APPEND wa_log TO ta_log.
+    CLEAR : wa_log,flg_nast, flg_bkpf.
+
+  ENDMETHOD.
+
+ENDCLASS.

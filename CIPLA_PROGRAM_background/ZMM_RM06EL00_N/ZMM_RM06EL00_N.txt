@@ -1,0 +1,2480 @@
+*&---------------------------------------------------------------------*
+*& Report  ZMM_RM06EL00_N
+*&
+*&---------------------------------------------------------------------*
+*&
+*&
+*&---------------------------------------------------------------------*
+REPORT zmm_rm06el00_n NO STANDARD PAGE HEADING LINE-SIZE 81 MESSAGE-ID me.
+*---------------------------------------------------------------------*
+* Modification Information
+* Date            : 23.12.2015
+* Author          : Payal S
+* Change request  : SOlman 8000000762
+* Transport number:
+* Description     : Import memory id
+*---------------------------------------------------------------------*
+* Modification Information
+* Date            : 06-FEB-2019
+* Author          : Rahul Magdum
+* Change request  : 8000005128
+* Transport number: CRDK960754 / CRDK960856 / CRDK960935
+* Description     : 1. Addition of export to AL11 (For SFTP)
+*                   2. Added FTP Export button for above functionality
+*                   3. Added Layout Selection on Selection Screen
+*----------------------------------------------------------------------*
+*----------------------------------------------------------------------*
+* Modification Information
+* Date            : 27.06.2019
+* Author          : SamdaniShareef
+* Change request  : 8000005552
+* Transport number: CRDK963177
+* Description     : Layout Changes
+*----------------------------------------------------------------------*
+*----------------------------------------------------------------------*
+* Modification Information
+* Date            : 15.07.2019
+* Author          : Vinit Sawant
+* Change request  : 8000005554
+* Transport number: CRDK963729
+* Description     : Addition of new fields namely Requisition Date,K000 &
+*                   ZSWS condition record in Report output and to the file
+*                   send to SFTP.
+*                   Change in ZPARAM_TABLE parameter name for AL11 file path
+*----------------------------------------------------------------------*
+*----------------------------------------------------------------------*
+* Modification Information
+* Date            : 25.07.2019
+* Author          : Vinit Sawant
+* Change request  : 8000005554
+* Transport number: CRDK963938
+* Description     : For report background execution,Leave to Transaction
+*                   statement is commented as the same cause background
+*                   job cancellation as "LEAVE TO TRANSACTION" is not
+*                   allowed in a background job.
+*-----------------------------------------------------------------------*
+*----------------------------------------------------------------------*
+* Modification Information
+* Date            : 29.07.2019
+* Author          : Vinit Sawant
+* Change request  : 8000005554
+* Transport number: CRDK963978
+* Description     : Removal of Comma sign from fields in report alv for
+*                   .CSV file transfer since the data is getting wrongly
+*                   mapped in the columns for al11 transfer
+*-----------------------------------------------------------------------*
+*----------------------------------------------------------------------*
+* Modification Information
+* Date            : 01.08.2019
+* Author          : Vinit Sawant
+* Change request  : 8000005554
+* Transport number: <CRDK964037>
+* Description     : Removal of Comma sign from fields in report alv for
+*                   .CSV file transfer since the data is getting wrongly
+*                   mapped in the columns for al11 transfer
+*-----------------------------------------------------------------------*
+*----------------------------------------------------------------------*
+* Modification Information
+* Date            : 06.08.2019
+* Author          : Vinit Sawant
+* Change request  : 8000005554
+* Transport number: <CRDK964286>/<CRDK964338>/<CRDK964387>
+* Description     : Change in file naming convention for AL11 file transfer
+*                   Removal of " sign from Material description for AL11
+*                   file transfer. Report output and file transfer as per
+*                   layout passed on Selection screen.Removal of leading Zeros
+*                   & Comma from fields for AL11
+*-----------------------------------------------------------------------*
+*------------------------------------------------------------------------------------*
+* Modification Information
+* Program Title    : Purchasing Documents per Vendor
+* Author           : Charitha
+* Program Type     : Report
+* Creation Date    : 25.10.2019
+* Transaction      : ZME2L/ZME2L_1
+* Functional design: FS_MM_428
+* Technical design : TS_MM_428
+* Change request   : 8000005879
+* Transport number : CRDK965214
+* Description      : IN:MM/428:Supplier scorecard dashbd:8000005879:CS:25.10.2019
+*--------------------------------------------------------------------------------------*
+* Modification Information
+* Program Title    : Purchasing Documents per Vendor
+* Author           : Nilesh
+* Program Type     : Report
+* Creation Date    : 03.12.2019
+* Transaction      : ZME2L_1
+* Functional design: FS_MM_428
+* Technical design : TS_MM_428
+* Change request   : 8000005657
+* Transport number : CRDK966016
+* Description      : IN:MM:428:ND:8000005657:Supplier score card dash board - 01
+*--------------------------------------------------------------------------------------*
+* Modification Information
+* Date            : 03.01.2020
+* Author          : Pranita Taware
+* Change request  : 8000006017
+* Transport number: CRDK966675
+* Description     : To dump the file in AL11.
+*--------------------------------------------------------------------------------------*
+*------------------------------------------------------------------------------------*
+*Modification log
+* Creation Date     : 07.02.2020
+* Author            : Charitha
+* Functional design : FS_MM_471
+* Technical design  : TS_MM_471
+* Change request    : 8000006127
+* Transport number  : CRDK967752
+* Description       : Change file extension to .xls instead of .txt
+*&-------------------------------------------------------------------------------------*
+*------------------------------------------------------------------------------------*
+*Modification log
+* Creation Date     : 16.03.2020
+* Author            : Tushar A Kulkarni
+* Functional design : FS_MM_428
+* Technical design  : TS_MM_428
+* Change request    : 8000006195
+* Transport number  : CRDK968389
+* Description       : Remove the seperators from the end of every Entry wherever applicable
+*&-------------------------------------------------------------------------------------*
+* Creation Date     : 18.07.2022
+* Author            : Gauri A. Tandel
+* Change request    : 8000008244
+* Transport number  : CRDK984100
+* Description       : Add new coloumn - Custom Health Cess
+*&-------------------------------------------------------------------------------------*
+* Creation Date     : 05.11.2025
+* Author            : Shivraj Deshmukh
+* Change request    : 8000004664
+* Transport number  : CRDK998264
+* Description       : To remove special characters.
+*&-------------------------------------------------------------------------------------*
+
+*ENHANCEMENT-POINT RM06EL00_G4 SPOTS ES_RM06EL00 STATIC.
+*ENHANCEMENT-POINT RM06EL00_G5 SPOTS ES_RM06EL00.
+*ENHANCEMENT-POINT RM06EL00_G6 SPOTS ES_RM06EL00 STATIC.
+*ENHANCEMENT-POINT RM06EL00_G7 SPOTS ES_RM06EL00.
+
+*ENHANCEMENT-POINT RM06EL00_G9 SPOTS ES_RM06EL00 STATIC .
+************************************************************************
+*        Anzeigen Einkaufsbelege zum Lieferanten                       *
+************************************************************************
+* note 210280: LINE-SIZE 81
+*----------------------------------------------------------------------*
+*  Tabellen                                                            *
+*----------------------------------------------------------------------*
+INCLUDE zfm06lto1n.
+
+*ENHANCEMENT-POINT RM06EL00_G10 SPOTS ES_RM06EL00 STATIC .
+*----------------------------------------------------------------------*
+*  Parameter und Select-Options                                        *
+*----------------------------------------------------------------------*
+SELECT-OPTIONS:
+  el_lifnr  FOR  ekko-lifnr MEMORY ID lif MATCHCODE OBJECT kred,
+  el_ekorg  FOR  ekko-ekorg MEMORY ID eko.
+SELECTION-SCREEN FUNCTION KEY 1.
+PARAMETERS:
+  el_selkb LIKE ekko-bstyp NO-DISPLAY DEFAULT 'X',
+  el_selkk LIKE ekko-bstyp NO-DISPLAY DEFAULT 'X',
+  el_selkl LIKE ekko-bstyp NO-DISPLAY DEFAULT 'X',
+  el_selka LIKE ekko-bstyp NO-DISPLAY DEFAULT 'X'.
+
+
+PARAMETERS: p_aut TYPE char1 NO-DISPLAY. "for ABAP Unit Test see BAdI implementation class
+*PARAMETERS: p_aut TYPE char1 DEFAULT cl_mm_pur_aut_master=>gc_aut_optimization_off."NO-DISPLAY. "for ABAP Unit Test see BAdI implementation class
+
+DATA : lv_flag(1) TYPE  c .
+DATA:lv_tcode TYPE sy-tcode.
+DATA:ztcode TYPE sy-tcode.
+DATA: g_pur_reg.
+**Soc By Nilesh 03.12.2019 8000005657
+DATA: gv_mem_n(40).
+**Eoc By Nilesh 03.12.2019 8000005657
+
+DATA: wa_variant LIKE disvariant.
+CONSTANTS: co_this_program LIKE sy-repid VALUE 'SAPLZMM_ME2L'.
+
+INCLUDE zmm_fm06lcs1n.
+INCLUDE zfm06lcs3n.
+INCLUDE zfm06lcs6n.                                             "Park&Hold
+INCLUDE zfm06lcs4n.
+INCLUDE zfm06lcs2n.
+INCLUDE zfm06lcs2nn.   " include by charudatta for adding fields in report foreground and Background.
+
+*ENHANCEMENT-POINT EHP_RM06EL00_02 SPOTS /SAPPSPRO/ES_RM06EL00.
+
+*INCLUDE ZMM_SELOPT_CNT_CALL.
+INCLUDE zselopt_cnt_calln.                             "new for ERP 1.0 PA
+*ENHANCEMENT-POINT RM06EL00_G11 SPOTS ES_RM06EL00 STATIC .
+
+** SOA BY RAHUL MAGDUM - 8000005128 - ADDITION OF SFTP EXPORT LOGIC ** 06-FEB-2019
+PARAMETER p_layout TYPE disvariant-variant.
+PARAMETER: ck_ftp AS CHECKBOX,
+           ck_sftp AS CHECKBOX. " Added by pranita for ticket CR#8000006017 on 03.01.2019
+** EOA BY RAHUL MAGDUM - 8000005128 - ADDITION OF SFTP EXPORT LOGIC ** 06-FEB-2019
+
+*----------------------------------------------------------------------*
+*  Hilfsfelder                                                         *
+*----------------------------------------------------------------------*
+INCLUDE zfm06lcekn.
+*ENHANCEMENT-POINT EHP_RM06EL00_03 SPOTS /SAPPSPRO/ES_RM06EL00.
+
+************************************************************************
+* Unit tests
+************************************************************************
+INCLUDE zrm06epohn.
+
+*----------------------------------------------------------------------*
+*  Intitialisierung                                                    *
+*----------------------------------------------------------------------*
+INITIALIZATION.
+*ENHANCEMENT-POINT RM06EL00_G14 SPOTS ES_RM06EL00 STATIC .
+  SET TITLEBAR '001'.
+*  listu = 'ALV'.
+  GET PARAMETER ID 'LISTU_VENDEVAL' FIELD listu.
+  PERFORM anforderungsbild(zmm_sapfm06ln) USING el_selkb el_selkk
+                                           el_selkl el_selka.
+
+***SOC By Nilesh 02.12.2019 8000005657
+  IF sy-tcode = 'ZME2L'.
+    LOOP AT SCREEN .
+      IF screen-group1 EQ 'MD1' OR screen-group1 EQ 'MD2'
+         OR screen-group1 EQ 'ID1' OR screen-group1 EQ 'ID2'.
+        screen-active = 0.
+        MODIFY SCREEN.
+      ENDIF.
+    ENDLOOP.
+  ENDIF.
+***EOC By Nilesh 02.12.2019 8000005657
+*----------------------------------------------------------------------*
+*  Selektionsbild / Selection screen                                   *
+*----------------------------------------------------------------------*
+AT SELECTION-SCREEN ON selpa.
+  PERFORM selpa_analyse(zmm_sapfm06ln).
+
+AT SELECTION-SCREEN ON listu.
+*  listu = 'ALV'.
+  PERFORM listumfang(zmm_sapfm06ln) USING listu.
+
+AT SELECTION-SCREEN.
+  CALL FUNCTION 'ME_ITEM_CATEGORY_SELOPT_INPUT'
+    TABLES
+      ext_pstyp = s_pstyp
+      int_pstyp = r_pstyp.
+  PERFORM bstyp_bestimmen(zmm_sapfm06ln) USING el_selkb el_selkk
+                                       el_selkl el_selka.
+
+AT SELECTION-SCREEN OUTPUT.
+*ENHANCEMENT-POINT EHP_RM06EL00_04 SPOTS /SAPPSPRO/ES_RM06EL00.
+
+*  Andere Reports: modify_anfo ueber log. DB SAPDBxx dort wird
+*  in aehnliche Form-Routine modify_anfo(sapfm06d) gesprungen!!!
+  PERFORM modify_anfo(zmm_sapfm06ln) USING 'L'.
+  PERFORM modify_memory(zmm_sapfm06ln).                            "Park&Hold
+*ENHANCEMENT-POINT RM06EL00_G12 SPOTS ES_RM06EL00.
+
+  IF sy-batch NE 'X'.
+    t_code = sy-tcode.
+  ENDIF.
+  "Added by Sandeep.B on 19.01.2016 as discussed by abshiek
+  IF sy-tcode = 'ZME2L' OR sy-tcode = 'ZME2L_1' OR sy-tcode = 'ZMM_PROC'." OR sy-tcode = 'SE38'.
+    listu = 'ALV'.
+  ENDIF.
+*E O A by Sandeep.B
+
+***soa on 23.12.2015 for pur reg report 8000000762
+  CLEAR g_pur_reg.
+  IMPORT g_pur_reg FROM MEMORY ID 'PUR_REG'.
+  FREE MEMORY ID 'PUR_REG'.
+  IF g_pur_reg = 'X'.
+    t_code = 'ZME2L_1'.
+  ENDIF.
+***eoa on 23.12.2015 for pur reg report 8000000762
+
+
+***SOC By Nilesh 02.12.2019 8000005657
+  IF sy-tcode = 'ZME2L'.
+    LOOP AT SCREEN .
+      IF  screen-group1 EQ 'MD1' OR screen-group1 EQ 'MD2' OR
+          screen-group1 EQ 'ID1' OR screen-group1 EQ 'ID2'.
+        screen-active = 0.
+        MODIFY SCREEN.
+      ENDIF.
+    ENDLOOP.
+  ENDIF.
+
+  IF sy-tcode = 'ZME2L_1'.
+    LOOP AT SCREEN.
+      IF p_cer = 'X'.
+        IF screen-group1 EQ 'ID1' OR screen-name  EQ 'S_AUFEX'.
+          screen-active = 1.
+          MODIFY SCREEN.
+        ENDIF.
+      ELSE.
+        IF screen-group1 EQ 'ID1'.
+          screen-active = 0.
+          MODIFY SCREEN.
+        ENDIF.
+      ENDIF.
+
+      IF p_ord = 'X'.
+        IF screen-group1 EQ 'ID2'.
+          screen-active = 1.
+          MODIFY SCREEN.
+        ENDIF.
+      ELSE.
+        IF screen-group1 EQ 'ID2'.
+          screen-active = 0.
+          MODIFY SCREEN.
+        ENDIF.
+      ENDIF.
+    ENDLOOP.
+  ENDIF.
+***eoc By Nilesh 29.11.2019 8000005657
+
+*----------------------------------------------------------------------*
+*  F4 auf dem Selektionsbild / F4 on the selection screen              *
+*----------------------------------------------------------------------*
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR s_pstyp-low.
+
+  CALL FUNCTION 'HELP_VALUES_EPSTP'
+    EXPORTING
+      program   = sy-cprog
+      dynnr     = sy-dynnr
+      fieldname = 'S_PSTYP-LOW'
+*     BSART     =
+*     BSTYP     =
+    IMPORTING
+      epstp     = s_pstyp-low
+    EXCEPTIONS
+      OTHERS    = 1.
+
+** SOC BY RAHUL MAGDUM - 8000005128 - ADDITION OF SFTP EXPORT LOGIC ** 06-FEB-2019
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_layout.
+
+  wa_variant-report = 'SAPLZMM_ME2L'.
+
+  CALL FUNCTION 'REUSE_ALV_VARIANT_F4'
+    EXPORTING
+      is_variant         = wa_variant
+      i_save             = 'A'
+      i_display_via_grid = 'X'
+    IMPORTING
+      es_variant         = wa_variant
+    EXCEPTIONS
+      not_found          = 1
+      program_error      = 2
+      OTHERS             = 3.
+  p_layout = wa_variant-variant.
+** EOA BY RAHUL MAGDUM - 8000005128 - ADDITION OF SFTP EXPORT LOGIC ** 06-FEB-2019
+
+START-OF-SELECTION.
+*ENHANCEMENT-POINT EHP_RM06EL00_05 SPOTS /SAPPSPRO/ES_RM06EL00.
+  ztcode = t_code.
+  SET PARAMETER ID 'ZTCODE' FIELD ztcode.
+
+
+  PERFORM force_alv(zmm_sapfm06ln) USING p_alv.           "new for ERP 1.0 PA
+
+  PERFORM pf_status(zmm_sapfm06ln) USING el_selkb el_selkk
+                                    el_selkl el_selka.
+*ENHANCEMENT-POINT RM06EL00_G13 SPOTS ES_RM06EL00.
+  SET TITLEBAR '001'.
+  not_found = 'X'.
+
+  DATA: lv_authfilter_ekko      TYPE string.
+  DATA: lv_authfilter_ekpo      TYPE string.
+
+  INCLUDE zmm_rm06eautn. "1856585: MM@HANA Optimization - consider end user authorizations for prefetch
+
+*- Lesen Belegköpfe --------------------------------------------------*
+  IF lv_authfilter_ekko IS INITIAL.
+    SELECT * FROM ekko INTO TABLE lt_ekko_all
+       WHERE lifnr IN el_lifnr
+         AND ekorg IN el_ekorg
+         AND bstyp IN r_bstyp
+         AND bsart IN s_bsart
+         AND ekgrp IN s_ekgrp
+         AND ebeln IN s_ebeln
+         AND reswk IN s_reswk
+         AND bedat IN s_bedat
+         AND memorytype IN s_memtyp
+         AND procstat IN s_prsta      "Added by Charitha as per FS_MM_428 on 25.10.2019 for CR# 8000005879
+       ORDER BY lifnr bstyp ebeln.
+  ELSE.
+    SELECT * FROM ekko INTO TABLE lt_ekko_all
+         WHERE lifnr IN el_lifnr
+         AND ekorg IN el_ekorg
+         AND bstyp IN r_bstyp
+         AND bsart IN s_bsart
+         AND ekgrp IN s_ekgrp
+         AND ebeln IN s_ebeln
+         AND reswk IN s_reswk
+         AND bedat IN s_bedat
+         AND memorytype IN s_memtyp
+         AND procstat IN s_prsta    "Added by Charitha as per FS_MM_428 on 25.10.2019 for CR# 8000005879
+         AND NOT (lv_authfilter_ekko)         "to consider user-defined authorizations determined above
+       ORDER BY lifnr bstyp ebeln.
+  ENDIF.
+
+  LOOP AT lt_ekko_all ASSIGNING FIELD-SYMBOL(<fs_ekko_all>).
+    CLEAR ekko.
+    ekko = <fs_ekko_all>.
+*-  Köpfe verarbeiten -------------------------------------------------*
+    PERFORM ekko_merken(zmm_sapfm06ln) USING abap_true lv_authfilter_ekpo.
+  ENDLOOP.
+
+*- Köpfe verabeiten für letztes Belegnummernintervall ----------------*
+  PERFORM zugriff_kopf(zmm_sapfm06ln).
+  PERFORM pos_nach_kopf(zmm_sapfm06ln) USING lv_authfilter_ekpo.
+
+*----------------------------------------------------------------------*
+*  Ende der Selektion       mm_mm_                                          *
+*----------------------------------------------------------------------*
+END-OF-SELECTION.
+
+  PERFORM count_workload(zmm_sapfm06ln) USING p_wlmem.    "new for ERP 1.0 PA
+
+*  added by charudatta to import export
+  IF p_fore EQ 'X' .
+    lv_flag = 'X' .
+    SET PARAMETER ID 'ZPP' FIELD lv_flag.
+  ELSE.
+    lv_tcode = sy-tcode.
+    lv_flag = '' .
+    SET PARAMETER ID 'ZPP' FIELD lv_flag.
+  ENDIF.
+
+** SOC BY RAHUL MAGDUM - 8000005128 - ADDITION OF SFTP EXPORT LOGIC ** 06-FEB-2019
+
+  DATA: gv_flag  TYPE c,
+        gv_memid TYPE char30.
+
+  gv_memid  = |ZMM_ME2L_{ sy-uname }|.
+  FREE MEMORY ID gv_memid.
+
+  IF p_layout IS NOT INITIAL.
+    wa_variant-report = 'SAPLZMM_ME2L'.
+    wa_variant-variant = p_layout.
+    EXPORT wa_variant FROM wa_variant TO MEMORY ID gv_memid.
+  ENDIF.
+
+
+  IF ( ck_ftp EQ abap_true OR ck_sftp EQ abap_true ) AND listu = 'ALV'.
+
+    DATA: lo_data  TYPE REF TO data,
+          ta_data  TYPE TABLE OF zmm_merep_outtab_purchdoc,
+          lta_fcat TYPE lvc_t_fcat.
+
+    FIELD-SYMBOLS: <fs_data> TYPE STANDARD TABLE.
+
+    CALL METHOD cl_salv_bs_runtime_info=>set
+      EXPORTING
+        display  = abap_false
+        metadata = abap_false
+        data     = abap_true.
+
+    gv_flag   = abap_true.
+
+    EXPORT lv_flag    FROM gv_flag    TO MEMORY ID gv_memid.
+  ENDIF.
+
+***SOC By nilesh 03.12.2019 8000005657
+  CONSTANTS : lc_msg(30)  TYPE c VALUE 'Cer No Not Found',
+              lc_msg1(30) TYPE c VALUE 'Order No Not Found',
+              lc_x(2)     TYPE c VALUE 'X',
+              lc_e(2)     TYPE c VALUE 'E',
+              lc_s(2)     TYPE c VALUE 'S',
+              lc_me2l(10) TYPE  c VALUE 'ZME2L',
+              lc_me2(10)  TYPE  c VALUE 'ZME2L_1'.
+
+  IF  sy-tcode NE lc_me2l.
+    IF p_cer = lc_x  AND s_aufex IS NOT INITIAL.
+      SELECT aufex,
+             aufnr
+       FROM coas
+      INTO TABLE @DATA(lt_coas)
+      WHERE aufex IN @s_aufex.
+
+*****  SOC By nilesh 11.12.2019 8000005657
+      IF sy-subrc NE 0.
+        MESSAGE lc_msg TYPE lc_s DISPLAY LIKE lc_e.
+        LEAVE LIST-PROCESSING.
+      ENDIF.
+****EOC By nilesh 03.12.2019 8000005657
+
+      gv_mem_n  = |{ sy-mandt }{ sy-uname }{ sy-datum }{ lc_me2 }|.
+
+      EXPORT lt_coas FROM lt_coas TO MEMORY ID gv_mem_n.
+    ENDIF.
+    IF p_ord = lc_x AND s_aufnr IS NOT INITIAL .
+
+      SELECT aufnr,
+              aufex
+        FROM coas
+       INTO TABLE @DATA(lt_coas1)
+       WHERE aufnr IN @s_aufnr.
+***  SOC By nilesh 11.12.2019 8000005657
+      IF sy-subrc  NE 0.
+        MESSAGE lc_msg1 TYPE lc_s DISPLAY LIKE lc_e.
+        LEAVE LIST-PROCESSING .
+      ENDIF.
+****EOC By nilesh 11.12.2019 8000005657
+
+      gv_mem_n  = |{ sy-mandt }{ sy-uname }{ sy-datum }{ lc_me2 }|.
+
+      EXPORT lt_coas1 FROM lt_coas1 TO MEMORY ID gv_mem_n.
+    ENDIF.
+  ENDIF.
+
+***EOC By nilesh 03.12.2019 8000005657
+
+  PERFORM end_of_selection(zmm_sapfm06ln).
+
+  IF ( ck_ftp EQ abap_true OR ck_sftp EQ abap_true ) AND listu = 'ALV'.
+
+    TRY.
+        CALL METHOD cl_salv_bs_runtime_info=>get_data_ref
+          IMPORTING
+            r_data = lo_data.
+
+        IF lo_data IS BOUND.
+          ASSIGN lo_data->* TO <fs_data>.
+        ENDIF.
+
+        IF <fs_data> IS ASSIGNED.
+          MOVE-CORRESPONDING <fs_data> TO ta_data.
+        ENDIF.
+
+      CATCH cx_salv_bs_sc_runtime_info .
+    ENDTRY.
+
+
+*    IF TA_DATA IS NOT INITIAL.
+
+    IF p_layout IS NOT INITIAL.
+
+      DATA: wa_key  TYPE ltdxkey,
+            ta_ltdx TYPE TABLE OF ltdxdata.
+
+      wa_key-report = co_this_program.
+      wa_key-variant = p_layout.
+      wa_key-type   = 'F'.
+
+      CALL FUNCTION 'LT_DBDATA_READ_FROM_LTDX'
+        EXPORTING
+          i_tool       = 'LT'
+          is_varkey    = wa_key
+        TABLES
+          t_dbfieldcat = ta_ltdx
+        EXCEPTIONS
+          not_found    = 1
+          wrong_relid  = 2
+          OTHERS       = 3.
+
+      DELETE ta_ltdx WHERE param NE 'NO_OUT'.
+      DELETE ta_ltdx WHERE value EQ abap_true.
+    ENDIF.
+
+    PERFORM f_export_file_to_al11.
+
+*    ENDIF.
+
+    FREE MEMORY ID: gv_memid.
+
+    "" AT THE END LEAVE TO SELECTION SCREEN
+    IF sy-batch IS INITIAL.                "++added by VSAWANT 8000005554:CRDK963938 on 25.07.2019
+      LEAVE TO TRANSACTION sy-tcode.
+    ENDIF.                                 "++added by VSAWANT 8000005554:CRDK963938 on 25.07.2019
+  ENDIF.
+** EOC BY RAHUL MAGDUM - 8000005128 - ADDITION OF SFTP EXPORT LOGIC ** 06-FEB-2019
+
+*ENHANCEMENT-SECTION     RM06EL00_G8 SPOTS ES_RM06EL00.
+  WRITE /(81) sy-uline.
+*END-ENHANCEMENT-SECTION.
+
+*----------------------------------------------------------------------*
+*  OK-Code-Eingabe                                                     *
+*----------------------------------------------------------------------*
+AT USER-COMMAND.
+  PERFORM user_command(zmm_sapfm06ln).
+
+*----------------------------------------------------------------------*
+*  Seitenueberschrift                                                  *
+*----------------------------------------------------------------------*
+TOP-OF-PAGE.
+  PERFORM top(zmm_sapfm06ln).
+
+TOP-OF-PAGE DURING LINE-SELECTION.
+  IF sy-pfkey = 'EKAB'.
+    PERFORM ekab_top(zmm_sapfm06ln).
+  ELSE.
+    PERFORM top(zmm_sapfm06ln).
+  ENDIF.
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR s_pstyp-high.      " 953826
+
+  CALL FUNCTION 'HELP_VALUES_EPSTP'
+    EXPORTING
+      program   = sy-cprog
+      dynnr     = sy-dynnr
+      fieldname = 'S_PSTYP-HIGH'
+*     BSART     =
+*     BSTYP     =
+    IMPORTING
+      epstp     = s_pstyp-high
+    EXCEPTIONS
+      OTHERS    = 1.
+
+*----------------------------------------------------------------------*
+*  Beginn der Selektion                                                *
+*----------------------------------------------------------------------*
+
+*---------------------------------------------------------------------*
+*      Form  F_EXPORT_FILE_TO_AL11
+*---------------------------------------------------------------------*
+*      text
+*---------------------------------------------------------------------*
+FORM f_export_file_to_al11.
+  DATA: lwa_sftp(50000) TYPE c,
+        lv_str(50000)   TYPE c,
+        lv_len          TYPE p,
+        lv_file         TYPE char200,
+        lv_appl_path    TYPE char200,
+
+        lta_heads       TYPE slis_t_fieldcat_alv.
+
+  DATA: lv_val001 TYPE string,
+        lv_val002 TYPE string,
+        lv_val003 TYPE string,
+        lv_val004 TYPE string,
+        lv_val005 TYPE string,
+        lv_val006 TYPE string,
+        lv_val007 TYPE string,
+        lv_val008 TYPE string,
+        lv_val009 TYPE string,
+        lv_val010 TYPE string,
+        lv_val011 TYPE string,
+        lv_val012 TYPE string,
+        lv_val013 TYPE string,
+        lv_val014 TYPE string,
+        lv_val015 TYPE string,
+        lv_val016 TYPE string,
+        lv_val017 TYPE string,
+        lv_val018 TYPE string,
+        lv_val019 TYPE string,
+        lv_val020 TYPE string,
+        lv_val021 TYPE string,
+        lv_val022 TYPE string,
+        lv_val023 TYPE string,
+        lv_val024 TYPE string,
+        lv_val025 TYPE string,
+        lv_val026 TYPE string,
+        lv_val027 TYPE string,
+        lv_val028 TYPE string,
+        lv_val029 TYPE string,
+        lv_val030 TYPE string,
+        lv_val031 TYPE string,
+        lv_val032 TYPE string,
+        lv_val033 TYPE string,
+        lv_val034 TYPE string,
+        lv_val035 TYPE string,
+        lv_val036 TYPE string,
+        lv_val037 TYPE string,
+        lv_val038 TYPE string,
+        lv_val039 TYPE string,
+        lv_val040 TYPE string,
+        lv_val041 TYPE string,
+        lv_val042 TYPE string,
+        lv_val043 TYPE string,
+        lv_val044 TYPE string,
+        lv_val045 TYPE string,
+        lv_val046 TYPE string,
+        lv_val047 TYPE string,
+        lv_val048 TYPE string,
+        lv_val049 TYPE string,
+        lv_val050 TYPE string,
+        lv_val051 TYPE string,
+        lv_val052 TYPE string,
+        lv_val053 TYPE string,
+        lv_val054 TYPE string,
+        lv_val055 TYPE string,
+        lv_val056 TYPE string,
+        lv_val057 TYPE string,
+        lv_val058 TYPE string,
+        lv_val059 TYPE string,
+        lv_val060 TYPE string,
+        lv_val061 TYPE string,
+        lv_val062 TYPE string,
+        lv_val063 TYPE string,
+        lv_val064 TYPE string,
+        lv_val065 TYPE string,
+        lv_val066 TYPE string,
+        lv_val067 TYPE string,
+        lv_val068 TYPE string,
+        lv_val069 TYPE string,
+        lv_val070 TYPE string,
+        lv_val071 TYPE string,
+        lv_val072 TYPE string,
+        lv_val073 TYPE string,
+        lv_val074 TYPE string,
+        lv_val075 TYPE string,
+        lv_val076 TYPE string,
+        lv_val077 TYPE string,
+        lv_val078 TYPE string,
+        lv_val079 TYPE string,
+        lv_val080 TYPE string,
+        lv_val081 TYPE string,
+        lv_val082 TYPE string,
+        lv_val083 TYPE string,
+        lv_val084 TYPE string,
+        lv_val085 TYPE string,
+        lv_val086 TYPE string,
+        lv_val087 TYPE string,
+        lv_val088 TYPE string,
+        lv_val089 TYPE string,
+        lv_val090 TYPE string,
+        lv_val091 TYPE string,
+        lv_val092 TYPE string,
+        lv_val093 TYPE string,
+        lv_val094 TYPE string,
+        lv_val095 TYPE string,
+        lv_val096 TYPE string,
+        lv_val097 TYPE string,
+        lv_val098 TYPE string,
+        lv_val099 TYPE string,
+        lv_val100 TYPE string,
+        lv_val101 TYPE string,
+        lv_val102 TYPE string,
+        lv_val103 TYPE string,
+        lv_val104 TYPE string,
+        lv_val105 TYPE string,
+        lv_val106 TYPE string,
+        lv_val107 TYPE string,
+        lv_val108 TYPE string,
+        lv_val109 TYPE string,
+        lv_val110 TYPE string,
+        lv_val111 TYPE string,
+        lv_val112 TYPE string,
+        lv_val113 TYPE string,
+        lv_val114 TYPE string,
+        lv_val115 TYPE string,
+        lv_val116 TYPE string,
+        lv_val117 TYPE string,
+        lv_val118 TYPE string,
+        lv_val119 TYPE string,
+        lv_val120 TYPE string,
+        lv_val121 TYPE string,
+        lv_val122 TYPE string,
+        lv_val123 TYPE string,
+        lv_val124 TYPE string,
+        lv_val125 TYPE string,
+        lv_val126 TYPE string,
+        lv_val127 TYPE string,
+        lv_val128 TYPE string,
+        lv_val129 TYPE string,
+        lv_val130 TYPE string,
+        lv_val131 TYPE string,
+        lv_val132 TYPE string,
+        lv_val133 TYPE string,
+        lv_val134 TYPE string,
+        lv_val135 TYPE string,
+        lv_val136 TYPE string,
+        lv_val137 TYPE string,
+        lv_val138 TYPE string,
+        lv_val139 TYPE string,
+        lv_val140 TYPE string,
+        lv_val141 TYPE string,
+        lv_val142 TYPE string,
+        lv_val143 TYPE string,
+        lv_val144 TYPE string,
+        lv_val145 TYPE string,
+        lv_val146 TYPE string,
+        lv_val147 TYPE string,
+        lv_val148 TYPE string,
+        lv_val149 TYPE string,
+        lv_val150 TYPE string,
+        lv_val151 TYPE string,
+        lv_val152 TYPE string,
+        lv_val153 TYPE string,
+        lv_val154 TYPE string,
+        lv_val155 TYPE string,
+        lv_val156 TYPE string,
+        lv_val157 TYPE string,
+        lv_val158 TYPE string,
+        lv_val159 TYPE string,
+        lv_val160 TYPE string,
+        lv_val161 TYPE string,
+        lv_val162 TYPE string,
+        lv_val163 TYPE string,
+        lv_val164 TYPE string,
+        lv_val165 TYPE string,
+        lv_val166 TYPE string,
+        lv_val167 TYPE string,
+        lv_val168 TYPE string,
+        lv_val169 TYPE string,
+        lv_val170 TYPE string,
+        lv_val171 TYPE string,
+        lv_val172 TYPE string,
+        lv_val173 TYPE string,
+        lv_val174 TYPE string,
+        lv_val175 TYPE string,
+        lv_val176 TYPE string,
+        lv_val177 TYPE string,
+        lv_val178 TYPE string,
+        lv_val179 TYPE string,
+        lv_val180 TYPE string,
+        lv_val181 TYPE string,
+        lv_val182 TYPE string,
+        lv_val183 TYPE string,
+        lv_val184 TYPE string,
+        lv_val185 TYPE string,
+        lv_val186 TYPE string,
+        lv_val187 TYPE string,
+        lv_val188 TYPE string,
+        lv_val189 TYPE string,
+        lv_val190 TYPE string,
+        lv_val191 TYPE string,
+        lv_val192 TYPE string,
+        lv_val193 TYPE string,
+        lv_val194 TYPE string,
+        lv_val195 TYPE string,
+        lv_val196 TYPE string,
+        lv_val197 TYPE string,
+        lv_val198 TYPE string,
+        lv_val199 TYPE string,
+        lv_val200 TYPE string,
+        lv_val201 TYPE string,
+        lv_val202 TYPE string,
+        lv_val203 TYPE string,
+        lv_val204 TYPE string,
+        lv_val205 TYPE string,
+        lv_val206 TYPE string,
+        lv_val207 TYPE string,
+        lv_val208 TYPE string,
+        lv_val209 TYPE string,
+        lv_val210 TYPE string,
+        lv_val211 TYPE string,
+        lv_val212 TYPE string,
+        lv_val213 TYPE string,
+        lv_val214 TYPE string.                                  "changed by Gauri Tandel - 8000008244 - 18.07.2022
+
+  CONSTANTS: lc_tab        TYPE char1 VALUE cl_abap_char_utilities=>horizontal_tab,
+             lc_tab_1      TYPE char1 VALUE '~',
+*             lc_parid TYPE zparam_table-id_name VALUE 'ZANALYTICS',     "-- commented by VS:8000005554:18.07.2019
+             lc_parid      TYPE zparam_table-id_name VALUE 'ZMM_SUPPSC',      "++ added by VS:8000005554:18.07.2019
+             lc_parid_sftp TYPE zparam_table-id_name VALUE 'ZMM_BATCH',      "Added by pranita for 8000006017 on 03.01.2019
+             lc_succ       TYPE c     VALUE 'S'.
+
+  CONSTANTS: lv_t001 TYPE string VALUE 'Purchasing Document',
+             lv_t002 TYPE string VALUE 'Item',
+             lv_t003 TYPE string VALUE 'Purchasing Doc. Type',
+             lv_t004 TYPE string VALUE 'Purch. Doc. Category',
+             lv_t005 TYPE string VALUE 'Vendor/supplying plant',
+             lv_t006 TYPE string VALUE 'Purch. Organization',
+             lv_t007 TYPE string VALUE 'Purchasing Group',
+             lv_t008 TYPE string VALUE 'Document Date',
+             lv_t009 TYPE string VALUE 'IM Material',
+             lv_t010 TYPE string VALUE 'Short Text',
+             lv_t011 TYPE string VALUE 'Material Group',
+             lv_t012 TYPE string VALUE 'PO history/release documentation',
+             lv_t013 TYPE string VALUE 'Component Consumption History',
+             lv_t014 TYPE string VALUE 'Deletion Indicator',
+             lv_t015 TYPE string VALUE 'Item Category',
+             lv_t016 TYPE string VALUE 'Item Category 1',     "Changed by Charitha as per FS_MM_428 on 25.10.2019 for CR# 8000005879
+             lv_t017 TYPE string VALUE 'Acct Assignment Cat.',
+             lv_t018 TYPE string VALUE 'Req. Tracking Number',
+             lv_t019 TYPE string VALUE 'Plant',
+             lv_t020 TYPE string VALUE 'Storage Location',
+             lv_t021 TYPE string VALUE 'Order Quantity',
+             lv_t022 TYPE string VALUE 'Order Unit',
+             lv_t023 TYPE string VALUE 'Quantity in SKU',
+             lv_t024 TYPE string VALUE 'Stockkeeping unit',
+             lv_t025 TYPE string VALUE 'Net price',
+             lv_t026 TYPE string VALUE 'Currency',
+             lv_t027 TYPE string VALUE 'Price Unit',
+             lv_t028 TYPE string VALUE 'Outline Agreement',
+             lv_t029 TYPE string VALUE 'Principal Agmt Item',
+             lv_t030 TYPE string VALUE 'Target Val. (Header)',
+             lv_t031 TYPE string VALUE 'Total open value',
+             lv_t032 TYPE string VALUE 'Open value',
+             lv_t033 TYPE string VALUE 'Released value',
+             lv_t034 TYPE string VALUE 'Target Quantity',
+             lv_t035 TYPE string VALUE 'Open Target Quantity',
+             lv_t036 TYPE string VALUE 'Qty Released to Date',
+             lv_t037 TYPE string VALUE 'Validity Per. Start',
+             lv_t038 TYPE string VALUE 'Validity Period End',
+             lv_t039 TYPE string VALUE 'Still to be delivered (qty)',
+             lv_t040 TYPE string VALUE 'Still to be delivered (value)',
+             lv_t041 TYPE string VALUE 'Still to be invoiced (qty)',
+             lv_t042 TYPE string VALUE 'Still to be invoiced (val.)',
+             lv_t043 TYPE string VALUE 'Quotation Deadline',
+             lv_t044 TYPE string VALUE 'RFQ status',
+             lv_t045 TYPE string VALUE 'Collective Number',
+             lv_t046 TYPE string VALUE 'No. of Positions',
+             lv_t047 TYPE string VALUE 'Control indicator',
+             lv_t048 TYPE string VALUE 'Purchasing Info Rec.',
+             lv_t049 TYPE string VALUE 'Package number',
+             lv_t050 TYPE string VALUE 'Release group',
+             lv_t051 TYPE string VALUE 'Release Strategy',
+             lv_t052 TYPE string VALUE 'Release status',
+             lv_t053 TYPE string VALUE 'Release indicator',
+             lv_t054 TYPE string VALUE 'Issuing Storage Loc.',
+             lv_t055 TYPE string VALUE 'Name of Vendor',
+             lv_t056 TYPE string VALUE 'Order Price Unit',
+             lv_t057 TYPE string VALUE 'Tax code',
+             lv_t058 TYPE string VALUE 'Tax Jurisdiction',
+             lv_t059 TYPE string VALUE 'Net Order Value',
+             lv_t060 TYPE string VALUE 'Incomplete',
+*             lv_t061 TYPE string VALUE 'Incompleteness',"commneted by Nilesh 06.12.2019 8000005657
+             lv_t061 TYPE string VALUE 'Category of Incompleteness', "added By Nilesh 06.12.2019 8000005657
+             lv_t062 TYPE string VALUE 'Notified Quantity',
+             lv_t063 TYPE string VALUE 'CER No',
+             lv_t064 TYPE string VALUE 'Salesperson',
+             lv_t065 TYPE string VALUE 'Delivery text',
+             lv_t066 TYPE string VALUE 'Created by',
+*             lv_t067 TYPE string VALUE 'Purch. doc. proc. state', "commneted by Nilesh 06.12.2019 8000005657
+             lv_t067 TYPE string VALUE 'Purchasing doc. processing state', "added By Nilesh 06.12.2019 8000005657
+             lv_t068 TYPE string VALUE 'Delivery Completed',
+             lv_t069 TYPE string VALUE 'Purchase Requisition',
+             lv_t070 TYPE string VALUE 'Item of Requisition',
+             lv_t071 TYPE string VALUE 'Old material number',
+             lv_t072 TYPE string VALUE 'Configurable Item Number',
+             lv_t073 TYPE string VALUE 'External Sort Number',
+             lv_t074 TYPE string VALUE 'Ext.Hierarchy Category',
+             lv_t075 TYPE string VALUE 'Requirement Urgency',
+             lv_t076 TYPE string VALUE 'Reqmt Priority',
+             lv_t077 TYPE string VALUE 'Smart Number',
+             lv_t078 TYPE string VALUE 'Material',
+             lv_t079 TYPE string VALUE 'Long Material Description',
+             lv_t080 TYPE string VALUE 'PO delivery Date',
+             lv_t081 TYPE string VALUE 'Rough GR Creation date',
+             lv_t082 TYPE string VALUE 'Delivery Date',
+             lv_t083 TYPE string VALUE 'Rough GR Quantity',
+             lv_t084 TYPE string VALUE 'Reference',
+*             lv_t085 TYPE string VALUE 'Vendor Material No.', "commneted by Nilesh 06.12.2019 8000005657
+             lv_t085 TYPE string VALUE 'Vendor Material Number', "added By Nilesh 06.12.2019 8000005657
+             lv_t086 TYPE string VALUE 'Manufacturer Name',
+             lv_t087 TYPE string VALUE 'Manufacturer code',
+             lv_t088 TYPE string VALUE 'Plant Name',
+             lv_t089 TYPE string VALUE 'Material Group Desc.',
+             lv_t090 TYPE string VALUE 'Vendor Code',
+             lv_t091 TYPE string VALUE 'Vendor name',
+             lv_t092 TYPE string VALUE 'Gross Price',
+             lv_t093 TYPE string VALUE 'Return PO Indication',
+             lv_t094 TYPE string VALUE 'Free PO',
+****             SOC commnetd By Nilesh 06.12.2019
+*             lv_t095 TYPE string VALUE 'Delivery Date 1',     "Changed by Charitha as per FS_MM_428 on 25.10.2019 for CR# 8000005879
+****             EOC commnetd By Nilesh 06.12.2019
+
+             lv_t095 TYPE string VALUE 'Delivery Date 2',     "added By Nilesh 06.12.2019 8000005657
+             lv_t096 TYPE string VALUE 'Buyback discount',
+             lv_t097 TYPE string VALUE 'Currency 1',          "Changed by Charitha as per FS_MM_428 on 25.10.2019 for CR# 8000005879
+             lv_t098 TYPE string VALUE 'Base Value',
+             lv_t099 TYPE string VALUE 'Currency 2',          "Changed by Charitha as per FS_MM_428 on 25.10.2019 for CR# 8000005879
+             lv_t100 TYPE string VALUE 'Service Tax',
+             lv_t101 TYPE string VALUE 'Currency 3',          "Changed by Charitha as per FS_MM_428 on 25.10.2019 for CR# 8000005879
+             lv_t102 TYPE string VALUE 'Excise',
+             lv_t103 TYPE string VALUE 'Currency 4',          "Changed by Charitha as per FS_MM_428 on 25.10.2019 for CR# 8000005879
+             lv_t104 TYPE string VALUE 'Discount on Excis',
+             lv_t105 TYPE string VALUE 'Currency 5',          "Changed by Charitha as per FS_MM_428 on 25.10.2019 for CR# 8000005879
+             lv_t106 TYPE string VALUE 'Sale Tax.',
+             lv_t107 TYPE string VALUE 'Currency 6',          "Changed by Charitha as per FS_MM_428 on 25.10.2019 for CR# 8000005879
+             lv_t108 TYPE string VALUE 'Text',
+             lv_t109 TYPE string VALUE 'Order',
+             lv_t110 TYPE string VALUE 'Exchange Rate',
+             lv_t111 TYPE string VALUE 'Effective value',
+             lv_t112 TYPE string VALUE 'FreightFreight % (Va',
+             lv_t113 TYPE string VALUE 'Freight (Value)',
+             lv_t114 TYPE string VALUE 'Freight/Quantity',
+             lv_t115 TYPE string VALUE 'In SECS on CVD',
+             lv_t116 TYPE string VALUE 'IN: A/R SEC&HR ECES%',
+             lv_t117 TYPE string VALUE 'In  ACD',
+             lv_t118 TYPE string VALUE 'IN Basic customs',
+             lv_t119 TYPE string VALUE 'Clearing agent chgs',
+             lv_t120 TYPE string VALUE 'IN CVD',
+             lv_t121 TYPE string VALUE 'IN: A/R ECESS %',
+             lv_t122 TYPE string VALUE 'In ECS on CVD',
+             lv_t123 TYPE string VALUE 'ECS on BCD',
+             lv_t124 TYPE string VALUE 'IN Manual Excise',
+             lv_t125 TYPE string VALUE 'IN: A/R BED %',
+             lv_t126 TYPE string VALUE 'Taxes on the PO',
+             lv_t127 TYPE string VALUE 'Insurance Import Amt',
+             lv_t128 TYPE string VALUE 'Insurance Import %',
+             lv_t129 TYPE string VALUE 'Custom Landing chgs',
+             lv_t130 TYPE string VALUE  'Octroi',
+             lv_t131 TYPE string VALUE 'Ocean/ Air Freight %',
+             lv_t132 TYPE string VALUE 'Ocean/Air Freight V',
+             lv_t133 TYPE string VALUE 'SECS on BCD',
+             lv_t134 TYPE string VALUE 'Non-Deductible Tax',
+             lv_t135 TYPE string VALUE 'Discount % on Gross',
+             lv_t136 TYPE string VALUE 'Discount/Quantity',
+             lv_t137 TYPE string VALUE 'Absolute discount',
+             lv_t138 TYPE string VALUE 'Discount % on Net',
+             lv_t139 TYPE string VALUE 'ACD (Foregone)',
+             lv_t140 TYPE string VALUE 'Anti-dumping %-Frgn',
+             lv_t141 TYPE string VALUE 'Anti-dumping qt-Frgn',
+             lv_t142 TYPE string VALUE 'Manual Asses. value',
+             lv_t143 TYPE string VALUE 'TRD-FG STO Base PRC',
+             lv_t144 TYPE string VALUE 'BCD (Forgone)',
+             lv_t145 TYPE string VALUE 'CVD (Forgone)',
+             lv_t146 TYPE string VALUE 'ECS on BCD (forgone)',
+             lv_t147 TYPE string VALUE 'SECS BCD (foregone)',
+             lv_t148 TYPE string VALUE 'SECS on CVD Inv',
+             lv_t149 TYPE string VALUE 'MRP abatement',
+             lv_t150 TYPE string VALUE 'ACD INV',
+             lv_t151 TYPE string VALUE 'Anti-dumping Duty %',
+             lv_t152 TYPE string VALUE 'Anti-dumping Duty qt',
+             lv_t153 TYPE string VALUE 'AED (Inventory)',
+             lv_t154 TYPE string VALUE 'Excise Charges',
+             lv_t155 TYPE string VALUE 'Buyback Value',
+             lv_t156 TYPE string VALUE 'Surch Basic custom',
+             lv_t157 TYPE string VALUE 'Container Detention',
+             lv_t158 TYPE string VALUE 'Clrg agent chgs  Ass',
+*             lv_t159 TYPE string VALUE 'CVD INV', "Commented By Nilesh 06.12.2019
+             lv_t159 TYPE string VALUE 'Empty container chgs', "added By nilesh 06.12.2019
+             lv_t160 TYPE string VALUE 'Shipping &Import chg',
+             lv_t161 TYPE string VALUE 'Ecess (Inventory)',
+             lv_t162 TYPE string VALUE 'Empty container chgs',
+             lv_t163 TYPE string VALUE 'ECS on CVD Inv',
+             lv_t164 TYPE string VALUE 'ECS (BCD) INV',
+             lv_t165 TYPE string VALUE 'Taxable Freight(Val)',
+             lv_t166 TYPE string VALUE 'Excisable Landing %',
+             lv_t167 TYPE string VALUE 'Exc Micronising Chrg',
+             lv_t168 TYPE string VALUE 'Exc Processing Chrg',
+             lv_t169 TYPE string VALUE 'Entry tax on Basic',
+             lv_t170 TYPE string VALUE 'ETO Charges',
+             lv_t171 TYPE string VALUE 'Entry tax on Total',
+             lv_t172 TYPE string VALUE 'Excise Charge Exp',
+             lv_t173 TYPE string VALUE 'Custom excise clg',
+             lv_t174 TYPE string VALUE 'Custom payble',
+             lv_t175 TYPE string VALUE 'STO Excise Transfer',
+             lv_t176 TYPE string VALUE 'Wharfage/ Misc',
+             lv_t177 TYPE string VALUE 'Haazardeous charges',
+             lv_t178 TYPE string VALUE 'Inter on custom duty',
+             lv_t179 TYPE string VALUE 'Incidental Expenses',
+             lv_t180 TYPE string VALUE 'Insurance',
+             lv_t181 TYPE string VALUE 'LL Expense Charges',
+             lv_t182 TYPE string VALUE 'LL Processing Charge',
+             lv_t183 TYPE string VALUE 'Loading/unloading ch',
+             lv_t184 TYPE string VALUE 'BED (Inventory)',
+             lv_t185 TYPE string VALUE 'MRP',
+             lv_t186 TYPE string VALUE 'Non-tax Clearing Ch.',
+             lv_t187 TYPE string VALUE 'Non-Tax Imp. Freight',
+             lv_t188 TYPE string VALUE 'Nex Micronising Chrg',
+             lv_t189 TYPE string VALUE 'NExc Processing Chrg',
+             lv_t190 TYPE string VALUE 'Non tax return.clr',
+             lv_t191 TYPE string VALUE 'Freight/Packing Chrg',
+             lv_t192 TYPE string VALUE 'Packing charges',
+             lv_t193 TYPE string VALUE 'Port Demurrages Valu',
+             lv_t194 TYPE string VALUE 'chrgs.return.clr',
+             lv_t195 TYPE string VALUE 'Stamp Duty %',
+             lv_t196 TYPE string VALUE 'SECS (BCD) INV',
+             lv_t197 TYPE string VALUE 'SEcess (Inventory)',
+             lv_t198 TYPE string VALUE 'Taxable Imp. Freight',
+             lv_t199 TYPE string VALUE 'Ex. Transfer Price',
+             lv_t200 TYPE string VALUE 'Payment Text',
+             lv_t201 TYPE string VALUE 'Buyer Name',
+             lv_t202 TYPE string VALUE 'Description p. group',
+             lv_t203 TYPE string VALUE 'GRN Quantity',
+             lv_t204 TYPE string VALUE 'Order Unit 1',              "Changed by Charitha as per FS_MM_428 on 25.10.2019 for CR# 8000005879
+             lv_t205 TYPE string VALUE 'Terms of Payment',
+             lv_t206 TYPE string VALUE 'Own explanation',
+             lv_t207 TYPE string VALUE 'Budgeted Price',
+             lv_t208 TYPE string VALUE 'Difference in value (INR)',
+             lv_t209 TYPE string VALUE 'Budgeted Price UOM',
+             lv_t210 TYPE string VALUE 'Difference in value (INR) 1',  "Changed by Charitha as per FS_MM_428 on 25.10.2019 for CR# 8000005879
+             lv_t211 TYPE string VALUE 'Difference in value (INR) 2',  "Changed by Charitha as per FS_MM_428 on 25.10.2019 for CR# 8000005879
+             lv_t212 TYPE string VALUE 'Currency 7',                   "Changed by Charitha as per FS_MM_428 on 25.10.2019 for CR# 8000005879
+             lv_t213 TYPE string VALUE 'Budget Exchange Rate',
+             lv_t214 TYPE string VALUE 'Custom Health Cess'.     "changed by Gauri Tandel - 8000008244 - 18.07.2022
+
+** S.O.C. by Vinit Sawant - 8000005554 #CRDK963978 29.07.2019 **
+  CONSTANTS : lc_tcode1  TYPE sy-tcode VALUE 'ZME2L_1',
+              lc_tcode   TYPE sy-tcode VALUE 'ZME2L',
+              lc_l(1)    TYPE c        VALUE '_',
+              lc_csv(4)  TYPE c        VALUE '.csv',
+              lc_file    TYPE char10 VALUE 'ZME2L_', " LOC Added by pranita CR#8000006017 on 03.01.2019
+              lc_txt     TYPE char10 VALUE '.TXT', " LOC Added by pranita CR#8000006017 on 03.01.2019
+              lc_xls(4)  TYPE c VALUE '.XLS',   "Added by Charitha for CR#8000006127
+              lc_sign(1) VALUE '\', " LOC Added by pranita CR#8000006017 on 03.01.2019
+** E.O.C. by Vinit Sawant - 8000005554 #CRDK963978 29.07.2019 **
+              lc_char    TYPE zparam_table-id_name VALUE 'SPL_CHAR'. "Added by Shivraj-CR#8000004664-05.11.2025
+
+** S.O.C. by Vinit Sawant - 8000005554 #CRDK964338 13.08.2019 **
+  DATA :    lv_comma TYPE string,
+            lv_zeros TYPE string.
+
+  RANGES: lr_comma FOR lv_comma,
+          lr_zeros FOR lv_zeros.
+** E.O.C. by Vinit Sawant - 8000005554 #CRDK964338 13.08.2019 **
+
+  FIELD-SYMBOLS: <fs_val>.
+
+* SOC added by pranita CR#8000006017 on 03.01.2019
+  IF ck_sftp EQ abap_true.
+    DATA(lv_id) = lc_parid_sftp  .
+    DATA(lv_tab) = lc_tab.
+  ELSEIF ck_ftp EQ abap_true.
+    lv_id = lc_parid.
+    lv_tab = lc_tab_1.
+  ENDIF.
+* EOC added by pranita CR#8000006017 on 03.01.2019
+
+  SELECT SINGLE param_name FROM zparam_table INTO lv_appl_path WHERE id_name EQ lv_id ."lc_parid."LOC added by pranita CR#8000006017 on 03.01.2019
+  IF sy-subrc NE 0.
+    RETURN.
+  ENDIF.
+
+  "" FILE NAME
+*  lv_file = |ZME2L_{ sy-slset }_{ sy-datlo+6(2) }{ sy-datlo+4(2) }{ sy-datlo+0(4) }.txt|.   "--commented by VS:8000005554:CRDK963729:19.07.19
+*  lv_file = |ZME2L_1_{ sy-datlo+6(2) }{ sy-datlo+4(2) }{ sy-datlo+0(4) }.txt|.               "++added by VS:8000005554:CRDK963729:19.07.19
+** S.O.D. by Vinit Sawant - 8000005554 #CRDK963978 29.07.2019 **
+*  IF sy-tcode = 'ZME2L_1'.                                                                    "++added by VSAWANT 8000005554:CRDK963938 on 25.07.2019
+*    lv_file = |ZME2L_1_{ sy-datlo+6(2) }{ sy-datlo+4(2) }{ sy-datlo+0(4) }.csv|.              "++added by VS:8000005554:CRDK963729:19.07.19
+*  ELSEIF sy-tcode = 'ZME2L'.                                                                  "++added by VSAWANT 8000005554:CRDK963938 on 25.07.2019
+*    lv_file = |ZME2L_{ sy-datlo+6(2) }{ sy-datlo+4(2) }{ sy-datlo+0(4) }.csv|.                "++added by VSAWANT 8000005554:CRDK963938 on 25.07.2019
+*  ENDIF.                                                                                      "++added by VSAWANT 8000005554:CRDK963938 on 25.07.2019
+** E.O.D. by Vinit Sawant - 8000005554 #CRDK963978 29.07.2019 **
+
+** S.O.C. by Vinit Sawant - 8000005554 #CRDK963978 29.07.2019 **
+  IF ck_sftp EQ abap_true. " LOC Added by pranita CR#8000006017 on 03.01.2019
+
+*    lv_file = | { lc_file }{ sy-datlo+6(2) }{ sy-datlo+4(2) }{ sy-datlo+0(4) }{ lc_txt }|. "" LOC Added by pranita CR#8000006017 on 03.01.2019
+    lv_file = | { lc_file }{ sy-datlo+6(2) }{ sy-datlo+4(2) }{ sy-datlo+0(4) }{ lc_xls }|. "Added by Charitha for CR#8000006127
+    CONDENSE lv_file.
+    "" FULL FILE PATH
+    lv_appl_path = |{ lv_appl_path }{ lc_sign }{ lv_file }|.
+    CONDENSE lv_appl_path.
+  ELSEIF ck_ftp EQ abap_true. " LOC added by pranita CR#8000006017 on 03.01.2019
+    IF sy-tcode = lc_tcode1.
+      CONCATENATE  lc_tcode1
+                   lc_l
+*                 sy-datlo+6(2)   "--commented by Vinit Sawant-8000005554 #CRDK964121 on 06.08.2019
+*                 sy-datlo+4(2)   "--commented by Vinit Sawant-8000005554 #CRDK964121 on 06.08.2019
+*                 sy-datlo+0(4)   "--commented by Vinit Sawant-8000005554 #CRDK964121 on 06.08.2019
+                   sy-datlo         "++added by Vinit Sawant-8000005554 #CRDK964121 on 06.08.2019
+                   lc_csv
+                   INTO lv_file.
+
+    ELSEIF sy-tcode = lc_tcode.
+      CONCATENATE  lc_tcode
+                   lc_l
+*                 sy-datlo+6(2)   "--commented by Vinit Sawant-8000005554 #CRDK964121 on 06.08.2019
+*                 sy-datlo+4(2)   "--commented by Vinit Sawant-8000005554 #CRDK964121 on 06.08.2019
+*                 sy-datlo+0(4)   "--commented by Vinit Sawant-8000005554 #CRDK964121 on 06.08.2019
+                   sy-datlo         "++added by Vinit Sawant-8000005554 #CRDK964121 on 06.08.2019
+                   lc_csv
+                   INTO lv_file.
+    ELSE.
+      CONCATENATE  t_code
+                   lc_l
+*                 sy-datlo+6(2)   "--commented by Vinit Sawant-8000005554 #CRDK964121 on 06.08.2019
+*                 sy-datlo+4(2)   "--commented by Vinit Sawant-8000005554 #CRDK964121 on 06.08.2019
+*                 sy-datlo+0(4)   "--commented by Vinit Sawant-8000005554 #CRDK964121 on 06.08.2019
+                   sy-datlo         "++added by Vinit Sawant-8000005554 #CRDK964121 on 06.08.2019
+                   lc_csv
+                   INTO lv_file.
+    ENDIF.
+
+    "" FULL FILE PATH
+    lv_appl_path = |{ lv_appl_path }{ lv_file }|.
+  ENDIF. "" LOC Added by pranita CR#8000006017 on 03.01.2019
+** E.O.C. by Vinit Sawant - 8000005554 #CRDK963978 29.07.2019 **
+
+
+*  IF TA_DATA IS NOT INITIAL.
+
+  OPEN DATASET lv_appl_path FOR OUTPUT IN TEXT MODE ENCODING DEFAULT.
+  IF sy-subrc = 0.
+
+    IF ta_ltdx IS INITIAL.
+
+      "" FILE HEADINGS
+      CONCATENATE
+      lv_t001
+      lv_t002
+      lv_t003
+      lv_t004
+      lv_t005
+      lv_t006
+      lv_t007
+      lv_t008
+      lv_t009
+      lv_t010
+      lv_t011
+      lv_t012
+      lv_t013
+      lv_t014
+      lv_t015
+      lv_t016
+      lv_t017
+      lv_t018
+      lv_t019
+      lv_t020
+      lv_t021
+      lv_t022
+      lv_t023
+      lv_t024
+      lv_t025
+      lv_t026
+      lv_t027
+      lv_t028
+      lv_t029
+      lv_t030
+      lv_t031
+      lv_t032
+      lv_t033
+      lv_t034
+      lv_t035
+      lv_t036
+      lv_t037
+      lv_t038
+      lv_t039
+      lv_t040
+      lv_t041
+      lv_t042
+      lv_t043
+      lv_t044
+      lv_t045
+      lv_t046
+      lv_t047
+      lv_t048
+      lv_t049
+      lv_t050
+      lv_t051
+      lv_t052
+      lv_t053
+      lv_t054
+      lv_t055
+      lv_t056
+      lv_t057
+      lv_t058
+      lv_t059
+      lv_t060
+      lv_t061
+      lv_t062
+      lv_t063
+      lv_t064
+      lv_t065
+      lv_t066
+      lv_t067
+      lv_t068
+      lv_t069
+      lv_t070
+      lv_t071
+      lv_t072
+      lv_t073
+      lv_t074
+      lv_t075
+      lv_t076
+      lv_t077
+      lv_t078
+      lv_t079
+      lv_t080
+      lv_t081
+      lv_t082
+      lv_t083
+      lv_t084
+      lv_t085
+      lv_t086
+      lv_t087
+      lv_t088
+      lv_t089
+      lv_t090
+      lv_t091
+      lv_t092
+      lv_t093
+      lv_t094
+      lv_t095
+      lv_t096
+      lv_t097
+      lv_t098
+      lv_t099
+      lv_t100
+      lv_t101
+      lv_t102
+      lv_t103
+      lv_t104
+      lv_t105
+      lv_t106
+      lv_t107
+      lv_t108
+      lv_t109
+      lv_t110
+      lv_t111
+      lv_t112
+      lv_t113
+      lv_t114
+      lv_t115
+      lv_t116
+      lv_t117
+      lv_t118
+      lv_t119
+      lv_t120
+      lv_t121
+      lv_t122
+      lv_t123
+      lv_t124
+      lv_t125
+      lv_t126
+      lv_t127
+      lv_t128
+      lv_t129
+      lv_t130
+      lv_t131
+      lv_t132
+      lv_t133
+      lv_t134
+      lv_t135
+      lv_t136
+      lv_t137
+      lv_t138
+      lv_t139
+      lv_t140
+      lv_t141
+      lv_t142
+      lv_t143
+      lv_t144
+      lv_t145
+      lv_t146
+      lv_t147
+      lv_t148
+      lv_t149
+      lv_t150
+      lv_t151
+      lv_t152
+      lv_t153
+      lv_t154
+      lv_t155
+      lv_t156
+      lv_t157
+      lv_t158
+      lv_t159
+      lv_t160
+      lv_t161
+      lv_t162
+      lv_t163
+      lv_t164
+      lv_t165
+      lv_t166
+      lv_t167
+      lv_t168
+      lv_t169
+      lv_t170
+      lv_t171
+      lv_t172
+      lv_t173
+      lv_t174
+      lv_t175
+      lv_t176
+      lv_t177
+      lv_t178
+      lv_t179
+      lv_t180
+      lv_t181
+      lv_t182
+      lv_t183
+      lv_t184
+      lv_t185
+      lv_t186
+      lv_t187
+      lv_t188
+      lv_t189
+      lv_t190
+      lv_t191
+      lv_t192
+      lv_t193
+      lv_t194
+      lv_t195
+      lv_t196
+      lv_t197
+      lv_t198
+      lv_t199
+      lv_t200
+      lv_t201
+      lv_t202
+      lv_t203
+      lv_t204
+      lv_t205
+      lv_t206
+      lv_t207
+      lv_t208
+      lv_t209
+      lv_t210
+      lv_t211
+      lv_t212
+      lv_t213
+      lv_t214  "changed by Gauri Tandel - 8000008244 - 18.07.2022
+
+*      INTO lwa_sftp SEPARATED BY lc_tab.       "--CRDK963938
+*      INTO lwa_sftp SEPARATED BY ',' .         "++CRDK963938 "--commented by Vinit Sawant-8000005554 #CRDK964121 on 06.08.2019
+*      INTO lwa_sftp SEPARATED BY '~|' .         "++Added by Vinit Sawant-8000005554 #CRDK964121 on 06.08.2019
+      INTO lwa_sftp SEPARATED BY  lv_tab ."'~' .         "Added by Charitha as per FS_MM_428 on 25.10.2019 for CR# 8000005879 ,
+      " LOC Added by pranita CR#8000006017 on 03.01.2019
+      TRANSFER lwa_sftp TO lv_appl_path.
+      CLEAR: lwa_sftp.
+
+      LOOP AT ta_data INTO DATA(lwa_out).
+
+        REPLACE ALL OCCURRENCES OF '"' IN lwa_out-txz01  WITH ' '.      "++Added by Vinit Sawant-8000005554 #CRDK964202 on 12.08.2019
+**        REPLACE ALL OCCURRENCES OF '"' IN lwa_out-zmatktx  WITH ' '.    "++Added by Vinit Sawant-8000005554 #CRDK964202 on 12.08.2019 "Commented by Charitha as per FS_MM_428 on 25.10.2019 11:40:20 for CR# 8000005879
+** S.O.C  Commented by Vinit Sawant-8000005554 #CRDK964121 on 06.08.2019
+
+**** S.O.C. by Vinit Sawant - 8000005554 #CRDK963938 26.07.2019 **
+**        REPLACE ALL OCCURRENCES OF ',' IN lwa_out-superfield WITH ' '.
+**        REPLACE ALL OCCURRENCES OF ',' IN lwa_out-txz01  WITH ' '.
+**        REPLACE ALL OCCURRENCES OF ',' IN lwa_out-vendor_name WITH ' '.
+**        REPLACE ALL OCCURRENCES OF ',' IN lwa_out-vendor_name1 WITH ' '.
+**        REPLACE ALL OCCURRENCES OF ',' IN lwa_out-mf_name  WITH ' '.
+**        REPLACE ALL OCCURRENCES OF ',' IN lwa_out-plant_name  WITH ' '.
+**        REPLACE ALL OCCURRENCES OF ',' IN lwa_out-wgbez  WITH ' '.
+**        REPLACE ALL OCCURRENCES OF ',' IN lwa_out-vendor_name1  WITH ' '.
+**        REPLACE ALL OCCURRENCES OF ',' IN lwa_out-zmatktx  WITH ' '.
+**** E.O.C. by Vinit Sawant - 8000005554 #CRDK963938 26.07.2019 **
+**
+**** S.O.C. by Vinit Sawant - 8000005554 #CRDK963978 29.07.2019 **
+**        REPLACE ALL OCCURRENCES OF ',' IN lwa_out-text1     WITH ' '.
+**        REPLACE ALL OCCURRENCES OF ',' IN lwa_out-buyer_nm  WITH ' '.
+**        REPLACE ALL OCCURRENCES OF ',' IN lwa_out-eknam     WITH ' '.
+**        REPLACE ALL OCCURRENCES OF ',' IN lwa_out-zdes      WITH ' '.
+**        REPLACE ALL OCCURRENCES OF ',' IN lwa_out-item_text WITH ' '.
+**        REPLACE ALL OCCURRENCES OF ',' IN lwa_out-dtext     WITH ' '.
+**** E.O.C. by Vinit Sawant - 8000005554 #CRDK963978 29.07.2019 **
+**
+**** S.O.C. by Vinit Sawant - 8000005554 #CRDK964037 01.08.2019 **
+**        REPLACE ALL OCCURRENCES OF ',' IN lwa_out-idnlf     WITH ' '.
+**        REPLACE ALL OCCURRENCES OF ',' IN lwa_out-verkf     WITH ' '.
+**** E.O.C. by Vinit Sawant - 8000005554 #CRDK964037 01.08.2019 **
+
+** E.O.C  Commented by Vinit Sawant-8000005554 #CRDK964121 on 06.08.2019
+
+        lv_val001 = lwa_out-ebeln         .      CONDENSE lv_val001.
+        lv_val002 = lwa_out-ebelp         .      CONDENSE lv_val002.
+        lv_val003 = lwa_out-bsart         .      CONDENSE lv_val003.
+        lv_val004 = lwa_out-bstyp         .      CONDENSE lv_val004.
+        lv_val005 = lwa_out-superfield    .      CONDENSE lv_val005.
+        lv_val006 = lwa_out-ekorg         .      CONDENSE lv_val006.
+        lv_val007 = lwa_out-ekgrp         .      CONDENSE lv_val007.
+        lv_val008 = |{ lwa_out-bedat+6(2) }-{ lwa_out-bedat+4(2) }-{ lwa_out-bedat+0(4) }|. CONDENSE lv_val008.
+        lwa_out-ematn  =  |{ lwa_out-ematn   ALPHA = OUT }|." added by SamdaniShareef ##8000005552 ##8000005552
+        lv_val009 = lwa_out-ematn         .      CONDENSE lv_val009.
+        lv_val010 = lwa_out-txz01         .      "CONDENSE lv_val010." Commented by Shivraj-CR#8000004664-18.11.2025
+*     S.O.C. by Shivraj-CR#8000004664-18.11.2025
+            SELECT SINGLE param_name
+            FROM zparam_table
+            INTO @DATA(lwa_param)
+            WHERE id_name = @lc_char.
+
+            IF sy-subrc = 0.
+              TRANSLATE lv_val010 USING lwa_param.
+              REPLACE ALL OCCURRENCES OF REGEX lwa_param IN lv_val010 WITH ' ' .
+              REPLACE ALL OCCURRENCES OF cl_abap_char_utilities=>cr_lf IN lv_val010 WITH ' '.
+              REPLACE ALL OCCURRENCES OF cl_abap_char_utilities=>newline IN lv_val010 WITH ' '.
+              REPLACE ALL OCCURRENCES OF cl_abap_char_utilities=>horizontal_tab IN lv_val010 WITH ' '.
+
+              CONDENSE lv_val010.
+            ENDIF.
+*    E.O.C. by Shivraj-CR#8000004664-18.11.2025
+
+        lwa_out-matkl =  |{ lwa_out-matkl  ALPHA = OUT }|." added by SamdaniShareef ##8000005552 ##8000005552
+        lv_val011 = lwa_out-matkl         .      CONDENSE lv_val011.
+
+        lv_val012 = lwa_out-icon_po_hist  .      CONDENSE lv_val012.
+        lv_val013 = lwa_out-icon_comp_cons.      CONDENSE lv_val013.
+        lv_val014 = lwa_out-loekz         .      CONDENSE lv_val014.
+        lv_val015 = lwa_out-pstyp         .      CONDENSE lv_val015.
+        lv_val016 = lwa_out-epstp         .      CONDENSE lv_val016.
+        lv_val017 = lwa_out-knttp         .      CONDENSE lv_val017.
+        lv_val018 = lwa_out-bednr         .      CONDENSE lv_val018.
+        lv_val019 = lwa_out-werks         .      CONDENSE lv_val019.
+        lv_val020 = lwa_out-lgort         .      CONDENSE lv_val020.
+        lv_val021 = lwa_out-menge         .      CONDENSE lv_val021.
+        lv_val022 = lwa_out-meins         .      CONDENSE lv_val022.
+        lv_val023 = lwa_out-lagmg         .      CONDENSE lv_val023.
+        lv_val024 = lwa_out-lmein         .      CONDENSE lv_val024.
+        lv_val025 = lwa_out-netpr         .      CONDENSE lv_val025.
+        lv_val026 = lwa_out-waers         .      CONDENSE lv_val026.
+        lv_val027 = lwa_out-peinh         .      CONDENSE lv_val027.
+        lv_val028 = lwa_out-konnr         .      CONDENSE lv_val028.
+        lv_val029 = lwa_out-ktpnr         .      CONDENSE lv_val029.
+        lv_val030 = lwa_out-ktwrt         .      CONDENSE lv_val030.
+        lv_val031 = lwa_out-ofzwt         .      CONDENSE lv_val031.
+        lv_val032 = lwa_out-ktwto         .      CONDENSE lv_val032.
+        lv_val033 = lwa_out-ktwtr         .      CONDENSE lv_val033.
+        lv_val034 = lwa_out-ktmng         .      CONDENSE lv_val034.
+        lv_val035 = lwa_out-ofzmg         .      CONDENSE lv_val035.
+        lv_val036 = lwa_out-ktmgr         .      CONDENSE lv_val036.
+        lv_val037 = |{ lwa_out-kdatb+6(2) }-{ lwa_out-kdatb+4(2) }-{ lwa_out-kdatb+0(4) }|. CONDENSE lv_val037.
+        lv_val038 = |{ lwa_out-kdate+6(2) }-{ lwa_out-kdate+4(2) }-{ lwa_out-kdate+0(4) }|. CONDENSE lv_val038.
+        lv_val039 = lwa_out-mglief        .      CONDENSE lv_val039.
+        lv_val040 = lwa_out-wtlief        .      CONDENSE lv_val040.
+        lv_val041 = lwa_out-mginv         .      CONDENSE lv_val041.
+        lv_val042 = lwa_out-wtinv         .      CONDENSE lv_val042.
+        lv_val043 = |{ lwa_out-agdat+6(2) }-{ lwa_out-agdat+4(2) }-{ lwa_out-agdat+0(4) }|. CONDENSE lv_val043.
+        lv_val044 = lwa_out-statu         .      CONDENSE lv_val044.
+        lv_val045 = lwa_out-submi         .      CONDENSE lv_val045.
+        lv_val046 = lwa_out-azpos         .      CONDENSE lv_val046.
+        lv_val047 = lwa_out-bsakz         .      CONDENSE lv_val047.
+        lv_val048 = lwa_out-infnr         .      CONDENSE lv_val048.
+        lv_val049 = lwa_out-packno        .      CONDENSE lv_val049.
+        lv_val050 = lwa_out-frggr         .      CONDENSE lv_val050.
+        lv_val051 = lwa_out-frgsx         .      CONDENSE lv_val051.
+        lv_val052 = lwa_out-frgzu         .      CONDENSE lv_val052.
+        lv_val053 = lwa_out-frgke         .      CONDENSE lv_val053.
+        lv_val054 = lwa_out-reslo         .      CONDENSE lv_val054.
+        lv_val055 = lwa_out-vendor_name   .      CONDENSE lv_val055.
+        lv_val056 = lwa_out-bprme         .      CONDENSE lv_val056.
+        lv_val057 = lwa_out-mwskz         .      CONDENSE lv_val057.
+        lv_val058 = lwa_out-txjcd         .      CONDENSE lv_val058.
+        lv_val059 = lwa_out-netwr         .      CONDENSE lv_val059.
+        lv_val060 = lwa_out-memory        .      CONDENSE lv_val060.
+        lv_val061 = lwa_out-memorytype    .      CONDENSE lv_val061.
+        lv_val062 = lwa_out-lamng         .      CONDENSE lv_val062.
+        lv_val063 = lwa_out-aufex         .      CONDENSE lv_val063.
+        lv_val064 = lwa_out-verkf         .      CONDENSE lv_val064.
+        lv_val065 = lwa_out-dtext         .      CONDENSE lv_val065.
+        lv_val066 = lwa_out-ernam         .      CONDENSE lv_val066.
+        lv_val067 = lwa_out-procstat      .      CONDENSE lv_val067.
+        lv_val068 = lwa_out-elikz         .      CONDENSE lv_val068.
+        lv_val069 = lwa_out-banfn         .      CONDENSE lv_val069.
+        lv_val070 = lwa_out-bnfpo         .      CONDENSE lv_val070.
+        lv_val071 = lwa_out-bismt         .      CONDENSE lv_val071.
+        lv_val072 = lwa_out-exlin         .      CONDENSE lv_val072.
+        lv_val073 = lwa_out-exsnr         .      CONDENSE lv_val073.
+        lv_val074 = lwa_out-ehtyp         .      CONDENSE lv_val074.
+        lv_val075 = lwa_out-prio_urg      .      CONDENSE lv_val075.
+        lv_val076 = lwa_out-prio_req      .      CONDENSE lv_val076.
+        lv_val077 = lwa_out-longnum       .      CONDENSE lv_val077.
+*--
+        lwa_out-matnr1  =  |{ lwa_out-matnr1  ALPHA = OUT }|." added by SamdaniShareef ##8000005552 ##8000005552
+        lv_val078 = lwa_out-matnr1        .      CONDENSE lv_val078.
+
+*/..Begin of Addition by Charitha for CR# 8000005879 on 25.10.2019 as per FS_MM_428
+*        lv_val079 = lwa_out-zmatktx       .
+        MOVE ' ' TO lv_val079    .
+        CONDENSE lv_val079.
+*/..End of Addition by Charitha for CR# 8000005879 on 25.10.2019 as per FS_MM_428
+
+        lv_val080 = |{ lwa_out-eeind1+6(2) }-{ lwa_out-eeind1+4(2) }-{ lwa_out-eeind1+0(4) }|. CONDENSE lv_val080.
+        lv_val081 = |{ lwa_out-gr_cr_date+6(2) }-{ lwa_out-gr_cr_date+4(2) }-{ lwa_out-gr_cr_date+0(4) }|. CONDENSE lv_val081.
+        lv_val082 = |{ lwa_out-eindt+6(2) }-{ lwa_out-eindt+4(2) }-{ lwa_out-eindt+0(4) }|. CONDENSE lv_val082.
+        lv_val083 = lwa_out-rough_qty     .      CONDENSE lv_val083.
+        lv_val084 = lwa_out-xblnr         .      CONDENSE lv_val084.
+        lv_val085 = lwa_out-idnlf         .      CONDENSE lv_val085.
+        lv_val086 = lwa_out-mf_name       .      CONDENSE lv_val086.
+        lv_val087 = lwa_out-mf_code       .      CONDENSE lv_val087.
+        lv_val088 = lwa_out-plant_name    .      CONDENSE lv_val088.
+        lv_val089 = lwa_out-wgbez         .      CONDENSE lv_val089.
+        lv_val090 = lwa_out-vendor_code   .      CONDENSE lv_val090.
+        lv_val091 = lwa_out-vendor_name1  .      CONDENSE lv_val091.
+        lv_val092 = lwa_out-gr_amount     .      CONDENSE lv_val092.
+        lv_val093 = lwa_out-retpo         .      CONDENSE lv_val093.
+        lv_val094 = lwa_out-repos         .      CONDENSE lv_val094.
+        lv_val095 = |{ lwa_out-lfdat+6(2) }-{ lwa_out-lfdat+4(2) }-{ lwa_out-lfdat+0(4) }|. CONDENSE lv_val095.
+        lv_val096 = lwa_out-buyback       .      CONDENSE lv_val096.
+        lv_val097 = lwa_out-currency      .      CONDENSE lv_val097.
+        lv_val098 = lwa_out-base          .      CONDENSE lv_val098.
+        lv_val099 = lwa_out-currencyb     .      CONDENSE lv_val099.
+        lv_val100 = lwa_out-stax          .      CONDENSE lv_val100.
+        lv_val101 = lwa_out-currencyt     .      CONDENSE lv_val101.
+        lv_val102 = lwa_out-excise        .      CONDENSE lv_val102.
+        lv_val103 = lwa_out-currencye     .      CONDENSE lv_val103.
+        lv_val104 = lwa_out-dexcise       .      CONDENSE lv_val104.
+        lv_val105 = lwa_out-currencyd     .      CONDENSE lv_val105.
+        lv_val106 = lwa_out-satax         .      CONDENSE lv_val106.
+        lv_val107 = lwa_out-currencys     .      CONDENSE lv_val107.
+        lv_val108 = lwa_out-item_text     .      CONDENSE lv_val108.
+        lv_val109 = lwa_out-aufnr         .      CONDENSE lv_val109.
+        lv_val110 = lwa_out-wkurs         .      CONDENSE lv_val110.
+        lv_val111 = lwa_out-effwr         .      CONDENSE lv_val111.
+        lv_val112 = lwa_out-zls_fra1      .      CONDENSE lv_val112.
+        lv_val113 = lwa_out-zls_frb1      .      CONDENSE lv_val113.
+        lv_val114 = lwa_out-zls_frc1      .      CONDENSE lv_val114.
+        lv_val115 = lwa_out-zls_j1cv      .      CONDENSE lv_val115.
+        lv_val116 = lwa_out-zls_ja1x      .      CONDENSE lv_val116.
+        lv_val117 = lwa_out-zls_jadc      .      CONDENSE lv_val117.
+        lv_val118 = lwa_out-zls_jcdb      .      CONDENSE lv_val118.
+        lv_val119 = lwa_out-zls_jcfa      .      CONDENSE lv_val119.
+        lv_val120 = lwa_out-zls_jcv1      .      CONDENSE lv_val120.
+        lv_val121 = lwa_out-zls_jecs      .      CONDENSE lv_val121.
+        lv_val122 = lwa_out-zls_jecv      .      CONDENSE lv_val122.
+        lv_val123 = lwa_out-zls_jedb      .      CONDENSE lv_val123.
+        lv_val124 = lwa_out-zls_jexc      .      CONDENSE lv_val124.
+        lv_val125 = lwa_out-zls_jexp      .      CONDENSE lv_val125.
+        lv_val126 = lwa_out-zls_jexs      .      CONDENSE lv_val126.
+        lv_val127 = lwa_out-zls_jinf      .      CONDENSE lv_val127.
+        lv_val128 = lwa_out-zls_jinp      .      CONDENSE lv_val128.
+        lv_val129 = lwa_out-zls_jldc      .      CONDENSE lv_val129.
+        lv_val130 = lwa_out-zls_jocm      .      CONDENSE lv_val130.
+        lv_val131 = lwa_out-zls_jofp      .      CONDENSE lv_val131.
+        lv_val132 = lwa_out-zls_jofv      .      CONDENSE lv_val132.
+        lv_val133 = lwa_out-zls_jsed      .      CONDENSE lv_val133.
+        lv_val134 = lwa_out-zls_navs      .      CONDENSE lv_val134.
+        lv_val135 = lwa_out-zls_r000      .      CONDENSE lv_val135.
+        lv_val136 = lwa_out-zls_r001      .      CONDENSE lv_val136.
+        lv_val137 = lwa_out-zls_r002      .      CONDENSE lv_val137.
+        lv_val138 = lwa_out-zls_r003      .      CONDENSE lv_val138.
+        lv_val139 = lwa_out-zls_yadc      .      CONDENSE lv_val139.
+        lv_val140 = lwa_out-zls_yadp      .      CONDENSE lv_val140.
+        lv_val141 = lwa_out-zls_yadq      .      CONDENSE lv_val141.
+        lv_val142 = lwa_out-zls_yasv      .      CONDENSE lv_val142.
+        lv_val143 = lwa_out-zls_yb00      .      CONDENSE lv_val143.
+        lv_val144 = lwa_out-zls_ycdb      .      CONDENSE lv_val144.
+        lv_val145 = lwa_out-zls_ycv1      .      CONDENSE lv_val145.
+        lv_val146 = lwa_out-zls_yedb      .      CONDENSE lv_val146.
+        lv_val147 = lwa_out-zls_ysed      .      CONDENSE lv_val147.
+        lv_val148 = lwa_out-zls_z1cv      .      CONDENSE lv_val148.
+        lv_val149 = lwa_out-zls_zabt      .      CONDENSE lv_val149.
+        lv_val150 = lwa_out-zls_zadc      .      CONDENSE lv_val150.
+        lv_val151 = lwa_out-zls_zadp      .      CONDENSE lv_val151.
+        lv_val152 = lwa_out-zls_zadq      .      CONDENSE lv_val152.
+        lv_val153 = lwa_out-zls_zaip      .      CONDENSE lv_val153.
+        lv_val154 = lwa_out-zls_zbex      .      CONDENSE lv_val154.
+        lv_val155 = lwa_out-zls_zbuy      .      CONDENSE lv_val155.
+        lv_val156 = lwa_out-zls_zcdb      .      CONDENSE lv_val156.
+        lv_val157 = lwa_out-zls_zcdc      .      CONDENSE lv_val157.
+        lv_val158 = lwa_out-zls_zcfp      .      CONDENSE lv_val158.
+        lv_val159 = lwa_out-zls_zcv1      .      CONDENSE lv_val159.
+        lv_val160 = lwa_out-zls_zdoc      .      CONDENSE lv_val160.
+        lv_val161 = lwa_out-zls_zec2      .      CONDENSE lv_val161.
+        lv_val162 = lwa_out-zls_zecc      .      CONDENSE lv_val162.
+        lv_val163 = lwa_out-zls_zecv      .      CONDENSE lv_val163.
+        lv_val164 = lwa_out-zls_zedb      .      CONDENSE lv_val164.
+        lv_val165 = lwa_out-zls_zefr      .      CONDENSE lv_val165.
+        lv_val166 = lwa_out-zls_zeln      .      CONDENSE lv_val166.
+        lv_val167 = lwa_out-zls_zemc      .      CONDENSE lv_val167.
+        lv_val168 = lwa_out-zls_zepc      .      CONDENSE lv_val168.
+        lv_val169 = lwa_out-zls_zetb      .      CONDENSE lv_val169.
+        lv_val170 = lwa_out-zls_zeto      .      CONDENSE lv_val170.
+        lv_val171 = lwa_out-zls_zett      .      CONDENSE lv_val171.
+        lv_val172 = lwa_out-zls_zex1      .      CONDENSE lv_val172.
+        lv_val173 = lwa_out-zls_zexe      .      CONDENSE lv_val173.
+        lv_val174 = lwa_out-zls_zexp      .      CONDENSE lv_val174.
+        lv_val175 = lwa_out-zls_zext      .      CONDENSE lv_val175.
+        lv_val176 = lwa_out-zls_zfr2      .      CONDENSE lv_val176.
+        lv_val177 = lwa_out-zls_zhaz      .      CONDENSE lv_val177.
+        lv_val178 = lwa_out-zls_zicd      .      CONDENSE lv_val178.
+        lv_val179 = lwa_out-zls_ziev      .      CONDENSE lv_val179.
+        lv_val180 = lwa_out-zls_zins      .      CONDENSE lv_val180.
+        lv_val181 = lwa_out-zls_zlex      .      CONDENSE lv_val181.
+        lv_val182 = lwa_out-zls_zllp      .      CONDENSE lv_val182.
+        lv_val183 = lwa_out-zls_zlod      .      CONDENSE lv_val183.
+        lv_val184 = lwa_out-zls_zmip      .      CONDENSE lv_val184.
+        lv_val185 = lwa_out-zls_zmrp      .      CONDENSE lv_val185.
+        lv_val186 = lwa_out-zls_zncc      .      CONDENSE lv_val186.
+        lv_val187 = lwa_out-zls_znif      .      CONDENSE lv_val187.
+        lv_val188 = lwa_out-zls_znmc      .      CONDENSE lv_val188.
+        lv_val189 = lwa_out-zls_znpc      .      CONDENSE lv_val189.
+        lv_val190 = lwa_out-zls_znrc      .      CONDENSE lv_val190.
+        lv_val191 = lwa_out-zls_zpac      .      CONDENSE lv_val191.
+        lv_val192 = lwa_out-zls_zpak      .      CONDENSE lv_val192.
+        lv_val193 = lwa_out-zls_zpdv      .      CONDENSE lv_val193.
+        lv_val194 = lwa_out-zls_zrch      .      CONDENSE lv_val194.
+        lv_val195 = lwa_out-zls_zsdc      .      CONDENSE lv_val195.
+        lv_val196 = lwa_out-zls_zsed      .      CONDENSE lv_val196.
+        lv_val197 = lwa_out-zls_zsei      .      CONDENSE lv_val197.
+        lv_val198 = lwa_out-zls_ztif      .      CONDENSE lv_val198.
+        lv_val199 = lwa_out-zls_ztrp      .      CONDENSE lv_val199.
+        lv_val200 = lwa_out-zdes          .      CONDENSE lv_val200.
+        lv_val201 = lwa_out-buyer_nm      .      CONDENSE lv_val201.
+        lv_val202 = lwa_out-eknam         .      CONDENSE lv_val202.
+        lv_val203 = lwa_out-grn_qty       .      CONDENSE lv_val203.
+        lv_val204 = lwa_out-grn_uom       .      CONDENSE lv_val204.
+        lv_val205 = lwa_out-zterm         .      CONDENSE lv_val205.
+        lv_val206 = lwa_out-text1         .      CONDENSE lv_val206.
+        lv_val207 = lwa_out-budg_price    .      CONDENSE lv_val207.
+        lv_val208 = lwa_out-budg_diff     .      CONDENSE lv_val208.
+        lv_val209 = lwa_out-budg_uom      .      CONDENSE lv_val209.
+        lv_val210 = lwa_out-budg_diff_sign.      CONDENSE lv_val210.
+        lv_val211 = lwa_out-budg_diff1    .      CONDENSE lv_val211.
+        lv_val212 = lwa_out-ex_waers      .      CONDENSE lv_val212.
+        lv_val213 = lwa_out-ex_rate       .      CONDENSE lv_val213.
+        lv_val214 = lwa_out-zls_zchc      .      CONDENSE lv_val214.  "changed by Gauri Tandel - 8000008244 - 18.07.2022
+
+        CONCATENATE
+            lv_val001
+            lv_val002
+            lv_val003
+            lv_val004
+            lv_val005
+            lv_val006
+            lv_val007
+            lv_val008
+            lv_val009
+            lv_val010
+            lv_val011
+            lv_val012
+            lv_val013
+            lv_val014
+            lv_val015
+            lv_val016
+            lv_val017
+            lv_val018
+            lv_val019
+            lv_val020
+            lv_val021
+            lv_val022
+            lv_val023
+            lv_val024
+            lv_val025
+            lv_val026
+            lv_val027
+            lv_val028
+            lv_val029
+            lv_val030
+            lv_val031
+            lv_val032
+            lv_val033
+            lv_val034
+            lv_val035
+            lv_val036
+            lv_val037
+            lv_val038
+            lv_val039
+            lv_val040
+            lv_val041
+            lv_val042
+            lv_val043
+            lv_val044
+            lv_val045
+            lv_val046
+            lv_val047
+            lv_val048
+            lv_val049
+            lv_val050
+            lv_val051
+            lv_val052
+            lv_val053
+            lv_val054
+            lv_val055
+            lv_val056
+            lv_val057
+            lv_val058
+            lv_val059
+            lv_val060
+            lv_val061
+            lv_val062
+            lv_val063
+            lv_val064
+            lv_val065
+            lv_val066
+            lv_val067
+            lv_val068
+            lv_val069
+            lv_val070
+            lv_val071
+            lv_val072
+            lv_val073
+            lv_val074
+            lv_val075
+            lv_val076
+            lv_val077
+            lv_val078
+            lv_val079
+            lv_val080
+            lv_val081
+            lv_val082
+            lv_val083
+            lv_val084
+            lv_val085
+            lv_val086
+            lv_val087
+            lv_val088
+            lv_val089
+            lv_val090
+            lv_val091
+            lv_val092
+            lv_val093
+            lv_val094
+            lv_val095
+            lv_val096
+            lv_val097
+            lv_val098
+            lv_val099
+            lv_val100
+            lv_val101
+            lv_val102
+            lv_val103
+            lv_val104
+            lv_val105
+            lv_val106
+            lv_val107
+            lv_val108
+            lv_val109
+            lv_val110
+            lv_val111
+            lv_val112
+            lv_val113
+            lv_val114
+            lv_val115
+            lv_val116
+            lv_val117
+            lv_val118
+            lv_val119
+            lv_val120
+            lv_val121
+            lv_val122
+            lv_val123
+            lv_val124
+            lv_val125
+            lv_val126
+            lv_val127
+            lv_val128
+            lv_val129
+            lv_val130
+            lv_val131
+            lv_val132
+            lv_val133
+            lv_val134
+            lv_val135
+            lv_val136
+            lv_val137
+            lv_val138
+            lv_val139
+            lv_val140
+            lv_val141
+            lv_val142
+            lv_val143
+            lv_val144
+            lv_val145
+            lv_val146
+            lv_val147
+            lv_val148
+            lv_val149
+            lv_val150
+            lv_val151
+            lv_val152
+            lv_val153
+            lv_val154
+            lv_val155
+            lv_val156
+            lv_val157
+            lv_val158
+            lv_val159
+            lv_val160
+            lv_val161
+            lv_val162
+            lv_val163
+            lv_val164
+            lv_val165
+            lv_val166
+            lv_val167
+            lv_val168
+            lv_val169
+            lv_val170
+            lv_val171
+            lv_val172
+            lv_val173
+            lv_val174
+            lv_val175
+            lv_val176
+            lv_val177
+            lv_val178
+            lv_val179
+            lv_val180
+            lv_val181
+            lv_val182
+            lv_val183
+            lv_val184
+            lv_val185
+            lv_val186
+            lv_val187
+            lv_val188
+            lv_val189
+            lv_val190
+            lv_val191
+            lv_val192
+            lv_val193
+            lv_val194
+            lv_val195
+            lv_val196
+            lv_val197
+            lv_val198
+            lv_val199
+            lv_val200
+            lv_val201
+            lv_val202
+            lv_val203
+            lv_val204
+            lv_val205
+            lv_val206
+            lv_val207
+            lv_val208
+            lv_val209
+            lv_val210
+            lv_val211
+            lv_val212
+            lv_val213
+            lv_val214   "changed by Gauri Tandel - 8000008244 - 18.07.2022
+*        INTO lwa_sftp SEPARATED BY lc_tab         "--CRDK963938
+*        INTO lwa_sftp SEPARATED BY ',' ."lc_tab.  "++CRDK963938 "--commented by Vinit Sawant-8000005554 #CRDK964121 on 06.08.2019
+*        INTO lwa_sftp SEPARATED BY '~|' .          "++ Added by Vinit Sawant-8000005554 #CRDK964121 on 06.08.2019
+        INTO lwa_sftp SEPARATED BY lv_tab . "'~' .         "Added by Charitha as per FS_MM_428 on 25.10.2019 for CR# 8000005879
+        " LOC Added by pranita CR#8000006017 on 03.01.2019
+        TRANSFER lwa_sftp TO lv_appl_path.
+        CLEAR: lwa_sftp.
+
+      ENDLOOP.
+
+    ELSE.
+
+      DATA: lv_date TYPE string.
+      RANGES: r_dateflds FOR lv_date.
+
+      r_dateflds-sign = 'I'. r_dateflds-option = 'EQ'. r_dateflds-low = 'BEDAT'.  APPEND r_dateflds.
+      r_dateflds-sign = 'I'. r_dateflds-option = 'EQ'. r_dateflds-low = 'KDATB'.  APPEND r_dateflds.
+      r_dateflds-sign = 'I'. r_dateflds-option = 'EQ'. r_dateflds-low = 'KDATE'.  APPEND r_dateflds.
+      r_dateflds-sign = 'I'. r_dateflds-option = 'EQ'. r_dateflds-low = 'AGDAT'.  APPEND r_dateflds.
+      r_dateflds-sign = 'I'. r_dateflds-option = 'EQ'. r_dateflds-low = 'BADAT'.  APPEND r_dateflds.  "++VS 8000005554 #CRDK964286 on 19.08.2019
+      r_dateflds-sign = 'I'. r_dateflds-option = 'EQ'. r_dateflds-low = 'EEIND1'. APPEND r_dateflds.
+      r_dateflds-sign = 'I'. r_dateflds-option = 'EQ'. r_dateflds-low = 'GR_CR_DATE'. APPEND r_dateflds.  "++VS 8000005554 #CRDK964286 on 19.08.2019
+      r_dateflds-sign = 'I'. r_dateflds-option = 'EQ'. r_dateflds-low = 'EINDT'.  APPEND r_dateflds.
+      r_dateflds-sign = 'I'. r_dateflds-option = 'EQ'. r_dateflds-low = 'LFDAT'.  APPEND r_dateflds.
+
+      "** S.O.C. by Vinit Sawant - 8000005554 #CRDK964338 13.08.2019 **
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'MENGE'.       APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'LAGMG'.       APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'NETPR'.       APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'KTWRT'.       APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'OFZWT'.       APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'KTWTO'.       APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'KTWTR'.       APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'KTMNG'.       APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'OFZMG'.       APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'KTMGR'.       APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'MGLIEF'.      APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'WTLIEF'.      APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'MGINV'.       APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'WTINV'.       APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'NETWR'.       APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'LAMNG'.       APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ROUGH_QTY'.   APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'BASE'.        APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'STAX'.        APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'EXCISE'.      APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'DEXCISE'.     APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'SATAX'.       APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'EFFWR'.       APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_FRA1'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_FRB1'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_FRC1'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_J1CV'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_JA1X'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_JADC'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_JCDB'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_JCFA'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_JCV1'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_JECS'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_JECV'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_JEDB'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_JEXC'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_JEXP'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_JEXS'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_JINF'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_JINP'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_JLDC'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_JOCM'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_JOFP'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_JOFV'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_JSED'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_NAVS'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_R000'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_R001'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_R002'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_R003'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_YADC'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_YADP'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_YADQ'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_YASV'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_YB00'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_YCV1'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_YEDB'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_YSED'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_Z1CV'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_ZABT'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_ZADC'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_ZADP'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_ZADQ'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_ZAIP'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_ZBEX'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_ZBUY'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_ZCDB'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_ZCDC'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_ZCFP'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_ZCV1'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_ZDOC'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_ZEC2'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_ZECC'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_ZECV'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_ZEDB'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_ZEFR'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_ZELN'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_ZEMC'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_ZEPC'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_ZETB'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_ZETO'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_ZETT'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_ZEX1'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_ZEXE'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_ZEXP'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_ZEXT'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_ZFR2'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_ZHAZ'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_ZICD'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_ZIEV'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_ZINS'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_ZLEX'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_ZLLP'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_ZLOD'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_ZMIP'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_ZMRP'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_ZNCC'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_ZNIF'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_ZNMC'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_ZNPC'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_ZNRC'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_ZPAC'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_ZPAK'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_ZPDV'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_ZRCH'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_ZSDC'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_ZSED'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_ZSEI'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_ZTIF'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_ZTRP'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_K000'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_ZSWS'.    APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'GRN_QTY'.     APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'BUDG_PRICE'.  APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'BUDG_DIFF1'.  APPEND lr_comma.
+      lr_comma-sign = 'I'. lr_comma-option = 'EQ'. lr_comma-low = 'ZLS_ZCHC'.    APPEND lr_comma.  "changed by Gauri Tandel - 8000008244 - 18.07.2022
+
+      lr_zeros-sign = 'I'. lr_zeros-option = 'EQ'. lr_zeros-low = 'MATNR1'.      APPEND lr_zeros.
+      lr_zeros-sign = 'I'. lr_zeros-option = 'EQ'. lr_zeros-low = 'EBELN'.       APPEND lr_zeros.
+      lr_zeros-sign = 'I'. lr_zeros-option = 'EQ'. lr_zeros-low = 'EBELP'.       APPEND lr_zeros.
+      lr_zeros-sign = 'I'. lr_zeros-option = 'EQ'. lr_zeros-low = 'EMATN'.       APPEND lr_zeros.
+      lr_zeros-sign = 'I'. lr_zeros-option = 'EQ'. lr_zeros-low = 'BNFPO'.       APPEND lr_zeros.
+      lr_zeros-sign = 'I'. lr_zeros-option = 'EQ'. lr_zeros-low = 'MF_CODE'.     APPEND lr_zeros.
+      lr_zeros-sign = 'I'. lr_zeros-option = 'EQ'. lr_zeros-low = 'VENDOR_CODE'. APPEND lr_zeros.
+
+      "** E.O.C. by Vinit Sawant - 8000005554 #CRDK964338 13.08.2019 **
+
+      CLEAR: lv_str.
+
+      "" GET FIELDCATALOG FOR COLUMN HEADERS
+      CALL FUNCTION 'REUSE_ALV_FIELDCATALOG_MERGE'
+        EXPORTING
+          i_structure_name       = 'ZMM_MEREP_OUTTAB_PURCHDOC'
+          i_client_never_display = 'X'
+        CHANGING
+          ct_fieldcat            = lta_heads
+        EXCEPTIONS
+          inconsistent_interface = 1
+          program_error          = 2
+          OTHERS                 = 3.
+
+      SORT lta_heads BY fieldname.
+
+      "Start of addition by Charitha as per FS_MM_428 on 25.10.2019 for CR# 8000005879
+      CONSTANTS:lc_epstp(13)          TYPE c VALUE 'EPSTP',
+                lc_lfdat(13)          TYPE c VALUE 'LFDAT',
+                lc_zls_jsed(13)       TYPE c VALUE 'ZLS_JSED',    "Added by Charitha as per FS_MM_471 on 10.02.2020 for CR# 8000006127
+                lc_zls_jcdb(13)       TYPE c VALUE 'ZLS_JCDB',
+                lc_zls_jcfa(13)       TYPE c VALUE 'ZLS_JCFA',
+                lc_zls_jecs(13)       TYPE c VALUE 'ZLS_JECS',
+                lc_zls_jexc(13)       TYPE c VALUE 'ZLS_JEXC',
+                lc_zls_jexs(13)       TYPE c VALUE 'ZLS_JEXS',
+                lc_zls_jinf(13)       TYPE c VALUE 'ZLS_JINF',
+                lc_zls_jinp(13)       TYPE c VALUE 'ZLS_JINP',
+                lc_zls_jldc(13)       TYPE c VALUE 'ZLS_JLDC',
+                lc_zls_navs(13)       TYPE c VALUE 'ZLS_NAVS',
+                lc_zls_r000(13)       TYPE c VALUE 'ZLS_R000',
+                lc_zls_r002(13)       TYPE c VALUE 'ZLS_R002',
+                lc_zls_zcdc(13)       TYPE c VALUE 'ZLS_ZCDC',
+                lc_zls_zcfp(13)       TYPE c VALUE 'ZLS_ZCFP',
+                lc_zls_zdoc(13)       TYPE c VALUE 'ZLS_ZDOC',
+                lc_zls_zec2(13)       TYPE c VALUE 'ZLS_ZEC2',
+                lc_zls_zefr(13)       TYPE c VALUE 'ZLS_ZEFR',
+                lc_zls_zeln(13)       TYPE c VALUE 'ZLS_ZELN',
+                lc_zls_zemc(13)       TYPE c VALUE 'ZLS_ZEMC',
+                lc_zls_zepc(13)       TYPE c VALUE 'ZLS_ZEPC',
+                lc_zls_zetb(13)       TYPE c VALUE 'ZLS_ZETB',
+                lc_currency(13)       TYPE c VALUE 'CURRENCY',
+                lc_currencyb(13)      TYPE c VALUE 'CURRENCYB',
+                lc_currencyt(13)      TYPE c VALUE 'CURRENCYT',
+                lc_currencye(13)      TYPE c VALUE 'CURRENCYE',
+                lc_currencyd(13)      TYPE c VALUE 'CURRENCYD',
+                lc_currencys(13)      TYPE c VALUE 'CURRENCYS',
+                lc_ex_waers(13)       TYPE c VALUE 'EX_WAERS',
+                lc_pstyp(13)          TYPE c VALUE 'PSTYP',
+                lc_zls_zadp(13)       TYPE c VALUE 'ZLS_ZADP',
+                lc_zls_zadq(13)       TYPE c VALUE 'ZLS_ZADQ',
+                lc_zls_r003(13)       TYPE c VALUE 'ZLS_R003',
+                lc_zls_yadp(13)       TYPE c VALUE 'ZLS_YADP',
+                lc_zls_yadq(13)       TYPE c VALUE 'ZLS_YADQ',
+                lc_zls_yasv(13)       TYPE c VALUE 'ZLS_YASV',
+                lc_zls_yb00(13)       TYPE c VALUE 'ZLS_YB00',
+                lc_zls_yedb(13)       TYPE c  VALUE 'ZLS_YEDB',
+                lc_zls_ysed(13)       TYPE c  VALUE 'ZLS_YSED',
+                lc_zls_zcdb(13)       TYPE c VALUE 'ZLS_ZCDB',
+                lc_zls_z1cv(13)       TYPE c  VALUE 'ZLS_Z1CV',
+                lc_zls_zett(13)       TYPE c VALUE 'ZLS_ZETT',
+                lc_zls_zex1(13)       TYPE c VALUE 'ZLS_ZEX1',
+                lc_zls_zexe(13)       TYPE c VALUE 'ZLS_ZEXE',
+                lc_zls_zext(13)       TYPE c VALUE 'ZLS_ZEXT',
+                lc_zls_zicd(13)       TYPE c VALUE 'ZLS_ZICD',
+                lc_zls_ziev(13)       TYPE c VALUE 'ZLS_ZIEV',
+                lc_zls_zlex(13)       TYPE c VALUE 'ZLS_ZLEX',
+                lc_zls_zllp(13)       TYPE c VALUE 'ZLS_ZLLP',
+                lc_zls_zlod(13)       TYPE c VALUE 'ZLS_ZLOD',
+                lc_zls_zmip(13)       TYPE c VALUE 'ZLS_ZMIP', "*
+                lc_zls_zncc(13)       TYPE c VALUE 'ZLS_ZNCC',
+                lc_zls_znif(13)       TYPE c VALUE 'ZLS_ZNIF',
+                lc_zls_znmc(13)       TYPE c VALUE 'ZLS_ZNMC',
+                lc_zls_znpc(13)       TYPE c VALUE 'ZLS_ZNPC',
+                lc_zls_znrc(13)       TYPE c VALUE 'ZLS_ZNRC',
+                lc_zls_zpak(13)       TYPE c VALUE 'ZLS_ZPAK',
+                lc_zls_zpdv(13)       TYPE c VALUE 'ZLS_ZPDV',
+                lc_zls_zsei(13)       TYPE c VALUE 'ZLS_ZSEI',
+                lc_zls_ztif(13)       TYPE c VALUE 'ZLS_ZTIF',
+                lc_budg_diff(13)      TYPE c VALUE 'BUDG_DIFF',
+                lc_zls_zrch(13)       TYPE c VALUE 'ZLS_ZRCH',
+                lc_grn_uom(13)        TYPE c VALUE 'GRN_UOM',
+                lc_zls_ztrp(13)       TYPE c VALUE 'ZLS_ZTRP',
+                lc_budg_diff_sign(20) TYPE c VALUE 'BUDG_DIFF_SIGN',
+                lc_budg_diff1(20)     TYPE c VALUE 'BUDG_DIFF1',
+*             "added By Nilesh 06.12.2019   8000005657
+                lc_memorytype(30)     TYPE c VALUE 'MEMORYTYPE',
+                lc_procstat(30)       TYPE c VALUE 'PROCSTAT',
+                lc_idnlf(30)          TYPE c VALUE 'IDNLF',
+                lc_zls_zaip(30)       TYPE c VALUE  'ZLS_ZAIP',
+                lc_ex_rate(30)        TYPE c VALUE  'EX_RATE',
+                lc_zls_zecc(30)       TYPE c VALUE  'ZLS_ZECC',
+                lc_zls_frb1(30)       TYPE c VALUE  'ZLS_FRB1',
+                lc_zls_fra1(30)       TYPE c VALUE  'ZLS_FRA1',
+                lc_zls_jadc(30)       TYPE c VALUE  'ZLS_JADC',
+                lc_zls_jofv(30)       TYPE c VALUE  'ZLS_JOFV',
+                lc_zls_zpac(30)       TYPE c VALUE  'ZLS_ZPAC',
+                lc_zls_zchc(30)       TYPE c VALUE  'ZLS_ZCHC'.         "changed by Gauri Tandel - 8000008244 - 18.07.2022
+*           EOC By Nilesh 06.12.2019  8000005657
+      "End of addition by Charitha as per FS_MM_428 on 25.10.2019 for CR# 8000005879
+
+      LOOP AT ta_ltdx INTO DATA(lwa_ltdx).
+        READ TABLE lta_heads INTO DATA(lwa_heads) WITH KEY fieldname = lwa_ltdx-key1 BINARY SEARCH.
+        IF sy-subrc = 0.
+
+          ASSIGN COMPONENT 'SELTEXT_L' OF STRUCTURE lwa_heads TO <fs_val>.
+          IF sy-subrc = 0.
+
+            "Start of addition by Charitha as per FS_MM_428 on 25.10.2019 for CR# 8000005879
+            CASE lwa_heads-fieldname.
+              WHEN lc_epstp.
+                MOVE lv_t016 TO <fs_val>.
+              WHEN lc_lfdat.
+                MOVE lv_t095 TO <fs_val>.
+              WHEN lc_zls_zrch.
+                MOVE lv_t194 TO <fs_val>.
+              WHEN lc_currency.
+                MOVE lv_t097 TO <fs_val>.
+              WHEN lc_currencyb.
+                MOVE lv_t099 TO <fs_val>.
+              WHEN lc_currencyt.
+                MOVE lv_t101 TO <fs_val>.
+              WHEN lc_currencye.
+                MOVE lv_t103 TO <fs_val>.
+              WHEN lc_currencyd.
+                MOVE lv_t105 TO <fs_val>.
+              WHEN lc_currencys.
+                MOVE lv_t107 TO <fs_val>.
+              WHEN lc_pstyp.
+                MOVE lv_t015 TO <fs_val>.
+              WHEN lc_budg_diff_sign.
+                MOVE lv_t210 TO <fs_val>.
+              WHEN lc_budg_diff1.
+                MOVE lv_t211 TO <fs_val>.
+              WHEN lc_ex_waers.
+                MOVE lv_t212 TO <fs_val>.
+              WHEN lc_zls_jcdb.
+                MOVE lv_t118 TO <fs_val>.
+              WHEN lc_zls_jcfa.
+                MOVE lv_t119 TO <fs_val>.
+              WHEN lc_zls_jecs.
+                MOVE lv_t121 TO <fs_val>.
+              WHEN lc_zls_jexs.
+                MOVE lv_t126 TO <fs_val>.
+              WHEN lc_zls_jinf.
+                MOVE lv_t127 TO <fs_val>.
+              WHEN lc_zls_jinp.
+                MOVE lv_t128 TO <fs_val>.
+              WHEN lc_zls_jldc.
+                MOVE lv_t129 TO <fs_val>.
+              WHEN lc_zls_jsed.
+                MOVE lv_t133 TO <fs_val>. "Added by Charitha as per FS_MM_471 on 10.02.2020 for CR# 8000006127
+              WHEN lc_zls_navs.
+                MOVE lv_t134 TO <fs_val>.
+              WHEN lc_zls_r000.
+                MOVE lv_t135 TO <fs_val>.
+              WHEN lc_zls_r002.
+                MOVE lv_t137 TO <fs_val>.
+              WHEN lc_zls_r003.
+                MOVE lv_t138 TO <fs_val>.
+              WHEN lc_zls_yadp.
+                MOVE lv_t140 TO <fs_val>.
+              WHEN lc_zls_yadq.
+                MOVE lv_t141 TO <fs_val>.
+              WHEN lc_zls_yasv.
+                MOVE lv_t142 TO <fs_val>.
+              WHEN lc_zls_yb00.
+                MOVE lv_t143 TO <fs_val>.
+              WHEN lc_zls_yedb.
+                MOVE lv_t146 TO <fs_val>.
+              WHEN lc_zls_ysed.
+                MOVE lv_t147 TO <fs_val>.
+              WHEN lc_zls_z1cv.
+                MOVE lv_t148 TO <fs_val>.
+              WHEN lc_zls_zadp.
+                MOVE lv_t151 TO <fs_val>.
+              WHEN lc_zls_zadq.
+                MOVE lv_t152 TO <fs_val>.
+              WHEN lc_zls_zcdb.
+                MOVE lv_t156 TO <fs_val>.
+              WHEN lc_zls_zcdc.
+                MOVE lv_t157 TO <fs_val>.
+              WHEN lc_zls_zcfp.
+                MOVE lv_t158 TO <fs_val>.
+              WHEN lc_zls_zdoc.
+                MOVE lv_t160 TO <fs_val>.
+              WHEN lc_zls_zec2.
+                MOVE lv_t161 TO <fs_val>.
+              WHEN lc_zls_zefr.
+                MOVE lv_t165 TO <fs_val>.
+              WHEN lc_zls_zeln.
+                MOVE lv_t166 TO <fs_val>.
+              WHEN lc_zls_zemc.
+*                MOVE lv_t168 TO <fs_val>.
+                MOVE lv_t167 TO <fs_val>.  "Changed by Charitha as per FS_MM_471 on 10.02.2020 for CR# 8000006127
+              WHEN lc_zls_zetb.
+                MOVE lv_t169 TO <fs_val>.
+              WHEN lc_zls_zepc.
+*                MOVE lv_t167 TO <fs_val>.
+                MOVE lv_t168 TO <fs_val>.  "Changed by Charitha as per FS_MM_471 on 10.02.2020 for CR# 8000006127
+              WHEN lc_zls_zett.
+                MOVE lv_t171 TO <fs_val>.
+              WHEN lc_grn_uom.
+                MOVE lv_t204 TO <fs_val>.
+              WHEN lc_zls_zex1.
+                MOVE lv_t172 TO <fs_val>.
+              WHEN lc_zls_zexe.
+                MOVE lv_t173 TO <fs_val>.
+              WHEN lc_zls_zext.
+                MOVE lv_t175 TO <fs_val>.
+              WHEN lc_zls_zicd.
+                MOVE lv_t178 TO <fs_val>.
+              WHEN lc_zls_ziev.
+                MOVE lv_t179 TO <fs_val>.
+              WHEN lc_zls_zlex.
+                MOVE lv_t181 TO <fs_val>.
+              WHEN lc_zls_zllp.
+                MOVE lv_t182 TO <fs_val>.
+              WHEN lc_zls_zlod.
+                MOVE lv_t183 TO <fs_val>.
+              WHEN lc_zls_zncc.
+                MOVE lv_t186 TO <fs_val>.
+              WHEN lc_zls_znif.
+                MOVE lv_t187 TO <fs_val>.
+              WHEN lc_zls_znmc.
+                MOVE lv_t188 TO <fs_val>.
+              WHEN lc_zls_znpc.
+                MOVE lv_t189 TO <fs_val>.
+              WHEN lc_zls_znrc.
+                MOVE lv_t190 TO <fs_val>.
+              WHEN lc_zls_zpak.
+                MOVE lv_t192 TO <fs_val>.
+              WHEN lc_zls_zpdv.
+                MOVE lv_t193 TO <fs_val>.
+              WHEN lc_zls_zsei.
+                MOVE lv_t197 TO <fs_val>.
+              WHEN lc_zls_ztif.
+                MOVE lv_t198 TO <fs_val>.
+              WHEN lc_zls_ztrp.
+                MOVE lv_t199 TO <fs_val>.
+              WHEN lc_budg_diff.
+                MOVE lv_t208 TO <fs_val>.
+****         SOC bY Nilesh 06.12.2019 8000005657
+              WHEN lc_memorytype.
+                MOVE lv_t061 TO <fs_val>.
+              WHEN lc_procstat.
+                MOVE lv_t067 TO <fs_val>.
+              WHEN lc_idnlf.
+                MOVE lv_t085 TO <fs_val>.
+              WHEN lc_zls_zaip.
+                MOVE lv_t153 TO <fs_val>.
+              WHEN lc_ex_rate.
+                MOVE lv_t213 TO <fs_val>.
+              WHEN lc_zls_zecc.
+                MOVE lv_t159 TO <fs_val>.
+              WHEN lc_zls_frb1.
+                MOVE lv_t113 TO <fs_val>.
+              WHEN lc_zls_fra1.
+                MOVE lv_t112 TO <fs_val>.
+              WHEN lc_zls_jadc.
+                MOVE lv_t117 TO <fs_val>.
+              WHEN lc_zls_jexc.
+                MOVE lv_t124 TO <fs_val>.
+              WHEN lc_zls_jofv.
+                MOVE lv_t132 TO <fs_val>.
+              WHEN lc_zls_zpac.
+                MOVE lv_t191 TO <fs_val>.
+              WHEN lc_zls_zmip.
+                MOVE lv_t184 TO <fs_val>.
+              WHEN lc_zls_zchc.                      "changed by Gauri Tandel - 8000008244 - 18.07.2022
+                MOVE lv_t214 TO <fs_val>.
+****         EOC bY Nilesh 06.12.2019 8000005657
+            ENDCASE.
+            "End of addition by Charitha as per FS_MM_428 on 25.10.2019 for CR# 8000005879
+
+            lv_str = CONV #( <fs_val> ). CONDENSE lv_str.
+*            lwa_sftp = |{ lwa_sftp }{ lv_str }{ lc_tab }|.     "--commented by VSAWANT 8000005554:CRDK963938 on 25.07.2019
+*            lwa_sftp = |{ lwa_sftp }{ lv_str }{ '~|' }|.         "++added by VSAWANT 8000005554:CRDK963938 on 25.07.2019
+            lwa_sftp = |{ lwa_sftp }{ lv_str }{ lv_tab }|.         "Added by Charitha as per FS_MM_428 on 25.10.2019 for CR# 8000005879
+            " added by pranita for
+            UNASSIGN: <fs_val>.
+          ENDIF.
+        ENDIF.
+      ENDLOOP.
+
+      "" ON APPENDING THE RECORD
+      CONDENSE lwa_sftp.
+      IF lwa_sftp IS NOT INITIAL.
+*        lv_len = strlen( lwa_sftp ) - 1. "-- commented by VS-8000005554 #CRDK964387 22.08.2019
+        lv_len = strlen( lwa_sftp ).     "++ added by VS-8000005554 #CRDK964387 22.08.2019
+        lv_len = lv_len - 1. "Added by Tushar for the CR#8000006195
+        lwa_sftp = lwa_sftp+0(lv_len).
+
+        TRANSFER lwa_sftp TO lv_appl_path.
+        CLEAR: lwa_sftp, lv_str.
+      ENDIF.
+
+      LOOP AT ta_data INTO lwa_out.
+
+        "S.O.C Commented by Vinit Sawant-8000005554 #CRDK964121 on 06.08.2019
+
+**** S.O.C. by Vinit Sawant - 8000005554 #CRDK963938 26.07.2019 **
+**        REPLACE ALL OCCURRENCES OF ',' IN lwa_out-superfield WITH ' '.
+**        REPLACE ALL OCCURRENCES OF ',' IN lwa_out-txz01  WITH ' '.
+**        REPLACE ALL OCCURRENCES OF ',' IN lwa_out-vendor_name WITH ' '.
+**        REPLACE ALL OCCURRENCES OF ',' IN lwa_out-vendor_name1 WITH ' '.
+**        REPLACE ALL OCCURRENCES OF ',' IN lwa_out-mf_name  WITH ' '.
+**        REPLACE ALL OCCURRENCES OF ',' IN lwa_out-plant_name  WITH ' '.
+**        REPLACE ALL OCCURRENCES OF ',' IN lwa_out-wgbez  WITH ' '.
+**        REPLACE ALL OCCURRENCES OF ',' IN lwa_out-vendor_name1  WITH ' '.
+**        REPLACE ALL OCCURRENCES OF ',' IN lwa_out-zmatktx  WITH ' '.
+**** E.O.C. by Vinit Sawant - 8000005554 #CRDK963938 26.07.2019 **
+
+        "E.O.C Commented by Vinit Sawant-8000005554 #CRDK964121 on 06.08.2019
+
+        LOOP AT ta_ltdx INTO lwa_ltdx.
+          ASSIGN COMPONENT lwa_ltdx-key1 OF STRUCTURE lwa_out TO <fs_val>.
+          IF sy-subrc = 0.
+            IF lwa_ltdx-key1 = 'MATNR1'.
+
+              <fs_val>  =  |{ <fs_val>  ALPHA = OUT }|." added by SamdaniShareef ##8000005552 ##8000005552
+            ELSEIF lwa_ltdx-key1 = 'ZMATKTX'.   "Added by Charitha as per FS_MM_428 on 25.10.2019 for CR# 8000005879
+              MOVE ' '  TO <fs_val>.
+*SOC By Tushar for the CR#8000006195 16.03.2020
+            ELSEIF lwa_ltdx-key1 = 'ICON_COMP_CONS'.
+              MOVE ' '  TO <fs_val>.
+            ELSEIF lwa_ltdx-key1 = 'ICON_PO_HIST'.
+              MOVE ' '  TO <fs_val>.
+            ELSEIF lwa_ltdx-key1 = 'BEDNR'.
+              MOVE ' '  TO <fs_val>.
+            ELSEIF lwa_ltdx-key1 = 'DTEXT'.
+              MOVE ' '  TO <fs_val>.
+            ELSEIF lwa_ltdx-key1 = 'ITEM_TEXT'.
+              MOVE ' '  TO <fs_val>.
+*EOC By Tushar for the CR#8000006195 16.03.2020
+            ENDIF.
+            lv_str = CONV #( <fs_val> ). CONDENSE lv_str.
+
+*     S.O.C. by Shivraj-CR#8000004664-05.11.2025
+            SELECT SINGLE param_name
+            FROM zparam_table
+            INTO @DATA(lwa_param1)
+            WHERE id_name = @lc_char.
+
+            IF sy-subrc = 0.
+              TRANSLATE lv_str USING lwa_param1.
+              REPLACE ALL OCCURRENCES OF REGEX lwa_param1 IN lv_str WITH ' ' .
+              REPLACE ALL OCCURRENCES OF cl_abap_char_utilities=>cr_lf IN lv_str WITH ' '.
+              REPLACE ALL OCCURRENCES OF cl_abap_char_utilities=>newline IN lv_str WITH ' '.
+              REPLACE ALL OCCURRENCES OF cl_abap_char_utilities=>horizontal_tab IN lv_str WITH ' '.
+
+              CONDENSE lv_str.
+            ENDIF.
+*    E.O.C. by Shivraj-CR#8000004664-05.11.2025
+
+            IF lwa_ltdx-key1 IN r_dateflds.
+*              lv_str = |{ lv_str+6(2) }-{ lv_str+4(2) }-{ lv_str+0(4) }|.  "--commented by VSAWANT 8000005554:#CRDK964202 13.08.2019
+*              IF lv_str IS INITIAL.                             "++added by VSAWANT 8000005554:CRDK963938 on 25.07.2019 "--CRDK964286
+              IF lv_str IS INITIAL OR lv_str = '00000000'.       "++added by VSAWANT 8000005554:CRDK964286 on 19.08.2019
+                CLEAR : lv_str.
+              ENDIF.                                                "++added by VSAWANT 8000005554:CRDK963938 on 25.07.2019
+*              lwa_sftp = |{ lwa_sftp }{ lv_str }{ '~|'}|.         "++added by VSAWANT 8000005554:CRDK963938 on 25.07.2019  "--CRDK964286
+            ENDIF.
+
+
+** S.O.C. by Vinit Sawant - 8000005554 #CRDK964338 13.08.2019 **
+            IF lwa_ltdx-key1 IN lr_comma.
+
+              IF lv_str LT 0.
+                CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+                  CHANGING
+                    value = lv_str.
+                .
+              ENDIF.
+
+              REPLACE ALL OCCURRENCES OF ',' IN lv_str WITH ' '.
+              CONDENSE lv_str.
+            ENDIF.
+
+            IF lwa_ltdx-key1 IN lr_zeros.
+              SHIFT lv_str LEFT DELETING LEADING '0'.
+              CONDENSE lv_str.
+            ENDIF.
+** E.O.C. by Vinit Sawant - 8000005554 #CRDK964338 13.08.2019 **
+
+*            lwa_sftp = |{ lwa_sftp }{ lv_str }{ '~|'}|.         "++added by VSAWANT 8000005554:CRDK964286 on 19.08.2019
+            lwa_sftp = |{ lwa_sftp }{ lv_str }{ lv_tab }|.         "Added by Charitha as per FS_MM_428 on 25.10.2019 for CR# 8000005879
+          ENDIF.                                                  "++added by VSAWANT 8000005554:CRDK963938 on 25.07.2019
+*          CLEAR lwa_out.                                       "--commented by VSAWANT 8000005554:#CRDK964202 13.08.2019
+        ENDLOOP.
+*SOC by Tushar for the CR#8000006195 16.03.2020
+        DATA(lv_strng) = strlen( lwa_sftp ).
+        lv_strng = lv_strng - 1.
+        lwa_sftp = lwa_sftp+0(lv_strng).
+*EOC by Tushar for the CR#8000006195 16.03.2020
+        "" ON APPENDING THE RECORD
+        CONDENSE lwa_sftp.
+        IF lwa_sftp IS NOT INITIAL.
+*          lv_len = strlen( lwa_sftp ) - 1.  "-- commented by VS-8000005554 #CRDK964387 22.08.2019
+          lv_len = strlen( lwa_sftp ).       "++  added by VS-8000005554 #CRDK964387 22.08.2019
+*          lv_len = lv_len - 1. "Added by Tushar for the CR#8000006195
+          lwa_sftp = lwa_sftp+0(lv_len).
+
+          TRANSFER lwa_sftp TO lv_appl_path.
+          CLEAR: lwa_sftp, lv_str.
+        ENDIF.
+        CLEAR lwa_out.                                          "++added by VSAWANT 8000005554:#CRDK964202 13.08.2019
+      ENDLOOP.
+
+    ENDIF.
+
+    CLOSE DATASET lv_appl_path.
+    lv_str = |{ text-200 } { lv_appl_path }|.
+    MESSAGE lv_str TYPE lc_succ.
+
+  ENDIF.
+*  ENDIF.
+
+ENDFORM.

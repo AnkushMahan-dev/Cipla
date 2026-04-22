@@ -1,0 +1,96 @@
+*----------------------------------------------------------------------*
+***INCLUDE ZPP_SCM_ANALYTICS_CR_BLOCK.
+*----------------------------------------------------------------------*
+*&      Form  CREDIT_BLOCK
+*&---------------------------------------------------------------------*
+FORM credit_block .
+TYPES: BEGIN OF ty_ftp_crb,
+       line(50),
+       END OF ty_ftp_crb.
+DATA: wa_ftp_crb TYPE ty_ftp_crb,
+      ta_ftp_crb TYPE TABLE OF ty_ftp_crb.
+ SELECT vbeln FROM WB2_V_VBAK_VBAP2 INTO TABLE @data(ta_vbak_vbap2)
+      WHERE vbeln_I IN @CR_VBELN      AND
+            POSNR_I IN @CR_POSNR      AND
+            ERDAT   IN @CR_ERDAT      AND
+            VDATU   IN @CR_EDATU      AND
+            AUART   IN @CR_AUART      AND
+            VKORG   IN @CR_VKORG      AND
+            VKBUR   IN @CR_VKBUR      AND
+            VTWEG   IN @CR_VTWEG      AND
+            SPART   IN @CR_SPART      AND
+            AUGRU   IN @CR_AUGRU      AND
+            ABGRU_i IN @CR_ABGRU.
+
+  IF ta_vbak_vbap2[] IS NOT INITIAL.
+    SELECT vbeln, cmpsb, cmgst  FROM vbuk INTO TABLE @data(ta_vbuk)
+     for ALL ENTRIES IN @ta_vbak_vbap2
+      where vbeln = @ta_vbak_vbap2-vbeln AND
+            ( cmgst IN @CR_CMGST OR
+            cmpsb IN @CR_CMPSB ).
+  ENDIF.
+LOOP AT ta_vbuk INTO data(wa_vbuk).
+READ TABLE ta_vbak_vbap2 INTO data(wa_vbak_vbap2) WITH KEY vbeln = wa_vbuk-vbeln.
+IF sy-subrc EQ 0.
+wa_credit-vbeln = wa_vbuk-vbeln.
+wa_credit-cmpsb = wa_vbuk-cmpsb.
+wa_credit-cmgst = wa_vbuk-cmgst.
+append wa_credit to TA_CREDIT.
+CLEAR: wa_credit, wa_vbak_vbap2.
+ENDIF.
+ENDLOOP.
+IF TA_CREDIT[] IS NOT INITIAL.
+CLEAR: wa_ftp_crb, ta_ftp_crb[], lv_file.
+CONCATENATE
+'sales_doc'
+'cred_stat'
+'dyn_chk' INTO wa_ftp_crb SEPARATED BY lv_tab. " wa_ftp has been replaced by wa_ftp_crb against ticket no.  8000004920
+APPEND wa_ftp_crb to ta_ftp_crb." wa_ftp has been replaced by wa_ftp_crb against ticket no.  8000004920
+CLEAR wa_ftp_crb.
+LOOP AT TA_CREDIT INTO wa_credit.
+SHIFT wa_credit-vbeln LEFT DELETING LEADING '0'.
+CONCATENATE
+wa_credit-vbeln
+wa_credit-cmpsb
+wa_credit-cmgst INTO wa_ftp_crb SEPARATED BY lv_tab. "" wa_ftp has been replaced by wa_ftp_crb against ticket no.  8000004920
+append wa_ftp_crb to ta_ftp_crb. " wa_ftp has been replaced by wa_ftp_crb against ticket no.  8000004920
+CLEAR wa_ftp_crb.
+ENDLOOP.
+ PERFORM connect_2_ftp USING g_dest CHANGING g_hdl exp5.
+CLEAR: wa_ftp_crb,lv_file.
+
+IF exp5 IS INITIAL AND ta_ftp_crb[] IS NOT INITIAL.
+IF cr_r1 = 'X'.
+  CONCATENATE lv_file1 'customer_credblock.txt' INTO lv_file.
+ELSEIF cr_r2 = 'X'.
+  CONCATENATE lv_file1 'customer_credblock_' sy-datum+4(2) sy-datum+0(4) '.txt' INTO lv_file.
+ELSEIF cr_r3 = 'X'.
+  CONCATENATE lv_file1 'customer_credblock_' sy-datum+6(2) sy-datum+4(2) sy-datum+0(4) '.txt' INTO lv_file.
+ENDIF.
+
+IF lv_file IS NOT INITIAL.
+*PERFORM send_2_ftp USING lv_file.
+*FTP_R3_TO_SERVER:used to transfer the internal table data as a file to other system in the character mode.
+  CALL FUNCTION 'FTP_R3_TO_SERVER'
+    EXPORTING
+      handle         = g_hdl
+      fname          = lv_file "p_lv_file          "file path of destination system
+      character_mode = 'X'
+    TABLES
+      text           = ta_ftp_crb
+    EXCEPTIONS
+      tcpip_error    = 1
+      command_error  = 2
+      data_error     = 3
+      OTHERS         = 4.
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+    WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4
+    RAISING invalid_output_file.
+  ENDIF.
+ENDIF.
+ENDIF.
+PERFORM disconnect_ftp USING g_hdl g_dest.
+************************** " End of Process to Send file on FTP Server***********************
+ENDIF.
+ENDFORM.

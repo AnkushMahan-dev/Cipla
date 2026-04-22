@@ -1,0 +1,4421 @@
+*----------------------------------------------------------------------*
+* Program         ZMM_RPO0015
+* Title             : Program to Upload data in ZMM_PO_OTIFSCL
+* Author            : Nikita Khanekar
+* Program Type      : Upload Program
+* Creation Date     : 07-19-2019
+* Transaction       : ZMM_OTIF2
+* Functional design : FS_MM_239_OTIF
+* Technical design  : <document with technical specifications>
+* Change request    : <change request number>
+* Transport number  : CRDK963592
+* Description       : Copied Program from ZMM_RPO0015
+*                   Added New Columns for
+*                   System Source
+*                   Purchasing Category
+*                   Purchasing Team
+*                   PO Buyer name
+*                   Catalog / Non Catalog
+*                   Bulk Material
+*                   Short Text
+*                   OT Days
+*                   Delivery %
+*                   PO2 GRN USAGE
+*                   Modified Remarks
+*                   OTIF FINAL MET PO
+*                   OTIF FINAL UNMET PO
+*                   LEAD TIME vs PR
+*                   Short Lead time in PR
+*                   Added SFTP Option
+*----------------------------------------------------------------------*
+* Modification Information
+* Date            : 10.12.2020/29.12.2020
+* Author          : Nilesh dabhekar
+* Change request  : CRDK975034 /CRDK975302/CRDK975333/ CRDK975417
+* Ticket No       : 8000005577
+* Description     : OTIF report changes
+*----------------------------------------------------------------------*
+* Modification Information
+* Author          : Sushil Pandey
+* Date            : 27.01.2021
+* Change request  : <CRDK975927>
+* Ticket No       : 8000006894
+* Description     : Output of OTIF report- PO and PR is being dumped into
+*                   table
+*----------------------------------------------------------------------*
+* Modification Information
+* Author          : Gauri Tandel,Shubhangi Khetmalis
+* Date            : 02.08.2022
+* Change request  : CRDK984211, CRDK985741
+* Ticket No       : 8000006894
+* Description     : Resolution of dumps and changed displayed Date
+*                    in tables
+*----------------------------------------------------------------------*
+* Modification Information
+* Author          : Lalitha
+* Date            : 16.01.2023
+* Change request  : CRDK985985
+* Ticket No       : 8000006894
+* Description     : Corrected the wrong calculation in the fileds
+*                   OT days,delivery%,lead time vs PR.
+*----------------------------------------------------------------------*
+* Modification Information
+* Author          : Lalitha
+* Date            : 05.06.2023
+* Change request  :
+* Ticket No       : 8000009039
+* Description     : correction for Planned del.time is not updating table
+*----------------------------------------------------------------------*
+* Modification Information
+* Author          : Debasmita Bhatta
+* Date            : 02.08.2023
+* Change request  : CRDK987768
+* Ticket No       : 8000009151
+* Description     : Revoming the date check
+*----------------------------------------------------------------------*
+
+REPORT zmm_rpo0015.
+TYPE-POOLS slis.
+TABLES: ekko,ekpo,eket,ekkn,ekbe,mkpf,mseg,eban.
+*----------------------------------------------------------------------*
+*  S E L E C T - O P T I O N S  &  P A R A M E T E R S                 *
+*----------------------------------------------------------------------*
+SELECTION-SCREEN: BEGIN OF BLOCK b4 WITH FRAME TITLE text-100.
+
+PARAMETERS : r1 RADIOBUTTON GROUP g1 USER-COMMAND cmd,
+             r2 RADIOBUTTON GROUP g1.
+
+SELECTION-SCREEN: END OF BLOCK b4.
+
+SELECTION-SCREEN: BEGIN OF BLOCK b1 WITH FRAME TITLE text-001.
+SELECT-OPTIONS: s_bsart FOR ekko-bsart ,
+                s_bstyp FOR ekko-bstyp ,
+                s_lifnr FOR ekko-lifnr ,
+                s_zterm FOR ekko-zterm ,
+                s_ekorg FOR ekko-ekorg ,
+                s_ekgrp FOR ekko-ekgrp ,
+                s_inco1 FOR ekko-inco1 ,
+                s_matnr FOR ekpo-matnr ,
+                s_werks FOR ekpo-werks ,
+                s_lgort FOR ekpo-lgort ,
+                s_bednr FOR ekpo-bednr ,
+                s_matkl FOR ekpo-matkl .
+
+SELECTION-SCREEN: END OF BLOCK b1.
+
+SELECTION-SCREEN: BEGIN OF BLOCK b5 WITH FRAME TITLE text-001.
+PARAMETERS : p_days  TYPE marc-plifz,
+             p_qty   TYPE ekpo-menge,
+             p_prsdt TYPE eket-eindt,
+             p_predt TYPE eket-eindt.
+
+SELECTION-SCREEN: END OF BLOCK b5.
+
+SELECTION-SCREEN: BEGIN OF BLOCK b2 WITH FRAME TITLE text-101.
+
+SELECT-OPTIONS: s_ebeln FOR ekko-ebeln,
+                s_frgke FOR ekko-frgke,
+                s_memory FOR ekko-memory,
+                s_bedat FOR ekko-bedat,
+                s_poddt FOR eket-eindt,
+                s_podel FOR ekko-loekz.
+
+SELECTION-SCREEN: END OF BLOCK b2.
+
+
+SELECTION-SCREEN: BEGIN OF BLOCK b3 WITH FRAME TITLE text-102.
+
+SELECT-OPTIONS : s_prdoty FOR eban-bsart,
+                 s_banfn  FOR eban-banfn,
+                 s_frgkzp FOR eban-frgkz,
+                 s_mempr FOR eban-memory,
+                 s_badatp FOR eban-badat,
+                 s_prddt FOR eket-eindt,
+                 s_prdel FOR ekko-loekz,
+                 s_eindt FOR eket-eindt.
+
+SELECTION-SCREEN: END OF BLOCK b3.
+
+SELECTION-SCREEN BEGIN OF BLOCK b6 WITH FRAME TITLE text-103.
+PARAMETERS : p_fore RADIOBUTTON GROUP grp2 DEFAULT 'X',
+             p_back RADIOBUTTON GROUP grp2.
+SELECTION-SCREEN END OF BLOCK b6.
+
+*----------------------------------------------------------------------*
+*  D A T A                                                             *
+*----------------------------------------------------------------------*
+
+TYPES :BEGIN OF ty_ekko_ekpo_eket,
+         ebeln        TYPE eket-ebeln,
+         ebelp        TYPE eket-ebelp,
+         etenr        TYPE eket-etenr,
+         eindt        TYPE eket-eindt,
+         menge        TYPE eket-menge,
+         wemng        TYPE eket-wemng,
+         bukrs        TYPE ekko-bukrs,
+         bstyp        TYPE ekko-bstyp,
+         bsart        TYPE ekko-bsart,
+         aedat        TYPE ekko-aedat,
+         ernam        TYPE ekko-ernam,
+         lifnr        TYPE ekko-lifnr,
+         zterm        TYPE ekko-zterm,
+         ekorg        TYPE ekko-ekorg,
+         ekgrp        TYPE ekko-ekgrp,
+         waers        TYPE ekko-waers,
+         bedat        TYPE ekko-bedat,
+         inco1        TYPE ekko-inco1,
+         inco2        TYPE ekko-inco2,
+         frgke        TYPE  ekko-frgke,
+         memory       TYPE ekko-memory,
+         wkurs        TYPE ekko-wkurs, """ Exchange Rate
+         loekz        TYPE ekpo-loekz,
+         matnr        TYPE  ekpo-matnr,
+         werks        TYPE  ekpo-werks,
+         lgort        TYPE  ekpo-lgort,
+         bednr        TYPE  ekpo-bednr,
+         matkl        TYPE  ekpo-matkl,
+         menge_ekpo   TYPE ekpo-menge,
+         meins        TYPE ekpo-meins,
+         netwr        TYPE ekpo-netwr,
+         brtwr        TYPE ekpo-brtwr,
+         untto        TYPE ekpo-untto,
+         elikz        TYPE ekpo-elikz,
+         banfn        TYPE  ekpo-banfn,
+         bnfpo        TYPE  ekpo-bnfpo,
+         retpo        TYPE ekpo-retpo,
+         mfrnr        TYPE  ekpo-mfrnr,
+         eket_qty     TYPE eket-menge,
+         cum_eket_qty TYPE eket-menge,
+         ekbe_budat   TYPE ekbe-budat,
+         ekbe_qty     TYPE eket-menge,
+         eket_key(15) TYPE c,
+         del_flg(01)  TYPE c,
+         konnr        TYPE ekpo-konnr,
+         txz01        TYPE ekpo-txz01,
+       END OF ty_ekko_ekpo_eket.
+
+TYPES : BEGIN OF ty_zmm_otif_tol,
+          ekgrp   TYPE zmm_otif_tol-ekgrp,
+          zplifz1 TYPE zmm_otif_tol-zplifz1,
+          zplifz2 TYPE zmm_otif_tol-zplifz2,
+          untto   TYPE zmm_otif_tol-untto,
+          uebto   TYPE zmm_otif_tol-uebto,
+        END OF ty_zmm_otif_tol.
+
+DATA : ta_ekko_ekpo_eket    TYPE STANDARD TABLE OF ty_ekko_ekpo_eket,
+       wa_ekko_ekpo_eket    TYPE ty_ekko_ekpo_eket,
+       ta_ekko_ekpo_eket1   TYPE STANDARD TABLE OF ty_ekko_ekpo_eket,
+       wa_ekko_ekpo_eket1   TYPE ty_ekko_ekpo_eket,
+       ta_ekko_ekpo_eket2   TYPE STANDARD TABLE OF ty_ekko_ekpo_eket,
+       wa_ekko_ekpo_eket2   TYPE ty_ekko_ekpo_eket,
+       ta_ekko_ekpo_eket_tm TYPE STANDARD TABLE OF ty_ekko_ekpo_eket,
+       wa_ekko_ekpo_eket_tm TYPE ty_ekko_ekpo_eket,
+       ta_zmm_otif_tol      TYPE TABLE OF ty_zmm_otif_tol,
+       wa_zmm_otif_tol      TYPE          ty_zmm_otif_tol.
+
+DATA :ta_makt TYPE STANDARD TABLE OF makt,
+      wa_makt TYPE makt.
+
+TYPES :BEGIN OF ty_t023t,
+         matkl TYPE t023t-matkl,
+         wgbez TYPE t023t-wgbez,
+       END OF ty_t023t.
+
+DATA : ta_t023t TYPE STANDARD TABLE OF ty_t023t,
+       wa_t023t TYPE ty_t023t.
+
+
+TYPES :BEGIN OF ty_usr21,
+         bname      TYPE usr21-bname,
+         addrnumber TYPE usr21-addrnumber,
+       END OF ty_usr21.
+
+DATA : ta_usr21 TYPE STANDARD TABLE OF ty_usr21,
+       wa_usr21 TYPE ty_usr21.
+
+TYPES :BEGIN OF ty_adrc,
+         addrnumber TYPE adrc-addrnumber,
+         name1      TYPE adrc-name1,
+         name2      TYPE adrc-name2,
+         name3      TYPE adrc-name3,
+         name4      TYPE adrc-name4,
+       END OF ty_adrc.
+
+DATA : ta_adrc TYPE STANDARD TABLE OF ty_adrc,
+       wa_adrc TYPE ty_adrc.
+
+
+TYPES :BEGIN OF ty_lfa1_1,
+         lifnr TYPE lfa1-lifnr,
+         name1 TYPE lfa1-name1,
+       END OF ty_lfa1_1.
+
+DATA : ta_lfa1_1 TYPE STANDARD TABLE OF ty_lfa1_1,
+       wa_lfa1_1 TYPE ty_lfa1_1.
+
+
+TYPES : BEGIN OF ty_t024,
+          ekgrp TYPE t024-ekgrp,
+          eknam TYPE t024-eknam,
+        END OF ty_t024.
+
+DATA : ta_t024 TYPE STANDARD TABLE OF ty_t024,
+       wa_t024 TYPE ty_t024.
+
+TYPES : BEGIN OF ty_ekbe,
+          ebeln        TYPE ekbe-ebeln,
+          ebelp        TYPE ekbe-ebelp,
+          gjahr        TYPE ekbe-gjahr,
+          bewtp        TYPE ekbe-bewtp,
+          belnr        TYPE ekbe-belnr,
+          buzei        TYPE ekbe-buzei,
+          bwart        TYPE ekbe-bwart,
+          budat        TYPE ekbe-budat,
+          menge        TYPE ekbe-menge,
+          shkzg        TYPE ekbe-shkzg,
+          charg        TYPE ekbe-charg,
+          ekbe_qty     TYPE eket-menge,
+          cum_ekbe_qty TYPE eket-menge,
+          ekbe_key(15) TYPE c,
+        END OF ty_ekbe.
+
+DATA : ta_ekbe        TYPE STANDARD TABLE OF ty_ekbe,
+       wa_ekbe        TYPE ty_ekbe,
+       ta_ekbe1       TYPE STANDARD TABLE OF ty_ekbe,
+       wa_ekbe1       TYPE ty_ekbe,
+       ta_ekbe2       TYPE STANDARD TABLE OF ty_ekbe,  "GRN qty
+       wa_ekbe2       TYPE ty_ekbe,
+       ta_ekbe3       TYPE STANDARD TABLE OF ty_ekbe,  "GRN return qty
+       wa_ekbe3       TYPE ty_ekbe,
+       ta_ekbe_temp   TYPE STANDARD TABLE OF ty_ekbe,  "GRN return qty
+       wa_ekbe_temp   TYPE ty_ekbe,
+       wa_ekbe_temp1  TYPE ty_ekbe,
+       ta_ekbe_temp2  TYPE STANDARD TABLE OF ty_ekbe,  "GRN return qty
+       wa_ekbe_temp2  TYPE ty_ekbe,
+       ta_zmm_otif_pc TYPE TABLE OF zmm_otif_pc,
+       wa_zmm_otif_pc TYPE zmm_otif_pc.
+
+TYPES :BEGIN OF ty_temp,
+         ebeln TYPE ekbe-ebeln,
+         ebelp TYPE ekbe-ebelp,
+         menge TYPE ekbe-menge,
+       END OF ty_temp.
+
+DATA : ta_temp TYPE STANDARD TABLE OF ty_temp,
+       wa_temp TYPE ty_temp.
+
+TYPES : BEGIN OF ty_eban,
+          banfn  TYPE eban-banfn,
+          bnfpo  TYPE eban-bnfpo,
+          bsart  TYPE eban-bsart,
+          bstyp  TYPE eban-bstyp,
+          loekz  TYPE eban-loekz,
+          frgkz  TYPE eban-frgkz,
+          ekgrp  TYPE eban-ekgrp,
+          bednr  TYPE eban-bednr,
+          ernam  TYPE eban-ernam,
+          matnr  TYPE eban-matnr,
+          werks  TYPE eban-werks,
+          matkl  TYPE eban-matkl,
+          badat  TYPE eban-badat,
+          menge  TYPE eban-menge,
+          meins  TYPE eban-meins,
+          lfdat  TYPE eban-lfdat,
+          ekorg  TYPE eban-ekorg,
+          ebeln  TYPE eban-ebeln,
+          ebelp  TYPE eban-ebelp,
+          waers  TYPE eban-waers,
+          memory TYPE eban-memory,
+        END OF ty_eban.
+
+DATA : ta_eban     TYPE STANDARD TABLE OF ty_eban,
+       wa_eban     TYPE ty_eban,
+       ta_eban1    TYPE STANDARD TABLE OF ty_eban,
+       wa_eban1    TYPE ty_eban,
+       ta_eban_tmp TYPE STANDARD TABLE OF ty_eban,
+       wa_eban_tmp TYPE ty_eban.
+
+
+TYPES :BEGIN OF ty_marc,
+         matnr TYPE marc-matnr,
+         werks TYPE marc-werks,
+         plifz TYPE marc-plifz,
+         webaz TYPE marc-webaz,
+       END OF ty_marc.
+
+DATA :ta_marc  TYPE STANDARD TABLE OF ty_marc,
+      wa_marc  TYPE ty_marc,
+      ta_marc1 TYPE STANDARD TABLE OF ty_marc,
+      wa_marc1 TYPE ty_marc.
+
+TYPES : BEGIN OF ty_t001w,
+          werks TYPE werks,
+          name1 TYPE name1,
+        END OF ty_t001w.
+
+DATA : ta_t001w TYPE STANDARD TABLE OF ty_t001w,
+       wa_t001w TYPE ty_t001w.
+
+TYPES : BEGIN OF ty_zsd_details,
+
+          bldat TYPE mkpf-bldat,
+          budat TYPE mkpf-budat,
+          mblnr TYPE mkpf-mblnr,
+          mjahr TYPE mkpf-mjahr,
+          zeile TYPE mseg-zeile,
+          bwart TYPE mseg-bwart,
+          dmbtr TYPE mseg-dmbtr,
+          menge TYPE mseg-menge,
+          meins TYPE mseg-meins,
+          erfmg TYPE mseg-erfmg,
+          erfme TYPE mseg-erfme,
+          bpmng TYPE mseg-bpmng,
+          bprme TYPE mseg-bprme,
+          matnr TYPE mseg-matnr,
+          werks TYPE mseg-werks,
+          lgort TYPE mseg-lgort,
+          charg TYPE mseg-charg,
+          sjahr TYPE mseg-sjahr,
+          smbln TYPE mseg-smbln,
+          smblp TYPE mseg-smblp,
+        END OF ty_zsd_details.
+
+DATA : ta_mkpf  TYPE STANDARD TABLE OF ty_zsd_details,
+       wa_mkpf  TYPE ty_zsd_details,
+       ta_mkpf1 TYPE STANDARD TABLE OF ty_zsd_details,
+       wa_mkpf1 TYPE ty_zsd_details.
+
+
+TYPES : BEGIN OF ty_mseg,
+          mblnr      TYPE mseg-mblnr,
+          mjahr      TYPE mseg-mjahr,
+          bwart      TYPE mseg-bwart,
+          matnr      TYPE mseg-matnr,
+          werks      TYPE mseg-werks,
+          charg      TYPE mseg-charg,
+          ebeln      TYPE mseg-ebeln,
+          ebelp      TYPE mseg-ebelp,
+          erfme      TYPE mseg-erfme, "Unit of Entry
+          bpmng      TYPE mseg-bpmng, "Qty in OPUn
+          budat_mkpf TYPE mseg-budat_mkpf,
+        END OF ty_mseg.
+
+DATA : ta_mseg    TYPE STANDARD TABLE OF ty_mseg,
+       wa_mseg    TYPE ty_mseg,
+       ta_mseg1   TYPE STANDARD TABLE OF ty_mseg,
+       wa_mseg1   TYPE ty_mseg,
+       ta_mseg1_t TYPE STANDARD TABLE OF ty_mseg,
+       wa_mseg1_t TYPE ty_mseg,
+       ta_mseg2   TYPE STANDARD TABLE OF ty_mseg,
+       wa_mseg2   TYPE ty_mseg,
+       ta_mseg2_t TYPE STANDARD TABLE OF ty_mseg,
+       wa_mseg2_t TYPE ty_mseg,
+       ta_mseg3   TYPE STANDARD TABLE OF ty_mseg,
+       wa_mseg3   TYPE ty_mseg,
+       ta_mseg3_t TYPE STANDARD TABLE OF ty_mseg,
+       wa_mseg3_t TYPE ty_mseg,
+       ta_mseg_t  TYPE STANDARD TABLE OF ty_mseg,
+       wa_mseg_t  TYPE ty_mseg,
+       ta_mseg4   TYPE TABLE OF ty_mseg,
+       wa_mseg4   TYPE ty_mseg.
+
+
+TYPES : BEGIN OF ty_final,
+          ebeln               TYPE ekko-ebeln,
+          ebelp               TYPE ekpo-ebelp,
+          etenr               TYPE eket-etenr,
+          ekgrp               TYPE ekko-ekgrp,
+          eknam               TYPE t024-eknam,
+          waers               TYPE ekko-waers,
+*         aedat               TYPE char10,
+          aedat               TYPE sy-datum,    "added by Gauri Tandel - 8000006894 - 02.08.2022
+*         eindt               TYPE char10,
+          eindt               TYPE sy-datum,    "added by Gauri Tandel - 8000006894 - 02.08.2022
+*         eindt_f             TYPE char10,
+          eindt_f             TYPE sy-datum,    "added by Gauri Tandel - 8000006894 - 02.08.2022
+          eindt_n             TYPE cdpos-value_new,
+          ernam               TYPE ekko-ernam,
+          ernam1(160)         TYPE c,
+          banfn               TYPE eban-banfn,
+          bnfpo               TYPE eban-bnfpo,
+          badat               TYPE sy-datum,
+          pr_menge            TYPE eban-menge,
+          pr_meins            TYPE eban-meins,
+*         lfdat               TYPE char10,
+          lfdat               TYPE sy-datum,    "added by Gauri Tandel - 8000006894 - 02.08.2022
+          lifnr               TYPE lfa1-lifnr,
+          name1               TYPE lfa1-name1,
+          matnr               TYPE ekpo-matnr,
+          mtart               TYPE mara-mtart,
+          mtbez               TYPE t134t-mtbez,
+          bismt               TYPE mara-bismt,
+          ind_bond(01)        TYPE c,
+          matkl               TYPE ekpo-matkl,
+          wgbez               TYPE t023t-wgbez,
+          memory              TYPE ekko-memory,
+          loekz               TYPE ekpo-loekz,
+          werks               TYPE ekpo-werks,
+          plantn              TYPE t001w-name1,
+          lgort               TYPE ekpo-lgort,
+          menge               TYPE ekpo-menge,
+          meins               TYPE ekpo-meins,
+          wemng               TYPE eket-wemng,
+          meins_grn           TYPE ekpo-meins, "added by sHUBHANGI - 8000006894 - 30.12.2022
+          netwr               TYPE ekpo-netwr,
+          brtwr               TYPE ekpo-brtwr,
+          elikz               TYPE ekpo-elikz,
+          mfrnr               TYPE  ekpo-mfrnr,
+          name_m              TYPE lfa1-name1,
+          bldat               TYPE mkpf-bldat,
+          budat               TYPE mkpf-budat,
+          mblnr               TYPE mkpf-mblnr,
+          zeile               TYPE mseg-zeile,
+          mjahr               TYPE mseg-mjahr,
+          bwart               TYPE mseg-bwart,
+          dmbtr               TYPE mseg-dmbtr,
+          menge_1             TYPE mseg-menge,
+          meins_1             TYPE mseg-meins,
+          erfmg_1             TYPE mseg-erfmg,
+          erfme_1             TYPE mseg-erfme,
+          bpmng_1             TYPE mseg-bpmng,
+          bprme_1             TYPE mseg-bprme,
+          prueflos            TYPE qals-prueflos,
+          matnr_qals          TYPE qals-matnr,
+          werk                TYPE qals-werk,
+          charg               TYPE qals-charg,
+          mjahr_qals          TYPE qals-mjahr,
+          mblnr_qals          TYPE qals-mblnr,
+          zeile_qals          TYPE qals-zeile,
+          lagortvorg          TYPE qals-lagortvorg,
+          losmenge            TYPE qals-losmenge,
+          lmenge01            TYPE qals-lmenge01,
+          lmenge02            TYPE qals-lmenge02,
+          lmenge03            TYPE qals-lmenge03,
+          lmenge04            TYPE qals-lmenge04,
+          lmenge05            TYPE qals-lmenge05,
+          lmengeist           TYPE qals-lmengeist,
+          vbewertung          TYPE qave-vbewertung,
+          value_codetext(30)  TYPE c,
+          po_uname            TYPE cdhdr-username,
+*         po_reldat           TYPE char10,
+          po_reldat           TYPE sy-datum,    "added by Gauri Tandel - 8000006894 - 02.08.2022
+          po_reltm            TYPE cdhdr-utime,
+          pr_uname            TYPE  cdhdr-username,
+*         pr_reldat           TYPE char10,
+          pr_reldat           TYPE sy-datum,    "added by Gauri Tandel - 8000006894 - 02.08.2022
+          pr_reltm            TYPE cdhdr-utime,
+          plifz               TYPE marc-plifz,
+          webaz               TYPE marc-webaz,
+          po_grnqty           TYPE ekbe-menge,
+          grn_retqty          TYPE ekbe-menge,
+*  soc by shubhangi cr 8000006894 23.12.2022
+*          prpo_leadtm         TYPE vtbbewe-atage,
+          prpo_leadtm         TYPE int3,
+*  eoc by shubhangi cr 8000006894 23.12.2022
+*         exp_del             TYPE char10,
+          exp_del             TYPE sy-datum,    "added by Gauri Tandel - 8000006894 - 02.08.2022
+*         act_detdt           TYPE char10,
+          act_detdt           TYPE sy-datum,    "added by Gauri Tandel - 8000006894 - 02.08.2022
+          po_lead             TYPE vtbbewe-atage,
+          pr_lead             TYPE vtbbewe-atage,
+          po_leadsi(04)       TYPE c,
+          pr_leadsi(04)       TYPE c,
+          ot_po(08)           TYPE c,
+          ot_po_value         TYPE vtbbewe-atage,
+          if_po(08)           TYPE c,
+          if_po_value         TYPE mseg-menge,
+          otif_po(08)         TYPE c,
+          ot_pr(08)           TYPE c,
+          ot_pr_value         TYPE vtbbewe-atage,
+          if_pr(08)           TYPE c,
+*          if_pr_value         TYPE mseg-menge,"Commented by Lalitha
+          if_pr_value(15)     TYPE c, "Added by Lalitha
+          otif_pr(08)         TYPE c,
+          otif_metpo(08)      TYPE c,
+          otif_unmetpo(08)    TYPE c,
+          otif_metpr(08)      TYPE c,
+          otif_unmetpr(08)    TYPE c,
+          rel_period(08)      TYPE c,
+          avg_qc              TYPE i,
+*          avg_qc1             TYPE marc-plifz,
+          avg_qc1             TYPE n, "changed by Gauri Tandel - 8000006894 - 29.07.2022
+          tot_lead            TYPE i,
+          avg_qcper           TYPE marc-plifz,
+          po_maktx            TYPE tdline,
+          maktx               TYPE tdline,
+          net_inr             TYPE ekpo-netwr,
+          bsart_po            TYPE bsart,
+          bsart_pr            TYPE bsart,
+          reason_txt          TYPE zreason_txt,
+          name_text           TYPE name_text,
+          bednr               TYPE bednr,
+          sys_source(5)       TYPE c,
+          pur_cat             TYPE zmm_otif_pc-pur_cat,
+          pur_team            TYPE zmm_otif_pc-pur_team,
+          bednr_po            TYPE ekpo-bednr,
+          cat_fld(11)         TYPE c,
+          magrv               TYPE mara-magrv,
+          txz01(40)           TYPE c,
+          ot_day              TYPE char10, "uncommented by shubhangi  8000006894 - 23.12.2022
+*          ot_day              TYPE sy-datum,    "added by Gauri Tandel - 8000006894 - 02.08.2022
+          del_per             TYPE konv-kbetr,
+*          del_per             TYPE p DECIMALS 4, "added by lalitha - 8000006894 - 16.01.203
+          zmm_po_clog(50)     TYPE c,
+          grn_usage(5)        TYPE c,
+          otif_fin_metpo(2)   TYPE c,
+          otif_fin_unmetpo(2) TYPE c,
+          lead(10)            TYPE c,
+          sh_time(2)          TYPE c,
+        END OF ty_final.
+
+DATA : ta_final TYPE STANDARD TABLE OF ty_final,
+       wa_final TYPE ty_final.
+DATA :ta_download  TYPE STANDARD TABLE OF s903,
+      wa_download  TYPE s903,
+      ta_download1 TYPE STANDARD TABLE OF s903,
+      wa_download1 TYPE s903,
+      ta_download2 TYPE STANDARD TABLE OF s903,
+      wa_download2 TYPE s903.
+
+
+TYPES: BEGIN OF ty_objectid,
+         sign(1),
+         option(2),
+         low       TYPE cdhdr-objectid,
+         high      TYPE cdhdr-objectid,
+       END OF ty_objectid.
+
+DATA : ta_objectid TYPE STANDARD TABLE OF ty_objectid,
+       wa_objectid TYPE ty_objectid.
+
+
+TYPES: BEGIN OF ty_code,
+         sign(1),
+         option(2),
+         low       TYPE cdhdr-tcode,
+         high      TYPE cdhdr-tcode,
+       END OF ty_code.
+
+DATA : ta_tcode TYPE STANDARD TABLE OF ty_code,
+       wa_tcode TYPE ty_code.
+
+
+TYPES : BEGIN OF ty_cdhdr,
+          objectclas TYPE cdhdr-objectclas,
+          objectid   TYPE cdhdr-objectid,
+          changenr   TYPE cdhdr-changenr,
+          username   TYPE cdhdr-username,
+          udate      TYPE cdhdr-udate,
+          utime      TYPE cdhdr-utime,
+          tcode      TYPE cdhdr-tcode,
+          change_ind TYPE cdhdr-change_ind,
+        END OF ty_cdhdr.
+
+
+DATA: ta_cdhdr  TYPE STANDARD TABLE OF ty_cdhdr,
+      wa_cdhdr  TYPE ty_cdhdr,
+      ta_cdhdr1 TYPE STANDARD TABLE OF ty_cdhdr,
+      wa_cdhdr1 TYPE ty_cdhdr,
+      ta_cdhdr2 TYPE STANDARD TABLE OF ty_cdhdr,
+      wa_cdhdr2 TYPE ty_cdhdr.
+
+
+TYPES : BEGIN OF ty_cdpos,
+          objectclas TYPE cdpos-objectclas,
+          objectid   TYPE cdpos-objectid,
+          changenr   TYPE cdpos-changenr,
+          tabname    TYPE cdpos-tabname,
+          tabkey     TYPE cdpos-tabkey,
+          fname      TYPE cdpos-fname,
+          chngind    TYPE cdpos-chngind,
+          value_new  TYPE cdpos-value_new,
+          value_old  TYPE cdpos-value_old,
+        END OF ty_cdpos.
+
+DATA : ta_cdpos  TYPE STANDARD TABLE OF ty_cdpos,
+       wa_cdpos  TYPE ty_cdpos,
+       ta_cdpos1 TYPE STANDARD TABLE OF ty_cdpos,
+       wa_cdpos1 TYPE ty_cdpos,
+
+       ta_cdpos2 TYPE STANDARD TABLE OF ty_cdpos,
+       wa_cdpos2 TYPE ty_cdpos.
+
+
+TYPES : BEGIN OF ty_qals,
+          prueflos   TYPE qals-prueflos,
+          matnr      TYPE qals-matnr,
+          werk       TYPE qals-werk,
+          charg      TYPE qals-charg,
+          ebeln      TYPE qals-ebeln,
+          ebelp      TYPE qals-ebelp,
+          mjahr      TYPE qals-mjahr,
+          mblnr      TYPE qals-mblnr,
+          zeile      TYPE qals-zeile,
+          lagortvorg TYPE qals-lagortvorg,
+          losmenge   TYPE qals-losmenge,
+          lmenge01   TYPE qals-lmenge01,
+          lmenge02   TYPE qals-lmenge02,
+          lmenge03   TYPE qals-lmenge03,
+          lmenge04   TYPE qals-lmenge04,
+          lmenge05   TYPE qals-lmenge05,
+          lmengeist  TYPE qals-lmengeist,
+          vbewertung TYPE qave-vbewertung,
+        END OF ty_qals.
+
+DATA : ta_qals   TYPE STANDARD TABLE OF ty_qals,
+       wa_qals   TYPE ty_qals,
+       ta_qals_t TYPE STANDARD TABLE OF ty_qals,
+       wa_qals_t TYPE ty_qals,
+       ta_qals_a TYPE STANDARD TABLE OF ty_qals,
+       wa_qals_a TYPE ty_qals,
+       ta_qals_r TYPE STANDARD TABLE OF ty_qals,
+       wa_qals_r TYPE ty_qals.
+
+TYPES : BEGIN OF ty_qave,
+          prueflos   TYPE qals-prueflos,
+          vbewertung TYPE qave-vbewertung,
+        END OF ty_qave.
+
+DATA : ta_qave TYPE STANDARD TABLE OF ty_qave,
+       wa_qave TYPE ty_qave.
+
+
+TYPES :BEGIN OF ty_lfa1,
+         lifnr TYPE lfa1-lifnr,
+         name1 TYPE lfa1-name1,
+         adrnr TYPE lfa1-adrnr,
+       END OF ty_lfa1.
+
+DATA : ta_lfa1 TYPE STANDARD TABLE OF ty_lfa1,
+       wa_lfa1 TYPE ty_lfa1.
+
+
+TYPES : BEGIN OF ty_mara,
+          matnr TYPE mara-matnr,
+          mtart TYPE mara-mtart,
+          bismt TYPE mara-bismt,
+          magrv TYPE mara-magrv,
+        END OF ty_mara.
+
+DATA : ta_mara    TYPE STANDARD TABLE OF ty_mara,
+       wa_mara    TYPE ty_mara,
+       ta_mara_tm TYPE STANDARD TABLE OF ty_mara,
+       wa_mara_tm TYPE ty_mara.
+
+TYPES : BEGIN OF ty_t134t,
+          mtart TYPE t134t-mtart,
+          mtbez TYPE t134t-mtbez,
+        END OF ty_t134t.
+
+DATA : ta_t134t TYPE STANDARD TABLE OF ty_t134t,
+       wa_t134t TYPE ty_t134t.
+
+
+DATA: rs_variant LIKE disvariant.
+DATA : ta_fieldcat TYPE slis_t_fieldcat_alv,
+       wa_fieldcat TYPE slis_fieldcat_alv,
+       wa_layout   TYPE slis_layout_alv,
+       ta_sort     TYPE slis_t_sortinfo_alv,
+       wa_sort     TYPE slis_sortinfo_alv,
+       g_pos       TYPE i,
+       g_tempkey   TYPE cdpos-tabkey.
+
+
+DATA : ta_lines TYPE TABLE OF tline,
+       wa_lines TYPE tline,
+       g_name   TYPE thead-tdname.
+
+CONSTANTS : co_filename TYPE string VALUE 'Y:\MMLegacyDataUpload\ZMM_OTIF'.
+
+TYPES : BEGIN OF ty_usr21_po,
+          bname      TYPE usr21-bname,
+          persnumber TYPE usr21-persnumber,
+          name_first TYPE adrp-name_first,
+        END OF ty_usr21_po.
+
+DATA : ta_zparam         TYPE TABLE OF zparam_table,
+       wa_zparam         TYPE zparam_table,
+       ta_usr21_po       TYPE TABLE OF ty_usr21_po,
+       wa_usr21_po       TYPE ty_usr21_po,
+       ta_zmm_otif_mo    TYPE TABLE OF zmm_otif_mo,
+       wa_zmm_otif_mo    TYPE zmm_otif_mo,
+       ta_zmm_po_otifscl TYPE TABLE OF zmm_po_otifscl,
+       wa_zmm_po_otifscl TYPE zmm_po_otifscl.
+
+CONSTANTS : co_ariba(5)   TYPE c VALUE 'ARIBA',
+            co_sap(3)     TYPE c VALUE 'SAP',
+            co_bsart(5)   TYPE c VALUE 'ZARB',
+*            co_purgrp(10) TYPE c VALUE 'ZMM_PURGRP',"LOC commnetd By Nilesh 09.12.2020 8000005577
+            co_purgrp     TYPE zparam_table-id_name VALUE 'ZMM_OTIF2', ""Loc Added By Nilesh 09.12.2020 8000005577
+*            co_purorg(10) TYPE c VALUE 'ZMM_PURORG',"LOC commnetd By Nilesh 09.12.2020 8000005577
+            co_purorg     TYPE zparam_table-id_name VALUE 'ZMM_OTIF3', " Loc added By Nilesh 09.12.2020 8000005577
+*            co_doctyp(10) TYPE c VALUE 'ZMM_DOCTYP',"LOC commnetd By Nilesh 09.12.2020 8000005577
+            co_doctyp     TYPE zparam_table-id_name VALUE 'ZMM_OTIF1', "Loc added By Nilesh 09.12.2020 8000005577
+            co_cat(15)    TYPE c VALUE 'Catalog',
+            co_noncat(15) TYPE c VALUE 'Non catalog',
+            co_yes(5)     TYPE c VALUE 'YES',
+            co_no(5)      TYPE c VALUE 'NO',
+            co_unmet(5)   TYPE c VALUE 'UNMET',
+            co_met(5)     TYPE c VALUE 'MET',
+            co_pm(2)      TYPE c VALUE 'PM',
+            co_ipd(3)     TYPE c VALUE 'IPD', "aaded By Nilesh 23.12.2020 8000005577
+            co_rm(2)      TYPE c VALUE 'RM',
+            co_y(2)       TYPE c VALUE 'Y',
+            co_n(2)       TYPE c VALUE 'N'.
+
+
+CONSTANTS : co_122(3) TYPE c VALUE '122',
+            co_123(3) TYPE c VALUE '123',
+            co_101(3) TYPE c VALUE '101',
+            co_105(3) TYPE c VALUE '105',
+            co_321(3) TYPE c VALUE '321',
+            co_350(3) TYPE c VALUE '350',
+            co_103(3) TYPE c VALUE '103',
+            co_104(3) TYPE c VALUE '104'.
+
+RANGES : r_purgrp FOR ekko-ekgrp,
+         r_purorg FOR ekko-ekorg,
+         r_doctyp FOR ekko-bsart.
+
+DATA: gt_spfli  TYPE TABLE OF spfli,
+      gwa_spfli TYPE spfli.
+""" SOC done by Sushil as on 27.01.2021 against ticket no. 8000006894
+DATA: ta_zmm_otif2_po TYPE TABLE OF zmm_otif2_po,
+      wa_zmm_otif2_po TYPE zmm_otif2_po,
+      ta_zmm_otif2_pr TYPE TABLE OF zmm_otif2_pr,
+      wa_zmm_otif2_pr TYPE zmm_otif2_pr,
+      gv_del_date     TYPE p0001-begda,
+      gv_days_d       TYPE t5a4a-dlydy  VALUE '0',
+      gv_dlymo        TYPE t5a4a-dlymo  VALUE '0',
+      gv_signum       TYPE t5a4a-split  VALUE '-',
+      gv_yrs          TYPE t5a4a-dlyyr  VALUE '2'.
+""" EOC done by Sushil as on 27.01.2021 against ticket no. 8000006894
+DATA: gv_file   TYPE rlgrap-filename.
+
+
+*---------------------------------------------------------------------*
+* I N I T I A L I Z A T I O N                                         *
+*---------------------------------------------------------------------*
+INITIALIZATION.
+
+
+*---------------------------------------------------------------------*
+* A T - S E L E C T I O N - S C R E E N                               *
+*---------------------------------------------------------------------*
+AT SELECTION-SCREEN OUTPUT.
+
+
+  IF s_bedat[] IS INITIAL.
+*  REFRESH s_bedat[].
+    IF s_bedat-high IS INITIAL.
+      s_bedat-sign = 'I'.
+      s_bedat-option = 'BT'.
+      s_bedat-high = sy-datum.
+      APPEND s_bedat TO s_bedat.
+    ENDIF.
+
+  ENDIF.
+  IF r1 = 'X'.
+    LOOP AT SCREEN.
+      IF screen-name CS 'S_BANFN' OR
+        screen-name CS 'S_FRGKZP' OR
+        screen-name CS 'S_MEMPR'  OR
+        screen-name CS 'S_BADATP' OR
+        screen-name CS 'S_PRDDT'  OR
+        screen-name CS 'S_PRDEL'  OR
+        screen-name CS 'S_EINDT'  OR
+        screen-name CS 'S_PRDOTY'.
+        screen-active = 0. "remove field from screen
+*          screen-input = 0. "set field as display only
+        MODIFY SCREEN.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT SCREEN.
+      IF screen-name CS 'S_EBELN' OR
+        screen-name CS 'S_FRGKE'  OR
+        screen-name CS 'S_MEMORY' OR
+        screen-name CS 'S_BEDAT'  OR
+        screen-name CS 'S_PODDT'  OR
+        screen-name CS 'S_PODEL'.
+        screen-active = 1. "remove field from screen
+*          screen-input = 0. "set field as display only
+        MODIFY SCREEN.
+      ENDIF.
+    ENDLOOP.
+
+*    IF s_bedat-high IS INITIAL.
+*      s_bedat-sign = 'I'.
+*      s_bedat-option = 'BT'.
+*      s_bedat-high = sy-datum.
+*      APPEND s_bedat TO s_bedat.
+*    ENDIF.
+
+
+
+  ELSEIF r2 = 'X'.
+    LOOP AT SCREEN.
+      IF screen-name CS 'S_EBELN' OR
+        screen-name CS 'S_FRGKE'  OR
+        screen-name CS 'S_MEMORY' OR
+        screen-name CS 'S_BEDAT'  OR
+        screen-name CS 'S_PODDT'  OR
+        screen-name CS 'S_PODEL'.
+        screen-active = 0. "remove field from screen
+*          screen-input = 0. "set field as display only
+        MODIFY SCREEN.
+      ENDIF.
+    ENDLOOP.
+
+    LOOP AT SCREEN.
+      IF screen-name CS 'S_BANFN' OR
+        screen-name CS 'S_FRGKZP' OR
+        screen-name CS 'S_MEMPR'  OR
+        screen-name CS 'S_BADATP' OR
+        screen-name CS 'S_PRDDT'  OR
+        screen-name CS 'S_PRDEL'  OR
+        screen-name CS 'S_EINDT'  OR """"" Added by Alhad on 16/10/2015 , Ticket : 8000001201.
+        screen-name CS 'S_PRDOTY'."""""" Added by Alhad on 16/10/2015 , Ticket : 8000001201
+        screen-active = 1. "remove field from screen
+*          screen-input = 0. "set field as display only
+        MODIFY SCREEN.
+      ENDIF.
+    ENDLOOP.
+    IF s_badatp-high IS INITIAL.
+      s_badatp-sign = 'I'.
+      s_badatp-option = 'BT'.
+      s_badatp-high = sy-datum.
+      APPEND s_badatp TO s_badatp.
+    ENDIF.
+
+  ENDIF.
+
+*---------------------------------------------------------------------*
+* AT S E L E C T I O N - S C R E E N  O N                                 *
+*---------------------------------------------------------------------*
+
+  """"Added By Nikita on 05.07.2019 (For Creating Ranges - Ticket  8000005577)
+
+AT SELECTION-SCREEN ON s_ekgrp.
+  PERFORM get_ranges_purgrp.
+
+AT SELECTION-SCREEN ON s_ekorg.
+  PERFORM get_ranges_purorg.
+
+AT SELECTION-SCREEN ON s_bsart.
+  PERFORM get_ranges_doctyp.
+*---------------------------------------------------------------------*
+* S T A R T - O F - S E L E C T I O N                                 *
+*---------------------------------------------------------------------*
+START-OF-SELECTION.
+
+  IF r2 = 'X'.
+    PERFORM get_pr.
+    PERFORM get_data1.
+  ELSE.
+    PERFORM get_data.
+  ENDIF.
+  PERFORM get_zmm_otif_tol.
+  PERFORM get_t024.
+  PERFORM get_t023t.
+  PERFORM get_uname.
+  PERFORM get_marc.
+  PERFORM get_lfa1.
+  PERFORM get_ekbe.
+  PERFORM get_cdhdr.
+  PERFORM get_cdpos.
+  PERFORM get_mkpf.
+  PERFORM get_eban.
+  PERFORM get_mseg.
+  PERFORM get_mara.
+  PERFORM get_t134t.
+  PERFORM get_t001w.
+  PERFORM get_zmm_otif_pc.
+  PERFORM get_zmm_otif_mo."added By nilesh 22.12.2020 8000005577
+  PERFORM get_usr21.
+  PERFORM get_zmm_po_otifscl.
+
+  IF ta_ekko_ekpo_eket[] IS NOT INITIAL AND ta_ekbe[] IS NOT INITIAL.
+    PERFORM get_makt.
+    PERFORM fill_final.
+    PERFORM fill_fieldcat.
+
+    IF p_fore EQ 'X'.
+      PERFORM call_alv.
+    ELSEIF p_back EQ 'X'.
+      PERFORM write_excel.
+    ENDIF.
+
+  ELSE.
+    MESSAGE s004(zmm).
+  ENDIF.
+
+
+
+*---------------------------------------------------------------------*
+*  E N D - O F - S E L E C T I O N                                    *
+*---------------------------------------------------------------------*
+END-OF-SELECTION.
+*&---------------------------------------------------------------------*
+*&      Form  GET_DATA
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM get_data .
+  SELECT a~ebeln
+         a~ebelp
+         a~etenr
+         a~eindt
+         a~menge
+         a~wemng
+         a~banfn
+         a~bnfpo
+         c~bukrs
+         c~bstyp
+         c~bsart
+         c~aedat
+         c~ernam
+         c~lifnr
+         c~zterm
+         c~ekorg
+         c~ekgrp
+         c~waers
+         c~bedat
+         c~inco1
+         c~inco2
+         c~frgke
+         c~memory
+         c~wkurs           ""Added by Alhad on 19/08/2015 Ticket 8000000996
+         b~loekz
+         b~matnr
+         b~werks
+         b~lgort
+         b~bednr
+         b~matkl
+         b~menge AS menge_ekpo
+         b~meins
+         b~netwr
+         b~brtwr
+         b~untto
+         b~elikz
+         b~retpo
+         b~mfrnr
+         b~konnr
+         b~txz01
+         FROM eket AS a
+         INNER JOIN ekpo AS b
+         ON a~ebeln = b~ebeln
+         AND a~ebelp = b~ebelp
+         INNER JOIN ekko AS c
+         ON c~ebeln = b~ebeln
+         INTO CORRESPONDING FIELDS OF TABLE ta_ekko_ekpo_eket
+         WHERE a~ebeln IN s_ebeln AND
+               a~eindt IN  s_poddt AND
+               b~loekz EQ space AND
+               b~matnr IN  s_matnr AND
+               b~werks IN  s_werks AND
+               b~lgort IN  s_lgort AND
+               b~bednr IN  s_bednr AND
+               b~matkl IN  s_matkl AND
+               b~loekz IN  s_podel AND
+               c~bstyp IN  s_bstyp AND
+               c~bsart IN  r_doctyp AND
+               c~lifnr IN  s_lifnr AND
+               c~zterm IN  s_zterm AND
+               c~ekorg IN  r_purorg AND
+               c~ekgrp IN  r_purgrp AND
+               c~bedat IN  s_bedat AND
+               c~inco1 IN  s_inco1 AND
+               c~frgke IN  s_frgke AND
+  c~memory IN s_memory.
+
+  IF ta_ekko_ekpo_eket[] IS NOT INITIAL.
+
+    SORT ta_ekko_ekpo_eket BY bstyp.
+    DELETE ta_ekko_ekpo_eket WHERE bstyp NE 'F'.
+    SORT ta_ekko_ekpo_eket BY memory.
+    DELETE ta_ekko_ekpo_eket WHERE memory NE space.
+    SORT ta_ekko_ekpo_eket BY retpo.
+    DELETE ta_ekko_ekpo_eket WHERE retpo EQ 'X'.
+    SORT ta_ekko_ekpo_eket BY loekz.
+    DELETE ta_ekko_ekpo_eket WHERE loekz EQ 'S'.""" Added by Alhad on 13/08/2015 Ticket 8000000996
+    SORT ta_ekko_ekpo_eket BY netwr.
+    DELETE ta_ekko_ekpo_eket WHERE netwr EQ '0.00'.
+    SORT ta_ekko_ekpo_eket BY eindt.
+*    DELETE ta_ekko_ekpo_eket WHERE eindt GT sy-datum. "Commented by Debasmita - CR#8000009151 - 02.08.2023
+    """•  Require first PO delivery date in input selection screen as a date range.
+    """"  ZMM_OTIF should be EXECUTED AND REPORT GENERATED. From the output,
+    """"  all those PO records shall be re-moved whose first delivery date does not
+    """"  fall in the range of selection screen first po delivery date range.
+    """"" ZMM_OTIF should be EXECUTED AND REPORT GENERATED.
+    IF s_eindt IS NOT INITIAL.
+      DELETE ta_ekko_ekpo_eket WHERE eindt NOT IN s_eindt.
+    ENDIF.
+  ENDIF.
+
+ENDFORM.                    " GET_DATA
+*&---------------------------------------------------------------------*
+*&      Form  GET_EKBE
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM get_ekbe .
+
+  IF ta_ekko_ekpo_eket[] IS NOT INITIAL.
+
+    SORT ta_ekko_ekpo_eket BY ebeln ebelp.
+
+    SELECT ebeln
+           ebelp
+           gjahr
+           bewtp
+           belnr
+           buzei
+           bwart
+           budat
+           menge
+           shkzg
+           charg
+           FROM ekbe
+           INTO  CORRESPONDING FIELDS OF TABLE ta_ekbe
+           FOR ALL ENTRIES IN ta_ekko_ekpo_eket
+           WHERE ebeln EQ ta_ekko_ekpo_eket-ebeln
+    AND ebelp EQ ta_ekko_ekpo_eket-ebelp.
+  ENDIF.
+  IF ta_ekbe[] IS NOT INITIAL.
+
+    SORT ta_ekbe BY bewtp.
+
+    DELETE ta_ekbe WHERE bewtp NE 'E'.
+
+
+    SORT ta_ekbe BY ebeln ebelp.
+
+    LOOP AT ta_ekko_ekpo_eket INTO wa_ekko_ekpo_eket.
+
+      wa_objectid-sign = 'I'.
+      wa_objectid-option ='EQ'.
+      MOVE wa_ekko_ekpo_eket-banfn TO wa_objectid-low.
+      APPEND wa_objectid TO ta_objectid.
+      CLEAR: wa_objectid.
+
+      wa_objectid-sign = 'I'.
+      wa_objectid-option ='EQ'.
+      MOVE wa_ekko_ekpo_eket-ebeln TO wa_objectid-low.
+      APPEND wa_objectid TO ta_objectid.
+      CLEAR: wa_objectid.
+
+      CLEAR : wa_ekbe.
+      READ TABLE ta_ekbe  INTO wa_ekbe  WITH KEY ebeln = wa_ekko_ekpo_eket-ebeln
+                                                 ebelp = wa_ekko_ekpo_eket-ebelp
+                                                 BINARY SEARCH.
+      IF sy-subrc EQ 0.
+
+      ELSE.
+        wa_ekbe-ebeln = wa_ekko_ekpo_eket-ebeln.
+        wa_ekbe-ebelp = wa_ekko_ekpo_eket-ebelp.
+
+        APPEND wa_ekbe TO ta_ekbe1.
+
+      ENDIF.
+
+      CLEAR :wa_ekko_ekpo_eket,wa_ekbe.
+    ENDLOOP.
+
+    SORT ta_objectid BY low.
+    DELETE ADJACENT DUPLICATES FROM ta_objectid COMPARING low.
+  ELSE.
+
+    LOOP AT ta_ekko_ekpo_eket INTO wa_ekko_ekpo_eket.
+      wa_objectid-sign = 'I'.
+      wa_objectid-option ='EQ'.
+      MOVE wa_ekko_ekpo_eket-banfn TO wa_objectid-low.
+      APPEND wa_objectid TO ta_objectid.
+      CLEAR: wa_objectid.
+
+      wa_objectid-sign = 'I'.
+      wa_objectid-option ='EQ'.
+      MOVE wa_ekko_ekpo_eket-ebeln TO wa_objectid-low.
+      APPEND wa_objectid TO ta_objectid.
+      CLEAR: wa_objectid.
+
+      wa_ekbe-ebeln = wa_ekko_ekpo_eket-ebeln.
+      wa_ekbe-ebelp = wa_ekko_ekpo_eket-ebelp.
+
+      APPEND wa_ekbe TO ta_ekbe1.
+      CLEAR :wa_ekko_ekpo_eket,wa_ekbe.
+    ENDLOOP.
+
+    SORT ta_objectid BY low.
+    DELETE ADJACENT DUPLICATES FROM ta_objectid COMPARING low.
+
+  ENDIF.
+
+  IF ta_ekbe1[] IS NOT INITIAL.
+
+    LOOP AT ta_ekbe1 INTO wa_ekbe1.
+      APPEND wa_ekbe1 TO ta_ekbe.
+      CLEAR: wa_ekbe1.
+    ENDLOOP.
+  ENDIF.
+ENDFORM.                    " GET_EKBE
+*&---------------------------------------------------------------------*
+*&      Form  GET_EBAN
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM get_eban .
+
+  IF ta_ekko_ekpo_eket[] IS NOT INITIAL.
+
+    SORT ta_ekko_ekpo_eket BY banfn bnfpo.
+
+    SELECT banfn
+           bnfpo
+           bsart
+           bstyp
+           loekz
+           frgkz
+           ekgrp
+           bednr
+           ernam
+           matnr
+           werks
+           matkl
+           badat
+           menge
+           meins
+           lfdat
+           ekorg
+           ebeln
+           ebelp
+           waers
+           memory
+           FROM eban
+           INTO TABLE ta_eban
+           FOR ALL ENTRIES IN ta_ekko_ekpo_eket
+           WHERE banfn EQ ta_ekko_ekpo_eket-banfn
+    AND bnfpo EQ ta_ekko_ekpo_eket-bnfpo.
+
+  ENDIF.
+
+ENDFORM.                    " GET_EBAN
+*&---------------------------------------------------------------------*
+*&      Form  GET_MKPF
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM get_mkpf .
+
+  IF ta_ekbe[] IS NOT INITIAL.
+
+    SORT ta_ekbe BY belnr buzei gjahr.
+
+    SELECT bldat
+           budat
+           mblnr
+           mjahr
+           zeile
+           bwart
+           dmbtr
+           menge
+           meins
+           erfmg
+           erfme
+           bpmng
+           bprme
+           matnr
+           werks
+           lgort
+           charg
+           sjahr
+           smbln
+           smblp
+           FROM zmm_mkpf_mseg_n
+           INTO TABLE ta_mkpf
+           FOR ALL ENTRIES IN ta_ekbe
+           WHERE mblnr EQ ta_ekbe-belnr
+           AND  zeile EQ ta_ekbe-buzei
+    AND mjahr EQ ta_ekbe-gjahr.
+
+  ENDIF.
+
+  IF ta_mkpf[] IS NOT INITIAL.
+
+    ta_mkpf1[] = ta_mkpf[].
+
+    SORT ta_mkpf1 BY sjahr smbln smblp.
+    DELETE ta_mkpf1 WHERE smbln IS INITIAL.
+
+    SORT ta_mkpf1 BY sjahr smbln smblp.
+    SORT ta_mkpf BY mjahr mblnr zeile.
+    SORT ta_ekbe BY belnr buzei gjahr.
+
+    LOOP AT ta_mkpf INTO wa_mkpf.
+
+      READ TABLE ta_mkpf1 INTO wa_mkpf1 WITH KEY sjahr = wa_mkpf-mjahr
+                                                 smbln = wa_mkpf-mblnr
+                                                 smblp = wa_mkpf-zeile
+                                                 BINARY SEARCH.
+      IF sy-subrc EQ 0.
+
+        DELETE ta_mkpf WHERE mjahr EQ wa_mkpf1-sjahr AND
+                             mblnr EQ wa_mkpf1-smbln AND
+                             zeile EQ wa_mkpf1-smblp.
+
+        DELETE ta_mkpf WHERE mjahr EQ wa_mkpf1-mjahr AND
+                             mblnr EQ wa_mkpf1-mblnr AND
+                             zeile EQ wa_mkpf1-zeile.
+
+        DELETE ta_ekbe WHERE belnr EQ wa_mkpf1-mblnr AND
+                             buzei EQ wa_mkpf1-zeile AND
+                             gjahr EQ wa_mkpf1-mjahr.
+
+        DELETE ta_ekbe WHERE belnr EQ wa_mkpf1-smbln AND
+                             buzei EQ wa_mkpf1-smblp AND
+                             gjahr EQ wa_mkpf1-sjahr .
+
+      ENDIF.
+
+    ENDLOOP.
+
+
+    PERFORM get_qals.
+
+    ta_ekbe3[] = ta_ekbe[].
+
+    LOOP AT ta_ekbe3 INTO wa_ekbe3.
+      IF wa_ekbe3-bwart EQ co_122 OR wa_ekbe3-bwart EQ co_123.
+
+        DELETE ta_ekbe WHERE ebeln = wa_ekbe3-ebeln
+                       AND   ebelp = wa_ekbe3-ebelp
+                       AND   charg = wa_ekbe3-charg
+                       AND   ( bwart = co_101 OR bwart = co_105 ) .
+
+        DELETE ta_ekbe WHERE ebeln = wa_ekbe3-ebeln
+                      AND   ebelp = wa_ekbe3-ebelp
+                      AND   charg = wa_ekbe3-charg
+                      AND   bwart = wa_ekbe3-bwart .
+
+      ENDIF.
+    ENDLOOP.
+
+  ENDIF.
+
+ENDFORM.                    " GET_MKPF
+*&---------------------------------------------------------------------*
+*&      Form  FILL_FINAL
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM fill_final .
+
+  SORT ta_eban BY banfn bnfpo.
+  SORT ta_cdpos BY objectclas tabkey value_new.
+  SORT ta_cdhdr BY changenr ASCENDING.
+  SORT ta_ekbe BY ebeln ebelp budat ASCENDING.
+  SORT ta_ekbe2 BY ebeln ebelp budat DESCENDING .
+  SORT ta_mkpf BY mblnr zeile mjahr.
+  SORT ta_qals BY mblnr zeile mjahr.
+  SORT ta_qave BY prueflos.
+  SORT ta_ekko_ekpo_eket BY ebeln ebelp.
+  SORT ta_makt BY matnr.
+  ta_ekko_ekpo_eket1[] = ta_ekko_ekpo_eket[].
+  SORT ta_ekko_ekpo_eket1 BY ebeln ebelp eindt  DESCENDING .
+
+  ta_ekko_ekpo_eket2[] = ta_ekko_ekpo_eket[].
+  SORT ta_ekko_ekpo_eket2 BY ebeln ebelp etenr  eindt  ASCENDING.
+
+  ta_cdhdr1[] = ta_cdhdr[].
+  ta_cdpos1[] = ta_cdpos[].
+
+  SORT ta_cdhdr1 DESCENDING.
+  SORT ta_cdpos1 DESCENDING.
+  ta_cdhdr2[] = ta_cdhdr[].
+  ta_cdpos2[] = ta_cdpos[].
+
+  SORT ta_cdhdr2 ASCENDING.
+  SORT ta_cdpos2 ASCENDING.
+
+  SORT ta_zmm_otif_tol BY ekgrp .
+
+  DATA :l_temkey1(20) TYPE c,
+        l_temkey(20)  TYPE c,
+        l_date        TYPE string.
+
+  DATA : l_fromdt TYPE vtbbewe-dbervon,
+         l_todt   TYPE vtbbewe-dberbis.
+  DATA : l_idate       TYPE dats,
+         l_odate       TYPE dats,
+         l_day         TYPE fiappl_arrear,
+         l_actdt       TYPE sy-datum,
+         l_deldt       TYPE sy-datum,
+         l_prdeldt     TYPE sy-datum,
+         l_datedff     TYPE p,
+         l_otdays      TYPE vtbbewe-atage, "added by shubhangi 8000006894 23.12.2022
+         l_otdays1(15) TYPE c, "Added by Lalitha 8000006894 13.01.2023
+         l_menge_conv  TYPE p DECIMALS 4. "Added by Lalitha 8000006894 13.01.2023
+
+  DATA : lv_leadtm TYPE vtbbewe-atage.  "added by shubhangi 8000006894 23.12.2022
+
+  IF r2 EQ 'X' OR r1 EQ 'X' .
+    CLEAR :wa_ekko_ekpo_eket.
+
+    DATA : l_ekbeqty TYPE eket-menge,
+           l_eketqty TYPE eket-menge.
+
+    CLEAR : ta_ekko_ekpo_eket_tm[].
+
+    ta_ekbe_temp[] = ta_ekbe[].
+
+
+    PERFORM qty_cal.
+
+    ta_ekbe_temp2[] = ta_ekbe_temp[].
+    SORT ta_ekbe_temp2 BY ebeln ebelp DESCENDING.
+
+    IF ta_ekko_ekpo_eket IS NOT INITIAL.
+      SELECT ebeln, ebelp, etenr,
+             reason, name_text,
+             crdat, crtime FROM
+             zmmt_po_clog
+        INTO TABLE @DATA(lt_po_clog)
+        FOR ALL ENTRIES IN @ta_ekko_ekpo_eket
+        WHERE ebeln = @ta_ekko_ekpo_eket-ebeln
+        AND   ebelp = @ta_ekko_ekpo_eket-ebelp
+        AND   etenr = @ta_ekko_ekpo_eket-etenr
+        AND   action <> 'A09' "excluding bookmark actions
+      AND   stats = 'A'.    "accepted actions
+      IF sy-subrc = 0.
+        SELECT reason, reason_txt FROM zpo_reason_t
+          INTO TABLE @DATA(lt_reason_t)
+          FOR ALL ENTRIES IN @lt_po_clog
+        WHERE reason = @lt_po_clog-reason.
+        IF sy-subrc = 0.
+          SORT lt_reason_t BY reason.
+          DELETE ADJACENT DUPLICATES FROM lt_reason_t COMPARING reason.
+        ENDIF.
+      ENDIF.
+    ENDIF.
+
+    LOOP AT ta_ekko_ekpo_eket INTO wa_ekko_ekpo_eket.
+
+      IF wa_ekko_ekpo_eket-loekz EQ 'L' .
+        READ TABLE ta_ekko_ekpo_eket1 INTO wa_ekko_ekpo_eket1 WITH KEY banfn = wa_ekko_ekpo_eket-banfn
+                                                                        bnfpo = wa_ekko_ekpo_eket-bnfpo
+                                                                        loekz = ' '.
+
+        IF sy-subrc EQ 0.
+          CONTINUE.
+        ENDIF.
+      ENDIF.
+
+
+      LOOP AT ta_ekbe_temp INTO wa_ekbe_temp WHERE ebeln = wa_ekko_ekpo_eket-ebeln
+                                              AND  ebelp = wa_ekko_ekpo_eket-ebelp.
+*        AND  cum_ekbe_qty GE wa_ekko_ekpo_eket-cum_eket_qty."commnetd By Nilesh 28.12.2020 8000005577
+
+        wa_final-act_detdt = wa_ekbe_temp-budat.
+*         soc by shubhangi cr 8000006894 on 30.12.2022
+*        IF wa_final-act_detdt = '00000000'.
+*          wa_final-act_detdt = '99999999'.
+*        ENDIF.
+*         eoc by shubhangi cr 8000006894 on 30.12.2022
+        EXIT.
+      ENDLOOP.
+
+      DATA : l_menge  TYPE ekpo-menge,
+             l_menge1 TYPE ekpo-menge.
+      CLEAR :l_menge.
+      IF wa_final-act_detdt IS INITIAL.
+
+        l_menge = ( wa_ekko_ekpo_eket-menge / 100 ) * wa_ekko_ekpo_eket-untto + wa_ekko_ekpo_eket-wemng.
+        l_menge1 = wa_ekko_ekpo_eket-wemng - ( wa_ekko_ekpo_eket-menge / 100 ) * wa_ekko_ekpo_eket-untto .
+
+
+        IF wa_ekko_ekpo_eket-wemng LE l_menge AND
+          wa_ekko_ekpo_eket-wemng GE l_menge1.
+
+          CLEAR : wa_ekbe_temp2.
+          READ TABLE ta_ekbe_temp2 INTO wa_ekbe_temp2 WITH KEY ebeln = wa_ekko_ekpo_eket-ebeln
+                                                             ebelp = wa_ekko_ekpo_eket-ebelp.
+
+          wa_final-act_detdt = wa_ekbe_temp2-budat.
+*        soc by shubhangi cr 8000006894 on 30.12.2022
+*          IF wa_final-act_detdt = '00000000'.
+*            wa_final-act_detdt = '99999999'.
+*          ENDIF.
+*  *        eoc by shubhangi cr 8000006894 on 30.12.2022
+        ENDIF.
+      ENDIF.
+
+      IF wa_ekko_ekpo_eket-loekz EQ 'L'.
+        CLEAR : wa_final-act_detdt.
+      ENDIF.
+      IF wa_ekko_ekpo_eket-loekz NE 'L'.
+        wa_final-ebeln = wa_ekko_ekpo_eket-ebeln.
+        wa_final-ebelp = wa_ekko_ekpo_eket-ebelp.
+        wa_final-etenr = wa_ekko_ekpo_eket-etenr.
+
+      ENDIF.
+      wa_final-ekgrp = wa_ekko_ekpo_eket-ekgrp.
+
+      CLEAR :wa_t024.
+      READ TABLE ta_t024 INTO wa_t024 WITH KEY ekgrp =  wa_final-ekgrp.
+      IF sy-subrc EQ 0.
+        wa_final-eknam = wa_t024-eknam.
+      ENDIF.
+
+
+      wa_final-waers = wa_ekko_ekpo_eket-waers.
+      IF wa_ekko_ekpo_eket-loekz NE 'L'.
+        wa_final-aedat = wa_ekko_ekpo_eket-aedat.
+      ENDIF.
+
+      PERFORM qc_per.
+
+      IF wa_ekko_ekpo_eket-loekz NE 'L'.
+        wa_final-eindt = wa_ekko_ekpo_eket-eindt.
+      ENDIF.
+      wa_final-ernam = wa_ekko_ekpo_eket-ernam.
+
+
+      DATA :l_tabkey TYPE cdpos-tabkey.
+
+      CLEAR :l_tabkey.
+      CONCATENATE sy-mandt wa_ekko_ekpo_eket-ebeln wa_ekko_ekpo_eket-ebelp
+                           wa_ekko_ekpo_eket-etenr INTO l_tabkey.
+
+      CLEAR wa_zmm_po_otifscl.
+      READ TABLE ta_zmm_po_otifscl INTO wa_zmm_po_otifscl WITH KEY ebeln = wa_ekko_ekpo_eket-ebeln
+                                                                   ebelp = wa_ekko_ekpo_eket-ebelp
+                                                                   etenr = wa_ekko_ekpo_eket-etenr."Added by Lalitha for CR8000009039 06-06-203
+      IF sy-subrc EQ 0.
+        wa_final-eindt_f = wa_zmm_po_otifscl-eindt.
+      ENDIF.
+
+      CLEAR :l_tabkey.
+
+      IF wa_final-eindt_f IS INITIAL.
+        CLEAR :wa_ekko_ekpo_eket2.
+        READ TABLE ta_ekko_ekpo_eket2 INTO wa_ekko_ekpo_eket2 WITH KEY ebeln = wa_ekko_ekpo_eket-ebeln
+                                                                       ebelp = wa_ekko_ekpo_eket-ebelp
+                                                                       etenr = wa_ekko_ekpo_eket-etenr.
+        IF sy-subrc EQ 0.
+          wa_final-eindt_f = wa_ekko_ekpo_eket2-eindt.
+        ENDIF.
+      ENDIF.
+
+      IF wa_ekko_ekpo_eket-loekz EQ 'L'.
+        CLEAR :wa_final-eindt_f.
+      ENDIF.
+
+      CLEAR:wa_usr21.
+      READ TABLE ta_usr21 INTO wa_usr21 WITH KEY bname = wa_final-ernam.
+      IF sy-subrc EQ 0.
+        CLEAR :wa_adrc.
+        READ TABLE ta_adrc INTO wa_adrc WITH KEY addrnumber = wa_usr21-addrnumber.
+        IF sy-subrc EQ 0.
+
+          CONCATENATE wa_adrc-name1
+                      wa_adrc-name2
+                      wa_adrc-name3
+                      wa_adrc-name4
+                      INTO wa_final-ernam1.
+        ENDIF.
+      ENDIF.
+
+
+      wa_final-banfn = wa_ekko_ekpo_eket-banfn.
+
+      IF wa_ekko_ekpo_eket-loekz NE 'L'.
+        wa_final-lifnr = wa_ekko_ekpo_eket-lifnr.
+      ENDIF.
+      wa_final-memory = wa_ekko_ekpo_eket-memory.
+      wa_final-loekz = wa_ekko_ekpo_eket-loekz.
+      wa_final-elikz = wa_ekko_ekpo_eket-elikz.
+      wa_final-mfrnr = wa_ekko_ekpo_eket-mfrnr.
+      CLEAR :wa_lfa1.
+      READ TABLE ta_lfa1 INTO wa_lfa1 WITH KEY lifnr = wa_ekko_ekpo_eket-mfrnr.
+      IF  sy-subrc EQ 0.
+
+        REPLACE ALL OCCURRENCES OF '"' IN wa_lfa1-name1 WITH ' '.
+        wa_final-name_m = wa_lfa1-name1.
+
+      ENDIF.
+
+
+      IF wa_ekko_ekpo_eket-loekz NE 'L'.
+
+        CLEAR :wa_lfa1.
+        READ TABLE ta_lfa1 INTO wa_lfa1 WITH KEY lifnr = wa_ekko_ekpo_eket-lifnr.
+        IF  sy-subrc EQ 0.
+
+          REPLACE ALL OCCURRENCES OF '"' IN wa_lfa1-name1 WITH ' '.
+
+          wa_final-name1 = wa_lfa1-name1.
+
+        ENDIF.
+      ENDIF.
+
+      IF wa_final-banfn IS NOT INITIAL.
+
+        CALL FUNCTION 'CONVERSION_EXIT_ALPHA_OUTPUT'
+          EXPORTING
+            input  = wa_final-banfn
+          IMPORTING
+            output = wa_final-banfn.
+
+      ENDIF.
+      wa_final-bnfpo = wa_ekko_ekpo_eket-bnfpo.
+
+
+      "Read Purchase Requisition data
+
+      CLEAR :l_temkey1.
+      CONCATENATE wa_ekko_ekpo_eket-banfn wa_ekko_ekpo_eket-bnfpo INTO l_temkey1.
+
+      ON CHANGE OF l_temkey1.
+
+
+        wa_final-netwr = wa_ekko_ekpo_eket-netwr.
+        wa_final-brtwr = wa_ekko_ekpo_eket-brtwr.
+        wa_final-net_inr = wa_final-netwr * wa_ekko_ekpo_eket-wkurs."""" Net Value in INR
+        CLEAR :wa_eban.
+        READ TABLE ta_eban INTO wa_eban WITH KEY banfn = wa_ekko_ekpo_eket-banfn
+                                                 bnfpo = wa_ekko_ekpo_eket-bnfpo
+                                                 BINARY SEARCH.
+        IF sy-subrc EQ 0.
+
+          wa_final-badat = wa_eban-badat.
+          wa_final-pr_menge = wa_eban-menge.
+          wa_final-pr_meins = wa_eban-meins.
+          wa_final-lfdat = wa_eban-lfdat.
+        ENDIF.
+
+      ENDON.
+
+      CLEAR :wa_eban.
+      READ TABLE ta_eban INTO wa_eban WITH KEY banfn = wa_ekko_ekpo_eket-banfn
+                                               bnfpo = wa_ekko_ekpo_eket-bnfpo
+                                               BINARY SEARCH.
+      IF sy-subrc EQ 0.
+
+        wa_final-badat = wa_eban-badat.
+
+        wa_final-lfdat = wa_eban-lfdat.
+        wa_final-bsart_pr = wa_eban-bsart.
+        wa_final-bednr = wa_eban-bednr.
+      ENDIF.
+      wa_final-bsart_po = wa_ekko_ekpo_eket-bsart.
+
+
+      READ TABLE ta_t023t INTO wa_t023t WITH KEY matkl = wa_ekko_ekpo_eket-matkl.
+      IF sy-subrc EQ 0.
+        wa_final-matkl = wa_t023t-matkl.
+        wa_final-wgbez = wa_t023t-wgbez.
+      ENDIF.
+
+      CLEAR :wa_marc.
+      READ TABLE ta_marc INTO wa_marc WITH KEY matnr = wa_ekko_ekpo_eket-matnr
+                                               werks = wa_ekko_ekpo_eket-werks.
+
+      IF sy-subrc EQ 0.
+        wa_final-plifz = wa_marc-plifz.
+        wa_final-webaz = wa_marc-webaz.
+      ENDIF.
+
+
+*     wa_final-prpo_leadtm  =   wa_final-prpo_leadtm ROUND -2 .
+
+
+      wa_final-tot_lead = wa_final-prpo_leadtm +
+                          wa_final-plifz +
+                          wa_final-webaz +
+                          wa_final-avg_qc.
+
+
+
+
+      CLEAR:wa_marc1.
+      READ TABLE ta_marc1 INTO wa_marc1 WITH KEY matnr = wa_ekko_ekpo_eket-matnr.
+      IF sy-subrc EQ 0.
+        wa_final-ind_bond = 'B'.
+      ELSE.
+        wa_final-ind_bond = 'N'.
+      ENDIF.
+
+
+
+      CLEAR : wa_mara.
+      READ TABLE ta_mara INTO wa_mara WITH KEY matnr = wa_ekko_ekpo_eket-matnr.
+
+      IF sy-subrc EQ 0.
+        wa_final-mtart = wa_mara-mtart.
+        wa_final-bismt = wa_mara-bismt.
+        wa_final-magrv = wa_mara-magrv.
+
+        CLEAR :wa_t134t.
+        READ TABLE ta_t134t INTO wa_t134t WITH KEY mtart = wa_final-mtart BINARY SEARCH.
+        IF sy-subrc EQ 0.
+          wa_final-mtbez = wa_t134t-mtbez.
+        ENDIF.
+
+
+      ENDIF.
+
+
+      CALL FUNCTION 'CONVERSION_EXIT_MATN1_OUTPUT'
+        EXPORTING
+          input  = wa_ekko_ekpo_eket-matnr
+        IMPORTING
+          output = wa_ekko_ekpo_eket-matnr.
+
+      wa_final-matnr = wa_ekko_ekpo_eket-matnr.
+      wa_final-werks = wa_ekko_ekpo_eket-werks.
+
+      CLEAR:wa_t001w.
+      READ TABLE ta_t001w INTO wa_t001w WITH KEY werks = wa_ekko_ekpo_eket-werks.
+      IF sy-subrc EQ 0.
+        wa_final-plantn = wa_t001w-name1.
+      ENDIF.
+
+
+
+      wa_final-lgort = wa_ekko_ekpo_eket-lgort.
+*    DATA :l_temkey(20) TYPE c.
+      CONCATENATE wa_ekko_ekpo_eket-ebeln wa_ekko_ekpo_eket-ebelp INTO l_temkey.
+
+*      ON CHANGE OF l_temkey.
+      IF wa_ekko_ekpo_eket-loekz NE 'L'.
+        wa_final-menge = wa_ekko_ekpo_eket-menge.
+
+*      ENDON.
+
+        wa_final-meins = wa_ekko_ekpo_eket-meins.
+        wa_final-meins_grn = wa_ekko_ekpo_eket-meins. "added by sHUBHANGI - 8000006894 - 30.12.2022
+
+      ENDIF.
+      wa_final-wemng = wa_ekko_ekpo_eket-wemng.
+
+      IF wa_final-meins NE wa_final-pr_meins.
+
+        DATA : l_matnr TYPE matnr.
+
+        CLEAR :l_matnr.
+        CALL FUNCTION 'CONVERSION_EXIT_ALPHA_INPUT'
+          EXPORTING
+            input  = wa_final-matnr
+          IMPORTING
+            output = l_matnr.
+
+        CALL FUNCTION 'MD_CONVERT_MATERIAL_UNIT'
+          EXPORTING
+            i_matnr              = l_matnr
+            i_in_me              = wa_final-pr_meins
+            i_out_me             = wa_final-meins
+            i_menge              = wa_final-pr_menge
+          IMPORTING
+            e_menge              = wa_final-pr_menge
+          EXCEPTIONS
+            error_in_application = 1
+            error                = 2
+            OTHERS               = 3.
+        IF sy-subrc <> 0.
+* Implement suitable error handling here
+        ENDIF.
+
+        wa_final-pr_meins = wa_final-meins.
+
+      ENDIF.
+
+
+
+
+
+
+      DATA : l_rate TYPE kbetr.
+
+      CLEAR :l_rate.
+      IF wa_ekko_ekpo_eket-menge_ekpo IS NOT INITIAL.
+        l_rate =  wa_ekko_ekpo_eket-netwr / wa_ekko_ekpo_eket-menge_ekpo.
+
+        wa_final-netwr = l_rate * wa_ekko_ekpo_eket-wemng.
+
+        CLEAR :l_rate.
+        l_rate =   wa_ekko_ekpo_eket-brtwr / wa_ekko_ekpo_eket-menge_ekpo.
+
+        wa_final-brtwr = l_rate * wa_ekko_ekpo_eket-wemng.
+
+      ENDIF.
+
+      wa_final-net_inr = wa_final-netwr * wa_ekko_ekpo_eket-wkurs.
+
+      IF wa_ekko_ekpo_eket-loekz EQ 'L'.
+        CLEAR :wa_final-netwr,wa_final-brtwr.
+
+      ENDIF.
+
+      " Read data for PR release date and release User ID
+      CLEAR :g_tempkey,wa_cdhdr,wa_cdpos.
+      CONCATENATE sy-mandt wa_ekko_ekpo_eket-banfn wa_ekko_ekpo_eket-bnfpo INTO g_tempkey.
+      READ TABLE ta_cdpos INTO wa_cdpos WITH KEY objectclas = 'BANF'
+                                                   tabkey = g_tempkey
+                                                   value_new = '2'
+                                                   BINARY SEARCH.
+      IF sy-subrc EQ 0.
+
+        READ TABLE ta_cdhdr INTO wa_cdhdr WITH KEY changenr = wa_cdpos-changenr
+                                                    BINARY SEARCH.
+        IF sy-subrc EQ 0.
+          wa_final-pr_uname  = wa_cdhdr-username.
+          wa_final-pr_reldat = wa_cdhdr-udate.
+          wa_final-pr_reltm  = wa_cdhdr-utime.
+        ENDIF.
+      ENDIF.
+
+      "Insert-Start-Nitin-14.04.2014-Add new fields
+      CLEAR :g_tempkey,wa_cdhdr1,wa_cdpos1.
+
+      LOOP AT ta_cdhdr1 INTO wa_cdhdr1 WHERE  objectclas = 'EINKBELEG'
+                                       AND    objectid = wa_ekko_ekpo_eket-ebeln.
+
+        CLEAR :l_date.
+        READ TABLE ta_cdpos1 INTO wa_cdpos1 WITH KEY objectclas = 'EINKBELEG'
+                                                   objectid = wa_ekko_ekpo_eket-ebeln
+                                                   changenr = wa_cdhdr1-changenr
+                                                   tabname = 'EKET'.
+        IF sy-subrc EQ 0.
+
+
+
+          CONCATENATE wa_cdpos1-value_new+6(2) '.' wa_cdpos1-value_new+4(2) '.' wa_cdpos1-value_new+0(4) INTO l_date.
+
+          IF wa_final-eindt_n IS INITIAL.
+            CONCATENATE wa_final-eindt_n l_date INTO wa_final-eindt_n.
+          ELSE.
+            CONCATENATE wa_final-eindt_n l_date INTO wa_final-eindt_n SEPARATED BY ','.
+          ENDIF.
+        ENDIF.
+
+      ENDLOOP.
+
+      " Read data for PO release date and release User ID
+      IF wa_ekko_ekpo_eket-loekz NE 'L'.
+        CLEAR :g_tempkey,wa_cdhdr,wa_cdpos.
+        CONCATENATE sy-mandt wa_ekko_ekpo_eket-ebeln INTO g_tempkey.
+        READ TABLE ta_cdpos INTO wa_cdpos WITH KEY objectclas = 'EINKBELEG'
+                                                     tabkey = g_tempkey
+                                                     value_new = 'R'
+                                                     BINARY SEARCH.
+        IF sy-subrc EQ 0.
+
+          READ TABLE ta_cdhdr INTO wa_cdhdr WITH KEY changenr = wa_cdpos-changenr
+                                                        BINARY SEARCH.
+          IF sy-subrc EQ 0.
+            wa_final-po_uname  = wa_cdhdr-username.
+            wa_final-po_reldat = wa_cdhdr-udate.
+            wa_final-po_reltm  = wa_cdhdr-utime.
+          ENDIF.
+        ENDIF.
+      ENDIF.
+
+      IF wa_ekko_ekpo_eket-loekz NE 'L'.
+        IF wa_final-po_reldat IS NOT INITIAL.
+          CLEAR : l_odate ,l_day,l_odate.
+          l_idate = wa_final-po_reldat.
+          l_day = wa_final-plifz.
+          IF l_idate IS NOT INITIAL.
+            CALL FUNCTION 'FIAPPL_ADD_DAYS_TO_DATE'
+              EXPORTING
+                i_date      = l_idate
+                i_days      = l_day
+                signum      = '+'
+              IMPORTING
+                e_calc_date = l_odate.
+            IF l_odate IS NOT INITIAL.
+              wa_final-exp_del = l_odate.
+            ENDIF.
+          ENDIF.
+        ENDIF.
+
+      ENDIF.
+      "PO Lead Time
+
+
+      IF wa_final-eindt_f LT wa_final-aedat.
+        PERFORM cal_time USING wa_final-eindt_f
+                               wa_final-aedat
+                       CHANGING wa_final-po_lead.
+
+
+        wa_final-po_lead = wa_final-po_lead * -1.
+      ELSE.
+        PERFORM cal_time USING wa_final-aedat
+                               wa_final-eindt_f
+                        CHANGING wa_final-po_lead.
+      ENDIF.
+
+
+      "PR Lead time
+
+
+      IF wa_final-pr_reldat GT wa_final-lfdat.
+
+        PERFORM cal_time USING wa_final-lfdat
+                               wa_final-pr_reldat
+                       CHANGING wa_final-pr_lead.
+
+        wa_final-pr_lead = wa_final-pr_lead * -1.
+      ELSE.
+        PERFORM cal_time USING wa_final-pr_reldat
+                                wa_final-lfdat
+                         CHANGING wa_final-pr_lead.
+
+      ENDIF.
+
+
+      "PO Lead Time Sufficient or not
+      IF wa_final-po_lead GE wa_final-plifz.
+
+        wa_final-po_leadsi = '1'.""" 'Yes'
+      ELSE.
+        wa_final-po_leadsi = '0'.""" 'no'
+
+      ENDIF.
+
+      "PR Lead Time Sufficient or not
+      IF wa_final-pr_lead GE wa_final-plifz.
+
+        wa_final-pr_leadsi = '1'.""" 'Yes'
+      ELSE.
+        wa_final-pr_leadsi = '0'. """ 'no'
+
+      ENDIF.
+
+      DATA :l_date1   TYPE budat,
+*            soc by shubhangi cr 8000006894 on 23.12.2022
+            l_eindt_f TYPE sy-datum,
+*            l_eindt_f TYPE budat,
+*            l_lfdat   TYPE budat,
+            l_lfdat   TYPE sy-datum,
+*            eoc by shubhangi cr 8000006894 on 23.12.2022
+            l_qty     TYPE ekpo-menge.
+
+
+      CLEAR : l_date1,l_eindt_f.
+*            soc by shubhangi cr 8000006894 on 23.12.2022
+*      WRITE wa_final-eindt_f TO l_eindt_f.
+      l_eindt_f =  wa_final-eindt_f.
+*            eoc by shubhangi cr 8000006894 on 23.12.2022
+      l_date1 =  l_eindt_f + p_days.
+
+      DATA : l_podel_update  TYPE sy-datum,
+             l_podel_lowdate TYPE sy-datum.
+
+      CLEAR : wa_zmm_otif_tol.
+      READ TABLE ta_zmm_otif_tol  INTO wa_zmm_otif_tol WITH KEY ekgrp = wa_final-ekgrp
+                                                                BINARY SEARCH.
+      IF sy-subrc = 0.
+        IF wa_final-waers = 'INR'. "" Tolerance days for domestic transfers (INR)
+          CLEAR :  l_actdt,l_deldt,l_podel_update,l_podel_lowdate,l_datedff.
+          l_actdt = wa_final-act_detdt .""" Actual delivery date
+          l_deldt = wa_final-eindt_f .         """ First Delivery date
+          IF l_deldt IS NOT INITIAL.
+            l_podel_update  = l_deldt + wa_zmm_otif_tol-zplifz1.
+            l_podel_lowdate = l_deldt - wa_zmm_otif_tol-zplifz1 .
+            l_podel_lowdate = l_podel_lowdate + 1.
+            l_podel_update  = l_podel_update  - 1.    " Commented by vipin
+            IF l_actdt BETWEEN l_podel_lowdate AND l_podel_update.
+              wa_final-ot_po = '1'.
+            ELSE.
+              wa_final-ot_po = '0'.
+            ENDIF.
+          ENDIF.
+        ELSE.                    """"" Tolerance days for imports (Other Currency)
+
+          CLEAR :  l_actdt,l_deldt,l_podel_update,l_podel_lowdate.
+          l_actdt = wa_final-act_detdt .""" Actual delivery date
+          l_deldt = wa_final-eindt_f .         """ First Delivery date
+          IF l_deldt IS NOT INITIAL.
+            l_podel_update  = l_deldt + wa_zmm_otif_tol-zplifz2.
+            l_podel_lowdate = l_deldt - wa_zmm_otif_tol-zplifz2.
+            l_podel_lowdate = l_podel_lowdate + 1.
+            l_podel_update  = l_podel_update  - 1.
+            IF l_actdt BETWEEN l_podel_lowdate AND l_podel_update .
+              wa_final-ot_po = '1'.
+            ELSE.
+              wa_final-ot_po = '0'.
+            ENDIF.
+          ENDIF.
+        ENDIF.
+      ENDIF.
+
+      l_actdt = wa_final-act_detdt .""" Actual delivery date
+      l_deldt = wa_final-eindt_f."""" First Delivery date
+      CALL FUNCTION '/SDF/CMO_DATETIME_DIFFERENCE'
+        EXPORTING
+          date1            = l_actdt
+*         TIME1            =
+          date2            = l_deldt
+*         TIME2            =
+        IMPORTING
+          datediff         = l_datedff
+*         TIMEDIFF         =
+*         EARLIEST         =
+        EXCEPTIONS
+          invalid_datetime = 1
+          OTHERS           = 2.
+      IF sy-subrc <> 0.
+* Implement suitable error handling here
+      ENDIF.
+
+*      wa_final-ot_day = l_datedff." Loc comnetd By Nilesh 09.12.2020 8000005577
+*soc by shubhangi cr 8000006894 on 23.12.2022
+*Start of Commented by lalitha CR 8000006894 on 13.01.2023
+*      CLEAR l_otdays.
+*      CALL FUNCTION 'FIMA_DAYS_AND_MONTHS_AND_YEARS'
+*        EXPORTING
+*          i_date_from = wa_final-act_detdt
+**         i_key_day_from =
+*          i_date_to   = wa_final-eindt_f
+**         I_KEY_DAY_TO   =
+**         I_FLG_SEPARATE = ' '
+*        IMPORTING
+*          e_days      = l_otdays
+**         e_months    =
+**         e_years     =
+*        .
+*End of Commented by lalitha CR 8000006894 on 13.01.2023
+
+*SOC of by lalitha CR 8000006894 on 13.01.2023
+      IF wa_final-act_detdt IS INITIAL.
+        wa_final-ot_day = ' '.
+      ELSE.
+        l_otdays  = wa_final-act_detdt - wa_final-eindt_f.
+        IF  l_otdays LE 0.
+          l_otdays1 = l_otdays.
+          CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+            CHANGING
+              value = l_otdays1.
+          wa_final-ot_day = l_otdays1.
+        ELSE.
+          wa_final-ot_day = l_otdays.
+        ENDIF.
+*EOC of by lalitha CR 8000006894 on 13.01.2023
+
+*SOC By Nilesh 09.12.2020  8000005577
+*      IF l_deldt GT l_actdt .
+*        wa_final-ot_day = l_datedff * -1 .
+*      ELSE.
+*        wa_final-ot_day = l_datedff.
+*      ENDIF.
+*      wa_final-ot_day = l_otdays."Commented lalitha CR 8000006894 on 13.01.2023
+        CONDENSE  wa_final-ot_day.
+      ENDIF."Added by lalitha CR 8000006894 on 13.01.2023
+*eoc by shubhangi cr 8000006894 on 23.12.2022
+*EOC By Nilesh 09.12.2020  8000005577
+
+
+      IF l_date1 LT wa_final-act_detdt.
+
+        PERFORM cal_time USING l_date1
+                               wa_final-act_detdt
+                        CHANGING wa_final-ot_po_value.
+
+
+        wa_final-ot_po_value = wa_final-ot_po_value * -1.
+      ELSE.
+        PERFORM cal_time USING wa_final-act_detdt
+                             l_date1
+                       CHANGING wa_final-ot_po_value.
+
+
+      ENDIF.
+
+      CLEAR :l_qty.
+      l_qty = wa_final-menge - p_qty.
+
+      DATA : l_po_upqty(15)  TYPE c,
+             l_po_lowqty(15) TYPE c.
+
+
+      CLEAR :l_date1,l_lfdat.
+*            soc by shubhangi cr 8000006894 on 23.12.2022
+*      WRITE wa_final-lfdat TO l_lfdat.
+      l_lfdat = wa_final-lfdat.
+*            eoc by shubhangi cr 8000006894 on 23.12.2022
+      l_date1 = l_lfdat + p_days.
+
+
+      CLEAR : wa_zmm_otif_tol.
+      READ TABLE ta_zmm_otif_tol  INTO wa_zmm_otif_tol WITH KEY ekgrp = wa_final-ekgrp
+                                                                BINARY SEARCH.
+      IF sy-subrc = 0.
+        IF wa_final-waers = 'INR'. "" Tolerance days for domestic transfers (INR)
+          CLEAR :  l_actdt,l_prdeldt,l_podel_update,l_podel_lowdate.
+          l_prdeldt = wa_final-lfdat .""" PR delivery date
+          l_actdt = wa_final-act_detdt.""" Actual delivery date
+          IF l_prdeldt IS NOT INITIAL.
+            l_podel_update  = l_prdeldt + wa_zmm_otif_tol-zplifz1.
+            l_podel_lowdate = l_prdeldt - wa_zmm_otif_tol-zplifz1 .
+
+            l_podel_lowdate = l_podel_lowdate + 1.
+            l_podel_update  = l_podel_update  - 1.
+            IF l_actdt BETWEEN l_podel_lowdate AND l_podel_update.
+              wa_final-ot_pr = '1'.
+            ELSE.
+              wa_final-ot_pr = '0'.
+            ENDIF.
+          ENDIF.
+        ELSE.                    """"" Tolerance days for imports (Other Currency)
+
+          CLEAR :  l_actdt,l_prdeldt,l_podel_update,l_podel_lowdate.
+          l_prdeldt = wa_final-lfdat .""" PR delivery date
+          l_actdt = wa_final-act_detdt.""" Actual delivery date
+          IF l_prdeldt IS NOT INITIAL.
+            l_podel_update  = l_prdeldt + wa_zmm_otif_tol-zplifz2.
+            l_podel_lowdate = l_prdeldt - wa_zmm_otif_tol-zplifz2.
+*
+            l_podel_lowdate = l_podel_lowdate + 1.
+            l_podel_update  = l_podel_update  - 1.
+            IF l_actdt BETWEEN l_podel_lowdate AND l_podel_update .
+              wa_final-ot_pr = '1'.
+            ELSE.
+              wa_final-ot_pr = '0'.
+            ENDIF.
+          ENDIF.
+        ENDIF.
+      ENDIF.
+      """"""" End added by Alhad on 16/10/2015 (For tolarance logic for OT(PR) - Ticket 8000001201)
+
+      IF l_date1 LT wa_final-act_detdt.
+        PERFORM cal_time USING  l_date1
+                              wa_final-act_detdt
+                     CHANGING wa_final-ot_pr_value.
+        wa_final-ot_pr_value = wa_final-ot_pr_value * -1.
+      ELSE.
+        PERFORM cal_time USING wa_final-act_detdt
+                               l_date1
+                       CHANGING wa_final-ot_pr_value.
+
+      ENDIF.
+
+
+
+      IF wa_final-ebeln IS INITIAL AND wa_final-banfn IS NOT INITIAL.
+
+        wa_final-otif_po = '0'.
+      ENDIF.
+      CLEAR :l_qty.
+
+      DATA :   l_pr_upqty(15)  TYPE c,
+               l_pr_lowqty(15) TYPE c.
+
+      READ TABLE ta_zmm_otif_tol  INTO wa_zmm_otif_tol WITH KEY ekgrp = wa_final-ekgrp
+                                                                 BINARY SEARCH.
+
+      IF sy-subrc = 0.
+        l_pr_upqty = ( wa_final-pr_menge + ( wa_zmm_otif_tol-uebto * wa_final-pr_menge )  / 100  ).
+        l_pr_lowqty = ( wa_final-pr_menge - ( wa_zmm_otif_tol-untto  * wa_final-pr_menge ) / 100 ).
+
+        CONDENSE : l_pr_lowqty,l_pr_upqty.
+
+        IF wa_final-wemng BETWEEN l_pr_lowqty AND l_pr_upqty.
+          wa_final-if_pr = '1'.
+        ELSE.
+          wa_final-if_pr = '0'.
+        ENDIF.
+      ENDIF.
+
+
+      CLEAR : wa_zmm_otif_tol,l_po_upqty,l_po_lowqty.
+      READ TABLE ta_zmm_otif_tol  INTO wa_zmm_otif_tol WITH KEY ekgrp = wa_final-ekgrp
+                                                                BINARY SEARCH.
+      IF sy-subrc = 0.
+        l_po_upqty = ( wa_final-menge + ( wa_zmm_otif_tol-uebto * wa_final-menge )  / 100  ).
+        l_po_lowqty = ( wa_final-menge - ( wa_zmm_otif_tol-untto  * wa_final-menge ) / 100 ).
+
+
+        CONDENSE : l_po_lowqty,l_po_upqty.
+
+        IF wa_final-wemng BETWEEN l_po_lowqty AND l_po_upqty.
+          wa_final-if_po = '1'.
+        ELSE.
+          wa_final-if_po = '0'.
+        ENDIF.
+      ENDIF.
+
+      IF wa_final-ot_po EQ '1' AND wa_final-if_po EQ '1'.
+        wa_final-otif_po = '1'.
+      ELSE.
+        wa_final-otif_po = '0'.
+      ENDIF.
+
+      """"""" End Added by Alhad on 16/10/2015 (Tolarance logic for IF - Ticket 8000001201)
+      wa_final-if_pr_value = l_qty - wa_final-wemng.
+*SOA by lalitha
+      DATA : l_pr_value(15) TYPE c.
+      IF wa_final-if_pr_value LE 0.
+        l_pr_value = wa_final-if_pr_value.
+        CONDENSE l_pr_value.
+        CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+          CHANGING
+            value = l_pr_value.
+        CLEAR wa_final-if_pr_value.
+        wa_final-if_pr_value = l_pr_value.
+      ENDIF.
+*EOA by lalitha
+
+      IF  wa_final-ot_pr EQ '1' AND wa_final-if_pr = '1'.
+**        wa_final-otif_pr = 'True'.  Commented by Alhad on 16/10/2015 , Ticket : 8000001201
+        wa_final-otif_pr = '1'.   """ Added by Alhad on 16/10/2015 , Ticket : 8000001201
+      ELSE.
+**        wa_final-otif_pr = 'False'. ""Commented by Alhad on 16/10/2015 , Ticket : 8000001201
+        wa_final-otif_pr = '0'.   """ Added by Alhad on 16/10/2015 , Ticket : 8000001201
+      ENDIF.
+      """"""" Start added by Alhad on 21/08/2015 (For tolarance logic - Ticket 8000000996)
+      IF wa_final-ebeln IS INITIAL AND wa_final-banfn IS NOT INITIAL.
+**        wa_final-otif_pr = 'False'. ""Commented by Alhad on 16/10/2015 , Ticket : 8000001201
+        wa_final-otif_pr = '0'.   """ Added by Alhad on 16/10/2015 , Ticket : 8000001201
+      ENDIF.
+      """"""" End added by Alhad on 21/08/2015 (For tolarance logic - Ticket 8000000996)
+
+
+**      IF wa_final-otif_po = 'True'."" """""" Commented by Alhad on 16/10/2015 , Ticket : 8000001201
+      IF wa_final-otif_po = '1'.""""""""" Added by Alhad on 16/10/2015 , Ticket : 8000001201
+*        wa_final-otif_metpo = 'True'."" """""" Commented by Alhad on 16/10/2015 , Ticket : 8000001201
+        wa_final-otif_metpo = '1'.      """"""""" Added by Alhad on 16/10/2015 , Ticket : 8000001201
+      ELSE.
+**        wa_final-otif_metpo = 'False'. "" """""" Commented by Alhad on 16/10/2015 , Ticket : 8000001201
+        wa_final-otif_metpo = '0'.       """"""""" Added by Alhad on 16/10/2015 , Ticket : 8000001201
+      ENDIF.
+
+**      IF wa_final-otif_po = 'False'.  "" """""" Commented by Alhad on 16/10/2015 , Ticket : 8000001201
+      IF wa_final-otif_po = '0'.     """"""""" Added by Alhad on 16/10/2015 , Ticket : 8000001201
+*        wa_final-otif_unmetpo = 'True'. "" """""" Commented by Alhad on 16/10/2015 , Ticket : 8000001201
+        wa_final-otif_unmetpo = '1'.      """"""""" Added by Alhad on 16/10/2015 , Ticket : 8000001201
+      ELSE.
+**        wa_final-otif_unmetpo = 'False'. "" """""" Commented by Alhad on 16/10/2015 , Ticket : 8000001201
+        wa_final-otif_unmetpo = '0'.""""""""" Added by Alhad on 16/10/2015 , Ticket : 8000001201
+      ENDIF.
+
+**      IF wa_final-otif_pr = 'True'.    "" """""" Commented by Alhad on 16/10/2015 , Ticket : 8000001201
+      IF wa_final-otif_pr = '1'.         """"""""" Added by Alhad on 16/10/2015 , Ticket : 8000001201
+**        wa_final-otif_metpr = 'True'.  "" """""" Commented by Alhad on 16/10/2015 , Ticket : 8000001201
+        wa_final-otif_metpr = '1'.       """"""""" Added by Alhad on 16/10/2015 , Ticket : 8000001201
+      ELSE.
+**        wa_final-otif_metpr = 'False'. "" """""" Commented by Alhad on 16/10/2015 , Ticket : 8000001201
+        wa_final-otif_metpr = '0'.         """"""""" Added by Alhad on 16/10/2015 , Ticket : 8000001201
+      ENDIF.
+
+
+**      IF wa_final-otif_pr = 'False'.     """""" Commented by Alhad on 16/10/2015 , Ticket : 8000001201
+      IF wa_final-otif_pr = '0'.                 """"""""" Added by Alhad on 16/10/2015 , Ticket : 8000001201
+**        wa_final-otif_unmetpr = 'True'. "" """""" Commented by Alhad on 16/10/2015 , Ticket : 8000001201
+        wa_final-otif_unmetpr = '1'.           """"""""" Added by Alhad on 16/10/2015 , Ticket : 8000001201
+      ELSE.
+**        wa_final-otif_unmetpr = 'False'. "" """""" Commented by Alhad on 16/10/2015 , Ticket : 8000001201
+        wa_final-otif_unmetpr = '0'. """"""""" Added by Alhad on 16/10/2015 , Ticket : 8000001201
+      ENDIF.
+
+      IF  p_prsdt IS NOT INITIAL AND p_predt IS NOT INITIAL.
+        IF wa_final-badat GE p_prsdt AND
+        wa_final-badat LE p_predt.
+          wa_final-rel_period = '1'.""" 'yes' Change by Alhad on 13/08/2015 as per 8000000996
+        ELSE.
+          wa_final-rel_period = '0'.""" 'no' Change by Alhad on 13/08/2015 as per 8000000996
+        ENDIF.
+
+      ENDIF.
+
+
+      CLEAR :l_fromdt,l_todt.
+
+
+
+      IF wa_final-po_reldat IS NOT INITIAL AND
+         wa_final-pr_reldat IS NOT INITIAL.
+
+        l_fromdt = wa_final-pr_reldat.
+        l_todt   = wa_final-po_reldat.
+        CLEAR lv_leadtm.
+        CALL FUNCTION 'FIMA_DAYS_AND_MONTHS_AND_YEARS'
+          EXPORTING
+            i_date_from = l_fromdt
+*           I_KEY_DAY_FROM       =
+            i_date_to   = l_todt
+*           I_KEY_DAY_TO         =
+*           I_FLG_SEPARATE       = ' '
+          IMPORTING
+            e_days      = lv_leadtm " wa_final-prpo_leadtm "added by shubhangi 8000006894 23.12.2022
+*           E_MONTHS    =
+*           E_YEARS     =
+          .
+
+*          wa_final-prpo_leadtm = l_prpo_lead.
+        wa_final-prpo_leadtm = lv_leadtm. "added by shubhangi 8000006894 23.12.2022
+
+      ENDIF.
+
+*****Begin:Added by Anil Kumar on 03.08.2015*********
+      IF wa_final-ebeln IS NOT INITIAL AND wa_final-ebelp IS NOT INITIAL.
+        CLEAR : ta_lines,ta_lines[],g_name.
+        CONCATENATE wa_final-ebeln wa_final-ebelp INTO g_name.
+        CALL FUNCTION 'READ_TEXT'
+          EXPORTING
+*           CLIENT                  = SY-MANDT
+            id                      = 'F06'
+            language                = 'E'
+            name                    = g_name        "wa_final-matnr
+            object                  = 'EKPO'
+*           ARCHIVE_HANDLE          = 0
+*           LOCAL_CAT               = ' '
+*         IMPORTING
+*           HEADER                  =
+*           OLD_LINE_COUNTER        =
+          TABLES
+            lines                   = ta_lines
+          EXCEPTIONS
+            id                      = 1
+            language                = 2
+            name                    = 3
+            not_found               = 4
+            object                  = 5
+            reference_check         = 6
+            wrong_access_to_archive = 7
+            OTHERS                  = 8.
+        IF sy-subrc = 0.
+          IF ta_lines[] IS NOT INITIAL.
+            CLEAR : wa_final-po_maktx.
+            LOOP AT ta_lines INTO wa_lines.
+              REPLACE ALL OCCURRENCES OF '"' IN wa_lines-tdline WITH ' '.
+*              wa_final-PO_maktx = wa_lines-tdline.
+              CONCATENATE wa_final-po_maktx wa_lines-tdline INTO wa_final-po_maktx SEPARATED BY ''.
+            ENDLOOP.
+          ENDIF.
+        ENDIF.
+      ENDIF.
+
+      DATA : l_pr_reldat TYPE lfdat,
+             l_lfdat2    TYPE lfdat,
+*             l_lead      TYPE konv-kbetr, comment by Nilesh 23.12.2020 8000005577
+             l_lead      TYPE p , "added by Nilesh 23.12.2020 8000005577
+             l_lead2(15) TYPE c.
+
+      CONSTANTS : co_val(1) TYPE c VALUE '-'.
+
+      CLEAR : l_lfdat2,l_pr_reldat,l_lead,l_lead2.
+*      soc by shubhangi cr 8000006894 26.12.2022
+*      l_lfdat2 = wa_final-lfdat.
+*      l_pr_reldat = wa_final-pr_reldat.
+      l_lfdat2 = wa_final-eindt_f."First delivery date
+      l_pr_reldat = wa_final-eindt."Delivery date
+*      eoc by shubhangi cr 8000006894 26.12.2022
+*      Commented by lalitha CR 8000006894 13.01.2023
+*      CLEAR l_lead.
+*      CALL FUNCTION '/SDF/CMO_DATETIME_DIFFERENCE'
+*        EXPORTING
+*          date1            = l_lfdat2
+**         TIME1            =
+*          date2            = l_pr_reldat
+**         TIME2            =
+*        IMPORTING
+*          datediff         = l_lead
+**         TIMEDIFF         =
+**         EARLIEST         =
+*        EXCEPTIONS
+*          invalid_datetime = 1
+*          OTHERS           = 2.
+*      IF sy-subrc <> 0.
+** Implement suitable error handling here
+*      ENDIF.
+*End of comment by lalitha cr 8000006894 13.01.2023
+*SOC by lalitha cr 8000006894 13.01.2023
+      CLEAR l_lead.
+      l_lead = l_lfdat2 -  l_pr_reldat.
+*EOC by lalitha cr 8000006894 13.01.2023
+*      soc by shubhangi cr 8000006894 26.12.2022
+*      l_lead = l_lead - wa_final-plifz.
+      l_lead = l_lead - wa_final-avg_qcper.
+*      eoc by shubhangi cr 8000006894 26.12.2022
+
+
+      IF l_lead LE 0.
+        l_lead2 = l_lead.
+        CONDENSE l_lead2.
+        CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+          CHANGING
+            value = l_lead2.
+
+      ELSE. " added By nilesh 22.12.2020 8000005577
+        l_lead2 = l_lead. " added By nilesh 22.12.2020 8000005577
+        CONDENSE l_lead2. " added By nilesh 22.12.2020 8000005577
+      ENDIF.
+
+      wa_final-lead = l_lead2.
+      CONDENSE wa_final-lead.
+      CLEAR : l_lead,l_lead2.
+*
+*      IF wa_final-badat IS NOT INITIAL.   "commented by Gauri Tandel- 8000006894 - 02.08.2022
+*        CONDENSE wa_final-badat.
+*        CONCATENATE wa_final-badat+6(2) '-' wa_final-badat+4(2) '-'
+*                    wa_final-badat+0(4) INTO wa_final-badat.
+*      ENDIF.
+*      IF wa_final-pr_reldat IS NOT INITIAL.
+*        CONDENSE wa_final-pr_reldat .
+*        CONCATENATE wa_final-pr_reldat+6(2) '-'
+*                    wa_final-pr_reldat+4(2) '-'
+*                    wa_final-pr_reldat+0(4) '-' INTO wa_final-pr_reldat .
+*      ENDIF.
+*
+*      IF wa_final-lfdat IS NOT INITIAL.
+*        CONDENSE wa_final-lfdat.
+*        CONCATENATE wa_final-lfdat+6(2) '-' wa_final-lfdat+4(2) '-'
+*                    wa_final-lfdat+0(4) INTO wa_final-lfdat.
+*      ENDIF.
+*      IF wa_final-aedat IS NOT INITIAL.
+*        CONDENSE wa_final-aedat.
+*        CONCATENATE wa_final-aedat+6(2) '-'
+*                    wa_final-aedat+4(2) '-'
+*                    wa_final-aedat+0(4) INTO wa_final-aedat.
+*      ENDIF.
+*      IF wa_final-po_reldat IS NOT INITIAL.
+*        CONDENSE wa_final-po_reldat.
+*        CONCATENATE wa_final-po_reldat+6(2) '-'
+*                    wa_final-po_reldat+4(2) '-'
+*                    wa_final-po_reldat+0(4) INTO  wa_final-po_reldat.
+*      ENDIF.
+*
+*      IF wa_final-eindt IS NOT INITIAL.
+*        CONDENSE wa_final-eindt.
+*        CONCATENATE wa_final-eindt+6(2) '-'
+*                    wa_final-eindt+4(2) '-'
+*                    wa_final-eindt+0(4) '-' INTO wa_final-eindt.
+*      ENDIF.
+*      IF wa_final-eindt_f IS NOT INITIAL.
+*        CONDENSE wa_final-eindt_f.
+*        CONCATENATE wa_final-eindt_f+6(2) '-'
+*                    wa_final-eindt_f+4(2) '-'
+*                    wa_final-eindt_f+0(4) '-' INTO wa_final-eindt_f.
+*      ENDIF.
+*      IF  wa_final-exp_del IS NOT INITIAL.
+*        CONDENSE wa_final-exp_del.
+*        CONCATENATE wa_final-exp_del+6(2) '-'
+*                    wa_final-exp_del+4(2) '-'
+*                    wa_final-exp_del+0(4) '-' INTO wa_final-exp_del.
+*      ENDIF.
+*
+*      IF wa_final-act_detdt IS NOT INITIAL.
+*        CONDENSE wa_final-act_detdt.
+*        CONCATENATE wa_final-act_detdt+6(2) '-'
+*                    wa_final-act_detdt+4(2) '-'
+*                    wa_final-act_detdt+0(4) '-' INTO wa_final-act_detdt.
+*      ENDIF.                                                               " commented by Gauri Tandel- 8000006894 - 02.08.2022
+
+      SORT lt_po_clog BY crdat DESCENDING crtime DESCENDING.
+      READ TABLE lt_po_clog ASSIGNING FIELD-SYMBOL(<ls_po_clog>) WITH KEY ebeln = wa_final-ebeln
+                                                                          ebelp = wa_final-ebelp
+                                                                          etenr = wa_final-etenr.
+      IF sy-subrc = 0.
+        READ TABLE lt_reason_t ASSIGNING FIELD-SYMBOL(<ls_reason>) WITH KEY reason = <ls_po_clog>-reason.
+        IF sy-subrc = 0.
+          wa_final-reason_txt = <ls_reason>-reason_txt. "Missing OTIF Reason
+          wa_final-name_text = <ls_po_clog>-name_text.  "Responsible user
+        ENDIF.
+      ENDIF.
+
+      IF wa_ekko_ekpo_eket-bsart EQ co_bsart.
+        wa_final-sys_source = co_ariba.
+      ELSE.
+        wa_final-sys_source = co_sap.
+      ENDIF.
+
+      SORT ta_zmm_otif_pc BY ekgrp matkl.
+      CLEAR : wa_zmm_otif_pc.
+      READ TABLE ta_zmm_otif_pc INTO wa_zmm_otif_pc WITH KEY ekgrp = wa_ekko_ekpo_eket-ekgrp
+                                                             matkl = wa_ekko_ekpo_eket-matkl
+                                                             BINARY SEARCH.
+      IF sy-subrc EQ 0.
+        wa_final-pur_cat = wa_zmm_otif_pc-pur_cat.
+        wa_final-pur_team = wa_zmm_otif_pc-pur_team.
+      ENDIF.
+
+      wa_final-bednr_po = wa_ekko_ekpo_eket-bednr.
+
+      IF wa_final-bednr_po IS INITIAL.
+        SORT ta_usr21_po BY persnumber.
+        CLEAR wa_usr21_po.
+        READ TABLE ta_usr21_po INTO wa_usr21_po WITH KEY bname = wa_ekko_ekpo_eket-ernam.
+        IF sy-subrc EQ 0.
+          wa_final-bednr_po = wa_usr21_po-name_first.
+        ENDIF.
+      ENDIF.
+
+      IF wa_ekko_ekpo_eket-konnr IS NOT INITIAL.
+        wa_final-cat_fld = co_cat.
+      ELSE.
+        wa_final-cat_fld = co_noncat.
+      ENDIF.
+
+      wa_final-maktx = wa_ekko_ekpo_eket-txz01.
+*soc by shubhangi cr 8000006894 23.12.2022
+*      wa_final-del_per = ( wa_final-wemng / wa_final-menge ) * 100."Commenteed by lalitha 8000006894 16.01.2023
+      IF wa_final-menge IS NOT INITIAL.
+*SOC by Lalitha CR 8000006894 13.01.2023
+        l_menge_conv = 1 - ( wa_final-wemng / wa_final-menge ).
+        wa_final-del_per = l_menge_conv * 100.
+*EOC by Lalitha CR 8000006894 13.01.2023
+      ENDIF.
+*eoc by shubhangi cr 8000006894 23.12.2022
+
+      IF wa_final-reason_txt IS NOT INITIAL.
+        wa_final-grn_usage = co_yes.
+      ELSE.
+        wa_final-grn_usage = co_no.
+      ENDIF.
+
+
+      IF wa_final-otif_po EQ '1'.
+        wa_final-zmm_po_clog = co_met.
+      ELSE.
+        CLEAR wa_zmm_otif_mo.
+*        READ TABLE ta_zmm_otif_mo INTO wa_zmm_otif_mo WITH KEY reason = twa_final-otif_po. "commnetd By nilesh 22.12.2020 8000005577
+        READ TABLE ta_zmm_otif_mo INTO wa_zmm_otif_mo WITH KEY reason = wa_final-reason_txt."added By Nilesh 22.12.2020 8000005577
+        IF sy-subrc EQ 0.
+*          wa_final-zmm_po_clog = wa_zmm_otif_mo-reason. "commnetd By nilesh 22.12.2020 8000005577
+          wa_final-zmm_po_clog = wa_zmm_otif_mo-met."added By Nilesh 22.12.2020 8000005577
+        ELSE.
+          wa_final-zmm_po_clog = co_unmet.
+        ENDIF.
+      ENDIF.
+
+      IF wa_final-zmm_po_clog = co_met.
+        wa_final-otif_fin_metpo = '1'.
+        wa_final-otif_fin_unmetpo = '0'.
+      ELSEIF  wa_final-zmm_po_clog = co_unmet. "added By Nilesh 28.12.2020 8000005577
+        wa_final-otif_fin_metpo = '0'.
+        wa_final-otif_fin_unmetpo = '1'.
+* SOC  added By Nilesh 22.12.2020 8000005577
+      ELSE.
+        wa_final-otif_fin_metpo = '1'.
+        wa_final-otif_fin_unmetpo = '0'.
+*EOC By Nilesh 22.12.2020 8000005577
+      ENDIF.
+
+
+      l_lead = wa_final-lead.
+      IF l_lead IS NOT INITIAL.
+        IF wa_final-pur_cat EQ co_pm OR wa_final-pur_cat EQ co_rm.
+          IF l_lead GT 0.
+            wa_final-sh_time = co_n.
+          ELSE.
+            wa_final-sh_time = co_y.
+          ENDIF.
+        ENDIF.
+*Soc By Nilesh 23.12.2020 8000005577
+        IF wa_final-pur_cat EQ co_ipd.
+          wa_final-sh_time = co_n.
+        ENDIF.
+*Eoc By Nilesh 23.12.2020 8000005577
+
+*Soc By Nilesh 28.12.2020 8000005577
+      ELSE.
+        wa_final-sh_time = co_n.
+*Eoc By Nilesh 23.12.2020 8000005577
+
+      ENDIF.
+      """ SOC done by Sushil as on 27.01.2021 against ticket no. 8000006894
+      IF r1 = abap_true. "Dumping of PO data
+        wa_zmm_otif2_po = CORRESPONDING #( wa_final ).
+        wa_zmm_otif2_po-plfiz =  wa_final-plifz."Added by lalitha CR 80000009039 06-05-2023
+
+        wa_zmm_otif2_po-meins_wemng   = wa_final-meins.
+        wa_zmm_otif2_po-created_by    = sy-uname.
+        wa_zmm_otif2_po-created_on    = sy-datlo.
+        wa_zmm_otif2_po-creation_time = sy-timlo.
+
+        CONCATENATE wa_final-badat+0(4)    wa_final-badat+4(2)     wa_final-badat+6(2)      INTO wa_zmm_otif2_po-badat.
+        CONCATENATE wa_final-pr_reldat+0(4) wa_final-pr_reldat+4(2) wa_final-pr_reldat+6(2) INTO wa_zmm_otif2_po-pr_reldat .
+        CONCATENATE wa_final-lfdat+0(4)     wa_final-lfdat+4(2)     wa_final-lfdat+6(2)     INTO wa_zmm_otif2_po-lfdat .
+        CONCATENATE wa_final-aedat+0(4)     wa_final-aedat+4(2)     wa_final-aedat+6(2)     INTO wa_zmm_otif2_po-aedat .
+        CONCATENATE wa_final-po_reldat+0(4) wa_final-po_reldat+4(2) wa_final-po_reldat+6(2) INTO wa_zmm_otif2_po-po_reldat .
+        CONCATENATE wa_final-eindt+0(4)     wa_final-eindt+4(2)     wa_final-eindt+6(2)     INTO wa_zmm_otif2_po-eindt .
+        CONCATENATE wa_final-eindt_f+0(4)   wa_final-eindt_f+4(2)   wa_final-eindt_f+6(2)   INTO wa_zmm_otif2_po-eindt_f .
+        CONCATENATE wa_final-exp_del+0(4)   wa_final-exp_del+4(2)   wa_final-exp_del+6(2)   INTO wa_zmm_otif2_po-exp_del .
+        CONCATENATE wa_final-act_detdt+0(4) wa_final-act_detdt+4(2) wa_final-act_detdt+6(2) INTO wa_zmm_otif2_po-act_detdt .
+
+        APPEND wa_zmm_otif2_po TO ta_zmm_otif2_po.
+        CLEAR wa_zmm_otif2_po.
+      ELSEIF r2 = abap_true. "Dumping of PR data
+
+        wa_zmm_otif2_pr = CORRESPONDING #( wa_final ).
+        wa_zmm_otif2_pr-plfiz =  wa_final-plifz."Added by lalitha CR 80000009039 06-05-2023
+        wa_zmm_otif2_pr-meins_wemng = wa_final-meins.
+        wa_zmm_otif2_pr-created_by    = sy-uname.
+        wa_zmm_otif2_pr-created_on    = sy-datlo.
+        wa_zmm_otif2_pr-creation_time = sy-timlo.
+
+        CONCATENATE wa_final-badat+0(4)     wa_final-badat+4(2)     wa_final-badat+6(2)     INTO wa_zmm_otif2_pr-badat .
+        CONCATENATE wa_final-pr_reldat+0(4) wa_final-pr_reldat+4(2) wa_final-pr_reldat+6(2) INTO wa_zmm_otif2_pr-pr_reldat .
+        CONCATENATE wa_final-lfdat+0(4)     wa_final-lfdat+4(2)     wa_final-lfdat+6(2)     INTO wa_zmm_otif2_pr-lfdat .
+        CONCATENATE wa_final-aedat+0(4)     wa_final-aedat+4(2)     wa_final-aedat+6(2)     INTO wa_zmm_otif2_pr-aedat .
+        CONCATENATE wa_final-po_reldat+0(4) wa_final-po_reldat+4(2) wa_final-po_reldat+6(2) INTO wa_zmm_otif2_pr-po_reldat .
+        CONCATENATE wa_final-eindt+0(4)     wa_final-eindt+4(2)     wa_final-eindt+6(2)     INTO wa_zmm_otif2_pr-eindt .
+        CONCATENATE wa_final-eindt_f+0(4)   wa_final-eindt_f+4(2)   wa_final-eindt_f+6(2)   INTO wa_zmm_otif2_pr-eindt_f .
+        CONCATENATE wa_final-exp_del+0(4)   wa_final-exp_del+4(2)   wa_final-exp_del+6(2)   INTO wa_zmm_otif2_pr-exp_del .
+        CONCATENATE wa_final-act_detdt+0(4) wa_final-act_detdt+4(2) wa_final-act_detdt+6(2) INTO wa_zmm_otif2_pr-act_detdt .
+
+        APPEND wa_zmm_otif2_pr TO ta_zmm_otif2_pr.
+        CLEAR wa_zmm_otif2_pr.
+      ENDIF.
+      """ EOC done by Sushil as on 27.01.2021 against ticket no. 8000006894
+      APPEND wa_final TO ta_final.
+      CLEAR :wa_final ,l_eketqty ,wa_zmm_otif_mo ,wa_zmm_otif_pc ,wa_usr21_po.
+    ENDLOOP.
+  ENDIF.
+
+  IF r1 = abap_true AND ta_zmm_otif2_po[] IS NOT INITIAL.
+    CALL FUNCTION 'RP_CALC_DATE_IN_INTERVAL'
+      EXPORTING
+        date      = sy-datlo
+        days      = gv_days_d
+        months    = gv_dlymo
+        signum    = gv_signum
+        years     = gv_yrs
+      IMPORTING
+        calc_date = gv_del_date.
+
+    DELETE FROM zmm_otif2_po  WHERE created_on LE gv_del_date. " Deleting two years old data
+    MODIFY zmm_otif2_po FROM TABLE ta_zmm_otif2_po.
+    CLEAR gv_del_date.
+  ELSEIF r2 = abap_true AND ta_zmm_otif2_pr[] IS NOT INITIAL.
+    CALL FUNCTION 'RP_CALC_DATE_IN_INTERVAL'
+      EXPORTING
+        date      = sy-datlo
+        days      = gv_days_d
+        months    = gv_dlymo
+        signum    = gv_signum
+        years     = gv_yrs
+      IMPORTING
+        calc_date = gv_del_date.
+    DELETE FROM zmm_otif2_pr WHERE created_on LE gv_del_date. "Deleting two years old data
+    MODIFY zmm_otif2_pr FROM TABLE ta_zmm_otif2_pr.
+  ENDIF.
+
+ENDFORM.                    " FILL_FINAL
+*&---------------------------------------------------------------------*
+*&      Form  FILL_FIELDCAT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM fill_fieldcat .
+  PERFORM fill_field USING 'EBELN'        'EBELN'     'EKKO'   ''  text-002.
+  PERFORM fill_field USING 'EBELP'        'EBELP'     'EKPO'   ''  text-003.
+  PERFORM fill_field USING 'ETENR'        'ETENR'     'EKET'   ''  text-105.
+  PERFORM fill_field USING 'EKGRP'        'EKGRP'     'EKPO'   ''  text-044.
+  PERFORM fill_field USING 'MATKL'        'MATKL'     'T023T'  ''  text-050.
+  PERFORM fill_field USING 'WGBEZ'        'WGBEZ'     'T023T'  ''  text-051.
+  PERFORM fill_field USING 'MATNR'        'MATNR'     'EKPO'   ''  text-009.
+  PERFORM fill_field USING 'MAKTX'        'MAKTX'     'MAKT'   ''  text-108.
+  PERFORM fill_field USING 'MTART'        'MTART'     'MARA'   ''  text-064.
+  PERFORM fill_field USING 'MTBEZ'        'MTBEZ'     'T134T'  ''  text-066.
+  PERFORM fill_field USING 'BISMT'        'BISMT'     'MARA'   ''  text-065.
+  PERFORM fill_field USING 'IND_BOND'     ''          ''       ''  text-067.
+  PERFORM fill_field USING 'LIFNR'        'LIFNR'     'LFA1'   ''  text-042.
+  PERFORM fill_field USING 'NAME1'        'NAME1'     'LFA1'   ''  text-043.
+  PERFORM fill_field USING 'WERKS'        'WERKS'     'EKPO'   ''  text-010.
+  PERFORM fill_field USING 'PLANTN'       'NAME1'     'T001W'  ''  text-068.
+  PERFORM fill_field USING 'PRPO_LEADTM'  'PLIFZ'     'MARC'   ''  text-069.
+  PERFORM fill_field USING 'PLIFZ'        'PLIFZ'     'MARC'   ''  text-045.
+  PERFORM fill_field USING 'WEBAZ'        'WEBAZ'     'MARC'   ''  text-070.
+  PERFORM fill_field USING 'AVG_QC1'      'PLIFZ'     'MARC'   ''  text-090.
+  PERFORM fill_field USING 'TOT_LEAD'     'PLIFZ'     'MARC'   ''  text-091.
+  PERFORM fill_field USING 'AVG_QCPER'    'PLIFZ'     'MARC'   ''  text-092.
+  PERFORM fill_field USING 'NETWR'        'NETWR'     'EKPO'   ''  text-037.
+  PERFORM fill_field USING 'NET_INR'      'NETWR'     'EKPO'   ''  text-109.
+  PERFORM fill_field USING 'BRTWR'        'BRTWR'     'EKPO'   ''  text-038.
+  PERFORM fill_field USING 'WAERS'        'WAERS'     'EKKO'   ''  text-093.
+  PERFORM fill_field USING 'BANFN'        'BANFN'     'EKPO'   ''  text-006.
+  PERFORM fill_field USING 'BNFPO'        'BNFPO'     'EKPO'   ''  text-007.
+  PERFORM fill_field USING 'BADAT'        'BADAT'     'EBAN'   ''  text-008.
+  PERFORM fill_field USING 'PR_RELDAT'    'LFDAT'     'EBAN'   ''  text-016.
+  PERFORM fill_field USING 'LFDAT'        'LFDAT'     'EBAN'   ''  text-041.
+  PERFORM fill_field USING 'AEDAT'        'AEDAT'     'EKKO'   ''  text-004.
+  PERFORM fill_field USING 'PO_RELDAT'    'EINDT'     'EKET'   ''  text-014.
+  PERFORM fill_field USING 'EINDT'        'EINDT'     'EKET'   ''  text-040.
+  PERFORM fill_field USING 'EINDT_F'        'EINDT'     'EKET'   ''  text-104.
+  PERFORM fill_field USING 'EXP_DEL'      'EINDT'     'EKET'   ''  text-071.
+  PERFORM fill_field USING 'ACT_DETDT'    'EINDT'     'EKET'   ''  text-072.
+  PERFORM fill_field USING 'PR_MENGE'     'MENGE'     'EBAN'   ''  text-046.
+  PERFORM fill_field USING 'PR_MEINS'     'MEINS'     'EBAN'   ''  text-073.
+  PERFORM fill_field USING 'MENGE'        'MENGE'     'EKPO'   ''  text-012.
+  PERFORM fill_field USING 'MEINS'        'MEINS'     'EKPO'   ''  text-013.
+  PERFORM fill_field USING 'WEMNG'        'MENGE'     'EKPO'   ''  text-018.
+*  SOC by sHUBHANGI - 8000006894 - 30.12.2022
+*  PERFORM fill_field USING 'MEINS'        'MEINS'     'EKPO'   ''  text-106.
+  PERFORM fill_field USING 'MEINS_GRN'        'MEINS'     'EKPO'   ''  text-106.
+*  *  EOC by sHUBHANGI - 8000006894 - 30.12.2022
+  PERFORM fill_field USING 'PO_LEAD'      'PLIFZ'     'MARC'   ''  text-074.
+  PERFORM fill_field USING 'PR_LEAD'      'PLIFZ'     'MARC'   ''  text-075.
+  PERFORM fill_field USING 'PO_LEADSI'    ''          'EKET'   ''  text-077.
+  PERFORM fill_field USING 'PR_LEADSI'    ''          'EKET'   ''  text-089.
+  PERFORM fill_field USING 'OT_PO'        ''          'EKET'   ''  text-078.
+  PERFORM fill_field USING 'IF_PO'        ''          'EKET'   ''  text-079.
+  PERFORM fill_field USING 'OTIF_PO'      ''          'EKET'   ''  text-080.
+  PERFORM fill_field USING 'OT_PR'        ''          'EKET'   ''  text-081.
+  PERFORM fill_field USING 'IF_PR'        ''          'EKET'   ''  text-082.
+  PERFORM fill_field USING 'OTIF_PR'      ''          'EKET'   ''  text-083.
+  PERFORM fill_field USING 'OTIF_METPO'   ''          'EKET'   ''  text-084.
+  PERFORM fill_field USING 'OTIF_UNMETPO' ''          'EKET'   ''  text-085.
+  PERFORM fill_field USING 'OTIF_METPR'   ''          'EKET'   ''  text-086.
+  PERFORM fill_field USING 'OTIF_UNMETPR' ''          'EKET'   ''  text-087.
+  PERFORM fill_field USING 'REL_PERIOD'   ''          'EKET'   ''  text-088.
+  PERFORM fill_field USING 'OT_PO_VALUE'  'PLIFZ'     'MARC'   ''  text-094.
+  PERFORM fill_field USING 'IF_PO_VALUE'  'MENGE'     'EKET'   ''  text-095.
+  PERFORM fill_field USING 'OT_PR_VALUE'  'PLIFZ'     'MARC'   ''  text-096.
+  PERFORM fill_field USING 'IF_PR_VALUE'  'MENGE'     'EKET'   ''  text-097.
+  PERFORM fill_field USING 'EKNAM'        'EKNAM'     'T024'   ''  text-098.
+  PERFORM fill_field USING 'PO_MAKTX'     'MTBEZ'     'T134T'  ''  text-107.
+  PERFORM fill_field USING 'BSART_PO'      'BSART'     'EKKO'   ''  text-110.
+  PERFORM fill_field USING 'BSART_PR'      'BSART'     'EBAN'  ''  text-111.
+  PERFORM fill_field USING 'REASON_TXT'      ''     ''   ''  text-112.
+  PERFORM fill_field USING 'NAME_TEXT'      ''     ''  ''  text-113.
+  PERFORM fill_field USING 'BEDNR'      ''     ''   ''  text-114.
+  PERFORM fill_field USING 'SYS_SOURCE'      ''     ''   ''  text-115.
+  PERFORM fill_field USING 'PUR_CAT'      ''     ''   ''  text-116.
+  PERFORM fill_field USING 'PUR_TEAM'      ''     ''   ''  text-117.
+  PERFORM fill_field USING 'BEDNR_PO'      ''     ''   ''  text-118.
+  PERFORM fill_field USING 'CAT_FLD'      ''     ''   ''  text-119.
+  PERFORM fill_field USING 'MAGRV'      ''     'MARA'   ''  text-120.
+  PERFORM fill_field USING 'OT_DAY'     ''     ''   ''  text-122.
+  PERFORM fill_field USING 'DEL_PER'     ''     ''   ''  text-123.
+  PERFORM fill_field USING 'GRN_USAGE'   ''     ''   ''  text-124.
+  PERFORM fill_field USING 'ZMM_PO_CLOG'   ''     ''   ''  text-125.
+  PERFORM fill_field USING 'OTIF_FIN_METPO'   ''     ''   ''  text-126.
+  PERFORM fill_field USING 'OTIF_FIN_UNMETPO'   ''     ''   ''  text-127.
+  PERFORM fill_field USING 'LEAD'   ''     ''   ''  text-128.
+  PERFORM fill_field USING 'SH_TIME'   ''     ''   ''  text-129.
+ENDFORM.                    " FILL_FIELDCAT
+*&---------------------------------------------------------------------*
+*&      Form  CALL_ALV
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM call_alv .
+
+  IF ta_final[] IS NOT INITIAL.
+
+    wa_layout-zebra = 'X'.
+    wa_layout-colwidth_optimize = 'X'.
+    CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+      EXPORTING
+        i_callback_program       = sy-repid
+        i_callback_pf_status_set = 'SET_PF_STATUS'
+        i_callback_user_command  = 'USER_COMMAND'
+        is_layout                = wa_layout
+        it_fieldcat              = ta_fieldcat
+        it_sort                  = ta_sort
+        i_default                = 'X'
+        i_save                   = 'X'
+        is_variant               = rs_variant
+      TABLES
+        t_outtab                 = ta_final
+      EXCEPTIONS
+        program_error            = 1
+        OTHERS                   = 2.
+    IF sy-subrc <> 0.
+* Implement suitable error handling here
+    ENDIF.
+  ELSE.
+    MESSAGE s004(zmm) .
+  ENDIF.
+
+
+ENDFORM.                    " CALL_ALV
+FORM set_pf_status USING rt_extab TYPE slis_t_extab.
+
+  SET PF-STATUS 'ZMM_STANDARD'.
+
+ENDFORM.
+FORM user_command USING r_ucomm     LIKE sy-ucomm
+                        rs_selfield TYPE slis_selfield.
+
+
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form  FILL_FIELD
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_0778   text
+*      -->P_0779   text
+*      -->P_0780   text
+*----------------------------------------------------------------------*
+FORM fill_field  USING  p_tab_field_name  TYPE slis_fieldcat_alv-fieldname
+                        p_ref_field_name TYPE slis_fieldcat_alv-ref_fieldname
+                        p_ref_field_table TYPE slis_fieldcat_alv-ref_tabname
+                        p_dosum TYPE slis_fieldcat_alv-do_sum
+                        p_short_text.
+
+  CLEAR wa_fieldcat.
+  g_pos = g_pos + 1.
+
+  wa_fieldcat-col_pos       = g_pos.
+  wa_fieldcat-fieldname     = p_tab_field_name.
+  wa_fieldcat-ref_fieldname = p_ref_field_name.
+  wa_fieldcat-ref_tabname   = p_ref_field_table.
+  wa_fieldcat-do_sum        = p_dosum.
+  wa_fieldcat-seltext_l     = p_short_text.
+  wa_fieldcat-seltext_m     = p_short_text.
+  wa_fieldcat-seltext_s     = p_short_text.
+  wa_fieldcat-reptext_ddic  = p_short_text.
+  IF wa_fieldcat-fieldname = 'REASON_TXT'
+    OR wa_fieldcat-fieldname = 'NAME_TEXT'
+    OR wa_fieldcat-fieldname = 'BEDNR'.
+    IF r1 = 'X'.
+      wa_fieldcat-no_out = ''.
+    ELSE.
+      wa_fieldcat-no_out = 'X'.
+    ENDIF.
+  ENDIF.
+  APPEND wa_fieldcat TO  ta_fieldcat.
+ENDFORM.                    " FILL_FIELD
+*&---------------------------------------------------------------------*
+*&      Form  GET_CDHDR
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM get_cdhdr .
+
+  IF ta_objectid[] IS NOT INITIAL.
+
+    SORT ta_objectid BY low.
+    DELETE ta_objectid WHERE low IS INITIAL.
+
+
+    SELECT objectclas
+           objectid
+           changenr
+           username
+           udate
+           utime
+           tcode
+           change_ind
+           FROM cdhdr
+           INTO TABLE ta_cdhdr
+           FOR ALL ENTRIES IN ta_objectid
+           WHERE objectclas IN ('EINKBELEG','BANF')
+    AND objectid EQ ta_objectid-low.
+
+    IF ta_cdhdr[] IS NOT INITIAL.
+      SORT ta_cdhdr BY change_ind.
+
+      DELETE ta_cdhdr WHERE change_ind NE 'U'.
+
+    ENDIF.
+
+    CLEAR :ta_cdhdr1.
+
+*  ENDSELECT.
+
+  ENDIF.
+ENDFORM.                    " GET_CDHDR
+*&---------------------------------------------------------------------*
+*&      Form  GET_CDPOS
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM get_cdpos .
+
+  IF ta_cdhdr[] IS NOT INITIAL.
+
+    SELECT objectclas
+           objectid
+           changenr
+           tabname
+           tabkey
+           fname
+           chngind
+           value_new
+           value_old
+           FROM cdpos
+           INTO TABLE ta_cdpos
+           FOR ALL ENTRIES IN ta_cdhdr
+           WHERE objectclas EQ ta_cdhdr-objectclas
+           AND objectid EQ ta_cdhdr-objectid
+           AND changenr EQ ta_cdhdr-changenr
+           AND tabname IN ('EKKO','EBAN','EKET')
+*           AND tabkey IN ta_objectid
+           AND fname IN ('FRGKE','FRGKZ','EINDT')
+    AND chngind = 'U'.
+*           AND value_new IN ('R','2').
+
+  ENDIF.
+
+
+ENDFORM.                    " GET_CDPOS
+*&---------------------------------------------------------------------*
+*&      Form  GET_MAKT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM get_makt .
+
+  IF ta_ekko_ekpo_eket[] IS NOT INITIAL.
+    CLEAR : ta_ekko_ekpo_eket_tm[].
+    ta_ekko_ekpo_eket_tm[] =  ta_ekko_ekpo_eket[].
+    SORT  ta_ekko_ekpo_eket_tm BY matnr.
+    DELETE ADJACENT DUPLICATES FROM  ta_ekko_ekpo_eket_tm COMPARING matnr.
+
+    SELECT *
+      FROM makt
+      INTO TABLE ta_makt
+      FOR ALL ENTRIES IN ta_ekko_ekpo_eket_tm
+      WHERE matnr EQ ta_ekko_ekpo_eket_tm-matnr
+    AND spras EQ 'EN'.
+
+
+  ENDIF.
+
+ENDFORM.                    " GET_MAKT
+*&---------------------------------------------------------------------*
+*&      Form  GET_QALS
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM get_qals .
+
+
+  IF ta_mkpf[] IS NOT INITIAL.
+
+
+
+
+
+
+    SELECT a~prueflos
+           a~matnr
+           a~werk
+           a~charg
+           a~ebeln
+           a~ebelp
+           a~mjahr
+           a~mblnr
+           a~zeile
+           a~lagortvorg
+           a~losmenge
+           a~lmenge01
+           a~lmenge02
+           a~lmenge03
+           a~lmenge04
+           a~lmenge05
+           a~lmengeist
+           b~vbewertung
+           FROM qals AS a
+           INNER JOIN qave AS b
+           ON a~prueflos = b~prueflos
+           INTO TABLE ta_qals
+           FOR ALL ENTRIES IN ta_mkpf
+           WHERE mblnr EQ ta_mkpf-mblnr
+           AND zeile EQ ta_mkpf-zeile
+    AND mjahr EQ ta_mkpf-mjahr.
+
+  ENDIF.
+
+ENDFORM.                    " GET_QALS
+" GET_QAVE
+*&---------------------------------------------------------------------*
+*&      Form  GET_LFA1
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM get_lfa1 .
+  IF ta_ekko_ekpo_eket[] IS NOT INITIAL.
+
+    CLEAR :ta_ekko_ekpo_eket_tm[].
+    ta_ekko_ekpo_eket_tm[] = ta_ekko_ekpo_eket[].
+    SORT ta_ekko_ekpo_eket_tm BY lifnr.
+    DELETE ADJACENT DUPLICATES FROM ta_ekko_ekpo_eket_tm COMPARING lifnr.
+
+    SELECT lifnr
+             name1
+             adrnr
+             FROM lfa1
+             INTO TABLE ta_lfa1
+             FOR ALL ENTRIES IN ta_ekko_ekpo_eket_tm
+    WHERE lifnr EQ ta_ekko_ekpo_eket_tm-lifnr.
+
+
+    CLEAR :ta_ekko_ekpo_eket_tm[].
+    ta_ekko_ekpo_eket_tm[] = ta_ekko_ekpo_eket[].
+    SORT ta_ekko_ekpo_eket_tm BY mfrnr.
+    DELETE ADJACENT DUPLICATES FROM ta_ekko_ekpo_eket_tm COMPARING mfrnr.
+
+
+
+
+    SELECT lifnr
+              name1
+              adrnr
+              FROM lfa1
+              APPENDING TABLE ta_lfa1
+              FOR ALL ENTRIES IN ta_ekko_ekpo_eket_tm
+    WHERE lifnr EQ ta_ekko_ekpo_eket_tm-mfrnr.
+
+
+
+  ENDIF.
+ENDFORM.                    " GET_LFA1
+*&---------------------------------------------------------------------*
+*&      Form  GET_MARC
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM get_marc .
+
+  IF ta_ekko_ekpo_eket[] IS NOT INITIAL.
+
+    CLEAR :ta_ekko_ekpo_eket_tm[].
+    ta_ekko_ekpo_eket_tm[] = ta_ekko_ekpo_eket[].
+    SORT ta_ekko_ekpo_eket_tm BY matnr werks.
+    DELETE ADJACENT DUPLICATES FROM ta_ekko_ekpo_eket_tm COMPARING matnr werks.
+
+
+    SELECT matnr
+           werks
+           plifz
+           webaz
+           FROM marc
+           INTO TABLE ta_marc
+           FOR ALL ENTRIES IN ta_ekko_ekpo_eket_tm
+           WHERE matnr EQ ta_ekko_ekpo_eket_tm-matnr
+    AND werks EQ ta_ekko_ekpo_eket_tm-werks.
+
+
+    SELECT matnr
+           werks
+           plifz
+           webaz
+           FROM marc
+           INTO TABLE ta_marc1
+           FOR ALL ENTRIES IN ta_ekko_ekpo_eket_tm
+           WHERE matnr EQ ta_ekko_ekpo_eket_tm-matnr
+    AND werks IN ('1165','1166','1167','1178').
+
+
+
+  ENDIF.
+
+
+
+ENDFORM.                    " GET_MARC
+*&---------------------------------------------------------------------*
+*&      Form  GET_T023T
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM get_t023t .
+
+  IF ta_ekko_ekpo_eket[] IS NOT INITIAL.
+
+    CLEAR :ta_ekko_ekpo_eket_tm[].
+    ta_ekko_ekpo_eket_tm[] = ta_ekko_ekpo_eket[].
+    SORT ta_ekko_ekpo_eket_tm BY matkl.
+    DELETE ADJACENT DUPLICATES FROM ta_ekko_ekpo_eket_tm COMPARING matkl.
+
+    SELECT matkl
+           wgbez
+           FROM t023t
+           INTO TABLE ta_t023t
+           FOR ALL ENTRIES IN ta_ekko_ekpo_eket_tm
+           WHERE matkl EQ ta_ekko_ekpo_eket_tm-matkl
+    AND spras EQ 'E'.
+
+
+  ENDIF.
+
+ENDFORM.                    " GET_T023T
+*&---------------------------------------------------------------------*
+*&      Form  GET_UNAME
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM get_uname .
+
+  IF ta_ekko_ekpo_eket[] IS NOT INITIAL.
+
+    CLEAR :ta_ekko_ekpo_eket_tm[].
+    ta_ekko_ekpo_eket_tm[] = ta_ekko_ekpo_eket[].
+    SORT ta_ekko_ekpo_eket_tm BY ernam.
+    DELETE ADJACENT DUPLICATES FROM ta_ekko_ekpo_eket_tm COMPARING ernam.
+
+    SELECT bname
+           addrnumber
+           FROM usr21
+           INTO TABLE ta_usr21
+           FOR ALL ENTRIES IN ta_ekko_ekpo_eket_tm
+    WHERE bname EQ ta_ekko_ekpo_eket_tm-ernam.
+
+    IF ta_usr21[] IS NOT INITIAL.
+
+      SORT ta_usr21 BY addrnumber.
+      DELETE ADJACENT DUPLICATES FROM ta_usr21 COMPARING addrnumber.
+
+      SELECT addrnumber
+             name1
+             name2
+             name3
+             name4
+             FROM adrc
+             INTO TABLE ta_adrc
+             FOR ALL ENTRIES IN ta_usr21
+      WHERE addrnumber EQ ta_usr21-addrnumber.
+
+    ENDIF.
+
+  ENDIF.
+
+ENDFORM.                    " GET_UNAME
+*&---------------------------------------------------------------------*
+*&      Form  GET_MSEG
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM get_mseg .
+  IF ta_ekko_ekpo_eket[] IS NOT INITIAL.
+
+    CLEAR :ta_ekko_ekpo_eket_tm[].
+    ta_ekko_ekpo_eket_tm[] = ta_ekko_ekpo_eket[].
+
+    SORT ta_ekko_ekpo_eket_tm BY ebeln ebelp.
+    DELETE ADJACENT DUPLICATES FROM ta_ekko_ekpo_eket_tm COMPARING ebeln ebelp.
+
+    DELETE ta_ekko_ekpo_eket_tm WHERE ebeln IS INITIAL.
+
+
+    SELECT mblnr
+           mjahr
+           bwart
+           matnr
+           werks
+           charg
+           ebeln
+           ebelp
+           erfme
+           bpmng
+           budat_mkpf
+           FROM mseg
+           INTO TABLE ta_mseg
+           FOR ALL ENTRIES IN ta_ekko_ekpo_eket_tm
+           WHERE ebeln EQ ta_ekko_ekpo_eket_tm-ebeln
+           AND ebelp EQ ta_ekko_ekpo_eket_tm-ebelp
+           AND bwart IN (co_101,co_321,co_350,co_103,co_104) "remove mvt typ co_105  "changes by Nilesh 22.12.2020 8000005577
+    AND shkzg EQ 'S'.
+
+    IF ta_mseg[] IS NOT INITIAL.
+
+      LOOP AT ta_mseg INTO wa_mseg.
+        IF wa_mseg-bwart EQ co_101 ."OR wa_mseg-bwart EQ co_105."" Loc commnetd By Nilesh 09.12.2020 8000005577
+          wa_mseg1-ebeln = wa_mseg-ebeln.
+          wa_mseg1-ebelp = wa_mseg-ebelp.
+          wa_mseg1-bwart = wa_mseg-bwart.
+          wa_mseg1-matnr = wa_mseg-matnr.
+          wa_mseg1-werks = wa_mseg-werks.
+          wa_mseg1-charg = wa_mseg-charg.
+          wa_mseg1-budat_mkpf = wa_mseg-budat_mkpf.
+          COLLECT wa_mseg1 INTO ta_mseg1.
+        ENDIF.
+
+        IF wa_mseg-bwart EQ co_321.
+          wa_mseg2-ebeln = wa_mseg-ebeln.
+          wa_mseg2-ebelp = wa_mseg-ebelp.
+          wa_mseg2-bwart = wa_mseg-bwart.
+          wa_mseg2-matnr = wa_mseg-matnr.
+          wa_mseg2-werks = wa_mseg-werks.
+          wa_mseg2-charg = wa_mseg-charg.
+          wa_mseg2-budat_mkpf = wa_mseg-budat_mkpf.
+          COLLECT wa_mseg2 INTO ta_mseg2.
+        ENDIF.
+
+        IF wa_mseg-bwart EQ co_350.
+          wa_mseg3-ebeln = wa_mseg-ebeln.
+          wa_mseg3-ebelp = wa_mseg-ebelp.
+          wa_mseg3-bwart = wa_mseg-bwart.
+          wa_mseg3-matnr = wa_mseg-matnr.
+          wa_mseg3-werks = wa_mseg-werks.
+          wa_mseg3-charg = wa_mseg-charg.
+          wa_mseg3-budat_mkpf = wa_mseg-budat_mkpf.
+          COLLECT wa_mseg3 INTO ta_mseg3.
+        ENDIF.
+
+        IF wa_mseg-bwart EQ co_103 OR wa_mseg-bwart EQ co_104.
+          wa_mseg3-ebeln = wa_mseg-ebeln.
+          wa_mseg3-ebelp = wa_mseg-ebelp.
+          wa_mseg3-bwart = wa_mseg-bwart.
+          wa_mseg3-matnr = wa_mseg-matnr.
+          wa_mseg3-werks = wa_mseg-werks.
+          wa_mseg3-charg = wa_mseg-charg.
+          wa_mseg3-budat_mkpf = wa_mseg-budat_mkpf.
+          COLLECT wa_mseg4 INTO ta_mseg4.
+          CLEAR ta_mseg4.
+        ENDIF.
+        CLEAR :wa_mseg.
+      ENDLOOP.
+    ENDIF.
+  ENDIF.
+
+
+ENDFORM.                    " GET_MSEG
+*&---------------------------------------------------------------------*
+*&      Form  GET_PR
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM get_pr .
+
+
+  SELECT banfn
+         bnfpo
+         bsart
+         bstyp
+         loekz
+         frgkz
+         ekgrp
+         bednr
+         ernam
+         matnr
+         werks
+         matkl
+         badat
+         menge
+         meins
+         lfdat
+         ekorg
+         ebeln
+         ebelp
+         waers
+         memory
+         FROM eban
+         INTO TABLE ta_eban1
+         WHERE banfn IN s_banfn
+         AND bsart IN r_doctyp
+         AND bstyp IN s_bstyp
+         AND frgkz  IN s_frgkzp
+         AND ekgrp IN r_purgrp
+         AND bednr IN s_bednr
+         AND matnr IN s_matnr
+         AND werks IN s_werks
+         AND matkl IN s_matkl
+         AND badat  IN s_badatp
+         AND ekorg IN r_purorg
+  AND memory IN s_mempr.
+
+  IF ta_eban1[] IS NOT INITIAL.
+    SORT ta_eban1 BY lfdat.
+    DELETE ta_eban1 WHERE lfdat GT sy-datum.
+  ENDIF.
+
+
+ENDFORM.                    " GET_PR
+*&---------------------------------------------------------------------*
+*&      Form  GET_DATA1
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM get_data1 .
+
+  IF ta_eban1[] IS NOT INITIAL.
+
+    SELECT a~ebeln
+           a~ebelp
+           a~etenr
+           a~eindt
+           a~menge
+           a~wemng
+           a~banfn
+           a~bnfpo
+           c~bukrs
+           c~bstyp
+           c~bsart
+           c~aedat
+           c~ernam
+           c~lifnr
+           c~zterm
+           c~ekorg
+           c~ekgrp
+           c~waers
+           c~bedat
+           c~inco1
+           c~inco2
+           c~frgke
+           c~memory
+           c~wkurs
+           b~loekz
+           b~matnr
+           b~werks
+           b~lgort
+           b~bednr
+           b~matkl
+*           b~menge
+           b~meins
+           b~netwr
+           b~brtwr
+           b~elikz
+           b~mfrnr
+           b~konnr
+           b~txz01
+           FROM eket AS a
+           INNER JOIN ekpo AS b
+           ON a~ebeln = b~ebeln
+           AND a~ebelp = b~ebelp
+           INNER JOIN ekko AS c
+           ON c~ebeln = b~ebeln
+           INTO CORRESPONDING FIELDS OF TABLE ta_ekko_ekpo_eket
+           FOR ALL ENTRIES IN ta_eban1
+           WHERE a~banfn EQ ta_eban1-banfn AND
+                 a~bnfpo EQ ta_eban1-bnfpo AND
+                 a~eindt IN  s_prddt AND
+                 b~matnr IN  s_matnr AND
+                 b~werks IN  s_werks AND
+                 b~lgort IN  s_lgort AND
+                 b~bednr IN  s_bednr AND
+                 b~matkl IN  s_matkl AND
+                 b~loekz IN  s_prdel AND
+                 c~bstyp IN  s_bstyp AND
+                 c~bsart IN  r_doctyp AND
+                 c~zterm IN  s_zterm AND
+                 c~ekorg IN  r_purorg AND
+                 c~ekgrp IN  r_purgrp AND
+                 c~inco1 IN  s_inco1.
+
+
+    IF ta_ekko_ekpo_eket[] IS NOT INITIAL.
+      SORT ta_ekko_ekpo_eket BY bstyp.
+      DELETE ta_ekko_ekpo_eket WHERE bstyp NE 'F'.
+      SORT ta_ekko_ekpo_eket BY memory.
+      DELETE ta_ekko_ekpo_eket WHERE memory NE space.
+      SORT ta_ekko_ekpo_eket BY retpo.
+      DELETE ta_ekko_ekpo_eket WHERE retpo EQ 'X'.
+      SORT ta_ekko_ekpo_eket BY loekz.
+      DELETE ta_ekko_ekpo_eket WHERE loekz EQ 'S'.
+      SORT ta_ekko_ekpo_eket BY netwr.
+      DELETE ta_ekko_ekpo_eket WHERE netwr EQ '0.00'.
+
+
+    ENDIF.
+
+    IF ta_eban1[] IS NOT INITIAL.
+
+      ta_eban_tmp[] = ta_eban1[].
+
+      SORT ta_eban_tmp BY ebeln.
+
+      DELETE ta_eban_tmp WHERE ebeln IS NOT INITIAL.
+
+
+      LOOP AT ta_eban_tmp INTO wa_eban_tmp.
+
+        READ TABLE ta_ekko_ekpo_eket INTO wa_ekko_ekpo_eket WITH KEY banfn = wa_eban_tmp-banfn
+                                                                     bnfpo = wa_eban_tmp-bnfpo.
+
+        IF sy-subrc NE 0.
+          wa_ekko_ekpo_eket-waers = wa_eban_tmp-waers.
+          MOVE-CORRESPONDING wa_eban_tmp TO wa_ekko_ekpo_eket.
+
+          APPEND wa_ekko_ekpo_eket TO ta_ekko_ekpo_eket.
+          CLEAR :wa_ekko_ekpo_eket.
+
+        ENDIF.
+        CLEAR : wa_eban_tmp,wa_ekko_ekpo_eket.
+
+      ENDLOOP.
+
+    ENDIF.
+
+
+  ENDIF.
+
+
+  IF s_eindt IS NOT INITIAL.
+    DELETE ta_ekko_ekpo_eket WHERE eindt NOT IN s_eindt.
+  ENDIF.
+ENDFORM.                    " GET_DATA1
+*&---------------------------------------------------------------------*
+*&      Form  GET_MARA
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM get_mara .
+
+  IF ta_ekko_ekpo_eket[] IS NOT INITIAL.
+    CLEAR : ta_ekko_ekpo_eket_tm[].
+    ta_ekko_ekpo_eket_tm[] =  ta_ekko_ekpo_eket[].
+    SORT  ta_ekko_ekpo_eket_tm BY matnr.
+    DELETE ADJACENT DUPLICATES FROM  ta_ekko_ekpo_eket_tm COMPARING matnr.
+
+
+    SELECT matnr
+           mtart
+           bismt
+           magrv
+           FROM mara
+           INTO TABLE ta_mara
+           FOR ALL ENTRIES IN ta_ekko_ekpo_eket_tm
+    WHERE matnr EQ ta_ekko_ekpo_eket_tm-matnr.
+
+  ENDIF.
+
+
+ENDFORM.                    " GET_MARA
+*&---------------------------------------------------------------------*
+*&      Form  GET_T134T
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM get_t134t .
+
+  IF ta_mara[] IS NOT INITIAL.
+    CLEAR : ta_mara_tm[].
+    ta_mara_tm[] =  ta_mara[].
+    SORT  ta_mara_tm BY mtart.
+    DELETE ADJACENT DUPLICATES FROM  ta_mara_tm COMPARING mtart.
+
+
+    SELECT mtart
+           mtbez
+           FROM t134t
+           INTO TABLE ta_t134t
+           FOR ALL ENTRIES IN ta_mara_tm
+           WHERE mtart EQ ta_mara_tm-mtart
+    AND spras EQ 'E'.
+
+  ENDIF.
+
+
+
+
+ENDFORM.                    " GET_T134T
+*&---------------------------------------------------------------------*
+*&      Form  GET_T001W
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM get_t001w .
+
+  IF ta_ekko_ekpo_eket[] IS NOT INITIAL.
+    CLEAR : ta_ekko_ekpo_eket_tm[].
+    ta_ekko_ekpo_eket_tm[] =  ta_ekko_ekpo_eket[].
+    SORT  ta_ekko_ekpo_eket_tm BY werks.
+    DELETE ADJACENT DUPLICATES FROM  ta_ekko_ekpo_eket_tm COMPARING werks.
+
+
+    SELECT werks
+           name1
+           FROM t001w
+           INTO TABLE ta_t001w
+           FOR ALL ENTRIES IN ta_ekko_ekpo_eket_tm
+    WHERE werks EQ ta_ekko_ekpo_eket_tm-werks.
+
+  ENDIF.
+
+
+ENDFORM.                    " GET_T001W
+*&---------------------------------------------------------------------*
+*&      Form  CAL_TIME
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_WA_FINAL_EINDT  text
+*      -->P_WA_FINAL_AEDAT  text
+*      <--P_WA_FINAL_PO_LEAD  text
+*----------------------------------------------------------------------*
+FORM cal_time  USING    p_fromdat
+                        p_todate
+               CHANGING p_lead.
+
+  DATA : l_fromdt TYPE vtbbewe-dbervon,
+         l_todt   TYPE vtbbewe-dberbis.
+
+  CLEAR :l_fromdt,l_todt.
+
+  IF p_fromdat IS NOT INITIAL AND
+     p_todate IS NOT INITIAL.
+
+    l_fromdt = p_fromdat.
+    l_todt   = p_todate.
+
+    CALL FUNCTION 'FIMA_DAYS_AND_MONTHS_AND_YEARS'
+      EXPORTING
+        i_date_from = l_fromdt
+*       I_KEY_DAY_FROM       =
+        i_date_to   = l_todt
+*       I_KEY_DAY_TO         =
+*       I_FLG_SEPARATE       = ' '
+      IMPORTING
+        e_days      = p_lead
+*       E_MONTHS    =
+*       E_YEARS     =
+      .
+  ENDIF.
+
+ENDFORM.                    " CAL_TIME
+*&---------------------------------------------------------------------*
+*&      Form  WRITE_EXCEL
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM write_excel .
+
+  DATA : l_path(128)   TYPE c, " VALUE '\\INCSAPFS001\sapal11\MMLegacyDataUpload\ZMM_OTIF',
+         lv_line(5000) TYPE c.
+
+  DATA : co_otif(10) TYPE c VALUE 'ZMM_OTIF'.
+
+  SELECT * FROM zparam_table
+      INTO TABLE ta_zparam
+  WHERE id_name EQ co_otif.
+
+  CLEAR : wa_zparam,l_path.
+
+  LOOP AT ta_zparam INTO wa_zparam.
+    MOVE : wa_zparam-param_name TO l_path.
+    CLEAR wa_zparam.
+  ENDLOOP.
+
+
+  DATA :  l_ebeln            TYPE string,
+          l_ebelp            TYPE string,
+          l_etenr            TYPE string,
+          l_ekgrp            TYPE string,
+          l_matkl            TYPE string,
+          l_wgbez            TYPE string,
+          l_matnr            TYPE string,
+          l_maktx            TYPE string,
+          l_mtart            TYPE string,
+          l_mtbez            TYPE string,
+          l_bismt            TYPE string,
+          l_ind_bond         TYPE string,
+          l_lifnr            TYPE string,
+          l_name1            TYPE string,
+          l_werks            TYPE string,
+          l_plantn           TYPE string,
+          l_prpo_leadtm      TYPE string,
+          l_plifz            TYPE string,
+          l_webaz            TYPE string,
+          l_avg_qc           TYPE string,
+          l_tot_lead         TYPE string,
+          l_avg_qcper        TYPE string,
+          l_netwr            TYPE string,
+          l_brtwr            TYPE string,
+          l_waers            TYPE string,
+          l_banfn            TYPE string,
+          l_bnfpo            TYPE string,
+          l_badat            TYPE string,
+          l_pr_reldat        TYPE string,
+          l_lfdat            TYPE string,
+          l_aedat            TYPE string,
+          l_po_reldat        TYPE string,
+          l_eindt            TYPE string,
+          l_eindt_f          TYPE string,
+          l_exp_del          TYPE string,
+          l_act_detdt        TYPE string,
+          l_pr_menge         TYPE string,
+          l_pr_meins         TYPE string,
+          l_menge            TYPE string,
+          l_meins            TYPE string,
+          l_wemng            TYPE string,
+          l_meins_1          TYPE string,
+          l_po_lead          TYPE string,
+          l_pr_lead          TYPE string,
+          l_po_leadsi        TYPE string,
+          l_pr_leadsi        TYPE string,
+          l_ot_po            TYPE string,
+          l_if_po            TYPE string,
+          l_otif_po          TYPE string,
+          l_ot_pr            TYPE string,
+          l_if_pr            TYPE string,
+          l_otif_pr          TYPE string,
+          l_otif_metpo       TYPE string,
+          l_otif_unmetpo     TYPE string,
+          l_otif_metpr       TYPE string,
+          l_otif_unmetpr     TYPE string,
+          l_rel_period       TYPE string,
+          l_ot_po_value      TYPE string,
+          l_if_po_value      TYPE string,
+          l_ot_pr_value      TYPE string,
+          l_if_pr_value      TYPE string,
+          l_eknam            TYPE string,
+          l_po_maktx         TYPE string,
+          l_net_inr          TYPE string,
+          l_bsart_po         TYPE string,
+          l_bsart_pr         TYPE string,
+          l_sys_source       TYPE string,
+          l_pur_cat          TYPE string,
+          l_pur_team         TYPE string,
+          l_bednr_po         TYPE string,
+          l_cat_fld          TYPE string,
+          l_magrv            TYPE string,
+          l_txz01            TYPE string,
+          l_ot_day           TYPE string,
+          l_del_per          TYPE string,
+          l_grn_usage        TYPE string,
+          l_zmm_po_clog      TYPE string,
+          l_otif_fin_metpo   TYPE string,
+          l_otif_fin_unmetpo TYPE string,
+          l_lead             TYPE string,
+          l_sh_time          TYPE string.
+  CONCATENATE l_path '_' sy-datum '_' sy-uzeit INTO l_path.
+  CONCATENATE l_path 'XLS' INTO l_path SEPARATED BY '.'.
+
+  OPEN DATASET l_path FOR OUTPUT IN TEXT MODE ENCODING DEFAULT.
+  IF sy-subrc = 0.
+    CLEAR lv_line.
+
+    CONCATENATE 'PO Number'
+                'PO Item'
+                'Schedule Line'
+                'Purchasing Group'
+                'Material Group'
+                'Matl Grp Desc.'
+                'Material'
+                'Material Type'
+                'Mat.Type Descr.'
+                'Old Material Number'
+                'Indicator for Bonded ware-house item'
+                'Vendor'
+                'Vendor Name'
+                'Plant'
+                'Plant Name'
+                'PO Conversion time'
+                'Planned Deliv. Time'
+                'Goods Receipt Processing Time in Days'
+                'Average QC leadtime'
+                'Total Leadtime'
+                'Average QC rejection %'
+                'Net Value'
+                'Gross Value'
+                'Currency'
+                'PR Number'
+                'PR Item Number'
+                'PR Creation date'
+                'PR Release Date'
+                'PR Delivery Date'
+                'PO Date'
+                'PO Release Date'
+                'Delivery Date'
+                'First Delivery Date'
+                'Expected Delivery date'
+                'Actual Delivery Date'
+                'PR Quantity'
+                'PR UOM'
+                'PO Qty'
+                'PO Qty UOM'
+                'Quantity Delivered'
+                'GRN UOM'
+                'PO Lead Time'
+                'PR Lead Time'
+                'PO LEAD TIME SUFFICIENT / INSUFFICIENT'
+                'PR LEAD TIME SUFFICIENT / INSUFFICIENT'
+                'OT (PO)'
+                'IF (PO)'
+                'OTIF (PO)'
+                'OT(PR)'
+                'IF(PR)'
+                'OTIF(PR)'
+                'OTIF MET (PO)'
+                'OTIF UNMET (PO)'
+                'OTIF MET (PR)'
+                'OTIF UNMET (PR)'
+                'Relevant Period'
+                'OT PO Value(Not Met)'
+                'IF PO Value(Not Met)'
+                'OT PR Value(Not Met)'
+                'IF PR Value(Not Met)'
+                'Purch. Group Description'
+                'PO Reason delivery change text'
+                'Material Descr'
+                'Net Value in INR'
+                'PO Doc. Type'
+                'PR Doc. Type'
+                'System Source'
+                'Purchasing Category'
+                'Purchasing Team'
+                'PO Buyer name'
+                'Catalog / Non Catalog'
+                'Bulk Material'
+                'Non Coded Material PO'
+                'EARLY DELIVERY DAYS'
+                'DELIVERY %'
+                'PO2 GRN USAGE'
+                'Modified Remarks'
+                'OTIF FINAL MET PO'
+                'OTIF FINAL UNMET PO'
+                'LEAD TIME vs PR'
+                '"Short Lead time in PR'
+    INTO lv_line SEPARATED BY cl_abap_char_utilities=>horizontal_tab.
+
+    TRANSFER lv_line TO l_path.
+
+    LOOP AT ta_final INTO wa_final.
+
+      l_ebeln      =     wa_final-ebeln.
+      l_ebelp      =     wa_final-ebelp.
+      l_etenr      =     wa_final-etenr.
+      l_ekgrp      =     wa_final-ekgrp.
+      l_matkl      =     wa_final-matkl.
+      l_wgbez      =     wa_final-wgbez.
+      l_matnr      =     wa_final-matnr .
+      l_maktx      =     wa_final-maktx .
+      l_mtart      =     wa_final-mtart .
+      l_mtbez      =     wa_final-mtbez.
+      l_bismt      =     wa_final-bismt.
+      l_ind_bond   =     wa_final-ind_bond.
+      l_lifnr      =     wa_final-lifnr.
+      l_name1      =     wa_final-name1.
+      l_werks      =     wa_final-werks.
+      l_plantn     =     wa_final-plantn.
+      l_prpo_leadtm =    wa_final-prpo_leadtm.
+      l_plifz       =    wa_final-plifz.
+      l_webaz       =    wa_final-webaz.
+      l_avg_qc      =    wa_final-avg_qc.
+      l_tot_lead    =    wa_final-tot_lead.
+      l_avg_qcper   =    wa_final-avg_qcper.
+      l_netwr       =    wa_final-netwr.
+      l_net_inr     =    wa_final-net_inr.
+      l_brtwr       =    wa_final-brtwr.
+      l_waers       =    wa_final-waers.
+      l_banfn       =    wa_final-banfn.
+      l_bnfpo       =    wa_final-bnfpo.
+      l_badat       =    wa_final-badat.
+      l_pr_reldat   =    wa_final-pr_reldat.
+      l_lfdat       =    wa_final-lfdat.
+      l_aedat       =    wa_final-aedat.
+      l_po_reldat   =    wa_final-po_reldat.
+      l_eindt       =    wa_final-eindt.
+      l_eindt_f       =    wa_final-eindt_f.
+      l_exp_del     =    wa_final-exp_del.
+      l_act_detdt   =    wa_final-act_detdt.
+      l_pr_menge    =    wa_final-pr_menge.
+      l_pr_meins    =    wa_final-pr_meins.
+      l_menge       =    wa_final-menge.
+      l_meins       =    wa_final-meins.
+      l_wemng       =    wa_final-wemng.
+      l_meins_1     =    wa_final-meins.
+      l_po_lead     =    wa_final-po_lead.
+      l_pr_lead     =    wa_final-pr_lead.
+      l_po_leadsi   =    wa_final-po_leadsi.
+      l_pr_leadsi   =    wa_final-pr_leadsi.
+      l_ot_po       =    wa_final-ot_po.
+      l_if_po       =    wa_final-if_po.
+      l_otif_po     =    wa_final-otif_po.
+      l_ot_pr       =    wa_final-ot_pr.
+      l_if_pr       =    wa_final-if_pr.
+      l_otif_pr     =    wa_final-otif_pr.
+      l_otif_metpo   =   wa_final-otif_metpo.
+      l_otif_unmetpo =   wa_final-otif_unmetpo.
+      l_otif_metpr   =   wa_final-otif_metpr .
+      l_otif_unmetpr =   wa_final-otif_unmetpr.
+      l_rel_period   =   wa_final-rel_period .
+      l_ot_po_value  =   wa_final-ot_po_value.
+      l_if_po_value  =   wa_final-if_po_value.
+      l_ot_pr_value  =   wa_final-ot_pr_value.
+      l_if_pr_value  =   wa_final-if_pr_value.
+      l_eknam        =   wa_final-eknam.
+      l_po_maktx     =   wa_final-po_maktx.
+      l_bsart_po     =   wa_final-bsart_po.
+      l_bsart_pr     =   wa_final-bsart_pr.
+      l_sys_source   = wa_final-sys_source.
+      l_pur_cat      = wa_final-pur_cat.
+      l_pur_team     = wa_final-pur_team.
+      l_bednr_po     = wa_final-bednr_po.
+      l_cat_fld      = wa_final-cat_fld.
+      l_magrv        = wa_final-magrv.
+      l_txz01        = wa_final-txz01.
+      l_ot_day       = wa_final-ot_day.
+      l_del_per      = wa_final-del_per.
+      l_grn_usage    = wa_final-grn_usage.
+      l_zmm_po_clog  = wa_final-zmm_po_clog.
+      l_otif_fin_metpo  = wa_final-otif_fin_metpo.
+      l_otif_fin_unmetpo  = wa_final-otif_fin_unmetpo.
+      l_lead  = wa_final-lead.
+      l_sh_time  = wa_final-sh_time.
+      CLEAR lv_line.
+      CONCATENATE l_ebeln
+                  l_ebelp
+                  l_etenr
+                  l_ekgrp
+                  l_matkl
+                  l_wgbez
+                  l_matnr
+                  l_mtart
+                  l_mtbez
+                  l_bismt
+                  l_ind_bond
+                  l_lifnr
+                  l_name1
+                  l_werks
+                  l_plantn
+                  l_prpo_leadtm
+                  l_plifz
+                  l_webaz
+                  l_avg_qc
+                  l_tot_lead
+                  l_avg_qcper
+                  l_netwr
+                  l_brtwr
+                  l_waers
+                  l_banfn
+                  l_bnfpo
+                  l_badat
+                  l_pr_reldat
+                  l_lfdat
+                  l_aedat
+                  l_po_reldat
+                  l_eindt
+                  l_eindt_f
+                  l_exp_del
+                  l_act_detdt
+                  l_pr_menge
+                  l_pr_meins
+                  l_menge
+                  l_meins
+                  l_wemng
+                  l_meins_1
+                  l_po_lead
+                  l_pr_lead
+                  l_po_leadsi
+                  l_pr_leadsi
+                  l_ot_po
+                  l_if_po
+                  l_otif_po
+                  l_ot_pr
+                  l_if_pr
+                  l_otif_pr
+                  l_otif_metpo
+                  l_otif_unmetpo
+                  l_otif_metpr
+                  l_otif_unmetpr
+                  l_rel_period
+                  l_ot_po_value
+                  l_if_po_value
+                  l_ot_pr_value
+                  l_if_pr_value
+                  l_eknam
+                  l_po_maktx
+                  l_maktx
+                  l_net_inr
+                  l_bsart_po
+                  l_bsart_pr
+                  l_sys_source
+                  l_pur_cat
+                  l_pur_team
+                  l_bednr_po
+                  l_cat_fld
+                  l_magrv
+                  l_txz01
+                  l_ot_day
+                  l_del_per
+                  l_grn_usage
+                  l_zmm_po_clog
+                  l_otif_fin_metpo
+                  l_otif_fin_unmetpo
+                  l_lead
+                  l_sh_time
+                  INTO lv_line SEPARATED BY cl_abap_char_utilities=>horizontal_tab.
+      TRANSFER lv_line TO l_path.
+
+      CLEAR wa_final.
+
+    ENDLOOP.
+    MESSAGE s174(zmm) WITH l_path.
+    CLOSE DATASET l_path.
+  ENDIF.
+
+
+ENDFORM.                    " WRITE_EXCEL
+*&---------------------------------------------------------------------*
+*&      Form  QC_PER
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM qc_per .
+  DATA : l_avg_qc1 TYPE vtbbewe-atage,
+         l_tot_qc  TYPE vtbbewe-atage.
+
+  PERFORM qc_leadtime.
+
+  ta_qals_t[] = ta_qals[].
+
+  SORT ta_qals_t BY ebeln ebelp.
+
+  DELETE ta_qals_t WHERE ebeln NE wa_ekko_ekpo_eket-ebeln.
+
+
+  ta_qals_a[] = ta_qals_t[].
+
+  SORT ta_qals_a BY vbewertung.
+  DELETE ta_qals_a WHERE vbewertung NE 'A'.
+
+
+  ta_qals_r[] = ta_qals_t[].
+  SORT ta_qals_r BY vbewertung.
+  DELETE ta_qals_r WHERE vbewertung NE 'R'.
+
+
+  DATA :l_total TYPE i,
+        l_rej   TYPE i,
+        l_acc   TYPE i.
+
+  CLEAR :l_total,l_rej,l_acc.
+  DESCRIBE TABLE ta_qals_t LINES l_total.
+  DESCRIBE TABLE ta_qals_a LINES l_acc.
+  DESCRIBE TABLE ta_qals_r LINES l_rej.
+
+  IF l_total IS NOT INITIAL.
+    wa_final-avg_qcper = ( l_rej / l_total ) * 100.
+    wa_final-avg_qc1 = wa_final-avg_qc / l_total.
+
+  ENDIF.
+
+
+
+ENDFORM.                    " QC_PER
+*&---------------------------------------------------------------------*
+*&      Form  QC_LEADTIME
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM qc_leadtime .
+
+  IF wa_ekko_ekpo_eket-ebeln IS NOT INITIAL.
+
+
+
+    ta_mseg_t[] = ta_mseg[].
+*  ta_mseg1_t[] = ta_mseg[].
+*  ta_mseg2_t[] = ta_mseg[].
+*  ta_mseg3_t[] = ta_mseg[].
+
+    SORT ta_mseg_t BY ebeln ebelp.
+    DELETE ta_mseg_t WHERE ebeln NE wa_ekko_ekpo_eket-ebeln
+                     AND    ebelp NE wa_ekko_ekpo_eket-ebelp.
+
+
+
+
+    SORT ta_mseg_t BY matnr werks charg ebeln ebelp.
+    DELETE ADJACENT DUPLICATES FROM ta_mseg_t COMPARING matnr werks charg ebeln ebelp.
+
+
+    LOOP AT ta_mseg1 INTO wa_mseg1 WHERE ebeln = wa_ekko_ekpo_eket-ebeln
+                                   AND   ebelp = wa_ekko_ekpo_eket-ebelp.
+*    CLEAR :wa_mseg1.
+      READ TABLE ta_mseg1 INTO wa_mseg1 WITH KEY ebeln = wa_ekko_ekpo_eket-ebeln
+                                                 ebelp = wa_ekko_ekpo_eket-ebelp
+                                                 charg = wa_mseg1-charg.
+
+      IF sy-subrc EQ 0.
+        CLEAR :wa_mseg2.
+        READ TABLE ta_mseg2 INTO wa_mseg2 WITH KEY ebeln = wa_ekko_ekpo_eket-ebeln
+                                                   ebelp = wa_ekko_ekpo_eket-ebelp
+                                                   charg = wa_mseg1-charg.
+
+        IF sy-subrc EQ 0.
+
+        ELSE.
+          CLEAR :wa_mseg3.
+          READ TABLE ta_mseg3 INTO wa_mseg3 WITH KEY ebeln = wa_ekko_ekpo_eket-ebeln
+                                                     ebelp = wa_ekko_ekpo_eket-ebelp
+                                                     charg = wa_mseg1-charg.
+          IF sy-subrc EQ 0.
+
+            wa_mseg2-budat_mkpf = wa_mseg3-budat_mkpf.
+          ENDIF.
+          CLEAR wa_mseg4.
+          READ TABLE ta_mseg4 INTO wa_mseg4 WITH KEY ebeln = wa_ekko_ekpo_eket-ebeln
+                                                     ebelp = wa_ekko_ekpo_eket-ebelp
+                                                     charg = wa_mseg1-charg.
+          IF sy-subrc EQ 0.
+            wa_mseg2-budat_mkpf = wa_mseg-budat_mkpf.
+          ENDIF.
+        ENDIF.
+
+
+        DATA : l_avg_qc1 TYPE vtbbewe-atage,
+               l_tot_qc  TYPE vtbbewe-atage.
+
+        PERFORM cal_time USING wa_mseg1-budat_mkpf
+                               wa_mseg2-budat_mkpf
+                               CHANGING l_avg_qc1.
+
+        IF wa_mseg2-budat_mkpf LT wa_mseg1-budat_mkpf.
+          l_avg_qc1 = l_avg_qc1 * -1.
+        ENDIF.
+        wa_final-avg_qc = l_avg_qc1 + wa_final-avg_qc.
+
+      ENDIF.
+
+      CLEAR :wa_mseg_t,l_avg_qc1.
+    ENDLOOP.
+
+
+
+
+  ENDIF.
+
+
+
+ENDFORM.                    " QC_LEADTIME
+*&---------------------------------------------------------------------*
+*&      Form  GET_T024
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM get_t024 .
+  IF ta_ekko_ekpo_eket[] IS NOT INITIAL.
+
+    CLEAR :ta_ekko_ekpo_eket_tm[].
+    ta_ekko_ekpo_eket_tm[] = ta_ekko_ekpo_eket[].
+    SORT ta_ekko_ekpo_eket_tm BY ekgrp.
+    DELETE ADJACENT DUPLICATES FROM ta_ekko_ekpo_eket_tm COMPARING ekgrp.
+
+    SELECT ekgrp
+           eknam
+           FROM t024
+           INTO TABLE ta_t024
+           FOR ALL ENTRIES IN ta_ekko_ekpo_eket_tm
+    WHERE ekgrp EQ ta_ekko_ekpo_eket_tm-ekgrp.
+
+
+  ENDIF.
+
+
+
+ENDFORM.                    " GET_T024
+" WRITE_S903
+*&---------------------------------------------------------------------*
+*&      Form  QTY_CAL
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM qty_cal .
+
+
+  DATA : l_ekbeqty  TYPE eket-menge,
+         l_eketqty  TYPE eket-menge,
+         l_pekbeqty TYPE eket-menge,
+         l_peketqty TYPE eket-menge.
+
+  LOOP AT ta_ekko_ekpo_eket INTO wa_ekko_ekpo_eket.
+
+    CONCATENATE  wa_ekko_ekpo_eket-ebeln
+                 wa_ekko_ekpo_eket-ebelp
+                 INTO wa_ekko_ekpo_eket-eket_key.
+
+
+
+    MODIFY ta_ekko_ekpo_eket FROM wa_ekko_ekpo_eket TRANSPORTING eket_key .
+
+
+
+    CLEAR :wa_ekko_ekpo_eket.
+
+  ENDLOOP.
+
+  SORT ta_ekko_ekpo_eket BY ebeln ebelp eindt ASCENDING.
+
+  LOOP AT ta_ekko_ekpo_eket INTO wa_ekko_ekpo_eket.
+
+
+    ON CHANGE OF  wa_ekko_ekpo_eket-eket_key.
+      CLEAR : l_eketqty.
+    ENDON.
+
+    l_eketqty = l_eketqty + wa_ekko_ekpo_eket-menge.
+
+    wa_ekko_ekpo_eket-cum_eket_qty =  l_eketqty.
+
+
+    MODIFY ta_ekko_ekpo_eket FROM wa_ekko_ekpo_eket TRANSPORTING  cum_eket_qty.
+
+    CLEAR :wa_ekko_ekpo_eket.
+
+  ENDLOOP.
+
+
+
+
+  LOOP AT ta_ekbe_temp INTO wa_ekbe_temp.
+
+    CONCATENATE  wa_ekbe_temp-ebeln
+                 wa_ekbe_temp-ebelp
+                   INTO wa_ekbe_temp-ekbe_key.
+
+
+    MODIFY ta_ekbe_temp FROM wa_ekbe_temp TRANSPORTING ekbe_key.
+
+    CLEAR :wa_ekbe_temp.
+
+
+  ENDLOOP.
+
+
+
+  SORT ta_ekbe_temp BY ebeln ebelp budat  ASCENDING.
+
+  LOOP AT ta_ekbe_temp INTO wa_ekbe_temp.
+
+
+    ON CHANGE OF  wa_ekbe_temp-ekbe_key.
+      CLEAR : l_ekbeqty.
+    ENDON.
+
+    l_ekbeqty = l_ekbeqty + wa_ekbe_temp-menge.
+
+    wa_ekbe_temp-cum_ekbe_qty =  l_ekbeqty.
+
+
+    MODIFY ta_ekbe_temp FROM wa_ekbe_temp TRANSPORTING  cum_ekbe_qty.
+
+    CLEAR :wa_ekbe_temp.
+
+  ENDLOOP.
+
+
+
+ENDFORM.                    " QTY_CAL
+*&---------------------------------------------------------------------*
+*&      Form  GET_ZMM_OTIF_TOL
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM get_zmm_otif_tol .
+  IF ta_ekko_ekpo_eket[] IS NOT INITIAL.
+    CLEAR : ta_zmm_otif_tol[].
+    SELECT ekgrp zplifz1 zplifz2 untto uebto
+      FROM zmm_otif_tol CLIENT SPECIFIED
+      INTO CORRESPONDING FIELDS OF TABLE ta_zmm_otif_tol
+      FOR ALL ENTRIES IN ta_ekko_ekpo_eket[]
+      WHERE mandt = sy-mandt
+    AND   ekgrp = ta_ekko_ekpo_eket-ekgrp.
+  ENDIF.
+ENDFORM.               " GET_ZMM_OTIF_TOL
+*&---------------------------------------------------------------------*
+*&      Form  GET_ZMM_OTIF_PC
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM get_zmm_otif_pc .
+
+
+  SORT ta_ekko_ekpo_eket BY ebeln ebelp ekgrp matkl.
+
+  IF ta_ekko_ekpo_eket IS NOT INITIAL.
+
+    SELECT ekgrp matkl pur_cat pur_team
+       FROM zmm_otif_pc
+       INTO CORRESPONDING FIELDS OF TABLE ta_zmm_otif_pc
+       FOR ALL ENTRIES IN ta_ekko_ekpo_eket
+       WHERE matkl EQ ta_ekko_ekpo_eket-matkl
+    AND   ekgrp EQ ta_ekko_ekpo_eket-ekgrp.
+
+  ENDIF.
+
+  IF ta_zmm_otif_pc IS NOT INITIAL.
+    SORT ta_zmm_otif_pc BY ekgrp matkl.
+  ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  GET_USR21
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM get_usr21 .
+  SORT ta_ekko_ekpo_eket BY ebeln ebelp ekgrp matkl.
+
+  IF ta_ekko_ekpo_eket IS NOT INITIAL.
+    SELECT a~bname a~persnumber b~name_first FROM usr21 AS a
+      INNER JOIN adrp AS b
+      ON a~persnumber = b~persnumber
+      INTO CORRESPONDING FIELDS OF TABLE ta_usr21_po
+      FOR ALL ENTRIES IN ta_ekko_ekpo_eket
+    WHERE bname = ta_ekko_ekpo_eket-ernam.
+  ENDIF.
+
+  IF ta_usr21_po IS NOT INITIAL.
+    SORT ta_usr21_po BY persnumber.
+  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  GET_ZMM_PO_OTIFSCL
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM get_zmm_po_otifscl .
+  SORT ta_ekko_ekpo_eket BY ebeln ebelp.
+
+  SELECT ebeln ebelp eindt etenr
+       FROM zmm_po_otifscl
+       INTO CORRESPONDING FIELDS OF TABLE ta_zmm_po_otifscl
+       FOR ALL ENTRIES IN ta_ekko_ekpo_eket
+       WHERE ebeln EQ ta_ekko_ekpo_eket-ebeln
+       AND   ebelp EQ ta_ekko_ekpo_eket-ebelp
+       AND etenr EQ ta_ekko_ekpo_eket-etenr."Added by lalitha CR8000009039 06-06-2023
+
+  IF sy-subrc EQ 0.
+    SORT ta_zmm_po_otifscl BY ebeln ebelp etenr."Etenr Added by lalitha CR8000009039 06-06-2023
+  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  GET_RANGES_PURGRP
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM get_ranges_purgrp.
+  DATA : ta_t024 TYPE TABLE OF t024,
+         wa_t024 TYPE t024.
+
+  REFRESH ta_zparam.
+
+  SELECT * FROM t024
+    INTO TABLE ta_t024
+    WHERE ekgrp IN s_ekgrp.
+
+  SELECT * FROM zparam_table
+    INTO TABLE ta_zparam
+  WHERE id_name EQ co_purgrp
+    AND param_name IN s_ekgrp.
+
+  IF sy-subrc EQ 0.
+    SORT : ta_zparam.
+    CLEAR : wa_zparam , wa_t024.
+    LOOP AT ta_t024 INTO wa_t024.
+      READ TABLE ta_zparam INTO wa_zparam WITH KEY param_name = wa_t024-ekgrp.
+      IF sy-subrc EQ 0.
+        r_purgrp-low = wa_zparam-param_name.
+        r_purgrp-option = 'EQ'.
+        r_purgrp-sign = 'I'.
+        APPEND r_purgrp.
+        CLEAR r_purgrp.
+      ELSE.
+        DELETE TABLE ta_t024 FROM wa_t024.
+      ENDIF.
+      CLEAR : wa_t024.
+    ENDLOOP.
+    CLEAR : wa_zparam.
+  ENDIF.
+
+  IF r_purgrp[] IS INITIAL.
+    MESSAGE s004(zmm) .
+    LEAVE LIST-PROCESSING.
+  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  GET_RANGES_PURORG
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM get_ranges_purorg .
+  DATA : ta_t024e TYPE TABLE OF t024e,
+         wa_t024e TYPE t024e.
+
+  REFRESH ta_zparam.
+
+  SELECT * FROM t024e
+    INTO TABLE ta_t024e
+    WHERE ekorg IN s_ekorg.
+
+  SELECT * FROM zparam_table
+     INTO TABLE ta_zparam
+  WHERE id_name EQ co_purorg
+  AND   param_name IN s_ekorg.
+
+  IF sy-subrc EQ 0.
+    SORT : ta_zparam.
+    CLEAR : wa_zparam , wa_t024e.
+**    IF s_ekorg-low IS INITIAL.
+    LOOP AT ta_t024e INTO wa_t024e.
+      READ TABLE ta_zparam INTO wa_zparam WITH KEY param_name = wa_t024e-ekorg.
+      IF sy-subrc EQ 0.
+        r_purorg-low = wa_zparam-param_name.
+        r_purorg-option = 'EQ'.
+        r_purorg-sign = 'I'.
+        APPEND r_purorg.
+        CLEAR r_purorg.
+      ELSE.
+        DELETE TABLE ta_t024e FROM wa_t024e.
+      ENDIF.
+      CLEAR : wa_t024e.
+    ENDLOOP.
+    CLEAR : wa_zparam.
+  ENDIF.
+
+  IF r_purorg[] IS INITIAL.
+    MESSAGE s004(zmm) .
+    LEAVE LIST-PROCESSING.
+  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  GET_RANGES_DOCTYP
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM get_ranges_doctyp .
+
+  DATA : ta_t161 TYPE TABLE OF t161,
+         wa_t161 TYPE t161.
+
+  REFRESH ta_zparam.
+
+  SELECT * FROM t161
+     INTO TABLE ta_t161
+      WHERE bsart IN s_bsart.
+
+  SELECT * FROM zparam_table
+     INTO TABLE ta_zparam
+    WHERE id_name EQ co_doctyp
+     AND  param_name IN s_bsart.
+
+  IF sy-subrc EQ 0.
+    SORT : ta_zparam BY param_name,
+           ta_t161 BY bsart.
+
+    CLEAR : wa_zparam , wa_t161.
+    LOOP AT ta_t161 INTO wa_t161.
+      READ TABLE ta_zparam INTO wa_zparam WITH KEY param_name = wa_t161-bsart.
+      IF sy-subrc EQ 0.
+        r_doctyp-low = wa_zparam-param_name.
+        r_doctyp-option = 'EQ'.
+        r_doctyp-sign = 'I'.
+        APPEND r_doctyp.
+        CLEAR r_doctyp.
+      ELSE.
+        DELETE TABLE ta_t161 FROM wa_t161.
+      ENDIF.
+      CLEAR : wa_t161.
+    ENDLOOP.
+    CLEAR : wa_zparam.
+  ENDIF.
+
+  IF r_doctyp[] IS INITIAL.
+    MESSAGE s004(zmm) .
+    LEAVE LIST-PROCESSING.
+  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  GET_ZMM_OTIF_MO
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM get_zmm_otif_mo .
+
+  SELECT * FROM zmm_otif_mo
+    INTO TABLE ta_zmm_otif_mo.
+
+ENDFORM.

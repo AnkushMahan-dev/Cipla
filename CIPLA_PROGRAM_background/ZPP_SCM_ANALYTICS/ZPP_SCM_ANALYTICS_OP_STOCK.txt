@@ -1,0 +1,120 @@
+*----------------------------------------------------------------------*
+***INCLUDE ZPP_SCM_ANALYTICS_OP_STOCK.
+*----------------------------------------------------------------------*
+*&      Form  OPENING_STOCK
+*&---------------------------------------------------------------------*
+FORM opening_stock .
+TYPES: BEGIN OF ty_ftp_op,
+        line(200),
+      END OF ty_ftp_op.
+DATA: wa_ftp_op TYPE ty_ftp_op,
+      ta_ftp_op TYPE TABLE OF ty_ftp_op.
+SELECT * FROM ZMRPDASH_STOCK INTO TABLE @data(TA_OP_STOCK_tmp)
+  WHERE MATNR in @s_matnro AND
+        WERKS in @s_werkso AND
+        lgort in @s_lgort  AND
+        type1 = ''.
+
+LOOP AT TA_OP_STOCK_tmp INTO data(wa_op_stock_tmp).
+MOVE-CORRESPONDING wa_op_stock_tmp to wa_op_stock.
+CLEAR: wa_op_stock-HSDAT, wa_op_stock-LWEDT, wa_op_stock-VFDAT.
+CONCATENATE wa_op_stock_tmp-HSDAT+6(2) wa_op_stock_tmp-HSDAT+4(2) wa_op_stock_tmp-HSDAT+0(4) INTO wa_op_stock-HSDAT.
+CONCATENATE wa_op_stock_tmp-LWEDT+6(2) wa_op_stock_tmp-LWEDT+4(2) wa_op_stock_tmp-LWEDT+0(4) INTO wa_op_stock-LWEDT.
+CONCATENATE wa_op_stock_tmp-VFDAT+6(2) wa_op_stock_tmp-VFDAT+4(2) wa_op_stock_tmp-VFDAT+0(4) INTO wa_op_stock-VFDAT.
+IF wa_op_stock_tmp-type NE 'UN'.
+wa_op_stock-quan_un = 0.
+else.
+wa_op_stock-quan_un = wa_op_stock_tmp-quan.
+ENDIF.
+
+IF wa_op_stock_tmp-type NE 'QI'.
+wa_op_stock-quan = 0.
+else.
+wa_op_stock-quan = wa_op_stock_tmp-quan.
+ENDIF.
+SHIFT wa_op_stock-matnr LEFT DELETING LEADING '0'.
+APPEND wa_op_stock to TA_OP_STOCK.
+CLEAR wa_op_stock.
+ENDLOOP.
+
+" Process to send Opening stock file on FTP Server
+IF TA_OP_STOCK[] IS NOT INITIAL.
+CLEAR: wa_ftp_op, ta_ftp_op[], lv_file.
+CONCATENATE
+'mat_code'
+'plnt_code'
+'str_loc'
+'batch'
+'mfg_dt'
+'lst_gdrec_dt'
+'exp_dt'
+'Buom'
+'unres_qty'
+'qi_qty' INTO wa_ftp_op SEPARATED BY lv_tab. " wa_ftp has been replaced by wa_ftp_op against ticket number 8000004920
+APPEND wa_ftp_op to ta_ftp_op. " wa_ftp has been replaced by wa_ftp_op against ticket number 8000004920
+CLEAR wa_ftp_op.
+LOOP AT TA_OP_STOCK INTO wa_op_stock.
+CONCATENATE
+wa_op_stock-MATNR
+wa_op_stock-WERKS
+wa_op_stock-LGORT
+wa_op_stock-CHARG
+wa_op_stock-HSDAT
+wa_op_stock-LWEDT
+wa_op_stock-VFDAT
+wa_op_stock-MEINS
+wa_op_stock-QUAN_UN
+wa_op_stock-QUAN INTO wa_ftp_op SEPARATED BY lv_tab. " wa_ftp has been replaced by wa_ftp_op against ticket number 8000004920
+APPEND wa_ftp_op to ta_ftp_op. " wa_ftp has been replaced by wa_ftp_op against ticket number 8000004920
+CLEAR wa_ftp_op.
+ENDLOOP.
+PERFORM connect_2_ftp USING g_dest CHANGING g_hdl exp5.
+CLEAR: wa_ftp_op,lv_file.
+
+IF exp5 IS INITIAL AND ta_ftp_op[] IS NOT INITIAL.
+CONCATENATE lv_file1 'opening_stock.txt' INTO lv_file.
+IF lv_file IS NOT INITIAL.
+*****data lv_command(100) type c.
+*****DATA:lv_dest  TYPE rfcdes-rfcdest VALUE 'SAPFTPA'.
+*****data: lta_data TYPE TABLE OF datab.
+*****CONSTANTS lc_del(3) VALUE 'del'.
+*****BREAK abap4.
+*****lv_command =  |{ lc_del } { lv_file1 }{ '' }{ 'opening_stock.txt'} |.
+*****CALL FUNCTION 'FTP_COMMAND'
+*****  EXPORTING
+*****   HANDLE                = g_hdl
+*****    command               = lv_command
+*****   COMPRESS              =
+*****   RFC_DESTINATION       = lv_dest
+*****  tables
+*****    data                  = lta_data
+***** EXCEPTIONS
+*****   TCPIP_ERROR           = 1
+*****   COMMAND_ERROR         = 2
+*****   DATA_ERROR            = 3
+*****   OTHERS                = 4.
+*PERFORM send_2_ftp USING lv_file.
+*FTP_R3_TO_SERVER:used to transfer the internal table data as a file to other system in the character mode.
+  CALL FUNCTION 'FTP_R3_TO_SERVER'
+    EXPORTING
+      handle         = g_hdl
+      fname          = lv_file "p_lv_file          "file path of destination system
+      character_mode = 'X'
+    TABLES
+      text           = ta_ftp_op
+    EXCEPTIONS
+      tcpip_error    = 1
+      command_error  = 2
+      data_error     = 3
+      OTHERS         = 4.
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+    WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4
+    RAISING invalid_output_file.
+  ENDIF.
+ENDIF.
+ENDIF.
+PERFORM disconnect_ftp USING g_hdl g_dest.
+************************** " End of Process to Send file on FTP Server***********************
+ENDIF.
+ENDFORM.

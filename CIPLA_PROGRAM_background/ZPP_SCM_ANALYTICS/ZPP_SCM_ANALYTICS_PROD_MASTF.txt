@@ -1,0 +1,318 @@
+*----------------------------------------------------------------------*
+***INCLUDE ZPP_SCM_ANALYTICS_PROD_MASTF.
+*----------------------------------------------------------------------*
+*&      Form  PROD_MASTER
+*&---------------------------------------------------------------------*
+*Modification log
+* Creation Date     : 20.12.2019
+* Author            : Pranita Taware
+* Functional design : FS_PP_206
+* Technical design  : TS_PP_206
+* Change request    : 8000005985
+* Transport number  : CRDK966558
+* Description       : To add the material created on column
+*&---------------------------------------------------------------------*
+
+FORM prod_master .
+  TYPES: BEGIN OF ty_prod_mas,
+           lv_line(600),
+         END OF ty_prod_mas.
+  DATA: ta_class        TYPE TABLE OF sclass,
+        ta_objectdata   TYPE TABLE OF clobjdat,
+        wa_qm_mat_ref   TYPE ty_qm_mat_ref,
+        ta_qm_mat_ref   TYPE TABLE OF ty_qm_mat_ref,
+        wa_ftp_prod_mas TYPE ty_prod_mas, " added agaisnt ticket number 8000004920
+        ta_ftp_prod_mas TYPE TABLE OF ty_prod_mas.
+  DATA: lv_strength(13),
+        lv_meins(7).
+  SELECT
+    matnr,
+    ersda,   " lOC Added by pranita for 8000005985 on 20.12.2019
+    mtart,
+    matkl,
+    bismt,
+    meins,
+    labor,
+    spart,
+    extwg,
+    mstae,
+    mhdhb FROM mara INTO TABLE @DATA(ta_mara)
+           WHERE matnr IN @s_matnr AND
+                lvorm = ''        AND
+                mtart IN @s_mtart AND
+                labor IN @s_labor.
+  IF ta_mara[] IS NOT INITIAL.
+    SELECT
+      matnr,
+      maktx  FROM makt INTO TABLE @DATA(ta_makt)
+      FOR  ALL ENTRIES IN @ta_mara
+       WHERE matnr = @ta_mara-matnr.
+    SELECT * FROM t134t INTO TABLE @DATA(ta_t134t)
+      FOR ALL ENTRIES IN @ta_mara
+      WHERE spras = 'E' AND
+            mtart = @ta_mara-mtart.
+    SELECT * FROM t141t INTO TABLE @DATA(ta_t141t)
+      FOR ALL ENTRIES IN @ta_mara
+        WHERE spras = 'E'   AND
+              mmsta = @ta_mara-mstae.
+    SELECT * FROM zmm_mara INTO TABLE @DATA(ta_zmm_mara)
+      FOR ALL ENTRIES IN @ta_mara
+      WHERE matnr = @ta_mara-matnr.
+    SELECT * FROM t023t INTO TABLE @DATA(ta_t023t)
+      FOR ALL ENTRIES IN @ta_mara
+      WHERE spras = 'E' AND
+            matkl = @ta_mara-matkl.
+    SELECT * FROM  t024x INTO TABLE @DATA(ta_t024x)
+      FOR ALL ENTRIES IN @ta_mara
+      WHERE spras = 'E' AND
+            labor = @ta_mara-labor.
+    SELECT * FROM tspat INTO TABLE @DATA(ta_tspat)
+      FOR ALL ENTRIES IN @ta_mara
+      WHERE spras = 'E' AND
+            spart = @ta_mara-spart.
+    SELECT * FROM zqm_mat_molecule INTO TABLE @DATA(ta_zqm_mat_molecule)
+      FOR ALL ENTRIES IN @ta_mara
+      WHERE matnr = @ta_mara-matnr.
+    LOOP AT ta_mara INTO DATA(wa_mara) WHERE mtart EQ 'ZFGS'.
+      DATA: lv_object TYPE ausp-objek.
+      wa_qm_mat_ref-matnr = wa_mara-matnr.
+      CALL FUNCTION 'CONVERSION_EXIT_ALPHA_INPUT'
+        EXPORTING
+          input  = wa_mara-matnr
+        IMPORTING
+          output = wa_mara-matnr.
+      lv_object = wa_mara-matnr.
+      CALL FUNCTION 'CLAF_CLASSIFICATION_OF_OBJECTS'
+        EXPORTING
+          class              = 'ZFGS01'
+          classtype          = '001'
+          language           = sy-langu
+          object             = lv_object
+          objecttable        = 'MARA'
+          key_date           = sy-datum
+          initial_charact    = 'X'
+          change_service_clf = 'X'
+        TABLES
+          t_class            = ta_class
+          t_objectdata       = ta_objectdata
+        EXCEPTIONS
+          no_classification  = 1
+          no_classtypes      = 2
+          invalid_class_type = 3
+          OTHERS             = 4.
+      IF sy-subrc EQ 0.
+        READ TABLE ta_objectdata INTO DATA(wa_objectdata) WITH KEY atnam = 'ZFAMILY'.
+        IF sy-subrc EQ 0.
+          wa_qm_mat_ref-family_id = wa_objectdata-ausp1.
+        ENDIF.
+      ENDIF.
+      APPEND wa_qm_mat_ref TO ta_qm_mat_ref.
+      CLEAR wa_qm_mat_ref.
+    ENDLOOP.
+  ENDIF.
+
+  IF ta_qm_mat_ref[] IS NOT INITIAL.
+    SELECT * FROM zmdm_familydtl INTO TABLE @DATA(ta_zmdm_familydtl)
+      FOR ALL ENTRIES IN @ta_qm_mat_ref
+      WHERE family_id = @ta_qm_mat_ref-family_id.
+  ENDIF.
+
+  " Processing final internal table for for Product Master
+  LOOP AT ta_mara INTO wa_mara.
+    wa_prod_mast-matnr      = wa_mara-matnr.
+    wa_prod_mast-ersda      = wa_mara-ersda.  " lOC Added by pranita for 8000005985 on 20.12.2019
+    wa_prod_mast-mtart      = wa_mara-mtart.
+    wa_prod_mast-mstae      = wa_mara-mstae.
+    wa_prod_mast-bismt      = wa_mara-bismt.
+    wa_prod_mast-matkl      = wa_mara-matkl.
+    wa_prod_mast-labor      = wa_mara-labor.
+    wa_prod_mast-extwg      = wa_mara-extwg.
+    wa_prod_mast-meins      = wa_mara-meins.
+    wa_prod_mast-spart      = wa_mara-spart.
+    wa_prod_mast-mhdhb      = wa_mara-mhdhb.
+    READ TABLE ta_makt INTO DATA(wa_makt) WITH KEY matnr = wa_mara-matnr.
+    IF sy-subrc EQ 0.
+      wa_prod_mast-maktx      = wa_makt-maktx.
+    ENDIF.
+    READ TABLE ta_t134t INTO DATA(wa_t134t) WITH KEY mtart = wa_mara-mtart.
+    IF sy-subrc EQ 0.
+      wa_prod_mast-mtbez      = wa_t134t-mtbez.
+    ENDIF.
+    READ TABLE ta_t141t INTO DATA(wa_t141t) WITH KEY mmsta = wa_mara-mstae.
+    IF sy-subrc EQ 0.
+      wa_prod_mast-mtstb      = wa_t141t-mtstb.
+    ENDIF.
+    READ TABLE ta_zmm_mara INTO DATA(wa_zmm_mara) WITH KEY matnr = wa_mara-matnr.
+    IF sy-subrc EQ 0.
+      wa_prod_mast-zbrand_code  = wa_zmm_mara-zbrand_code.
+      wa_prod_mast-zbrand_desc  = wa_zmm_mara-zbrand_desc.
+    ENDIF.
+    READ TABLE ta_t023t INTO DATA(wa_t023t) WITH KEY matkl = wa_mara-matkl.
+    IF sy-subrc EQ 0.
+      wa_prod_mast-wgbez      = wa_t023t-wgbez.
+    ENDIF.
+    READ TABLE ta_t024x INTO DATA(wa_t024x) WITH KEY labor = wa_mara-labor.
+    IF sy-subrc EQ 0.
+      wa_prod_mast-lbtxt      = wa_t024x-lbtxt.
+    ENDIF.
+    READ TABLE ta_tspat INTO DATA(wa_tspat) WITH KEY spart = wa_mara-spart.
+    IF sy-subrc EQ 0.
+      wa_prod_mast-vtext      = wa_tspat-vtext.
+    ENDIF.
+    IF wa_mara-mtart NE 'ZFGS'.
+      READ TABLE ta_zqm_mat_molecule INTO DATA(wa_zqm_mat_molecule) WITH KEY matnr = wa_mara-matnr.
+      IF sy-subrc EQ 0.
+        wa_prod_mast-molecule   = wa_zqm_mat_molecule-molecule .
+        IF wa_zqm_mat_molecule-strength IS NOT INITIAL OR wa_zqm_mat_molecule-strength NE '0.000'.
+          lv_strength = wa_zqm_mat_molecule-strength.
+          lv_meins    = wa_zqm_mat_molecule-meins.
+          CONCATENATE  lv_strength lv_meins INTO wa_prod_mast-strength SEPARATED BY ''.
+          CLEAR:lv_strength, lv_meins.
+        ENDIF.
+        IF wa_zqm_mat_molecule-strength1 IS NOT INITIAL OR wa_zqm_mat_molecule-strength1 NE '0.000'.
+          lv_strength = wa_zqm_mat_molecule-strength1.
+          lv_meins    = wa_zqm_mat_molecule-meins1.
+          CONCATENATE  lv_strength lv_meins INTO wa_prod_mast-strength1 SEPARATED BY ''.
+          CLEAR:lv_strength, lv_meins.
+        ENDIF.
+      ENDIF.
+    ELSEIF wa_mara-mtart EQ 'ZFGS'.
+      CLEAR wa_qm_mat_ref.
+      READ TABLE ta_qm_mat_ref INTO wa_qm_mat_ref WITH KEY matnr = wa_mara-matnr.
+      IF sy-subrc EQ 0.
+        READ TABLE ta_zmdm_familydtl INTO DATA(wa_zmdm_familydtl)
+          WITH KEY family_id = wa_qm_mat_ref-family_id.
+        IF sy-subrc EQ 0.
+          wa_prod_mast-molecule   = wa_zmdm_familydtl-molecule .
+          IF wa_zmdm_familydtl-strength IS NOT INITIAL OR wa_zmdm_familydtl-strength NE '0.000'.
+            lv_strength = wa_zmdm_familydtl-strength.
+            lv_meins    = wa_zmdm_familydtl-uom.
+            CONCATENATE  lv_strength lv_meins INTO wa_prod_mast-strength SEPARATED BY ''.
+            CLEAR:lv_strength, lv_meins.
+          ENDIF.
+          IF wa_zmdm_familydtl-per_unit IS NOT INITIAL OR wa_zmdm_familydtl-per_unit NE '0.000'.
+            lv_strength = wa_zmdm_familydtl-per_unit.
+            lv_meins    = wa_zmdm_familydtl-per_uom.
+            CONCATENATE  lv_strength lv_meins INTO wa_prod_mast-strength1 SEPARATED BY ''.
+            CLEAR:lv_strength, lv_meins.
+          ENDIF.
+        ENDIF.
+      ENDIF.
+    ENDIF.
+    SHIFT: wa_prod_mast-matnr LEFT DELETING LEADING '0',
+           wa_prod_mast-zbrand_code LEFT DELETING LEADING '0'.
+    CONDENSE wa_prod_mast-strength.
+    CONDENSE wa_prod_mast-strength1.
+    APPEND wa_prod_mast TO ta_prod_mast.
+    CLEAR: wa_makt, wa_t134t, wa_t141t, wa_zmm_mara, wa_t023t, wa_prod_mast.
+  ENDLOOP.
+***********************************************************************************************
+************************** " Begin of Process to Send file on FTP Server***********************
+***********************************************************************************************
+  IF ta_prod_mast[] IS NOT INITIAL.
+    CONCATENATE
+       'mat_code'
+       'mat_desc'
+       'mat_typ'
+       'mat_typ_desc'
+       'mat_status'
+       "'mat_creat_on'          " lOC Added by pranita for 8000005985 on 20.12.2019 , commented by pranita on 05.02.2020
+       'mat_status_desc'
+       'old_mat_code'
+       'brand_code'
+       'brand_desc'
+       'dosage_code'
+       'dosage_desc'
+       'market_code'
+       'market_desc'
+       'pack_type'
+       'buom'
+       'div_code'
+       'div_desc'
+       'molecule'
+       'strength'
+       'strength1'
+       'shelf_life'  'mat_creat_on' INTO wa_ftp_prod_mas SEPARATED BY lv_tab. " WA_FTP has been replaced by WA_FTP_PROD_MAS
+    APPEND wa_ftp_prod_mas TO ta_ftp_prod_mas. " WA_FTP has been replaced by WA_FTP_PROD_MAS and tA_FTP has been replaced by tA_FTP_PROD_MAS
+    CLEAR wa_ftp_prod_mas. "WA_FTP has been replaced by WA_FTP_PROD_MAS
+    LOOP AT ta_prod_mast INTO wa_prod_mast.
+      DATA: lv_mhdhb(10).
+      lv_mhdhb = wa_prod_mast-mhdhb.
+      CONDENSE lv_mhdhb.
+      DATA(lv_date) = |{ wa_prod_mast-ersda+6(2) }.{ wa_prod_mast-ersda+4(2) }.{ wa_prod_mast-ersda+0(4) }|. " lOC Added by pranita for 8000005985 on 20.12.2019
+      CONCATENATE wa_prod_mast-matnr
+             wa_prod_mast-maktx
+             wa_prod_mast-mtart
+             wa_prod_mast-mtbez
+             wa_prod_mast-mstae
+             "lv_date  " lOC Added by pranita for 8000005985 on 20.12.2019 , commented by pranita on 05.02.2020
+             wa_prod_mast-mtstb
+             wa_prod_mast-bismt
+             wa_prod_mast-zbrand_code
+             wa_prod_mast-zbrand_desc
+             wa_prod_mast-matkl
+             wa_prod_mast-wgbez
+             wa_prod_mast-labor
+             wa_prod_mast-lbtxt
+             wa_prod_mast-extwg
+             wa_prod_mast-meins
+             wa_prod_mast-spart
+             wa_prod_mast-vtext
+             wa_prod_mast-molecule
+             wa_prod_mast-strength
+             wa_prod_mast-strength1
+             lv_mhdhb
+             lv_date into wa_ftp_prod_mas separated by lv_tab. " WA_FTP has been replaced by WA_FTP_PROD_MAS , lOC Added by pranita for 8000005985 on 05.02.2020
+      APPEND wa_ftp_prod_mas TO ta_ftp_prod_mas. " WA_FTP has been replaced by WA_FTP_PROD_MAS and ta_ftp has been replaced by TA_FTP_PROD_MAS
+      CLEAR: wa_ftp_prod_mas, lv_mhdhb." WA_FTP has been replaced by WA_FTP_PROD_MAS
+    ENDLOOP.
+    PERFORM connect_2_ftp USING g_dest CHANGING g_hdl exp5.
+    CLEAR: wa_ftp,lv_file.
+
+    IF exp5 IS INITIAL AND ta_ftp_prod_mas[] IS NOT INITIAL.  " TA_FTP has been replaced by TA_FTP_PROD_MAS
+      CONCATENATE lv_file1 'material_master.txt' INTO lv_file.
+*****data lv_command(100) type c.
+*****DATA:lv_dest  TYPE rfcdes-rfcdest VALUE 'SAPFTPA'.
+*****data: lta_data TYPE TABLE OF datab.
+*****CONSTANTS lc_del(3) VALUE 'del'.
+*****BREAK abap4.
+*****lv_command =  |{ lc_del } { lv_file1 }{ '' }{ 'material_master.txt'} |.
+*****CALL FUNCTION 'FTP_COMMAND'
+*****  EXPORTING
+*****   HANDLE                = g_hdl
+*****    command               = lv_command
+*****   COMPRESS              =
+*****   RFC_DESTINATION       = lv_dest
+*****  tables
+*****    data                  = lta_data
+***** EXCEPTIONS
+*****   TCPIP_ERROR           = 1
+*****   COMMAND_ERROR         = 2
+*****   DATA_ERROR            = 3
+*****   OTHERS                = 4.
+
+      IF lv_file IS NOT INITIAL.
+*PERFORM send_2_ftp USING lv_file.
+        CALL FUNCTION 'FTP_R3_TO_SERVER'
+          EXPORTING
+            handle         = g_hdl
+            fname          = lv_file "p_lv_file          "file path variable has been replaced against ticket number 8000004920
+            character_mode = 'X'
+          TABLES
+            text           = ta_ftp_prod_mas
+          EXCEPTIONS
+            tcpip_error    = 1
+            command_error  = 2
+            data_error     = 3
+            OTHERS         = 4.
+        IF sy-subrc <> 0.
+          MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+          WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4
+          RAISING invalid_output_file.
+        ENDIF.
+      ENDIF.
+    ENDIF.
+    PERFORM disconnect_ftp USING g_hdl g_dest.
+************************** " End of Process to Send file on FTP Server***********************
+  ENDIF.
+ENDFORM.

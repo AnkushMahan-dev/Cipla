@@ -1,0 +1,813 @@
+*----------------------------------------------------------------------*
+*   INCLUDE CIFCONST                                                   *
+*----------------------------------------------------------------------*
+
+
+************************************************************************
+* APO constants
+* must match the constants in APO
+************************************************************************
+
+* livecache-methods (/SAPAPO/OM_METHOD in APO DDIC)  (1)
+*     cif-methods (/SAPAPO/CONSTANTS_CIF in APO)     (2)
+CONSTANTS:
+  g_meth_new_con    LIKE cif_apoord-method VALUE 'N',       " (1) + (2)
+  g_meth_change_con LIKE cif_apoord-method VALUE 'C',       " (1) + (2)
+  g_meth_delete_con LIKE cif_apoord-method VALUE 'D',       " (1) + (2)
+  g_meth_remove_con LIKE cif_apoord-method VALUE 'R',       " (1) + (2)
+  g_meth_add_con    LIKE cif_apoord-method VALUE 'A',       " (1) + (2)
+  g_meth_maint_con  LIKE cif_apoord-method VALUE 'M',       "       (2)
+  g_meth_conf_con   LIKE cif_apoord-method VALUE 'B',       "       (2)
+  g_meth_goodsr_con LIKE cif_apoord-method VALUE 'G',       "       (2)
+  g_meth_rc_con     LIKE cif_apoord-method value 'W',
+  g_meth_altseq_con  LIKE cif_apoord-method VALUE 'S'.
+* BEGIN NOTE 378082
+CONSTANTS:
+  g_meth_key_compl_con  LIKE cif_apoord-method VALUE 'K'.
+* END NOTE 378082
+CONSTANTS:
+  g_meth_mrpds_con  LIKE cif_apoord-method VALUE 'L',
+  g_mrpds_active_seq  LIKE cif_r3opr-plnfl VALUE '000000'.
+
+* R/3-methods
+CONSTANTS:
+  con_insert VALUE 'I',
+  con_update VALUE 'U',
+    con_change VALUE 'C',
+  con_delete VALUE 'D'.
+
+*  location types in APO (/SAPAPO/C_LOCTYPE in APO DDIC)
+CONSTANTS:
+*   gc_core_plant           like mdrp_nodt-nodetype value 'PL',
+*   gc_core_dc              like mdrp_nodt-nodetype value 'DC',
+*   gc_core_cd              like mdrp_nodt-nodetype value 'CD',
+*   gc_core_ew              like mdrp_nodt-nodetype value 'EW',
+*   gc_core_ts              like mdrp_nodt-nodetype value 'TS',
+   gc_core_plant(2)        VALUE 'PL',
+   gc_core_dc(2)           VALUE 'DC',
+   gc_core_a(2)            VALUE 'A ',
+   gc_core_cd(2)           VALUE 'CD',
+   gc_core_ew(2)           VALUE 'EW',
+   gc_core_ts(2)           VALUE 'TS',
+
+*  Plant
+   gc_apo_plant            LIKE cifloc-loctype VALUE '1001',
+*  Distribution Center
+   gc_apo_dc               LIKE cifloc-loctype VALUE '1002',
+*  Shipping Point
+   gc_apo_spnt             LIKE cifloc-loctype VALUE '1003',
+*  Transport Zone
+   gc_apo_transpzone       LIKE cifloc-loctype VALUE '1005',
+*  MRP Area
+   gc_apo_mrparea          LIKE cifloc-loctype VALUE '1007',
+*  Customer
+   gc_apo_customer         LIKE cifloc-loctype VALUE '1010',
+   gc_apo_storage_location LIKE cifloc-loctype VALUE '1009',
+*  Vendor/Supplier
+   gc_apo_vendor           LIKE cifloc-loctype VALUE '1011',
+*  Carrier
+   gc_apo_carrier          LIKE cifloc-loctype VALUE '1020',
+*  Store
+   gc_apo_store            LIKE cifloc-loctype VALUE '1040'.
+
+*  external order types (/SAPAPO/R3OBJ in APO DDIC)
+CONSTANTS:
+*  stock (Bestand)
+   gc_stock             LIKE cif_apoord-objecttype VALUE '0',
+*  requisition (Bestellanforderung)
+   gc_requisition       LIKE cif_apoord-objecttype VALUE '1',
+*  purchase order (Bestellung)
+   gc_purchase_order    LIKE cif_apoord-objecttype VALUE '2',
+*  customer order (Kundenauftrag)
+   gc_customer_order    LIKE cif_apoord-objecttype VALUE '3',
+*  forecast (Vorplanungsauftrag)
+   gc_forecast          LIKE cif_apoord-objecttype VALUE '4',
+*  planned order (Planauftrag)
+   gc_planned_order     LIKE cif_apoord-objecttype VALUE '5',
+*  production order (Fertigungsauftrag)
+   gc_prod_order        LIKE cif_apoord-objecttype VALUE '6',
+*  reservation (Reservierung)
+   gc_reservation       LIKE cif_apoord-objecttype VALUE '7',
+*  (Neuer Auftrag)
+   gc_apo_only_order    LIKE cif_apoord-objecttype VALUE '8',
+*  Lieferavise
+   gc_ship_notification LIKE cif_apoord-objecttype VALUE '9',
+*  Bestätigungen für Bestellungen
+   gc_purchase_conf     LIKE cif_apoord-objecttype VALUE 'A',
+* Lieferung
+   gc_delivery     LIKE cif_apoord-objecttype VALUE 'B',
+* Transport
+   gc_shipment     LIKE cif_apoord-objecttype VALUE 'T',
+*  Inspection lot
+   gc_insplot      LIKE cif_apoord-objecttype VALUE 'I',
+*  project order (Netzplan/projektauftrag)
+   gc_project_order        LIKE cif_apoord-objecttype VALUE 'P',
+*  maintenance order (Instandhaltungsauftrag)
+   gc_maint_order        LIKE cif_apoord-objecttype VALUE 'M'.
+
+
+* /sapapo/om_order_type:  liveCache internal order types
+* from /SAPAPO/CONSTANTS_OM
+CONSTANTS:
+* Begin of note 1590326 ATP-categories depending on stock typ
+  " Frei verwendbarer Bestand
+  gc_om_stock_unrestricted      like cif_pln_ev-ordtype value 11,
+  " Gesperrter Bestand
+  gc_om_stock_blocked           like cif_pln_ev-ordtype value 12,
+* Eingeschraenkt verwendbarer Bestand
+*  gc_om_stock_restricted        like cif_pln_ev-ordtype value 13,
+  " Qualitaetspruefbestand
+  gc_om_stock_quality_insp      like cif_pln_ev-ordtype value 14,
+* End of note 1590326 ATP-categories depending on stock typ
+* Fremdbeschaffung
+  gc_om_external_procurement    LIKE cif_pln_ev-ordtype VALUE 21,
+* Bestätigung zum Lieferplan / Confirmation for scheduling agreement
+  gc_om_confirm_sched_agrmt    LIKE cif_pln_ev-ordtype VALUE 26,
+* Eigenfertigung
+  gc_om_inhouse_production      LIKE cif_pln_ev-ordtype VALUE 31,
+* Umlagerung
+  gc_om_transfer_order          LIKE cif_pln_ev-ordtype VALUE 41,
+* Forecast / Planprimaerbedarf
+  gc_om_forecast_order          LIKE cif_pln_ev-ordtype VALUE 51,
+* Kundenauftrag mit Verrechnung
+*  gc_om_sales_order_consumption like cif_pln_ev-ordtype value 52,
+* Kundenauftrag ohne Verrechnung
+  gc_om_sales_order_no_cons     LIKE cif_pln_ev-ordtype VALUE 53,
+* Productionskampagne
+  gc_cif_productcampaign_cons   LIKE cif_pln_e2-ordtype VALUE 300,
+* Lohnbearbeitung
+  gc_cif_subcontracting_cons    LIKE cif_pln_e2-ordtype VALUE 258,
+* Transport
+  gc_cif_shipment_cons          LIKE cif_pln_e2-ordtype VALUE 330,
+* Lieferung
+  gc_cif_delivery_cons          LIKE cif_pln_e2-ordtype VALUE 340,
+* Reservierung
+  gc_cif_reservation            LIKE cif_pln_e2-ordtype VALUE 360,
+* Network / Project order
+  gc_om_project_order           LIKE cif_pln_e2-ordtype VALUE 36,
+* Maintenance order
+  gc_om_maintenance_order       LIKE cif_pln_e2-ordtype VALUE 37.
+
+* pub types used in error handling
+CONSTANTS:
+  gc_eh_pub_sales_sched_agrmnt  LIKE cifregkey-pubtype VALUE '900',
+  gc_eh_pub_sales_cumul_quan    LIKE cifregkey-pubtype VALUE '901',
+  gc_eh_pub_pur_cumulative_quan LIKE cifregkey-pubtype VALUE '902',
+  gc_eh_pub_temp_quan_assignment
+                                LIKE cifregkey-pubtype VALUE '903',
+  gc_eh_pub_inspection_log      LIKE cifregkey-pubtype VALUE '904',
+  gc_eh_pub_forecast_reduction  LIKE cifregkey-pubtype VALUE '905',
+  gc_eh_pub_sales_document      LIKE cifregkey-pubtype VALUE '906',
+  gc_eh_pub_stock               LIKE cifregkey-pubtype VALUE '907'.
+
+*  Verursacher  der Veröffentlichung von Planungselementen
+*  ( /SAPAPO/CIF_EV_APPL in APO DDIC )
+CONSTANTS:
+* Supply Network Planning
+  g_cif_appl_snp_con LIKE cif_ec_ref-pub_typ VALUE 'SNP',
+* Optimizer
+  g_cif_appl_pps_con LIKE cif_ec_ref-pub_typ VALUE 'PPS'.
+
+* APO release
+* the APO release is defined in the APO system with constant
+* gc_apo_release_con (Include /SAPAPO/CIF_GLOB_CONST_INC)
+* New type was introduced due to integration of AMPL to SNC systems.
+CONSTANTS:
+   gc_apo_type_con LIKE ndisystems-type VALUE 'SAP_APO   ',
+* IBP change start
+   gc_ibp_type_con LIKE ndisystems-type VALUE 'IBP       ',
+   gc_sap_ibp_type_con LIKE ndisystems-type VALUE 'SAP_IBP   ',
+* IBP change end
+   gc_scmb_type_con LIKE ndisystems-type VALUE 'SAP_SCMB  ',
+   gc_snc_type_con LIKE ndisystems-type VALUE 'SAP_SNC  ',
+   gc_s4hana_type_con LIKE ndisystems-type VALUE 'SAP_S4HANA',
+   gc_xi_type_con LIKE ndisystems-type VALUE 'XI        '.
+CONSTANTS:
+   gc_apo_release_con LIKE cifctrlpar-aporl VALUE '11a',
+   gc_apo_rel_11_con  LIKE cifctrlpar-aporl VALUE '11 ',
+   gc_apo_rel_20a_con LIKE cifctrlpar-aporl VALUE '20A',
+   gc_apo_rel_30a_con LIKE cifctrlpar-aporl VALUE '30A',
+   gc_apo_rel_31_con  LIKE cifctrlpar-aporl VALUE '31',
+   gc_apo_rel_40_con  LIKE cifctrlpar-aporl VALUE '40',
+   gc_apo_rel_41_con  LIKE cifctrlpar-aporl VALUE '41',
+   gc_apo_rel_50_con  LIKE cifctrlpar-aporl VALUE '50'.
+*   gc_apo_rel_70_con  LIKE cifctrlpar-aporl VALUE '70'.
+
+*  ATP Status of planned / production orders in APO
+CONSTANTS:
+   gc_atp_no_check LIKE cif_r3ord-atpstate VALUE space,
+   gc_atp_not_conf LIKE cif_r3ord-atpstate VALUE '1',
+   gc_atp_part_conf LIKE cif_r3ord-atpstate VALUE '2',
+   gc_atp_full_conf LIKE cif_r3ord-atpstate VALUE '3'.
+
+* constants for order status
+CONSTANTS:
+*  RELEASED:
+   gc_order_status_erof LIKE cif_r3ord-statusrel VALUE '1',
+   gc_order_status_prel LIKE cif_r3ord-statusrel VALUE '2',
+   gc_order_status_rel  LIKE cif_r3ord-statusrel VALUE '3',
+*  confirmed
+   gc_order_status_no_conf LIKE cif_r3ord-statusrel VALUE '1',
+   gc_order_status_pcnf    LIKE cif_r3ord-statusrel VALUE '2',
+   gc_order_status_cnf     LIKE cif_r3ord-statusrel VALUE '3'.
+
+************************************************************************
+* common constants
+************************************************************************
+* CIF release
+CONSTANTS
+  gc_cif_release_con LIKE cifctrlpar-cifrl VALUE '311'.
+
+* true/false
+CONSTANTS:
+  g_true_con   TYPE c VALUE 'X',
+  g_false_con  TYPE c VALUE space.
+
+* message-ID and types
+CONSTANTS:
+  g_msgid_cif_con LIKE sy-msgid VALUE 'XC',
+  g_msgtyp_a_con  LIKE sy-msgty VALUE 'A',
+  g_msgtyp_e_con  LIKE sy-msgty VALUE 'E',
+  g_msgtyp_w_con  LIKE sy-msgty VALUE 'W',
+  g_msgtyp_s_con  LIKE sy-msgty VALUE 'S',
+  g_msgtyp_i_con  LIKE sy-msgty VALUE 'I'.
+
+* names for TRFC-Channels for initial data transfer
+CONSTANTS:
+*  GF_CHANNEL_LOAD LIKE CIFSRCHSTK-CHANNEL VALUE 'CF_ADC_LOAD',
+*  GF_CHANNEL_WAIT LIKE CIFSRCHSTK-CHANNEL VALUE 'CF_ADC_WAIT',
+*  GF_CHANNEL_WAIT_DO LIKE CIFSRCHSTK-CHANNEL VALUE 'CF_ADC_WAIT_DO',
+  gf_channel_standard LIKE cifsrchstk-channel VALUE 'CF_ADC_STANDARD',
+  gf_channel_imod LIKE cifsrchstk-channel VALUE 'CF_IMOD_',
+* new constants for parallel initial load, there will be a unique
+* number added to these values
+  gc_channel_load_start(4)    VALUE 'CFLD',
+  gc_channel_wait_start(4)    VALUE 'CFWT',
+  gc_channel_wait_do_start(4) VALUE 'CFWD',
+  gc_cif_numberrange_name  LIKE inri-object VALUE 'CIF_LOAD',
+  gc_cif_numberrange_no    LIKE inri-nrrangenr VALUE 1,
+
+* enqueue/dequeue waitmode constants
+  gc_waitmode_nowait TYPE c VALUE space,
+  gc_waitmode_system TYPE c VALUE 'S',
+  gc_waitmode_endless TYPE c VALUE 'E',
+
+* lotsize constants
+  gc_fix_lotsize TYPE c VALUE 'F',
+  gc_exact TYPE c VALUE 'E'.
+
+************************************************************************
+* integration model constants
+************************************************************************
+* Updating of the maximumvector in case of integrationmodel activation
+* or deactivation. (Reset for debugging purposes only)
+DATA gv_update_maxvektor LIKE cifref-xfeld VALUE 'X'.
+
+CONSTANTS gc_dummy_imax_entry LIKE cif_imod-imtyp VALUE 'T_IMAX'.
+
+* activation state of for integration models
+CONSTANTS:
+  BEGIN OF gc_active,
+    inactive LIKE cif_imod-active VALUE space,
+    load     LIKE cif_imod-active VALUE 'L',
+    incr     LIKE cif_imod-active VALUE 'I',
+  END OF gc_active.
+
+* constants for integration model types
+CONSTANTS:
+  BEGIN OF gc_imtyp,
+    t_atpcheck LIKE cif_imod-imtyp VALUE 'T_ATPCHK', " ATP Check
+    t_atpcust LIKE cif_imod-imtyp VALUE 'T_ATPCUS', " ATP Customizing
+    t_btc   LIKE cif_imod-imtyp VALUE 'T_BTC',   " Chargen
+    t_char  LIKE cif_imod-imtyp VALUE 'T_CHAR',  " Merkmale
+    t_cla   LIKE cif_imod-imtyp VALUE 'T_CLA',  " Klassen (PI2000)
+    t_chr   LIKE cif_imod-imtyp VALUE 'T_CHR',  " Merkmale (PI2000)
+    t_claf  LIKE cif_imod-imtyp VALUE 'T_CLAF', " Klassifikat. (PI2000)
+    t_cnfg  LIKE cif_imod-imtyp VALUE 'T_CNFG', " Konfigurat. (PI2000)
+    t_ecm   LIKE cif_imod-imtyp VALUE 'T_ECM',  " Änderungsdienst
+    t_fcc   LIKE cif_imod-imtyp VALUE 'T_FCC',  " Bedarfsabbau
+    t_fesr  LIKE cif_imod-imtyp VALUE 'T_FESR', " Force Elem. (DFPS 600)
+    t_fff   LIKE cif_imod-imtyp VALUE 'T_FFF',  " FFF classes (DIMP 600)
+    t_cus   LIKE cif_imod-imtyp VALUE 'T_CUS',  " Kunden
+    t_msl   LIKE cif_imod-imtyp VALUE 'T_MSL',  " Verbrauchsdaten
+    t_gst   LIKE cif_imod-imtyp VALUE 'T_GST',  " Kontingent-Infostrukt.
+    t_insplot LIKE cif_imod-imtyp VALUE 'T_INSPLOT', " Prüflos
+    t_ippe  LIKE cif_imod-imtyp VALUE 'T_IPPE',  " iPPE
+    t_ksc   LIKE cif_imod-imtyp VALUE 'T_KSC',  " Kontingent-Schema
+    t_mard  LIKE cif_imod-imtyp VALUE 'T_MARD', " Lagerortbestand
+    t_marc  LIKE cif_imod-imtyp VALUE 'T_MARC', " Transitbestand
+    t_mat   LIKE cif_imod-imtyp VALUE 'T_MAT',  " Material
+    t_mchb  LIKE cif_imod-imtyp VALUE 'T_MCHB', " Chargenbestand
+    t_mkol  LIKE cif_imod-imtyp VALUE 'T_MKOL', " Konsibst. zum Lief.
+    mrpa    LIKE cif_imod-imtyp VALUE 'MRPA',   " Dispositionsbereich
+    mt_mrpa LIKE cif_imod-imtyp VALUE 'MT_MRPA', " Matstamm zu Dispob.
+    mtmrpa  LIKE cif_imod-imtyp VALUE 'MTMRPA',  " Matstamm zu Dispob.
+    t_mska  LIKE cif_imod-imtyp VALUE 'T_MSKA', " Kundenauftragsbesta.
+    t_msku  LIKE cif_imod-imtyp VALUE 'T_MSKU', " Sonderb. beim Kunden
+    t_mslb  LIKE cif_imod-imtyp VALUE 'T_MSLB', " Sonderb. beim Lief.
+    t_mspr  LIKE cif_imod-imtyp VALUE 'T_MSPR', " Projektbestände
+    t_ord   LIKE cif_imod-imtyp VALUE 'T_ORD',  " Fertigungsaufträge
+    t_pir   LIKE cif_imod-imtyp VALUE 'T_PIR',  " Planprimärbedarfe
+    t_pcm   LIKE cif_imod-imtyp VALUE 'T_PCM',  " Produktionskampagnen
+    t_plo   LIKE cif_imod-imtyp VALUE 'T_PLO',  " Planaufträge
+    t_plt   LIKE cif_imod-imtyp VALUE 'T_PLT',  " Werke
+    t_po    LIKE cif_imod-imtyp VALUE 'T_PO',   " Bestellungen
+    t_ppm   LIKE cif_imod-imtyp VALUE 'T_PPM',  " Produktionsprozeßmode.
+    t_prom  LIKE cif_imod-imtyp VALUE 'T_PROM', " Handelsaktionen
+    t_res   LIKE cif_imod-imtyp VALUE 'T_RES',  " Kapazitäten
+    t_rsv   LIKE cif_imod-imtyp VALUE 'T_RSV',  " Reservierungen
+    t_sdls  LIKE cif_imod-imtyp VALUE 'T_SDLS', " SD-Lieferplan (4.7)
+    t_sls   LIKE cif_imod-imtyp VALUE 'T_SLS',  " Kundenaufträge
+    t_spnt  LIKE cif_imod-imtyp VALUE 'T_SPNT', " Versandstelle (600)
+    t_ssd   LIKE cif_imod-imtyp VALUE 'T_SSD',  " Simple Supersession
+    t_stg   LIKE cif_imod-imtyp VALUE 'T_STG',  " Rüstgruppen (600)
+    t_sus   LIKE cif_imod-imtyp VALUE 'T_SUS',  " Supersessions (DIMP)
+    t_srcc  LIKE cif_imod-imtyp VALUE 'T_SRCC', " Purchasing Contracts
+    t_srcd  LIKE cif_imod-imtyp VALUE 'T_SRCD', " Purchasing Scheduling Agreements
+    t_srci  LIKE cif_imod-imtyp VALUE 'T_SRCI', " Purchasing Info Records
+    t_ven   LIKE cif_imod-imtyp VALUE 'T_VEN',  " Lieferanten
+    t_vmic  LIKE cif_imod-imtyp VALUE 'T_VMIC', " Termin. VMI-Kauf
+    t_vmim  LIKE cif_imod-imtyp VALUE 'T_VCLP', " VMI Customer Material
+    t_wpkgs LIKE cif_imod-imtyp VALUE 'T_WPKGS',     "MSP
+    t_pmord LIKE cif_imod-imtyp VALUE 'T_PMORD', " PM-Auftrag
+    t_netwrk LIKE cif_imod-imtyp VALUE 'T_NETWRK', " Netzplan
+    t_rtmeq LIKE cif_imod-imtyp VALUE 'T_RTMEQ', " Equipment
+    t_rtmfl LIKE cif_imod-imtyp VALUE 'T_RTMFL', " Functional Location
+    t_pack  LIKE cif_imod-imtyp VALUE 'T_PACK', "Packing Instrucitons
+*    t_pcm   LIKE cif_imod-imtyp VALUE 'T_PCM'   " pcm
+* Zusätze
+    t_ppmsm LIKE cif_imod-imtyp VALUE 'T_PPMSM', " PPMs für SM
+    t_ampl LIKE cif_imod-imtyp VALUE 'T_AMPL',
+    t_iprt LIKE cif_imod-imtyp VALUE 'T_IPRT', " RTO
+  END OF gc_imtyp.
+
+* special stock constants
+CONSTANTS:
+  gf_bsttyp_mard VALUE 'L',
+  gf_bsttyp_mchb VALUE 'C',
+  gf_bsttyp_mkol VALUE 'K',
+  gf_bsttyp_mska VALUE 'E',
+  gf_bsttyp_msku VALUE 'W',
+  gf_bsttyp_mslb VALUE 'O',
+  gf_bsttyp_mspr VALUE 'Q',
+  gf_bsttyp_marc VALUE 'T'.
+
+
+CONSTANTS:
+* operation modes (domän CIFOPMOD)
+  g_opmode_s_con LIKE cifopmode-opmode VALUE 'T', " Transactional Events
+  g_opmode_d_con LIKE cifopmode-opmode VALUE 'D', " Down
+  g_opmode_l_con LIKE cifopmode-opmode VALUE 'I'. " Initial
+
+
+* deltamodel processing state (delta model type)
+CONSTANTS:
+* normal, no delta model
+  gc_cif_imstat_n_con LIKE cif_imod-status VALUE space,
+* Relevant
+  gc_cif_imstat_r_con LIKE cif_imod-status VALUE 'R',
+* In process
+  gc_cif_imstat_i_con LIKE cif_imod-status VALUE 'I',
+* Selected
+  gc_cif_imstat_s_con LIKE cif_imod-status VALUE 'S',
+* Transmitted
+  gc_cif_imstat_t_con LIKE cif_imod-status VALUE 'T'.
+
+* special model names
+CONSTANTS:
+  gc_initial_run LIKE cif_imod-modelname VALUE 'CIFINITIAL',
+  gc_deltamodel_name LIKE cif_imod-modelname VALUE 'CIFDELTAMO',
+  gc_cpmodel_name LIKE cif_imod-modelname VALUE '$CPMODEL'.
+
+* BEGIN NOTE 364287
+CONSTANTS:
+  gc_matdeactmodel_name LIKE cif_imod-modelname VALUE '$DEACTIVTD'.
+* END   NOTE 364287
+
+* BEGIN NOTE 544079
+CONSTANTS:
+  gc_matactmodel_name LIKE cif_imod-modelname VALUE '$ACTIVATED'.
+* END NOTE 544079
+
+************************************************************************
+* constants for application log
+************************************************************************
+
+CONSTANTS:
+* application log object for CIF
+  g_logobj_cif_con LIKE balhdr-object VALUE 'CIF',
+
+* sub objects:
+* common
+  g_logsubobj_any_con LIKE balhdr-subobject VALUE 'ANY',
+* batches
+  g_logsubobj_batch_con LIKE balhdr-subobject VALUE 'T_BTC',
+* Initial Data Transfer
+  g_logsubobj_initial_con LIKE balhdr-subobject VALUE 'INITIAL',
+* inspection lots
+  g_logsubobj_insplot_con LIKE balhdr-subobject VALUE 'T_INSPLOT',
+* independent requirements
+  g_logsubobj_irq_con LIKE balhdr-subobject VALUE 'IRQ',
+* location (Kunde, Werk, Lieferant)
+  g_logsubobj_location_con LIKE balhdr-subobject VALUE 'LOCATION',
+* planned independent requirement
+  g_logsubobj_pir_con LIKE balhdr-subobject VALUE 'PIR',
+* production campaign
+  g_logsubobj_pcm_con LIKE balhdr-subobject VALUE 'PCM',
+* promotion (Handelsaktion)
+  g_logsubobj_prom_con LIKE balhdr-subobject VALUE 'PROMOTION',
+* planned order/ production order
+  g_logsubobj_order_con LIKE balhdr-subobject VALUE 'ORDER',
+* purchase order / requisition
+  g_logsubobj_po_con LIKE balhdr-subobject VALUE 'PO',
+* product
+  g_logsubobj_product_con LIKE balhdr-subobject VALUE 'PRODUCT',
+* ressources (Arbeitsplätze, Kapazitäten)
+  g_logsubobj_resource_con LIKE balhdr-subobject VALUE 'RESOURCE',
+* reservations
+  g_logsubobj_rsv_con LIKE balhdr-subobject VALUE 'RSV',
+* customer orders (Vertriebsdaten)
+  g_logsubobj_sales_con LIKE balhdr-subobject VALUE 'SALES',
+* quotations (Kontingente)
+  g_logsubobj_quota_con LIKE balhdr-subobject VALUE 'QUOTA',
+* stocks (Bestände)
+  g_logsubobj_stock_con LIKE balhdr-subobject VALUE 'STOCK',
+* ATP
+  g_logsubobj_atp_con LIKE balhdr-subobject VALUE 'ATP',
+* confirmations (Rückmeldungen)
+  g_logsubobj_conf_con LIKE balhdr-subobject VALUE 'CONF',
+* eventchannel
+  g_logsubobj_ec_con LIKE balhdr-subobject VALUE 'EC',
+* service plans
+  g_logsubobj_srv_con LIKE balhdr-subobject VALUE 'SRV',
+* classes
+  g_logsubobj_cla_con LIKE balhdr-subobject VALUE 'CLASS',
+* characteristics
+  g_logsubobj_chr_con LIKE balhdr-subobject VALUE 'CHAR',
+* configurations
+  g_logsubobj_cfg_con LIKE balhdr-subobject VALUE 'CONFIG',
+* planning tables
+  g_logsubobj_cuvt_con LIKE balhdr-subobject VALUE 'T_CUVT',
+* classifications
+  g_logsubobj_clf_con LIKE balhdr-subobject VALUE 'CLAF',
+* error handling
+  g_logsubobj_eh_con LIKE balhdr-subobject VALUE 'EH',
+* setup groups
+  g_logsubobj_stg_con LIKE balhdr-subobject VALUE 'STG',
+* TM resources (Equipment, Functional Location)
+  g_logsubobj_restm_con LIKE balhdr-subobject VALUE 'RESTM',
+
+* new subobject for APO-publishing 30a:
+* external procurement
+  g_logsubobj_ep_con LIKE balhdr-subobject VALUE 'EP',
+* inhouse production
+  g_logsubobj_ip_con LIKE balhdr-subobject VALUE 'IP',
+* customer order
+  g_logsubobj_co_con LIKE balhdr-subobject VALUE 'CO',
+* production campaign
+  g_logsubobj_pc_con LIKE balhdr-subobject VALUE 'PC',
+* confirmations
+  g_logsubobj_cf_con LIKE balhdr-subobject VALUE 'CF',
+* planning file
+  g_logsubobj_pf_con LIKE balhdr-subobject VALUE 'PF',
+* shipment
+  g_logsubobj_sh_con LIKE balhdr-subobject VALUE 'SH',
+* shedule agreement transactional data (goods issue/goods receive)
+  g_logsubobj_satd_con LIKE balhdr-subobject VALUE 'SATD',
+* planned independent requirement (forecast order)
+  g_logsubobj_fo_con  LIKE balhdr-subobject VALUE 'FO',
+* reservations (inbound)
+  g_logsubobj_rv_con LIKE balhdr-subobject VALUE 'RV',
+* generation of integration models
+  g_logsubobj_imod_con LIKE balhdr-subobject VALUE 'IMOD',
+* Sales scheduling agreements planned in APO
+  g_logsubobj_t_sdls_con LIKE balhdr-subobject VALUE 'T_SDLS',
+* Schedule lines for sales scheduling agreements planned in APO
+  g_logsubobj_hc_con LIKE balhdr-subobject VALUE 'HC',
+* network
+  g_logsubobj_pj_con LIKE balhdr-subobject VALUE 'PJ',
+* maintenance order
+  g_logsubobj_mo_con LIKE balhdr-subobject VALUE 'MO',
+* master data hierarchies
+  g_logsubobj_rel_con LIKE balhdr-subobject VALUE 'REL',
+* Info cubes for BW
+  g_logsubobj_ctbw_con LIKE balhdr-subobject VALUE 'T_CTBW',
+* Packaging Specifications
+  g_logsubobj_packspec_con LIKE balhdr-subobject VALUE 'T_PACK'.
+
+************************************************************************
+* constants for customizing/global settings
+************************************************************************
+
+* common switches for CIF
+CONSTANTS:
+* values for cifgparams-inbound (RFC-Calling mode)
+  gc_cif_norfc LIKE cifgparams-inbound VALUE space,
+  gc_cif_srfc LIKE cifgparams-inbound VALUE 'S',
+  gc_cif_qrfc LIKE cifgparams-inbound VALUE 'Q',
+  gc_cif_irfc LIKE cifgparams-inbound VALUE 'I',
+  gc_cif_orfc LIKE cifgparams-inbound VALUE 'O',
+* values for cifgparams-assertions
+  gc_cif_assertinons_off LIKE cifgparams-assertions VALUE space,
+  gc_cif_assertions_on LIKE cifgparams-assertions VALUE 'X',
+* values for cifgparams-loggging
+  gc_cif_loggin_off LIKE cifgparams-logging VALUE space,
+  gc_cif_loggin_normal LIKE cifgparams-logging VALUE 'X',
+  gc_cif_loggin_detailed LIKE cifgparams-logging VALUE 'D',
+* values for cifgparams-planload
+  gc_cif_planload_no LIKE cifgparams-planload VALUE space,
+  gc_cif_planload_direct LIKE cifgparams-planload VALUE 'D',
+  gc_cif_planload_periodic LIKE cifgparams-planload VALUE 'P',
+* values for cifctrlpar-errhandlng
+  gc_cif_errhandling_strict LIKE cifctrlpar-errhandlng VALUE space,
+*  GC_CIF_ERRHANDLING_STRICT LIKE CIFCTRLPAR-ERRHANDLNG VALUE 'S',
+  gc_cif_errhandling_tolerant  LIKE cifctrlpar-errhandlng VALUE 'T',
+  gc_cif_errhandling_no_split  LIKE cifctrlpar-errhandlng VALUE '1',
+  gc_cif_errhandling_luw_split LIKE cifctrlpar-errhandlng VALUE '2',
+* constants for operations on the error log
+  gc_cif_errlog_select LIKE ciferropst-operation VALUE 'S',
+  gc_cif_errlog_delete LIKE ciferropst-operation VALUE 'D',
+  gc_cif_errlog_mark   LIKE ciferropst-operation VALUE 'M',
+  gc_cif_errlog_todo_exist LIKE ciferropst-operation VALUE 'E',
+  gc_cif_errlog_sel_det    LIKE ciferropst-operation VALUE 'R',
+* REGISTRATION STATUS (SEE DOMAIN CIFREGSTAT)--------------------------
+* 1 NOCH ZU BEARBEITEN
+   g_con_to_do LIKE ciferrlog-status VALUE '1',
+* 2 VERARBEITET
+   g_con_processed LIKE ciferrlog-status VALUE '2',
+* 3 OBSOLET MANUELL GESETZT
+   g_con_obsolete_manual LIKE ciferrlog-status VALUE '3',
+* 4 OBSOLET AUTOMATISCH VOM SYSTEM GESETZT
+   g_con_obsolete_auto LIKE ciferrlog-status VALUE '4',
+* 5 NEUÜBERTRAGUNG NICHT ERLAUBT
+   g_con_no_retransfer LIKE ciferrlog-status VALUE '5',
+
+* values for cifctrlpar-debug
+gc_cif_debug_off LIKE cifctrlpar-debug VALUE space,
+gc_cif_debug_on LIKE cifctrlpar-debug VALUE 'X',
+gc_cif_debug_and_trfcrec_on LIKE cifctrlpar-debug VALUE 'R',
+* values for triggering application
+  gc_cif_trigger_error_handling LIKE cifctrlpar-ciftrigger VALUE 'EH',
+  " Nachverarbeitung fehlerhafter Übertragungen
+  gc_cif_trigger_initial_load LIKE cifctrlpar-ciftrigger VALUE 'IL',
+  " Transfer triggered by initial load.
+  gc_cif_trigger_online_transfer LIKE cifctrlpar-ciftrigger VALUE 'OL',
+  " online transfer for production orders.
+  gc_cif_trigger_ccr_refresh LIKE cifctrlpar-ciftrigger VALUE 'DR',
+  " Retransfer triggered by Deltareport.
+  gc_cif_trigger_updcntr_retrans LIKE cifctrlpar-ciftrigger VALUE 'UR',
+   "Retransfer due to different update counters in R/3 and APO,
+* values for ordertrigger
+  gc_ordertrigger_order_creacha    LIKE cifctrlpar-ciftrigger
+                                   VALUE 'OC',
+  " Order creation or order change
+  gc_ordertrigger_collectve_atp    LIKE cifctrlpar-ciftrigger
+                                   VALUE 'AT',
+  " Collective ATP
+  gc_ordertrigger_goodsreceipt     LIKE cifctrlpar-ciftrigger
+                                   VALUE 'GR',
+  " Goods receipt for production order
+  gc_ordertrigger_confirmation     LIKE cifctrlpar-ciftrigger
+                                   VALUE 'CN',
+  " Confirmation
+  gc_ordertrigger_expl_compare     LIKE cifctrlpar-ciftrigger
+                                   VALUE 'EC',
+  " RTO explosion comparison
+  gc_ordertrigger_apo_order        LIKE cifctrlpar-ciftrigger
+                                   VALUE 'AO'.
+" Explosion of R/3 BOM during order creation in APO
+
+* APO-Confirmation-types
+CONSTANTS:
+ gc_cif_conf_undef LIKE cif_apocon-conftype VALUE '0000', "Undefined
+ gc_cif_conf_break LIKE cif_apocon-conftype VALUE '0010', "Break
+ gc_cif_conf_setst LIKE cif_apocon-conftype VALUE '0100', "Setupstart
+ gc_cif_conf_seten LIKE cif_apocon-conftype VALUE '0150', "Setupend
+ gc_cif_conf_prost LIKE cif_apocon-conftype VALUE '0200', "Procstart
+ gc_cif_conf_pconf LIKE cif_apocon-conftype VALUE '0300', "Partconf.
+ gc_cif_conf_econf LIKE cif_apocon-conftype VALUE '0350', "Endconf.
+ gc_cif_conf_tedst LIKE cif_apocon-conftype VALUE '0400', "Teardstart
+ gc_cif_conf_teden LIKE cif_apocon-conftype VALUE '0450', "Teardend
+ gc_cif_conf_storn LIKE cif_apocon-conftype VALUE '0900'. "Storno
+* new constants for new conftype which is 1:1 to R/3 Satzart
+CONSTANTS:
+ gc_cif_conf_setpf LIKE cif_apocon-conftype VALUE '0110', "Setuppartfin
+ gc_cif_conf_setint LIKE cif_apocon-conftype VALUE '0120', "Setupinterr
+ gc_cif_conf_propf LIKE cif_apocon-conftype VALUE '0210', "Prodpartfin
+ gc_cif_conf_proint LIKE cif_apocon-conftype VALUE '0220', "Prodint
+ gc_cif_conf_proend LIKE cif_apocon-conftype VALUE '0230', "Prodend
+ gc_cif_conf_tedpf LIKE cif_apocon-conftype VALUE '0310', "Teardpartfin
+ gc_cif_conf_tedint LIKE cif_apocon-conftype VALUE '0320', "Teardinterr
+ gc_cif_conf_endvaa LIKE cif_apocon-conftype VALUE '0500'. "variablact
+
+************************************************************************
+* Queue-Names for queued TRFC
+CONSTANTS:
+* queue for request data
+  gc_cif_ec_request_data LIKE cifctrlpar-trfcchn VALUE
+   'CIF_EC_REQUEST_DATA',
+* Pseudo Channel name used in Synchron RFC call
+  gc_cif_synch_call      LIKE cifctrlpar-trfcchn VALUE
+   'CIF_SYNCHRON_CALL'.
+
+* queue states
+CONSTANTS:
+  gc_cif_queue_running   LIKE trfcqout-qstate VALUE 'RUNNING',
+  gc_cif_queue_sysfail   LIKE trfcqout-qstate VALUE 'SYSFAIL',
+  gc_cif_queue_cpicerr   LIKE trfcqout-qstate VALUE 'CPICERR',
+* BEGIN NOTE 672436
+  gc_cif_queue_retry     LIKE trfcqout-qstate VALUE 'RETRY',
+* END NOTE 672436
+  gc_cif_queue_stopping  LIKE trfcqout-qstate VALUE 'STOPPING',
+  gc_cif_queue_stop      LIKE trfcqout-qstate VALUE 'STOP',
+  gc_cif_queue_waitstop  LIKE trfcqout-qstate VALUE 'WAITSTOP',
+  gc_cif_queue_ready     LIKE trfcqout-qstate VALUE 'READY',
+*   Begin NOTE 0382924
+  gc_cif_queue_executed  LIKE trfcqout-qstate VALUE 'EXECUTED',
+  gc_cif_queue_waiting   LIKE trfcqout-qstate VALUE 'WAITING',
+*   End NOTE 0382924
+  gc_cif_queue_nosends   LIKE trfcqout-qstate VALUE 'NOSENDS',
+  gc_cif_queue_sysload   LIKE trfcqout-qstate VALUE 'SYSLOAD'.
+
+* for conversions of CUOBJ into GUIDs and vice versa
+CONSTANTS:
+    ibxit_local_cuobj LIKE cifcuobjre-cuobj_type VALUE 'I',
+    ibxit_guid_32     LIKE cifcuobjre-cuobj_type VALUE 'G'.
+
+* Operation types
+CONSTANTS: lc_opr_pp LIKE cif_r3opr-oprtype VALUE 0,
+           lc_opr_pi LIKE cif_r3opr-oprtype VALUE 1,
+           lc_phase  LIKE cif_r3opr-oprtype VALUE 2,
+           lc_subop  LIKE cif_r3opr-oprtype VALUE 3.
+
+CONSTANTS: gc_cdp_at_all           TYPE x VALUE 1,
+           gc_cdp_io               TYPE x VALUE 2,
+           gc_cdp_operation_select TYPE x VALUE 4,
+           gc_cdp_logcomp_select   TYPE x VALUE 8.
+
+* constants for master data change transfer
+CONSTANTS:
+  gc_transfer_none LIKE cifaplset2-transmat VALUE space,
+  gc_transfer_ale  LIKE cifaplset2-transmat VALUE '1',
+  gc_transfer_bte  LIKE cifaplset2-transmat VALUE '2'.
+
+* BEGIN NOTE 393334
+* defaults for filterobject and select blocksize
+CONSTANTS:
+  g_filtersize_con LIKE cifgenpara-selectsize VALUE 128,
+  g_filtersize_min_con LIKE cifgenpara-selectsize VALUE 8,
+  g_selectsize_con LIKE cifgenpara-filtersize VALUE 1000,
+  g_selectsize_min_con LIKE cifgenpara-filtersize VALUE 8,
+  g_sysgeneric_con LIKE cifgparams-uname VALUE '*'.
+* END NOTE 393334
+
+* BEGIN NOTE 410290
+* for bit-operation function modules (release 3.1 only)
+CONSTANTS: g_std_bufsize_bitop_31i TYPE i VALUE 20.
+* END NOTE 410290
+
+* constant for type of PPM or PDS (=RTO)
+* standard or subcontracting (Lohnbearbeitung) or SNP
+CONSTANTS: gc_ppmtyp_std       LIKE ppm_key-ppm_typ VALUE space,
+           gc_ppmtyp_subco     LIKE ppm_key-ppm_typ VALUE 'L',
+           gc_ppmtyp_snp       LIKE ppm_key-ppm_typ VALUE 'S',
+           gc_ppmtyp_snp_subco LIKE ppm_key-ppm_typ VALUE 'C'.
+
+* INCLUDE für RFC application description constants
+INCLUDE cifaplcn.
+
+* CMDS: sales scheduling agreement items
+CONSTANTS:
+  gc_sa_transmit(3) VALUE '001', " transmit sales scheduling agreement
+  gc_cq_transmit(3) VALUE '002'. " transmit cumulative quantities
+
+* names of parameters for generic interfaces
+CONSTANTS: gc_snp_plaf LIKE cifpar-name VALUE 'SNP_PLAF'.
+
+* constants for update counter logic
+CONSTANTS: gc_updcntr_none       LIKE cifaplset2-updcntprod VALUE space,
+           gc_updcntr_true       LIKE cifaplset2-updcntprod VALUE '1',
+           gc_updcntr_retransfer LIKE cifaplset2-updcntprod VALUE '2'.
+
+* constants for Interchangeability
+CONSTANTS: gc_inc_default        LIKE cif_r3res-inc_flag VALUE '0',
+           gc_inc_parent         LIKE cif_r3res-inc_flag VALUE '1',
+           gc_inc_child          LIKE cif_r3res-inc_flag VALUE '2',
+           gc_inc_multi_sub      LIKE cif_r3res-inc_flag VALUE 'M'.
+
+* constants RELATION TYPE
+CONSTANTS:
+    gc_reltype_min(1)           VALUE '0',
+    gc_reltype_max(1)           VALUE '1',
+    gc_reltype_min_max(1)       VALUE '2',
+    gc_reltype_min_max2zero(1)  VALUE '3'.
+
+* general constants
+CONSTANTS:
+    gc_std_sequence(6)          VALUE '000000',     "standard sequence
+    gc_pp_main_operation(8)     VALUE '00000000',   "main operation
+    gc_produce2produce(1)       VALUE 'P',
+    gc_standard_routing         VALUE 'S'.
+
+* constants for operation status
+CONSTANTS:
+     gc_opr_status_no_tmex(1)    VALUE '1',   " status TMEX is not set
+     gc_opr_status_tmex(1)       VALUE '3',   " status TMEX is set
+     gc_opr_status_unplanned(1)  VALUE '1',   " status unplanned
+     gc_opr_status_dispatched(1) VALUE '3',   " status dispatched
+     gc_opr_status_no_conf(1)    VALUE '1',   " status not confirmed
+     gc_opr_status_pcnf(1)       VALUE '5',   " status part. confirmed
+     gc_opr_status_cnf(1)        VALUE '6',   " status final confirmed
+     gc_opr_status_crtd(1)       VALUE '1',   " status part. confirmed
+     gc_opr_status_rel(1)        VALUE '3'.   " status final confirmed
+
+* BEGIN NOTE 641858
+* Order changes must be adopted by APO in exactly the same order
+* they happened in R/3. That's why CIF uses a queued RFC and puts the
+* order number in the queue name to transfer an order.
+* The CIF default issues one qRFC per queuename, resulting in as
+* many qRFCs as there are distinct order numbers. However, APO could
+* process these orders faster if they came in a single call. So for
+* transactions which touch a lot of orders in the same LUW (and pass
+* all the orders to CIF as a whole) we can get better performance if
+* we bundle these orders in a single qRFC to APO instead of splitting
+* them up into different calls. Since we still have to follow the
+* serialization rules, this one call must be registered to all queue-
+* names resulting from the order numbers.
+* However, most transactions will pass single data records to CIF
+* anyway so there's nothing really to bundle. An exception for which
+* it makes sense is the MRP run.
+* To turn this 'bundling' on, you must create an entry in table TVARV
+* indicating for which object types this bundling should happen. Use
+* the name as given in the constant below and enter a selection range
+* for the object type as they appear in constant GC_IMTYP above.
+* NOTE! Bundling is currently supported only for object types
+* T_PO  - purchase orders & requisitions
+* T_ORD - production orders
+* T_PLO - planned orders
+* T_STK - stock / goods movements
+* T_MARD - all(!) stock / goods movements
+* T_SLS  - sales data (sales order, delivery)
+CONSTANTS: gc_bundle_tvarv_name LIKE tvarv-name
+           VALUE 'Z_CIF_BUNDLE_QRFC'.
+TYPES: BEGIN OF imtyp_selection_type,
+         sign   LIKE tvarv-sign,
+         opti   LIKE tvarv-opti,
+         low    LIKE cif_imod-imtyp,
+         high   LIKE cif_imod-imtyp,
+       END OF imtyp_selection_type.
+* END NOTE 641858
+
+* for APO class system
+CONSTANTS: cifcfgs_space LIKE cif_mtcfgs-cfgsys VALUE space,
+           cifcfgs_cdp   LIKE cif_mtcfgs-cfgsys VALUE 'C',
+           cifcfgs_ibase LIKE cif_mtcfgs-cfgsys VALUE 'I'.
+
+* for special Warehouse Managment Engine select option
+CONSTANTS: gc_wme_checkfunction LIKE tfdir-funcname
+             VALUE 'MATNR_FOR_LGNUM_READ'.
+
+* Goods movements status -> set according to status STK_WABE (LCOKOSTA)
+CONSTANTS:
+* Compatibility with old releases
+  gc_gm_unknown    TYPE cif_is_issued VALUE 0,
+  gc_gm_not_posted TYPE cif_is_issued VALUE 1,
+  gc_gm_posted     TYPE cif_is_issued VALUE 2.
+
+* IS2ERP consolidation for DIMP / SWF functions
+CONSTANTS:
+  gc_swf_artkz_control     TYPE cif_is2erp_dimp VALUE 'ARTKZ',
+  gc_swf_config_prodord    TYPE cif_is2erp_dimp VALUE 'COP_CONF',
+  gc_swf_mill_general      TYPE cif_is2erp_dimp VALUE 'MILLGEN',
+  gc_swf_pp_bd_lc          TYPE cif_is2erp_dimp VALUE 'PP_DB_LC',
+  gc_swf_del_coprod        TYPE cif_is2erp_dimp VALUE 'COP_DEL',
+  gc_swf_accounting_coprod TYPE cif_is2erp_dimp VALUE 'COP_ACC',
+  gc_swf_prt_capacity      TYPE cif_is2erp_dimp VALUE 'PRT_CAP'.
+
+* Mill-Mining project EhP4 - check if BF /SAPMP/GEN_MILLFUNC is active
+CONSTANTS:
+  GC_SWF_MILL_GENFUNC      TYPE cif_is2erp_dimp VALUE 'MILLFUNC'.    "1574700
+
+* process types
+CONSTANTS:
+gc_process_priop_from_scm   TYPE int2 VALUE 1,
+gc_process_priop_to_scm     TYPE int2 VALUE 2, " special process priority points from EWM
+gc_process_statistical_item TYPE int2 VALUE 4, " special process DEIG
+gc_process_crossdocker      TYPE int2 VALUE 12, " special process crossdocker scenario
+gc_process_preliminary_pr   TYPE int2 VALUE 13. " preliminary purchase requisition
+
+CONSTANTS:
+  gc_forward TYPE c VALUE 'F',
+  gc_yes     TYPE c VALUE 'Y'.
+
+* location types
+CONSTANTS:
+  gc_loctype_customer TYPE CIFLOCTYPE VALUE '1010'.
+
+CONSTANTS:
+* This is the size of the buffers from V45I that we set temporatily to overcome their limitations.
+* This is the temporary size for mass buffering in the CIF delta report
+gc_buffer_base_size  TYPE i VALUE 1000000,
+* This is the original size of the buffers from V45I.
+* The constant is used to set their size back to original in the end of the calls.
+gc_buffer_orig_size  TYPE i VALUE 1000.

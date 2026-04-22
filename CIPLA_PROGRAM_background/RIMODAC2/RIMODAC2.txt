@@ -1,0 +1,1060 @@
+*&---------------------------------------------------------------------*
+*& Report  RIMODAC2                                                    *
+*&---------------------------------------------------------------------*
+*&                                                                     *
+*& Activation screen for APO Integration Models                        *
+*&                                                                     *
+*& This report lets the user select one integration model              *
+*& in order to activate or deactivate it                               *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+
+REPORT  rimodac2 MESSAGE-ID xc.
+
+TABLES: cif_imod,                                           "#EC NEEDED
+        ndisystems,                                         "#EC NEEDED
+        cifaplset2.                                         "#EC NEEDED
+
+INCLUDE ciftools.
+INCLUDE rimodf4.                       " F4-Werthilfe
+INCLUDE <icon>.
+
+DATA: ls_parpar LIKE cifparpar,
+      lv_max_pbt_wps TYPE i,
+      lv_sy_ucomm    LIKE sy-ucomm,
+      lv_tries TYPE i.
+
+DATA lv_workflow : TYPE cif_workflow.
+
+DATA lt_server_groups TYPE STANDARD TABLE OF rzllitab.
+
+* run without no user interaction
+PARAMETERS: dark NO-DISPLAY.
+
+SELECTION-SCREEN BEGIN OF BLOCK select WITH FRAME TITLE text-sel.
+*>> Model Name (i_modname)
+* parameters i_modid like cif_imod-modelname obligatory.
+SELECT-OPTIONS so_modid FOR cif_imod-modelname OBLIGATORY
+                                     MEMORY ID cf1.
+*>> Logical system (i_logsys)
+SELECT-OPTIONS: so_lsys FOR cif_imod-logsys OBLIGATORY
+                                     MEMORY ID cf2.
+*>> Application (i_appl)
+SELECT-OPTIONS: so_appl FOR cif_imod-apoapp OBLIGATORY
+                                     MEMORY ID cf3.
+SELECTION-SCREEN END OF BLOCK select.
+*>> User name
+* select-options: so_crusr for cif_imod-cruser.
+
+*>> Active flag
+* selection-screen begin of line.
+* selection-screen comment 1(20) text-313.
+* selection-screen position 35.
+* parameters i_active as checkbox.
+* selection-screen end of line.
+
+********** Time horizon **********************************************
+SELECTION-SCREEN BEGIN OF BLOCK termin
+  WITH FRAME
+  TITLE text-008.
+*>> Creation Date
+SELECT-OPTIONS: so_crdat FOR cif_imod-crdate.
+*>> Creation Time
+SELECT-OPTIONS: so_crtim FOR cif_imod-crtime
+                         DEFAULT 0 TO '240000'.
+*>> User name
+*SELECT-OPTIONS: SO_CRUSR FOR CIF_IMOD-CRUSER.
+SELECTION-SCREEN END OF BLOCK termin.
+
+********** Versions **************************************************
+SELECTION-SCREEN BEGIN OF BLOCK param
+  WITH FRAME
+  TITLE text-ver.
+SELECTION-SCREEN BEGIN OF LINE.
+PARAMETERS i_active RADIOBUTTON GROUP rb1 DEFAULT 'X'.
+SELECTION-SCREEN COMMENT 4(40) text-act FOR FIELD i_active.
+SELECTION-SCREEN END   OF LINE.
+SELECTION-SCREEN BEGIN OF LINE.
+PARAMETERS i_inactv RADIOBUTTON GROUP rb1.
+SELECTION-SCREEN COMMENT 4(40) text-iac FOR FIELD i_inactv.
+SELECTION-SCREEN END   OF LINE.
+SELECTION-SCREEN END OF BLOCK param.
+
+********** CIF Settings **********************************************
+SELECTION-SCREEN BEGIN OF BLOCK prot
+  WITH FRAME
+  TITLE text-450.
+* Logging of activated/deactivated material master
+SELECTION-SCREEN BEGIN OF LINE.
+PARAMETERS ignfqety LIKE cif_reppar-ign_queues AS CHECKBOX.
+SELECTION-SCREEN COMMENT 4(40) text-ifq FOR FIELD ignfqety.
+SELECTION-SCREEN END OF LINE.
+* Protokollierung deaktivierter Materialstämme
+SELECTION-SCREEN BEGIN OF LINE.
+PARAMETERS p_deactp TYPE cif_reppar-mdeactprot
+  AS CHECKBOX.
+SELECTION-SCREEN COMMENT 4(50) text-317 FOR FIELD p_deactp.
+SELECTION-SCREEN END OF LINE.
+* Logging of activated material master records with no-display
+PARAMETERS p_actp NO-DISPLAY.
+* SELECTION-SCREEN BEGIN OF LINE.
+*   PARAMETERS P_ACTP AS CHECKBOX.
+*   SELECTION-SCREEN COMMENT 4(50) TEXT-325.
+* SELECTION-SCREEN END OF LINE.
+* Deactivation of the Parallel-CIF-Activities-Warning-Popup
+SELECTION-SCREEN BEGIN OF LINE.
+PARAMETERS nopcwarn TYPE ciftransf_nopcwarn
+  AS CHECKBOX
+  DEFAULT space.
+SELECTION-SCREEN COMMENT 4(50) text-451 FOR FIELD nopcwarn.
+SELECTION-SCREEN END OF LINE.
+SELECTION-SCREEN BEGIN OF LINE.
+PARAMETERS p_incerr TYPE INCERR
+  AS CHECKBOX.
+SELECTION-SCREEN COMMENT 4(70) text-335 FOR FIELD p_incerr.
+SELECTION-SCREEN END OF LINE.
+SELECTION-SCREEN END OF BLOCK prot.
+
+************** PARALLEL **********************************************
+* Parallelized transfer
+SELECTION-SCREEN BEGIN OF BLOCK bl1
+  WITH FRAME
+  TITLE text-318.
+* Parallelize Selection in R/3
+SELECTION-SCREEN BEGIN OF LINE.
+PARAMETERS p_pa_sel LIKE cifparpar-parall_sel.
+SELECTION-SCREEN COMMENT 4(50) text-319 FOR FIELD p_pa_sel.
+SELECTION-SCREEN END OF LINE.
+* Absolute Max. No. Processes
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN POSITION 3.
+PARAMETERS pa_abs LIKE cif_reppar-maxprocabs
+  RADIOBUTTON GROUP pm4
+  MODIF ID pm4
+  DEFAULT 'X'.
+SELECTION-SCREEN COMMENT 6(30) text-321 FOR FIELD pa_abs.
+SELECTION-SCREEN POSITION 36.          "pos_low.
+PARAMETERS pa_abs_v LIKE cifparpar-max_workp.
+SELECTION-SCREEN END OF LINE.
+* Relative Max. No. Processes
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN POSITION 3.
+PARAMETERS pa_rel LIKE cif_reppar-maxprocrel
+  RADIOBUTTON GROUP pm4
+  MODIF ID pm4.
+SELECTION-SCREEN COMMENT 6(30) text-322 FOR FIELD pa_rel.
+SELECTION-SCREEN POSITION 36.          "pos_low.
+PARAMETERS pa_rel_v LIKE cif_reppar-procrel_v.
+SELECTION-SCREEN COMMENT 41(2) text-323 FOR FIELD pa_rel_v.
+SELECTION-SCREEN END OF LINE.
+* Server Group
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN COMMENT 6(27) text-324 FOR FIELD pa_srgrp.
+SELECTION-SCREEN POSITION 36.          "pos_low.
+PARAMETERS pa_srgrp LIKE rzllitab-classname.
+SELECTION-SCREEN END OF LINE.
+* Parallelize Processing in APO
+SELECTION-SCREEN BEGIN OF LINE.
+PARAMETERS p_pa_wrk  LIKE cifparpar-parall_apo.
+SELECTION-SCREEN COMMENT 4(50) text-320 FOR FIELD p_pa_wrk.
+SELECTION-SCREEN END OF LINE.
+SELECTION-SCREEN END OF BLOCK bl1.
+
+************** Create planned orders as PP/DS or SNP orders ***********
+SELECTION-SCREEN BEGIN OF BLOCK snp
+  WITH FRAME
+  TITLE text-452.
+SELECTION-SCREEN BEGIN OF LINE.
+PARAMETERS snp_plaf LIKE cif_reppar-snp_plaf.
+SELECTION-SCREEN COMMENT 4(50) text-326 FOR FIELD snp_plaf.
+SELECTION-SCREEN END OF LINE.
+SELECTION-SCREEN END OF BLOCK snp.
+
+************** APO 4.1 can react on flags for class system ************
+SELECTION-SCREEN BEGIN OF BLOCK clsys WITH FRAME TITLE text-327.
+SELECTION-SCREEN BEGIN OF LINE.
+PARAMETERS: cs_def LIKE cifimodobj-cfgs_def
+            RADIOBUTTON GROUP cs1 MODIF ID cs1. " DEFAULT 'X'.
+SELECTION-SCREEN COMMENT 4(50) text-328 MODIF ID cs1 FOR FIELD cs_def.
+SELECTION-SCREEN END OF LINE.
+SELECTION-SCREEN BEGIN OF LINE.
+PARAMETERS: cs_cdp LIKE cifimodobj-cfgs_cdp
+            RADIOBUTTON GROUP cs1 MODIF ID cs2.
+SELECTION-SCREEN COMMENT 4(50) text-329 MODIF ID cs2 FOR FIELD cs_cdp.
+SELECTION-SCREEN END OF LINE.
+SELECTION-SCREEN BEGIN OF LINE.
+PARAMETERS: cs_ibase LIKE cifimodobj-cfgs_vc
+            RADIOBUTTON GROUP cs1 MODIF ID cs2.
+SELECTION-SCREEN COMMENT 4(50) text-330 MODIF ID cs2 FOR FIELD cs_ibase.
+SELECTION-SCREEN END OF LINE.
+
+* form batch program default behaviour in case of conflicting settings
+PARAMETERS: p_cnflct LIKE cifimodobj-cfgs_cflct DEFAULT 'M'.
+
+SELECTION-SCREEN END OF BLOCK clsys.
+
+* APO 4.1 can create business partners from locations
+SELECTION-SCREEN BEGIN OF BLOCK busp WITH FRAME TITLE text-334.
+PARAMETERS p_locbp LIKE cif_reppar-locbp MODIF ID bp1 NO-DISPLAY.
+SELECTION-SCREEN END OF BLOCK busp.
+
+************************************************************************
+* include cifimfrm.                      " Formroutinen
+************************************************************************
+
+*&---------------------------------------------------------------------*
+*&   INITIALIZATION ...
+*&---------------------------------------------------------------------*
+INITIALIZATION.
+
+************************************************************************
+*&---------------------------------------------------------------------*
+*&   AT SELECTION SCREEN ON ...
+*&---------------------------------------------------------------------*
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR so_modid-low.
+  PERFORM rimodgen_f4_modid USING space.   " not atp mode
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR so_modid-high.
+  PERFORM rimodgen_f4_modid USING space.   " not atp mode.
+
+* at selection-screen on value-request for so_crusr-low.
+*  perform rimodgen_f4_apoapp_cruser.
+
+* at selection-screen on value-request for so_crusr-high.
+*  perform rimodgen_f4_apoapp_cruser.
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR so_appl-low.
+  PERFORM rimodgen_f4_apoapp_cruser.
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR so_appl-high.
+  PERFORM rimodgen_f4_apoapp_cruser.
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR pa_srgrp.
+  PERFORM rimodgen_f4_servergroup.
+
+
+AT SELECTION-SCREEN OUTPUT.
+
+* suppress class system fields if no APO Release 4.1 system found
+* or R/3 release below 4.6
+  DATA lv_41_found TYPE c.
+  SELECT SINGLE * FROM ndisystems
+    WHERE ( type = gc_apo_type_con AND ndirel >= '41' ) OR
+            type = gc_s4hana_type_con.        "#EC *
+  IF sy-subrc = 0.
+    lv_41_found = g_true_con.
+  ENDIF.
+  IF lv_41_found IS INITIAL OR sy-saprl < '46B'.          "#EC PORTABLE
+    LOOP AT SCREEN.
+      IF screen-group1(2) = 'CS'.
+        screen-invisible = 1.
+        screen-active    = 0.
+        MODIFY SCREEN.
+      ENDIF.
+    ENDLOOP.
+  ENDIF.
+
+* suppress class system fields if customizing says so
+  DATA ls_cifaplset2 LIKE cifaplset2.
+  SELECT SINGLE * FROM cifaplset2 INTO ls_cifaplset2.
+  IF sy-subrc = 0.
+    LOOP AT SCREEN.
+      CASE ls_cifaplset2-cfgsys_lvl.
+        WHEN space.
+          IF screen-group1(2) = 'CS'.
+            screen-invisible = 1.
+            screen-active    = 0.
+            MODIFY SCREEN.
+          ENDIF.
+        WHEN '-'.
+        WHEN '+'.
+          IF screen-group1 = 'CS1'.
+            screen-invisible = 1.
+            screen-active    = 0.
+            MODIFY SCREEN.
+          ENDIF.
+      ENDCASE.
+    ENDLOOP.
+  ENDIF.
+
+* suppress and business partner field if no APO Release 4.1 system found
+  IF lv_41_found IS INITIAL.
+    LOOP AT SCREEN.
+      IF screen-group1 = 'BP1'.
+        screen-invisible = 1.
+        screen-active    = 0.
+        MODIFY SCREEN.
+      ENDIF.
+    ENDLOOP.
+  ENDIF.
+
+************************************************************************
+*&---------------------------------------------------------------------*
+*&   AT SELECTION SCREEN
+*&---------------------------------------------------------------------*
+AT SELECTION-SCREEN.
+
+**** PARALLEL *********************************************************
+  CLEAR: ls_parpar, lv_max_pbt_wps.
+  lv_sy_ucomm = sy-ucomm.
+* Flag is set for parallelize process in APO ?
+  ls_parpar-parall_apo = p_pa_wrk.
+
+* Flag is set for parallelize Selection in R/3 ?
+  ls_parpar-parall_sel = p_pa_sel.
+  CHECK NOT p_pa_sel IS INITIAL.
+
+* choose absolute Max. No. Processes ?
+  IF NOT pa_abs IS INITIAL.
+    IF pa_abs_v IS INITIAL.
+      SET CURSOR FIELD 'PA_ABS_V'.
+      MESSAGE e081.
+    ENDIF.
+*   determine work process
+    ls_parpar-max_workp = pa_abs_v.
+  ENDIF.
+
+* choose relative Max. No. Processes ?
+  CHECK NOT pa_rel IS INITIAL.
+
+  IF pa_rel_v < 1 OR pa_rel_v > 100.
+    SET CURSOR FIELD 'PA_REL_V'.
+    MESSAGE e008.
+  ENDIF.
+  IF sy-ucomm IS INITIAL.
+*   press return-button -> only check if Server Group is available
+    IF NOT pa_srgrp IS INITIAL.
+      SELECT * FROM rzllitab UP TO 1 ROWS INTO TABLE lt_server_groups
+           WHERE classname =  pa_srgrp
+           AND   grouptype <> space.
+      IF sy-dbcnt = 0.
+        SET CURSOR FIELD 'PA_SRGRP'.
+        MESSAGE e831(bt) WITH pa_srgrp.
+      ENDIF.   "sy-dbcnt = 0.
+    ENDIF.   "NOT pa_srgrp IS INITIAL.
+  ELSE.  "sy-ucomm IS INITIAL.
+*   check Server Group and determine work process of Server Group
+    ls_parpar-serv_group = pa_srgrp.
+*   In case of resource failure try again but only for
+*   one hour to avoid that system is blocked in total
+    CLEAR lv_tries.
+    DO.
+    lv_tries = lv_tries + 1.
+    CALL FUNCTION 'SPBT_INITIALIZE'
+      EXPORTING
+        group_name                     = ls_parpar-serv_group
+      IMPORTING
+        max_pbt_wps                    = lv_max_pbt_wps
+      EXCEPTIONS
+        invalid_group_name             = 1
+        internal_error                 = 2
+        pbt_env_already_initialized    = 3
+        currently_no_resources_avail   = 4
+        no_pbt_resources_found         = 5
+        cant_init_different_pbt_groups = 6
+        OTHERS                         = 7.
+    CASE sy-subrc.
+      WHEN 0.
+        EXIT.
+*       Everything is alright!
+      WHEN 3.
+*       Server group already initialized. Get the current res. info...
+        CALL FUNCTION 'SPBT_GET_CURR_RESOURCE_INFO'
+          IMPORTING
+            max_pbt_wps                 = lv_max_pbt_wps
+          EXCEPTIONS
+            internal_error              = 1
+            pbt_env_not_initialized_yet = 2
+            OTHERS                      = 3.
+        IF sy-subrc <> 0.
+*         Error
+          SET CURSOR FIELD 'PA_SRGRP'.
+          MESSAGE ID sy-msgid
+            TYPE 'E' NUMBER sy-msgno
+            WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+        ELSE.
+          EXIT.
+        ENDIF.
+      WHEN 4.
+*       Stop processing when since one hour no resource
+*       is available
+        IF lv_tries > 350.
+          SET CURSOR FIELD 'PA_SRGRP'.
+          MESSAGE ID sy-msgid
+            TYPE 'E' NUMBER sy-msgno
+            WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+        ELSE.
+          WAIT UP TO 10 SECONDS.
+        ENDIF.
+      WHEN OTHERS.
+*       Error
+        SET CURSOR FIELD 'PA_SRGRP'.
+        MESSAGE ID sy-msgid
+          TYPE 'E' NUMBER sy-msgno
+          WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+    ENDCASE.
+    ENDDO.
+*   Determine work process
+    ls_parpar-max_workp = ( lv_max_pbt_wps * pa_rel_v ) / 100.
+    IF ls_parpar-max_workp < 1.
+      ls_parpar-max_workp = 1.
+    ENDIF.    "ls_parpar-max_workp < 1.
+  ENDIF.   "sy-ucomm IS INITIAL.
+**** PARALLEL *********************************************************
+
+************************************************************************
+TOP-OF-PAGE.
+*  WRITE: text-pln.
+*  ULINE.
+*  WRITE :      text-006,
+*          10   text-001,
+*          25   text-002,
+*          40   text-003,
+*          55   text-007,
+*          80   text-004.
+*  ULINE.
+
+************************************************************************
+*&---------------------------------------------------------------------*
+*&   Event START-OF-SELECTION
+*&---------------------------------------------------------------------*
+START-OF-SELECTION.
+
+***********************************************************************
+***********************************************************************
+
+  DATA: lt_cif_imod   LIKE cif_imod   OCCURS 0 WITH HEADER LINE,
+        ls_cif_imod   LIKE cif_imod,
+        lt_cif_imod_deact LIKE cif_imod OCCURS 0 WITH HEADER LINE,
+        l_newest TYPE c,
+        l_icon LIKE icon_okay.
+
+  DATA: BEGIN OF index_relation OCCURS 0,
+     table_index LIKE sy-index,
+     line_index  LIKE sy-index,
+  END OF index_relation.
+  DATA: l_table_index LIKE sy-tabix.
+
+  IF dark IS INITIAL.
+    CALL FUNCTION 'AUTHORITY_CHECK_TCODE'
+      EXPORTING
+        tcode  = 'CFM3'
+      EXCEPTIONS
+        ok     = 0
+        not_ok = 2
+        OTHERS = 3.
+
+    IF sy-subrc <> 0.
+      MESSAGE ID sy-msgid TYPE g_msgtyp_e_con NUMBER sy-msgno
+              WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+      LEAVE PROGRAM.
+    ENDIF.
+  ENDIF.
+
+  CALL FUNCTION 'CIF_CHECK_WORKFLOW'
+    IMPORTING
+      ex_workflow = lv_workflow.
+*Get back if process in workflow.
+
+* Parallel * by online: programm does not execute by return-button
+  IF sy-batch IS INITIAL AND dark IS INITIAL AND lv_workflow IS INITIAL.
+    CHECK NOT lv_sy_ucomm IS INITIAL.
+  ENDIF.
+
+***********************************************************************
+  IF NOT dark IS INITIAL.
+    sy-batch = g_true_con.                                "#EC WRITE_OK
+*    some output functionality reacts on that
+  ENDIF.
+
+  DATA: lv_cfgsys LIKE cif_mtcfgs-cfgsys,
+        lv_cfgsys_force TYPE c.
+
+  IF NOT cs_def IS INITIAL.
+    lv_cfgsys = cifcfgs_space.
+  ELSEIF NOT cs_cdp IS INITIAL.
+    lv_cfgsys = cifcfgs_cdp.
+  ELSEIF NOT cs_ibase IS INITIAL.
+    lv_cfgsys = cifcfgs_ibase.
+  ENDIF.
+***********************************************************************
+* Selektion der Modelle
+***********************************************************************
+* Im BATCH vorerst die alte Form benutzen
+  IF sy-batch IS INITIAL AND lv_workflow IS INITIAL.
+* CIF Display
+    DATA: go_controller TYPE REF TO cl_cif_controller,
+          go_data_obj TYPE REF TO cl_cif_data_rimodac2.
+
+* create controller (SINGLETON !)
+    go_controller = cl_cif_controller=>get_instance( ).
+
+* set display mode
+    CALL METHOD go_controller->set_display_mode
+      EXPORTING
+        iv_display_mode = 3.
+
+* set application title
+    CALL METHOD go_controller->set_application_title
+      EXPORTING
+        iv_title = sy-title.
+
+* prepare select-options
+    DATA:  gt_so_modid TYPE rseloption,
+           gs_so_modid LIKE LINE OF gt_so_modid,
+           gs_modid LIKE LINE OF so_modid,
+           gt_so_lsys TYPE rseloption,
+           gs_so_lsys LIKE LINE OF gt_so_lsys,
+           gs_lsys LIKE LINE OF so_lsys,
+           gt_so_appl TYPE rseloption,
+           gs_so_appl LIKE LINE OF gt_so_appl,
+           gs_appl LIKE LINE OF so_appl,
+           gt_so_crdat TYPE rseloption,
+           gs_so_crdat LIKE LINE OF gt_so_crdat,
+           gs_crdat LIKE LINE OF so_crdat,
+           gt_so_crtim TYPE rseloption,
+           gs_so_crtim LIKE LINE OF gt_so_crtim,
+           gs_crtim LIKE LINE OF so_crtim.
+
+    LOOP AT so_modid INTO gs_modid.
+      CLEAR gs_so_modid.
+      MOVE-CORRESPONDING gs_modid TO gs_so_modid.
+      APPEND gs_so_modid TO gt_so_modid.
+    ENDLOOP.
+
+    LOOP AT so_lsys INTO gs_lsys.
+      CLEAR gs_so_lsys.
+      MOVE-CORRESPONDING gs_lsys TO gs_so_lsys.
+      APPEND gs_so_lsys TO gt_so_lsys.
+    ENDLOOP.
+
+    LOOP AT so_appl INTO gs_appl.
+      CLEAR gs_so_appl.
+      MOVE-CORRESPONDING gs_appl TO gs_so_appl.
+      APPEND gs_so_appl TO gt_so_appl.
+    ENDLOOP.
+
+    LOOP AT so_crdat INTO gs_crdat.
+      CLEAR gs_so_crdat.
+      MOVE-CORRESPONDING gs_crdat TO gs_so_crdat.
+      APPEND gs_so_crdat TO gt_so_crdat.
+    ENDLOOP.
+
+    LOOP AT so_crtim INTO gs_crtim.
+      CLEAR gs_so_crtim.
+      MOVE-CORRESPONDING gs_crtim TO gs_so_crtim.
+      APPEND gs_so_crtim TO gt_so_crtim.
+    ENDLOOP.
+
+    DATA: ref_so_modid TYPE REF TO data,
+          ref_so_lsys TYPE REF TO data,
+          ref_so_appl TYPE REF TO data,
+          ref_so_crdat TYPE REF TO data,
+          ref_so_crtim TYPE REF TO data.
+
+
+    GET REFERENCE OF gt_so_modid INTO ref_so_modid.
+    GET REFERENCE OF gt_so_lsys INTO ref_so_lsys.
+    GET REFERENCE OF gt_so_appl INTO ref_so_appl.
+    GET REFERENCE OF gt_so_crdat INTO ref_so_crdat.
+    GET REFERENCE OF gt_so_crtim INTO ref_so_crtim.
+
+    CREATE OBJECT go_data_obj.
+
+    CALL METHOD go_data_obj->set_select_options
+      EXPORTING
+        id_so_modid         = ref_so_modid
+        id_so_lsys          = ref_so_lsys
+        id_so_appl          = ref_so_appl
+        id_so_crdat         = ref_so_crdat
+        id_so_crtim         = ref_so_crtim
+        iv_p_activate       = i_active
+        iv_p_ignfqety       = ignfqety
+        iv_p_deactp         = p_deactp
+        iv_p_actp           = p_actp
+        iv_p_pa_sel         = p_pa_sel
+        iv_dark             = dark
+        iv_cfgsys           = lv_cfgsys
+        iv_p_cnflct         = p_cnflct
+        iv_cif_imstat_n_con = gc_cif_imstat_n_con
+        is_parpar           = ls_parpar
+        iv_snp_plaf         = snp_plaf
+        iv_p_locbp          = p_locbp.
+
+    CALL METHOD go_controller->set_data_object
+      EXPORTING
+        io_data_object = go_data_obj.
+
+* start output
+    CALL METHOD go_controller->start_output.
+
+* CIF Display
+  ELSE.
+* zunächst alle passenden selektieren
+    SELECT DISTINCT modelname logsys apoapp crdate crtime cruser active
+        FROM cif_imod
+        INTO CORRESPONDING FIELDS OF TABLE lt_cif_imod
+           WHERE modelname IN so_modid
+             AND logsys IN so_lsys
+             AND apoapp IN so_appl
+             AND crdate IN so_crdat
+             AND crtime IN so_crtim
+             AND status = gc_cif_imstat_n_con    " Keine Deltamodelle
+         ORDER BY modelname logsys apoapp
+                  crdate DESCENDING crtime DESCENDING.
+
+    IF lt_cif_imod[] IS INITIAL.
+*    message i025.
+      PERFORM message_or_log
+        USING
+          dark
+          g_msgid_cif_con
+          g_msgtyp_i_con
+          025
+          space space space space.
+    ENDIF.
+
+***********************************************************************
+
+* Ausgabe der interessanten Modelle VOR der Änderung
+    WRITE: / text-314.
+
+    LOOP AT lt_cif_imod.
+
+      IF NOT lt_cif_imod-active IS INITIAL.
+        PERFORM model_output
+            USING
+              lt_cif_imod
+              icon_okay.
+      ELSE.
+        PERFORM model_output
+            USING
+              lt_cif_imod
+              space.
+      ENDIF.
+
+    ENDLOOP.
+
+    ULINE.
+
+***********************************************************************
+*
+
+    WRITE: / text-315.
+
+* dann den neuen gewünschten Aktivstatus setzen
+    LOOP AT lt_cif_imod.
+
+      l_table_index = sy-tabix.
+
+      ls_cif_imod = lt_cif_imod.
+
+      l_newest = space.
+
+      AT NEW apoapp.
+        l_newest = g_true_con.
+
+        IF NOT i_active IS INITIAL.
+*    es soll aktiviert werden, also die inaktiven auf aktiv
+*    setzen und ausgeben
+          IF ls_cif_imod-active = gc_active-inactive.
+            ls_cif_imod-active = gc_active-incr.
+            " aktiv incl. inkrementeller Übertragung
+            MODIFY lt_cif_imod INDEX sy-tabix
+                 FROM ls_cif_imod TRANSPORTING active.
+            PERFORM model_output
+                USING
+                  ls_cif_imod
+                  icon_okay.
+* beim Aktivieren müssen alle anderen aktiven Modellversionen deakti-
+* viert werden unabhängig vom Terminhorizont, hier aber nur Ausgabe
+            REFRESH lt_cif_imod_deact.
+            SELECT DISTINCT modelname logsys apoapp
+                crdate crtime cruser active
+            FROM cif_imod
+            APPENDING CORRESPONDING FIELDS OF TABLE lt_cif_imod_deact
+               WHERE modelname = ls_cif_imod-modelname
+                 AND logsys    = ls_cif_imod-logsys
+                 AND apoapp    = ls_cif_imod-apoapp
+                 AND  (    crdate NOT IN so_crdat
+                        OR crtime NOT IN so_crtim )
+                 AND active   <> space
+                AND status = gc_cif_imstat_n_con    " Keine Deltamodelle
+             ORDER BY modelname logsys apoapp
+                      crdate DESCENDING crtime DESCENDING.
+            LOOP AT lt_cif_imod_deact.
+              PERFORM model_output
+              USING lt_cif_imod_deact
+              icon_cancel.
+            ENDLOOP.
+          ELSE.
+*       sowieso aktive nur ausgeben.
+            PERFORM model_output
+                USING
+                  ls_cif_imod
+                  icon_okay.
+          ENDIF.
+        ELSE.
+*    es soll deaktiviert werden, also die aktiven auf inaktiv
+*    setzen und ausgeben
+          IF ls_cif_imod-active <> gc_active-inactive.
+            ls_cif_imod-active = gc_active-inactive.
+            MODIFY lt_cif_imod INDEX sy-tabix
+                 FROM ls_cif_imod TRANSPORTING active.
+*         als zu deaktivieren ausgeben
+            PERFORM model_output
+                USING
+                  ls_cif_imod
+                  icon_cancel.
+          ELSE.
+*         als unverändert ausgeben
+            PERFORM model_output
+                USING
+                  ls_cif_imod
+                  space.
+          ENDIF.
+        ENDIF.
+      ENDAT.
+
+      IF NOT l_newest = g_true_con.
+        IF ls_cif_imod-active <> gc_active-inactive.
+          ls_cif_imod-active = gc_active-inactive.
+          MODIFY lt_cif_imod INDEX sy-tabix
+               FROM ls_cif_imod TRANSPORTING active.
+          PERFORM model_output
+              USING
+                ls_cif_imod
+                icon_cancel.
+        ELSE.
+          PERFORM model_output
+              USING
+                ls_cif_imod
+                space.
+        ENDIF.
+      ENDIF.
+
+      index_relation-table_index = l_table_index.
+      index_relation-line_index  = sy-linno.
+      APPEND index_relation.
+
+    ENDLOOP.
+
+    ULINE.
+
+
+***********************************************************************
+***********************************************************************
+* Alle Modell abgehen und die Filterobjekte abhandeln
+***********************************************************************
+***********************************************************************
+
+    LOOP AT lt_cif_imod.
+
+* Konsistenz überprüfen
+      PERFORM imodel_check
+         USING lt_cif_imod.
+
+    ENDLOOP.
+
+    SET PF-STATUS 'S101'.
+
+    IF NOT sy-batch IS INITIAL OR NOT dark IS INITIAL AND lv_workflow IS INITIAL.
+      PERFORM models_activate.
+    ENDIF.
+  ENDIF.
+***********************************************************************
+
+AT USER-COMMAND.
+
+  CASE sy-ucomm.
+
+    WHEN 'ACTV'.
+      PERFORM models_activate.
+*      message id g_msgid_cif_con type g_msgtyp_i_con number 030.
+      PERFORM message_or_log
+        USING
+          dark
+          g_msgid_cif_con
+          g_msgtyp_i_con
+          030
+          space space space space.
+
+  ENDCASE.
+
+************************************************************************
+
+FORM models_activate.
+
+*----------------------------------------------------------------------
+* Aktivierung bzw. Deaktivierung der gewählten Modelle
+  DATA: lt_logsys LIKE cif_dest OCCURS 0 WITH HEADER LINE,
+        lt_change_models LIKE cif_imod OCCURS 0 WITH HEADER LINE,
+        cv_incerr TYPE xfeld.
+
+  LOOP AT lt_cif_imod.
+    lt_logsys-logsys = lt_cif_imod-logsys.
+    APPEND lt_logsys.
+  ENDLOOP.
+
+* logische Systeme zusammenfassen
+  SORT lt_logsys BY logsys.
+  DELETE ADJACENT DUPLICATES FROM lt_logsys.
+
+  LOOP AT lt_logsys.
+
+    CLEAR lt_change_models.
+    REFRESH lt_change_models.
+
+    IF  i_active = g_true_con.
+* Es sollen Modelle aktiviert werden
+      LOOP AT lt_cif_imod WHERE logsys = lt_logsys AND active <> space.
+* Alle Typ/Segmentkombinationen des zu aktivierenden Modells selektieren
+        SELECT * FROM cif_imod APPENDING TABLE lt_change_models
+               WHERE modelname = lt_cif_imod-modelname
+                 AND logsys    = lt_cif_imod-logsys
+                 AND apoapp    = lt_cif_imod-apoapp
+                 AND crdate    = lt_cif_imod-crdate
+                 AND crtime    = lt_cif_imod-crtime
+               ORDER BY imtyp segment.
+* Das neue Aktiv-Flag setzen
+        lt_change_models-active = gc_active-incr.
+        MODIFY lt_change_models TRANSPORTING active
+                WHERE modelname = lt_cif_imod-modelname
+                  AND logsys    = lt_cif_imod-logsys
+                  AND apoapp    = lt_cif_imod-apoapp
+                  AND crdate    = lt_cif_imod-crdate
+                  AND crtime    = lt_cif_imod-crtime.
+*     Bei den zu aktivierenden eventuell andere aktive 'Versionen'
+*     deaktivieren
+        SELECT * FROM cif_imod APPENDING TABLE lt_change_models
+               WHERE modelname = lt_cif_imod-modelname
+                 AND logsys    = lt_cif_imod-logsys
+                 AND apoapp    = lt_cif_imod-apoapp
+                 AND  (   crdate    <> lt_cif_imod-crdate
+                       OR crtime    <> lt_cif_imod-crtime )
+                 AND active   <> space
+               ORDER BY imtyp segment.
+        IF sy-dbcnt > 0.
+          lt_change_models-active = gc_active-inactive.
+          MODIFY lt_change_models TRANSPORTING active
+                  WHERE modelname = lt_cif_imod-modelname
+                    AND logsys    = lt_cif_imod-logsys
+                    AND apoapp    = lt_cif_imod-apoapp
+                   AND  (   crdate    <> lt_cif_imod-crdate
+                         OR crtime    <> lt_cif_imod-crtime ).
+        ENDIF.
+      ENDLOOP.
+    ELSE.
+* es sollen alle gefundenen aktiven deaktiviert werden
+      LOOP AT lt_cif_imod WHERE logsys = lt_logsys.
+*       Alle aktiven Typ/Segmentkombinationen des eventuell zu
+*       deaktivierenden Modells selektieren
+        SELECT * FROM cif_imod APPENDING TABLE lt_change_models
+               WHERE modelname = lt_cif_imod-modelname
+                 AND logsys    = lt_cif_imod-logsys
+                 AND apoapp    = lt_cif_imod-apoapp
+                 AND crdate    = lt_cif_imod-crdate
+                 AND crtime    = lt_cif_imod-crtime
+                 AND active    <> space
+               ORDER BY imtyp segment.
+        IF sy-dbcnt > 0.
+          lt_change_models-active = gc_active-inactive.
+          MODIFY lt_change_models TRANSPORTING active
+                  WHERE modelname = lt_cif_imod-modelname
+                    AND logsys    = lt_cif_imod-logsys
+                    AND apoapp    = lt_cif_imod-apoapp
+                    AND crdate    = lt_cif_imod-crdate
+                    AND crtime    = lt_cif_imod-crtime.
+        ENDIF.
+      ENDLOOP.
+    ENDIF.
+
+    IF NOT lt_change_models[] IS INITIAL.
+
+* check settings for class system
+      CALL FUNCTION 'CIF_CHECK_CFGSYS'
+        EXPORTING
+          iv_logsys          = lt_logsys-logsys
+          iv_cfgsys          = lv_cfgsys
+          iv_conflict_action = p_cnflct
+        IMPORTING
+          ev_cfgsys_force    = lv_cfgsys_force
+        TABLES
+          it_change_models   = lt_change_models
+        EXCEPTIONS
+          abort_initialload  = 1
+          OTHERS             = 2.
+      IF NOT sy-subrc IS INITIAL.
+        CONTINUE.
+      ENDIF.
+
+      CALL FUNCTION 'CIF_ADC_TRANSMIT_ALL'
+        EXPORTING
+          iv_modus           = 'I'
+          iv_ignore_fqentry  = ignfqety
+          iv_deact_proto     = p_deactp
+          iv_act_proto       = p_actp
+          is_parpar          = ls_parpar
+          iv_snp_plaf        = snp_plaf
+          iv_cfgsys          = lv_cfgsys
+          iv_cfgsys_force    = lv_cfgsys_force
+          iv_locbp           = p_locbp
+          iv_no_queuewarning = nopcwarn
+          iv_incerr          = p_incerr
+        TABLES
+          change_models      = lt_change_models
+        CHANGING
+          cv_incerr          = cv_incerr
+        EXCEPTIONS
+          error_message      = 98
+          different_logsys   = 1
+          internal_error     = 3
+          OTHERS             = 4.
+
+      CASE sy-subrc.
+        WHEN 0.
+
+        WHEN OTHERS.
+*          message id sy-msgid type sy-msgty number sy-msgno
+*                  with sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+          PERFORM write_result.
+          PERFORM message_or_log
+             USING
+               dark
+               sy-msgid sy-msgty sy-msgno
+               sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+      ENDCASE.
+      IF cv_incerr IS NOT INITIAL.
+        MESSAGE ID 'XC' TYPE 'E' NUMBER '000'.
+      ENDIF.
+    ENDIF.
+  ENDLOOP.
+
+ENDFORM.                    "MODELS_ACTIVATE
+
+************************************************************************
+
+***********************************************************************
+***********************************************************************
+*&---------------------------------------------------------------------*
+*&      Form  IMODEL_CHECK
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_CIF_IMOD  Keyvalues for model to be checked
+*----------------------------------------------------------------------*
+FORM imodel_check USING p_cif_imod LIKE cif_imod.
+
+* check for active/inactive mix
+  DATA: lt_active LIKE cif_imod OCCURS 0 WITH HEADER LINE,
+        l_inactive_lines TYPE i,
+        l_active_lines TYPE i.
+
+  SELECT DISTINCT active FROM cif_imod
+             INTO CORRESPONDING FIELDS OF TABLE lt_active
+             WHERE modelname = p_cif_imod-modelname
+               AND logsys = p_cif_imod-logsys
+               AND apoapp = p_cif_imod-apoapp
+               AND cruser = p_cif_imod-cruser
+               AND crdate = p_cif_imod-crdate
+               AND crtime = p_cif_imod-crtime.
+  LOOP AT lt_active.
+    IF lt_active-active = gc_active-inactive.
+      ADD 1 TO l_inactive_lines.
+    ELSE.
+      ADD 1 TO l_active_lines.
+    ENDIF.
+  ENDLOOP.
+  IF l_active_lines > 0 AND l_inactive_lines > 0.
+*    message i036
+*        with p_cif_imod-modelname p_cif_imod-logsys p_cif_imod-apoapp.
+    PERFORM message_or_log
+       USING
+         dark
+         g_msgid_cif_con g_msgtyp_i_con 036
+         p_cif_imod-modelname p_cif_imod-logsys p_cif_imod-apoapp space.
+  ENDIF.
+ENDFORM.                               " IMODEL_CHECK
+
+*---------------------------------------------------------------------*
+*       FORM MODEL_OUTPUT                                             *
+*---------------------------------------------------------------------*
+*       ........                                                      *
+*---------------------------------------------------------------------*
+*  -->  PS_CIF_IMOD                                                   *
+*---------------------------------------------------------------------*
+FORM model_output
+     USING
+       ps_cif_imod LIKE cif_imod
+       p_icon      LIKE icon_okay.
+
+  IF NOT p_icon IS INITIAL.
+    l_icon = p_icon.
+    WRITE: /  l_icon AS ICON.
+  ELSE.
+    CLEAR l_icon.
+    WRITE: / l_icon.
+  ENDIF.
+
+  WRITE:      ps_cif_imod-modelname UNDER text-001,
+              ps_cif_imod-logsys UNDER text-002,
+              ps_cif_imod-apoapp UNDER text-003,
+              ps_cif_imod-crdate UNDER text-007,
+              ps_cif_imod-crtime,
+              ps_cif_imod-cruser UNDER text-004.
+
+ENDFORM.                    "MODEL_OUTPUT
+
+*---------------------------------------------------------------------*
+*       FORM WRITE_RESULT                                             *
+*---------------------------------------------------------------------*
+*       ........                                                      *
+*---------------------------------------------------------------------*
+FORM write_result.
+
+  DATA: lv_really_active LIKE cif_imod-active.
+  DATA: l_temp_icon LIKE l_icon.       " Jaja, ABAP...
+
+  LOOP AT index_relation.
+
+*   go get integration model details
+    READ TABLE lt_cif_imod INDEX index_relation-table_index
+          INTO ls_cif_imod.
+
+*   go get display details
+    READ LINE index_relation-line_index.
+
+*   make sure we know the 'real' current activation status since
+*   there was a loop over the logical systems and some systems
+*   might have been processed without errors
+    SELECT SINGLE active INTO lv_really_active FROM cif_imod
+      WHERE modelname = ls_cif_imod-modelname
+        AND logsys    = ls_cif_imod-logsys
+        AND apoapp    = ls_cif_imod-apoapp
+        AND crdate    = ls_cif_imod-crdate
+        AND crtime    = ls_cif_imod-crtime.                 "#EC *
+
+*   if the activation status does not match what we were trying to do
+    IF ( NOT ls_cif_imod-active IS INITIAL
+         AND lv_really_active IS INITIAL )
+    OR ( ls_cif_imod-active IS INITIAL
+         AND NOT lv_really_active IS INITIAL ).
+
+*     display as failure
+      l_temp_icon = icon_failure.
+      l_icon = l_temp_icon.
+      icon_prepare_for_modify l_temp_icon.
+      MODIFY LINE index_relation-line_index
+            FIELD VALUE l_icon FROM l_temp_icon.
+
+    ENDIF.
+
+  ENDLOOP.
+
+ENDFORM.                    "WRITE_RESULT
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR so_lsys-low.
+  PERFORM rimodgen_f4_logsys.
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR so_lsys-high.
+  PERFORM rimodgen_f4_logsys.

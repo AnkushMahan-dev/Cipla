@@ -1,0 +1,815 @@
+TYPES:
+BEGIN OF modelname_range,
+ sign   LIKE mat_range-sign,
+ option LIKE mat_range-option,
+ low    LIKE cif_imod-modelname,
+ high   LIKE cif_imod-modelname,
+END OF modelname_range,
+BEGIN OF logsys_range,
+ sign   LIKE mat_range-sign,
+ option LIKE mat_range-option,
+ low    LIKE cif_imod-logsys,
+ high   LIKE cif_imod-logsys,
+END OF logsys_range,
+BEGIN OF apoapp_range,
+ sign   LIKE mat_range-sign,
+ option LIKE mat_range-option,
+ low    LIKE cif_imod-apoapp,
+ high   LIKE cif_imod-apoapp,
+END OF apoapp_range.
+*-------------------------------------------------------------------
+***INCLUDE RIMODF4 .
+*-------------------------------------------------------------------
+
+*&---------------------------------------------------------------------*
+*&      Form  RIMODGEN_F4_MODID
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM rimodgen_f4_modid
+     USING p_apoapp LIKE cif_imod-apoapp.
+
+****** DATA DEF ********************************************************
+  DATA:  ip_apoapp TYPE apoapp_range OCCURS 0 WITH HEADER LINE,
+         ip_logsys TYPE logsys_range OCCURS 0 WITH HEADER LINE.
+
+  DATA: BEGIN OF l_full_table OCCURS 0,
+              modid  LIKE cif_imod-modelname,
+              logsys LIKE cif_imod-logsys,
+              appl   LIKE cif_imod-apoapp,
+        END OF l_full_table.
+  DATA: l_selectfield LIKE help_info-fieldname.
+  DATA: l_ind LIKE sy-tabix.
+  DATA: BEGIN OF l_fields OCCURS 0.
+          INCLUDE STRUCTURE help_value.
+  DATA: END OF l_fields.
+  DATA: BEGIN OF l_user_sel_fields OCCURS 0.
+          INCLUDE STRUCTURE dynpread.
+  DATA: END OF l_user_sel_fields.
+  DATA: l_rc LIKE sy-subrc.
+  DATA  cursorfield(30).               " for name of current dynprofield
+
+  CONSTANTS:
+   l_table        LIKE l_fields-tabname            VALUE 'CIF_IMOD',
+   l_tabfld_1_con LIKE l_fields-fieldname          VALUE 'MODELNAME',
+   l_tabfld_2_con LIKE l_fields-fieldname          VALUE 'LOGSYS',
+   l_tabfld_3_con LIKE l_fields-fieldname          VALUE 'APOAPP',
+*  Name des Dynpro-Feldes wird dynamisch ermittelt
+   l_selfld_2_con LIKE l_user_sel_fields-fieldname VALUE 'I_LOGSYS',
+   l_selfld_3_con LIKE l_user_sel_fields-fieldname VALUE 'I_APPL'.
+
+****** INIT ************************************************************
+
+* Clear
+  CLEAR l_full_table.      REFRESH l_full_table.
+  CLEAR l_fields.          REFRESH l_fields.
+  CLEAR l_user_sel_fields. REFRESH l_user_sel_fields.
+  CLEAR l_selectfield.
+
+* Fields to display (with DDIC relation)
+  l_fields-tabname    = l_table.
+  l_fields-fieldname  = l_tabfld_1_con.
+  l_fields-selectflag = 'X'.
+  APPEND l_fields.
+
+  l_fields-tabname    = l_table.
+  l_fields-fieldname  = l_tabfld_2_con.
+  l_fields-selectflag = ' '.
+  APPEND l_fields.
+
+  IF p_apoapp IS INITIAL.
+    l_fields-tabname    = l_table.
+    l_fields-fieldname  = l_tabfld_3_con.
+    l_fields-selectflag = ' '.
+    APPEND l_fields.
+  ENDIF.
+
+* Field to select for (with DDIC relation)
+  l_selectfield = l_tabfld_1_con.
+* Field where to get filter info (with Dynpro relation)
+  GET CURSOR FIELD cursorfield.
+  l_user_sel_fields-fieldname  = cursorfield.
+  APPEND l_user_sel_fields.
+  IF sy-repid <> 'RIMODGEN'.
+    l_user_sel_fields-fieldname = 'SO_LSYS-LOW'.
+    APPEND l_user_sel_fields.
+    l_user_sel_fields-fieldname = 'SO_APPL-LOW'.
+    APPEND l_user_sel_fields.
+  ENDIF.
+
+****** GET DYNPRO VALUES ***********************************************
+  CALL FUNCTION 'DYNP_VALUES_READ'
+       EXPORTING
+            dyname             = sy-cprog
+            dynumb             = sy-dynnr
+            translate_to_upper = 'X'
+       TABLES
+            dynpfields         = l_user_sel_fields
+       EXCEPTIONS
+            OTHERS.                                         "#EC *
+
+  DATA: ls_user_selfields LIKE l_user_sel_fields.
+
+  READ TABLE l_user_sel_fields INTO ls_user_selfields WITH KEY
+                                  fieldname = 'SO_APPL-LOW'.
+  ip_apoapp-low = ls_user_selfields-fieldvalue.
+
+  READ TABLE l_user_sel_fields INTO ls_user_selfields WITH KEY
+                                  fieldname = 'SO_LSYS-LOW'.
+  ip_logsys-low = ls_user_selfields-fieldvalue.
+
+  DELETE l_user_sel_fields WHERE NOT fieldname = 'SO_MODID-LOW'.
+
+  l_rc = sy-subrc.
+* Fehler beim Lesen der Eingabewerte
+  IF l_rc <> 0. MESSAGE i031. ENDIF.
+  CHECK l_rc = 0.
+
+  IF NOT ip_apoapp-low IS INITIAL.
+    ip_apoapp-sign = 'I'.
+    ip_apoapp-option = 'EQ'.
+    APPEND ip_apoapp.
+  ENDIF.
+
+  IF NOT ip_logsys-low IS INITIAL.
+    ip_logsys-sign = 'I'.
+    ip_logsys-option = 'EQ'.
+    APPEND ip_logsys.
+  ENDIF.
+
+****** SELECT DATA TO BE DISPLAYED *************************************
+  IF p_apoapp IS INITIAL.
+    SELECT modelname logsys apoapp
+      FROM cif_imod
+      INTO TABLE l_full_table
+      WHERE apoapp <> space                   "INS SONG
+        AND status = gc_cif_imstat_n_con     "Keine Deltamodelle
+        AND apoapp IN ip_apoapp[]
+        AND logsys IN ip_logsys[].
+  ELSE.
+    SELECT modelname logsys
+      FROM cif_imod
+      INTO TABLE l_full_table
+      WHERE apoapp = p_apoapp
+        AND status = gc_cif_imstat_n_con      "Keine Deltamodelle
+        AND apoapp IN ip_apoapp[]
+        AND logsys IN ip_logsys[].
+  ENDIF.
+  SORT l_full_table[]
+    BY modid logsys appl.
+  DELETE ADJACENT DUPLICATES FROM l_full_table[]
+    COMPARING modid logsys appl.
+
+  l_rc = sy-subrc.
+* Noch kein Integrationsmodell generiert
+  IF l_rc <> 0. MESSAGE i032. ENDIF.
+  CHECK l_rc = 0.
+
+  SORT l_full_table BY modid logsys appl.
+
+****** DISPLAY FILTERED LIST AND GET THE CHOICE ************************
+  CALL FUNCTION 'HELP_VALUES_GET_NO_DD_NAME'
+    EXPORTING
+      selectfield         = l_selectfield
+      use_user_selections = 'S'
+    IMPORTING
+      ind                 = l_ind
+    TABLES
+      fields              = l_fields
+      full_table          = l_full_table
+      user_sel_fields     = l_user_sel_fields
+    EXCEPTIONS
+      OTHERS              = 1.                              "#EC *
+
+  l_rc = sy-subrc.
+* Fehler im Hilfeprozessor
+  IF l_rc <> 0. MESSAGE i032. ENDIF.
+  CHECK l_rc = 0.
+
+* Keine Werte zur Auswahl
+  CHECK l_ind <> 0.
+
+****** PUT DYNPRO VALUES ***********************************************
+  READ TABLE l_full_table INDEX l_ind.
+* Fill fields where to put selection
+  CLEAR l_user_sel_fields. REFRESH l_user_sel_fields.
+  l_user_sel_fields-fieldname  = cursorfield.
+  l_user_sel_fields-fieldvalue = l_full_table-modid.
+  APPEND l_user_sel_fields.
+  l_user_sel_fields-fieldname  = l_selfld_2_con.
+  l_user_sel_fields-fieldvalue = l_full_table-logsys.
+  APPEND l_user_sel_fields.
+  l_user_sel_fields-fieldname  = l_selfld_3_con.
+  l_user_sel_fields-fieldvalue = l_full_table-appl.
+  APPEND l_user_sel_fields.
+
+  CALL FUNCTION 'DYNP_VALUES_UPDATE'
+    EXPORTING
+      dyname               = sy-cprog
+      dynumb               = sy-dynnr
+    TABLES
+      dynpfields           = l_user_sel_fields
+    EXCEPTIONS
+      invalid_abapworkarea = 1
+      invalid_dynprofield  = 2
+      invalid_dynproname   = 3
+      invalid_dynpronummer = 4
+      invalid_request      = 5
+      no_fielddescription  = 6
+      undefind_error       = 7
+      OTHERS               = 8.
+
+  l_rc = sy-subrc.
+* Fehler bei Übergabe der Auswahl an den Dialog
+  IF l_rc <> 0. MESSAGE i034. ENDIF.
+  CHECK l_rc = 0.
+
+ENDFORM.                               " RIMODGEN_F4_MODID
+
+************************************************************************
+************************************************************************
+
+*&---------------------------------------------------------------------*
+*&      Form  RIMODGEN_F4_APOAPP_CRUSER
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM rimodgen_f4_apoapp_cruser.
+
+****** DATA DEF ********************************************************
+  DATA:  ip_modelname TYPE modelname_range OCCURS 0 WITH HEADER LINE,
+         ip_logsys    TYPE logsys_range OCCURS 0 WITH HEADER LINE.
+
+  DATA: BEGIN OF l_full_table OCCURS 0,
+              value(30) TYPE c,
+        END OF l_full_table.
+  DATA: l_selectfield     LIKE help_info-fieldname,
+        l_cursorfield(30) TYPE c.
+  DATA: l_ind LIKE sy-tabix.
+  DATA: BEGIN OF l_fields OCCURS 0.
+          INCLUDE STRUCTURE help_value.
+  DATA: END OF l_fields.
+  DATA: BEGIN OF l_user_sel_fields OCCURS 0.
+          INCLUDE STRUCTURE dynpread.
+  DATA: END OF l_user_sel_fields.
+  DATA: l_rc LIKE sy-subrc.
+  DATA: l_modus(20) TYPE c,
+        l_selectstring_tab(72) OCCURS 0 WITH HEADER LINE.
+
+  CONSTANTS:
+   l_modus_cruser_con LIKE l_modus VALUE 'CRUSER',
+   l_modus_apoapp_con LIKE l_modus VALUE 'APOAPP',
+   l_table        LIKE l_fields-tabname            VALUE 'CIF_IMOD',
+   l_tabfld_1_con LIKE l_fields-fieldname          VALUE 'APOAPP',
+   l_tabfld_2_con LIKE l_fields-fieldname          VALUE 'CRUSER'.
+
+****** INIT ************************************************************
+* Clear
+  CLEAR l_full_table.      REFRESH l_full_table.
+  CLEAR l_fields.          REFRESH l_fields.
+  CLEAR l_user_sel_fields. REFRESH l_user_sel_fields.
+  CLEAR l_selectfield.
+
+* Field where to get filter info (with Dynpro relation)
+  GET CURSOR FIELD l_cursorfield.
+
+* Field to select for (with DDIC relation)
+  SEARCH l_cursorfield FOR 'APP'.
+  IF sy-subrc = 0.
+    l_modus = l_modus_apoapp_con.
+  ELSE.
+    SEARCH l_cursorfield FOR 'RSCSEL'."Multiple selection dialog should
+*used only for APOAPP
+    IF sy-subrc = 0.
+      l_modus = l_modus_apoapp_con.
+    ELSE.
+      SEARCH l_cursorfield FOR 'CRUS'.
+      IF sy-subrc = 0.
+        l_modus = l_modus_cruser_con.
+      ELSE.
+        MESSAGE i031.
+      ENDIF.
+    ENDIF.
+  ENDIF.
+  IF sy-repid <> 'RIMODGEN'.
+    l_user_sel_fields-fieldname = 'SO_MODID-LOW'.
+    APPEND l_user_sel_fields.
+    l_user_sel_fields-fieldname = 'SO_LSYS-LOW'.
+    APPEND l_user_sel_fields.
+  ENDIF.
+  l_user_sel_fields-fieldname = 'SO_APPL-LOW'.
+  APPEND l_user_sel_fields.
+
+****** GET DYNPRO VALUES ***********************************************
+  CALL FUNCTION 'DYNP_VALUES_READ'
+       EXPORTING
+            dyname             = sy-cprog
+            dynumb             = sy-dynnr
+            translate_to_upper = 'X'
+       TABLES
+            dynpfields         = l_user_sel_fields
+       EXCEPTIONS
+            OTHERS.                                         "#EC *
+
+  DATA: ls_user_selfields LIKE l_user_sel_fields.
+
+  READ TABLE l_user_sel_fields INTO ls_user_selfields WITH KEY
+                                  fieldname = 'SO_MODID-LOW'.
+  ip_modelname-low = ls_user_selfields-fieldvalue.
+
+  READ TABLE l_user_sel_fields INTO ls_user_selfields WITH KEY
+                                  fieldname = 'SO_LSYS-LOW'.
+  ip_logsys-low = ls_user_selfields-fieldvalue.
+
+  DELETE l_user_sel_fields WHERE NOT fieldname = 'SO_APPL-LOW'.
+
+  l_rc = sy-subrc.
+* Fehler beim Lesen der Eingabewerte
+  IF l_rc <> 0. MESSAGE i031. ENDIF.
+  CHECK l_rc = 0.
+
+****** SELECT DATA TO BE DISPLAYED *************************************
+  CASE l_modus.
+    WHEN l_modus_apoapp_con.
+      l_selectfield = l_tabfld_1_con.
+    WHEN l_modus_cruser_con.
+      l_selectfield = l_tabfld_2_con.
+  ENDCASE.
+
+  REFRESH l_selectstring_tab.
+  l_selectstring_tab = l_selectfield.
+  APPEND l_selectstring_tab.
+
+  IF NOT ip_modelname-low IS INITIAL.
+    ip_modelname-sign = 'I'.
+    ip_modelname-option = 'EQ'.
+    APPEND ip_modelname.
+  ENDIF.
+
+  IF NOT ip_logsys-low IS INITIAL.
+    ip_logsys-sign = 'I'.
+    ip_logsys-option = 'EQ'.
+    APPEND ip_logsys.
+  ENDIF.
+
+  SELECT DISTINCT (l_selectstring_tab) FROM cif_imod
+         INTO TABLE l_full_table
+         WHERE   status = gc_cif_imstat_n_con
+          AND    modelname IN ip_modelname[]
+          AND    logsys    IN ip_logsys[] .              "#EC CI_BYPASS
+
+  l_rc = sy-subrc.
+* Noch kein Integrationsmodell generiert
+  IF l_rc <> 0. MESSAGE i032. ENDIF.
+  CHECK l_rc = 0.
+
+  SORT l_full_table.
+
+****** DISPLAY FILTERED LIST AND GET THE CHOICE ************************
+* Fields to display (with DDIC relation)
+  l_fields-tabname    = l_table.
+  l_fields-fieldname  = l_selectfield.
+  l_fields-selectflag = 'X'.
+  APPEND l_fields.
+
+  l_user_sel_fields-fieldname  = l_cursorfield.
+  APPEND l_user_sel_fields.
+
+  CALL FUNCTION 'HELP_VALUES_GET_NO_DD_NAME'
+    EXPORTING
+      selectfield         = l_selectfield
+      use_user_selections = 'S'
+    IMPORTING
+      ind                 = l_ind
+    TABLES
+      fields              = l_fields
+      full_table          = l_full_table
+      user_sel_fields     = l_user_sel_fields
+    EXCEPTIONS
+      OTHERS              = 1.
+
+  l_rc = sy-subrc.
+* Fehler im Hilfeprozessor
+  IF l_rc <> 0. MESSAGE i032. ENDIF.
+  CHECK l_rc = 0.
+
+* Keine Werte zur Auswahl
+  CHECK l_ind <> 0.
+
+****** PUT DYNPRO VALUES ***********************************************
+  READ TABLE l_full_table INDEX l_ind.
+* Fill fields where to put selection
+  CLEAR l_user_sel_fields. REFRESH l_user_sel_fields.
+  l_user_sel_fields-fieldname  = l_cursorfield.
+  l_user_sel_fields-fieldvalue = l_full_table-value.
+  APPEND l_user_sel_fields.
+
+  CALL FUNCTION 'DYNP_VALUES_UPDATE'
+    EXPORTING
+      dyname               = sy-cprog
+      dynumb               = sy-dynnr
+    TABLES
+      dynpfields           = l_user_sel_fields
+    EXCEPTIONS
+      invalid_abapworkarea = 1
+      invalid_dynprofield  = 2
+      invalid_dynproname   = 3
+      invalid_dynpronummer = 4
+      invalid_request      = 5
+      no_fielddescription  = 6
+      undefind_error       = 7
+      OTHERS               = 8.
+
+  l_rc = sy-subrc.
+* Fehler bei Übergabe der Auswahl an den Dialog
+  IF l_rc <> 0. MESSAGE i034. ENDIF.
+  CHECK l_rc = 0.
+
+ENDFORM.                               " RIMODGEN_F4_MODID
+
+***********************************************************************
+
+FORM rimodgen_f4_logsys.
+
+  TABLES: cifopmode, tbdlst.
+
+  DATA:  ip_modelname TYPE modelname_range OCCURS 0 WITH HEADER LINE,
+         ip_apoapp    TYPE apoapp_range OCCURS 0 WITH HEADER LINE.
+
+****** DATA DEF ********************************************************
+  DATA: BEGIN OF l_full_table OCCURS 0,
+              logsys LIKE cif_imod-logsys,
+              stext  LIKE tbdlst-stext,
+        END OF l_full_table.
+  DATA: l_selectfield LIKE help_info-fieldname.
+  DATA: l_ind LIKE sy-tabix.
+  DATA: BEGIN OF l_fields OCCURS 0.
+          INCLUDE STRUCTURE help_value.
+  DATA: END OF l_fields.
+  DATA: BEGIN OF l_user_sel_fields OCCURS 0.
+          INCLUDE STRUCTURE dynpread.
+  DATA: END OF l_user_sel_fields.
+  DATA: l_rc LIKE sy-subrc.
+  DATA  cursorfield(30).               " for name of current dynprofield
+  DATA: lv_ndirel LIKE ndisystems-ndirel.
+
+  CONSTANTS:
+   l_table        LIKE l_fields-tabname            VALUE 'CIFOPMODE',
+   l_tabfld_1_con LIKE l_fields-fieldname          VALUE 'LOGSYS'.
+*  Name des Dynpro-Feldes wird dynamisch ermittelt
+
+****** INIT ************************************************************
+
+* Clear
+  CLEAR l_full_table.      REFRESH l_full_table.
+  CLEAR l_fields.          REFRESH l_fields.
+  CLEAR l_user_sel_fields. REFRESH l_user_sel_fields.
+  CLEAR l_selectfield.
+
+* Fields to display (with DDIC relation)
+  l_fields-tabname    = l_table.
+  l_fields-fieldname  = l_tabfld_1_con.
+  l_fields-selectflag = 'X'.
+  APPEND l_fields.
+
+  l_fields-tabname    = 'TBDLST'.
+  l_fields-fieldname  = 'STEXT'.
+  l_fields-selectflag = ' '.
+  APPEND l_fields.
+
+* Field to select for (with DDIC relation)
+  l_selectfield = l_tabfld_1_con.
+* Field where to get filter info (with Dynpro relation)
+  GET CURSOR FIELD cursorfield.
+  l_user_sel_fields-fieldname  = cursorfield.
+  APPEND l_user_sel_fields.
+  IF sy-repid <> 'RIMODGEN'.
+    l_user_sel_fields-fieldname = 'SO_MODID-LOW'.
+    APPEND l_user_sel_fields.
+    l_user_sel_fields-fieldname = 'SO_APPL-LOW'.
+    APPEND l_user_sel_fields.
+  ENDIF.
+****** GET DYNPRO VALUES ***********************************************
+  CALL FUNCTION 'DYNP_VALUES_READ'
+       EXPORTING
+            dyname             = sy-cprog
+            dynumb             = sy-dynnr
+            translate_to_upper = 'X'
+       TABLES
+            dynpfields         = l_user_sel_fields
+       EXCEPTIONS
+            OTHERS.                                         "#EC *
+
+  DATA: ls_user_selfields LIKE l_user_sel_fields.
+
+  READ TABLE l_user_sel_fields INTO ls_user_selfields WITH KEY
+                                  fieldname = 'SO_MODID-LOW'.
+  ip_modelname-low = ls_user_selfields-fieldvalue.
+
+  READ TABLE l_user_sel_fields INTO ls_user_selfields WITH KEY
+                                  fieldname = 'SO_APPL-LOW'.
+  ip_apoapp-low = ls_user_selfields-fieldvalue.
+
+  DELETE l_user_sel_fields WHERE NOT fieldname = 'SO_LSYS-LOW'.
+
+  l_rc = sy-subrc.
+* Fehler beim Lesen der Eingabewerte
+  IF l_rc <> 0. MESSAGE i031. ENDIF.
+  CHECK l_rc = 0.
+
+****** SELECT DATA TO BE DISPLAYED *************************************
+  DATA: lt_tbdlst    TYPE TABLE OF tbdlst,
+        ls_tbdlst    TYPE tbdlst.
+* avaoid left join to use db table buffer (checkman)
+  SELECT *
+    FROM cifopmode
+    INTO CORRESPONDING FIELDS OF TABLE l_full_table[].
+  l_rc = sy-subrc.
+  IF l_rc EQ 0.
+    SELECT *
+      FROM tbdlst
+      INTO TABLE lt_tbdlst[]
+      WHERE langu EQ sy-langu.
+    l_rc = sy-subrc.
+  ENDIF.
+  SORT lt_tbdlst[]
+    BY logsys langu.
+  LOOP AT l_full_table.
+    READ TABLE lt_tbdlst[]
+      INTO ls_tbdlst
+      WITH KEY logsys = l_full_table-logsys
+      BINARY SEARCH.
+    IF sy-subrc EQ 0.
+      l_full_table-stext  = ls_tbdlst-stext.
+      MODIFY l_full_table.
+    ENDIF.
+  ENDLOOP.
+
+* Noch kein Integrationsmodell generiert
+  IF l_rc <> 0. MESSAGE i032. ENDIF.
+  CHECK l_rc = 0.
+
+  DATA: lt_restr_table LIKE l_full_table OCCURS 0 WITH HEADER LINE.
+  IF sy-repid <> 'RIMODGEN'.
+
+    IF NOT ip_modelname-low IS INITIAL.
+      ip_modelname-sign = 'I'.
+      ip_modelname-option = 'EQ'.
+      APPEND ip_modelname.
+    ENDIF.
+
+    IF NOT ip_apoapp-low IS INITIAL.
+      ip_apoapp-sign = 'I'.
+      ip_apoapp-option = 'EQ'.
+      APPEND ip_apoapp.
+    ENDIF.
+    SELECT logsys
+      FROM cif_imod
+      INTO TABLE lt_restr_table[]
+      WHERE   status = gc_cif_imstat_n_con
+       AND    modelname IN ip_modelname[]
+       AND    apoapp    IN ip_apoapp[].
+    SORT lt_restr_table
+      BY logsys.
+    DELETE ADJACENT DUPLICATES FROM lt_restr_table[]
+      COMPARING logsys.
+    LOOP AT l_full_table.
+      READ TABLE lt_restr_table
+        WITH KEY logsys = l_full_table-logsys
+        BINARY SEARCH.
+      IF sy-subrc <> 0.
+        DELETE l_full_table.
+      ENDIF.
+    ENDLOOP.
+  ENDIF.
+
+  SORT l_full_table BY logsys.
+
+****** DISPLAY FILTERED LIST AND GET THE CHOICE ************************
+  CALL FUNCTION 'HELP_VALUES_GET_NO_DD_NAME'
+    EXPORTING
+      selectfield         = l_selectfield
+      use_user_selections = 'S'
+    IMPORTING
+      ind                 = l_ind
+    TABLES
+      fields              = l_fields
+      full_table          = l_full_table
+      user_sel_fields     = l_user_sel_fields
+    EXCEPTIONS
+      OTHERS              = 1.
+
+  l_rc = sy-subrc.
+* Fehler im Hilfeprozessor
+  IF l_rc <> 0. MESSAGE i032. ENDIF.
+  CHECK l_rc = 0.
+
+* Keine Werte zur Auswahl
+  CHECK l_ind <> 0.
+
+****** PUT DYNPRO VALUES ***********************************************
+  READ TABLE l_full_table INDEX l_ind.
+* Fill fields where to put selection
+  CLEAR l_user_sel_fields. REFRESH l_user_sel_fields.
+  l_user_sel_fields-fieldname  = cursorfield.
+  l_user_sel_fields-fieldvalue = l_full_table-logsys.
+  APPEND l_user_sel_fields.
+
+* give APO release as information
+  IF NOT l_full_table-logsys IS INITIAL.
+    CALL FUNCTION 'NDI_SYSTEM_RELEASE'
+      EXPORTING
+        if_logsys = l_full_table-logsys
+        if_systyp = gc_apo_type_con
+      IMPORTING
+        ef_ndrel  = lv_ndirel
+      EXCEPTIONS
+        not_found = 1
+        OTHERS    = 2.
+    IF sy-subrc NE 0.
+      CALL FUNCTION 'NDI_SYSTEM_RELEASE'
+        EXPORTING
+          if_logsys = l_full_table-logsys
+          if_systyp = gc_s4hana_type_con
+        IMPORTING
+          ef_ndrel  = lv_ndirel
+        EXCEPTIONS
+          not_found = 1
+          OTHERS    = 2.
+    ENDIF.
+    IF sy-subrc = 0.
+*   for RIMODGEN, there's a field named G_RELTXT which shows APO rel
+      IF sy-repid = 'RIMODGEN'.
+        l_user_sel_fields-fieldname  = 'G_RELTXT'.
+        l_user_sel_fields-fieldvalue = lv_ndirel.
+        APPEND l_user_sel_fields.
+      ENDIF.
+    ENDIF.
+  ENDIF.
+
+  CALL FUNCTION 'DYNP_VALUES_UPDATE'
+    EXPORTING
+      dyname               = sy-cprog
+      dynumb               = sy-dynnr
+    TABLES
+      dynpfields           = l_user_sel_fields
+    EXCEPTIONS
+      invalid_abapworkarea = 1
+      invalid_dynprofield  = 2
+      invalid_dynproname   = 3
+      invalid_dynpronummer = 4
+      invalid_request      = 5
+      no_fielddescription  = 6
+      undefind_error       = 7
+      OTHERS               = 8.
+
+  l_rc = sy-subrc.
+* Fehler bei Übergabe der Auswahl an den Dialog
+  IF l_rc <> 0. MESSAGE i034. ENDIF.
+  CHECK l_rc = 0.
+
+ENDFORM.                               " RIMODGEN_F4_MODID
+
+************************************************************************
+*&---------------------------------------------------------------------*
+*&      Form  RIMODGEN_F4_SERVERGROUP
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM rimodgen_f4_servergroup.
+
+****** DATA DEF ********************************************************
+  TABLES: rzllitab.
+  DATA: BEGIN OF l_full_table OCCURS 0,
+              classname  LIKE rzllitab-classname,
+        END OF l_full_table.
+  DATA: l_selectfield LIKE help_info-fieldname.
+  DATA: l_ind LIKE sy-tabix.
+  DATA: BEGIN OF l_fields OCCURS 0.
+          INCLUDE STRUCTURE help_value.
+  DATA: END OF l_fields.
+  DATA: BEGIN OF l_user_sel_fields OCCURS 0.
+          INCLUDE STRUCTURE dynpread.
+  DATA: END OF l_user_sel_fields.
+  DATA: l_rc LIKE sy-subrc.
+  DATA  cursorfield(30).               " for name of current dynprofield
+
+  CONSTANTS:
+   l_table        LIKE l_fields-tabname            VALUE 'RZLLITAB',
+   l_tabfld_1_con LIKE l_fields-fieldname          VALUE 'CLASSNAME'.
+
+****** INIT ************************************************************
+
+* Clear
+  CLEAR l_full_table.      REFRESH l_full_table.
+  CLEAR l_fields.          REFRESH l_fields.
+  CLEAR l_user_sel_fields. REFRESH l_user_sel_fields.
+  CLEAR l_selectfield.
+
+* Fields to display (with DDIC relation)
+  l_fields-tabname    = l_table.
+  l_fields-fieldname  = l_tabfld_1_con.
+  l_fields-selectflag = 'X'.
+  APPEND l_fields.
+
+* Field to select for (with DDIC relation)
+  l_selectfield = l_tabfld_1_con.
+* Field where to get filter info (with Dynpro relation)
+  GET CURSOR FIELD cursorfield.
+  l_user_sel_fields-fieldname  = cursorfield.
+  APPEND l_user_sel_fields.
+
+****** GET DYNPRO VALUES ***********************************************
+  CALL FUNCTION 'DYNP_VALUES_READ'
+       EXPORTING
+            dyname             = sy-cprog
+            dynumb             = sy-dynnr
+            translate_to_upper = 'X'
+       TABLES
+            dynpfields         = l_user_sel_fields
+       EXCEPTIONS
+            OTHERS.
+
+  l_rc = sy-subrc.
+* Fehler beim Lesen der Eingabewerte
+  IF l_rc <> 0. MESSAGE i031. ENDIF.
+  CHECK l_rc = 0.
+
+****** SELECT DATA TO BE DISPLAYED *************************************
+  SELECT classname
+    FROM rzllitab
+    INTO TABLE l_full_table[]
+    WHERE grouptype <> space.
+  l_rc = sy-subrc.
+* Noch kein Integrationsmodell generiert
+  IF l_rc <> 0. MESSAGE i032. ENDIF.
+  CHECK l_rc = 0.
+  SORT l_full_table[]
+    BY classname.
+  DELETE ADJACENT DUPLICATES FROM l_full_table[]
+    COMPARING classname.
+
+****** DISPLAY FILTERED LIST AND GET THE CHOICE ************************
+  CALL FUNCTION 'HELP_VALUES_GET_NO_DD_NAME'
+    EXPORTING
+      selectfield         = l_selectfield
+      use_user_selections = 'S'
+    IMPORTING
+      ind                 = l_ind
+    TABLES
+      fields              = l_fields
+      full_table          = l_full_table
+      user_sel_fields     = l_user_sel_fields
+    EXCEPTIONS
+      OTHERS              = 1.
+
+  l_rc = sy-subrc.
+* Fehler im Hilfeprozessor
+  IF l_rc <> 0. MESSAGE i032. ENDIF.
+  CHECK l_rc = 0.
+
+* Keine Werte zur Auswahl
+  CHECK l_ind <> 0.
+
+****** PUT DYNPRO VALUES ***********************************************
+  READ TABLE l_full_table INDEX l_ind.
+* Fill fields where to put selection
+  CLEAR l_user_sel_fields. REFRESH l_user_sel_fields.
+  l_user_sel_fields-fieldname  = cursorfield.
+  l_user_sel_fields-fieldvalue = l_full_table-classname.
+  APPEND l_user_sel_fields.
+
+  CALL FUNCTION 'DYNP_VALUES_UPDATE'
+    EXPORTING
+      dyname               = sy-cprog
+      dynumb               = sy-dynnr
+    TABLES
+      dynpfields           = l_user_sel_fields
+    EXCEPTIONS
+      invalid_abapworkarea = 1
+      invalid_dynprofield  = 2
+      invalid_dynproname   = 3
+      invalid_dynpronummer = 4
+      invalid_request      = 5
+      no_fielddescription  = 6
+      undefind_error       = 7
+      OTHERS               = 8.
+
+  l_rc = sy-subrc.
+* Fehler bei Übergabe der Auswahl an den Dialog
+  IF l_rc <> 0. MESSAGE i034. ENDIF.
+  CHECK l_rc = 0.
+
+ENDFORM.                               " RIMODGEN_F4_SERVERGROUP
+
+************************************************************************
+************************************************************************

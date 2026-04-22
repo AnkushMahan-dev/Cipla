@@ -1,0 +1,47 @@
+*&---------------------------------------------------------------------*
+*&  Include           ZVX_PARTICIPANT_REC_CIPLA_TOP
+*&---------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+* Include Name    :  ZVX_PARTICIPANT_REC_CIPLA_TOP                     *
+* Creation Date   :  05-March-2020                                     *
+* Author          :  Sindhuja Dhulipudi                                *
+* Application Area:  Agreements                                        *
+* ---------------------------------------------------------------------*
+* Description: Report to create a job in BB_ASP~AFTER_SAVE method to   *
+*              create the CR participation records when saving the     *
+*              BB Agreement
+*----------------------------------------------------------------------*
+* Change History:                                                      *
+*----------------------------------------------------------------------*
+* Date        Created By     Task #      Description                   *
+* ---------------------------------------------------------------------*
+* 05-March-2020  ABAP1      CRDK968332      Initial Development        *
+*                                                                      *
+*&---------------------------------------------------------------------*
+TYPES: BEGIN OF ty_prdpr,
+         zzprdpr TYPE zzprdpr,
+       END OF ty_prdpr,
+       tt_prdpr TYPE TABLE OF ty_prdpr,
+       BEGIN OF ty_depcode,
+         depcode TYPE /irm/ip_depcode,
+       END OF ty_depcode,
+       tt_depcode TYPE TABLE OF ty_depcode,
+       BEGIN OF ty_part_rec,
+         panum    TYPE /irm/ip_panum,
+         depcode  TYPE /irm/ip_depcode,
+         vrsio    TYPE /irm/ip_vrsio,
+         nrart    TYPE /irm/ip_patype,
+         partid   TYPE /irm/ip_ktonr,
+         knuma_ag TYPE /irm/ip_knuma_agc,
+         endda    TYPE /irm/ip_pedat,
+         begda    TYPE /irm/ip_pbdat,
+         snrart   TYPE /irm/ip_snrart,
+         sktonr   TYPE /irm/ip_sktonr,
+         agr_ref  TYPE /irm/ip_knuma_ag,
+       END OF ty_part_rec,
+       tt_part_rec TYPE TABLE OF ty_part_rec.
+DATA: gt_prdpr    TYPE tt_prdpr,
+      gt_part     TYPE /irm/t_ipcipa,
+      gt_xpart    TYPE /irm/t_ipcipa,
+      gt_ypart    TYPE /irm/t_ipcipa,
+      gt_part_rec TYPE tt_part_rec.

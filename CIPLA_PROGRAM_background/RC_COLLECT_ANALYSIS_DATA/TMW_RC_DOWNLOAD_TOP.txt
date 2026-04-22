@@ -1,0 +1,306 @@
+*&---------------------------------------------------------------------*
+*& Include TMW_RC_DOWNLOAD_TOP                      - Report TMW_RC_DOWNLOAD_ANALYSIS_DATA
+*&---------------------------------------------------------------------*
+
+CONSTANTS:
+  BEGIN OF c_data_key,
+      data_trigid                   TYPE int4 VALUE 999999999, "#EC NOTEXT "max possible 2147483647
+      data_trigoffset               TYPE int4 VALUE 999999999, "#EC NOTEXT
+      subid_smdb_content_latest_sap TYPE int4 VALUE       100, "#EC NOTEXT
+      subid_smdb_content_upload     TYPE int4 VALUE       200, "#EC NOTEXT
+      "subid_item_status             TYPE int4 VALUE       300,"#EC NOTEXT
+      subid_calculation_key         TYPE int4 VALUE       400, "#EC NOTEXT
+      subid_cons_skip_sitem         TYPE int4 VALUE       500, "#EC NOTEXT
+      subid_cons_result_last        TYPE int4 VALUE       600, "#EC NOTEXT
+      subid_relv_result_last        TYPE int4 VALUE       700, "#EC NOTEXT
+      subid_simpl_item_catalog_src  TYPE int4 VALUE       800, "#EC NOTEXT
+      subid_st03n_data              TYPE int4 VALUE       900, "#EC NOTEXT
+      subid_sif_check_result        TYPE int4 VALUE      1000, "#EC NOTEXT
+
+      subid_rc_ana_10               TYPE int4 VALUE       111, "#EC NOTEXT
+      subid_rc_ana_20               TYPE int4 VALUE       222, "#EC NOTEXT
+      subid_value_dis_ana           TYPE int4 VALUE       333, "#EC NOTEXT
+      subid_pathfinder_ana          TYPE int4 VALUE       334, "#EC NOTEXT
+      subid_signavio_pi_ana         TYPE int4 VALUE       335, "#EC NOTEXT
+      subid_dvm_data                TYPE int4 VALUE       950, "#EC NOTEXT
+      subid_bpa_data                TYPE int4 VALUE       960, "#EC NOTEXT
+      subid_ip_data                 TYPE int4 VALUE      1100, "#EC NOTEXT
+      subid_bpxml_data              TYPE int4 VALUE       980, "#EC NOTEXT
+      subid_bpxsl_data              TYPE int4 VALUE       981, "#EC NOTEXT
+      subid_bpnxml_data             TYPE int4 VALUE       982, "#EC NOTEXT "seperate bp & bpn, keep old bp id
+      subid_bpnxsl_data             TYPE int4 VALUE       983, "#EC NOTEXT
+      subid_efd_data                TYPE int4 VALUE       990, "#EC NOTEXT
+      subid_fdq_data                TYPE int4 VALUE       970, "#EC NOTEXT
+      subid_cca_data                TYPE int4 VALUE       975, "#EC NOTEXT "Not used for now, anyway
+    END OF c_data_key.
+
+CONSTANTS:
+  BEGIN OF c_sub_job_type,
+    sic_relv  TYPE char10 VALUE 'SIC_RELV',
+    sic_cons  TYPE char10 VALUE 'SIC_CONS',
+    sic_efd   TYPE char10 VALUE 'SIC_EFD',
+    hana_size TYPE char10 VALUE 'HANA_SIZE',
+    bpa       TYPE char10 VALUE 'BPA',
+    dvm       TYPE char10 VALUE 'DVM',
+    innova    TYPE char10 VALUE 'INNOVA',
+    fdq       TYPE char10 VALUE 'FDQ',
+    cca       TYPE char10 VALUE 'CCA',
+  END OF c_sub_job_type.
+
+CONSTANTS:
+  BEGIN OF c_job_name,
+    rc        TYPE char32 VALUE 'TMW_RC_DOWNLOAD_ANA_DATA_COLL',
+    rc2       TYPE char32 VALUE 'RC_COLLECT_ANALYSIS_DATA',
+    sitem     TYPE char32 VALUE 'TMW_RC_SITEM_DATA_COLL',
+    efd       TYPE char32 VALUE 'TMW_RC_EFD_DATA_COLL',
+    hana_size TYPE char32 VALUE 'TMW_RC_HANAS_DATA_COLL',
+    bpa       TYPE char32 VALUE 'TMW_RC_BPA_DATA_COLL',
+    dvm       TYPE char32 VALUE 'TMW_RC_DVM_DATA_COLL',
+    innova    TYPE char32 VALUE 'TMW_RC_INNOVA_DATA_COLL',
+    fdq       TYPE char32 VALUE 'TMW_RC_FDQ_DATA_COLL',
+    cca       TYPE char32 VALUE 'TMW_RC_CCA_DATA_COLL',
+  END OF c_job_name.
+
+TYPES: BEGIN OF ty_subtotal,
+         name  TYPE rollname,
+         value TYPE dec20,
+       END OF ty_subtotal.
+
+TYPES: BEGIN OF ty_hdbtabsizes_newcol,
+          table_name        TYPE table_name,
+          load_unit(6)      TYPE c,
+          real_paged_size   TYPE p LENGTH 9 DECIMALS 1,
+          est_paged_size    TYPE p LENGTH 9 DECIMALS 1,
+          opt_pageable_size TYPE p LENGTH 9 DECIMALS 1,
+          real_disk_size    TYPE p LENGTH 9 DECIMALS 1,
+        END OF ty_hdbtabsizes_newcol.
+
+TYPES: BEGIN OF ty_cpu_x,
+         datecnt          TYPE dats,
+         percnt           TYPE c,
+         max_hloadcnt     TYPE p LENGTH 12,
+         max_factcnt      TYPE p LENGTH 4 DECIMALS 2,
+         max_factcnt_date TYPE dats,
+         est_sapscnt      TYPE i,
+         est_sapsts(3)    TYPE c,
+         bkgratio         TYPE p LENGTH 4 DECIMALS 2,
+        END OF ty_cpu_x.
+
+TYPES:
+  BEGIN OF ty_hana_sizing_str,"/SDF/HANASIZING
+    table_name TYPE char30,
+    store      TYPE char1,
+    mem_size   TYPE dec20,
+  END OF ty_hana_sizing_str .
+
+TYPES:
+  BEGIN OF ty_hana_size_detail_str,  "/SDF/HDBTABSIZES
+    sizing_guid      TYPE guid_16,
+    table_name       TYPE char30, "/sdf/tablename,
+    part_id          TYPE int4, "/sdf/partid,
+    tab_type         TYPE char5,
+    store_type       TYPE char2,
+    src_db_size      TYPE p LENGTH 9 DECIMALS 1, "different than SolMan "/sdf/hdbtabsizes-src_db_size,
+    abap_size        TYPE p LENGTH 9 DECIMALS 1, "/sdf/hdbtabsizes-abap_size,
+    hana_size        TYPE p LENGTH 9 DECIMALS 1, "/sdf/hdbtabsizes-hana_size,
+    record_count     TYPE dec20, "/sdf/estms, "/sdf/hdbtabsizes-record_count,
+    records_sampled  TYPE dec20, "/sdf/estms, "/sdf/hdbtabsizes-records_sampled,
+    data_size_sample TYPE p LENGTH 9 DECIMALS 1, "/sdf/hdbtabsizes-data_size_sample,
+    lob_size_sampled TYPE p LENGTH 9 DECIMALS 1, "/sdf/hdbtabsizes-lob_size_sampled,
+    data_size        TYPE p LENGTH 9 DECIMALS 1, "/sdf/hdbtabsizes-data_size,
+    opt_size         TYPE dec20, "/sdf/estms, "/sdf/hdbtabsizes-opt_size,
+    lob_size         TYPE p LENGTH 9 DECIMALS 1, "/sdf/hdbtabsizes-lob_size,
+    hana_index_size  TYPE p LENGTH 9 DECIMALS 1, "/sdf/hdbtabsizes-hana_index_size,
+    object_name      TYPE sobj_name,
+    tlogo            TYPE trobjtype,
+  END OF ty_hana_size_detail_str .
+TYPES:
+  ty_hana_size_detail_tab   TYPE STANDARD TABLE OF ty_hana_size_detail_str .
+TYPES:
+  BEGIN OF ty_hana_size_summary_str, "/SDF/HDBSIZING
+    sizing_guid    TYPE guid_16,
+    crdate         TYPE sydats,
+    crtime         TYPE sytime,
+    report_name    TYPE progname,
+    report_version TYPE char6, "/sdf/sizing_version,
+    db_vendor      TYPE sydbsys,
+    db_release     TYPE bdl_dbrel,
+    sizing_variant TYPE xstring, "rsrawstring, "/sdf/sizing_variant,
+    nb_tables      TYPE int4, "/sdf/tablescount,
+    nb_errors      TYPE int4, "/sdf/errorcount,
+    error_list     TYPE xstring, "rsrawstring, "/sdf/error_list,
+    abap_size      TYPE dec20, "/sdf/estms, "/sdf/abap_size,
+    anydb_size     TYPE dec20, "/sdf/estms, "/sdf/anydb_size,
+    rs_size        TYPE dec20, "/sdf/estms, "/sdf/rs_size,
+    cs_size_master TYPE dec20, "/sdf/estms, "/sdf/cs_size_m,
+    cs_size_slave  TYPE dec20, "/sdf/estms, "/sdf/cs_size_s,
+    nb_slaves      TYPE int1, "/sdf/nb_slaves,
+    rs_hl_size     TYPE dec20, "/sdf/estms, "/sdf/rs_hl_size,
+    cs_hl_size     TYPE dec20, "/sdf/estms, "/sdf/cs_hl_size,
+    disk_size      TYPE dec20, "/sdf/estms, "/sdf/disk_size,
+    total_sizing1  TYPE dec20, "/sdf/estms,
+    total_sizing2  TYPE dec20, "/sdf/estms,
+    total_sizing3  TYPE dec20, "/sdf/estms,
+    total_sizing4  TYPE dec20, "/sdf/estms,
+    total_sizing5  TYPE dec20, "/sdf/estms,
+  END OF ty_hana_size_summary_str .
+
+TYPES:
+  BEGIN OF ty_hana_size_subtotal_str,
+    sub_toal_name TYPE rollname,
+    sub_toal      TYPE dec20,
+  END OF ty_hana_size_subtotal_str .
+TYPES:
+  ty_hana_size_subtotal_tab TYPE STANDARD TABLE OF ty_hana_size_subtotal_str .
+
+TYPES:
+  BEGIN OF ty_hdbtabsizes_newcol_str,
+    newcol_table_name        TYPE table_name,
+    newcol_load_unit(6)      TYPE c,
+    newcol_real_paged_size   TYPE p LENGTH 9 DECIMALS 1,
+    newcol_est_paged_size    TYPE p LENGTH 9 DECIMALS 1,
+    newcol_opt_pageable_size TYPE p LENGTH 9 DECIMALS 1,
+    newcol_real_disk_size    TYPE p LENGTH 9 DECIMALS 1,
+  END OF ty_hdbtabsizes_newcol_str .
+TYPES:
+  ty_hdbtabsizes_newcol_tab TYPE STANDARD TABLE OF ty_hdbtabsizes_newcol_str .
+
+TYPES:
+  BEGIN OF ty_cpu_x_str,
+    cpu_x_datecnt          TYPE dats,
+    cpu_x_percnt           TYPE c,
+    cpu_x_max_hloadcnt     TYPE p LENGTH 12,
+    cpu_x_max_factcnt      TYPE p LENGTH 4 DECIMALS 2,
+    cpu_x_max_factcnt_date TYPE dats,
+    cpu_x_est_sapscnt      TYPE i,
+    cpu_x_est_sapsts(3)    TYPE c,
+    cpu_x_bkgratio         TYPE p LENGTH 4 DECIMALS 2,
+  END OF ty_cpu_x_str .
+TYPES:
+  ty_cpu_x_tab TYPE STANDARD TABLE OF ty_cpu_x_str .
+
+TYPES:
+  BEGIN OF ty_tab_name_str,
+    table_name TYPE tabname,
+  END OF ty_tab_name_str .
+
+TYPES:
+  BEGIN OF ty_usage_key_str,
+    object_name   TYPE sobj_name,
+    object_type   TYPE trobjtype,
+    usage_counter TYPE int4, "/sdf/sapwl_t_ucount-usercount,
+  END OF ty_usage_key_str .
+TYPES:
+  ty_usage_key_tab TYPE STANDARD TABLE OF ty_usage_key_str
+  WITH KEY object_name object_type.
+
+TYPES:
+  BEGIN OF ty_trans_usage_str,
+    extraction_name TYPE char30, "sycm_extraction_name
+    object_name     TYPE sobj_name,
+    object_type     TYPE trobjtype,
+    usage_counter   TYPE int4, "/sdf/sapwl_t_ucount-usercount,
+    custom_obj_flag TYPE flag,
+    devclass        TYPE devclass,
+  END OF ty_trans_usage_str .
+TYPES:
+  ty_trans_usage_tab TYPE STANDARD TABLE OF ty_trans_usage_str .
+
+TYPES:
+  BEGIN OF ty_app_comp_str,
+    devclass TYPE devclass,
+    level    TYPE seu_level,
+    id       TYPE ufps_posid,
+    descrip  TYPE seu_text,
+  END OF ty_app_comp_str.
+TYPES: ty_app_comp_tab TYPE TABLE OF ty_app_comp_str.
+
+TYPES:
+  BEGIN OF ty_object_str,
+    pgmid           TYPE pgmid,
+    object          TYPE trobjtype,
+    obj_name        TYPE sobj_name,
+    srcsystem       TYPE srcsystem,
+    author          TYPE responsibl,
+    devclass        TYPE devclass,
+    genflag         TYPE genflag,
+    name_class      TYPE char1,
+    custom_obj_flag TYPE flag,
+    app_components  TYPE snodetab,
+  END OF ty_object_str .
+TYPES: ty_object_tab TYPE TABLE OF ty_object_str.
+
+TYPES:
+  BEGIN OF ty_conv_target_stack_str,
+    prod_number     TYPE char20,
+    prod_desc       TYPE char100,
+    prod_ver_number TYPE char20,
+    prod_ver_name   TYPE char100,
+    stack_number    TYPE char20,
+    stack_name      TYPE char100,
+    stack_sort_seq  TYPE numc10,
+  END OF ty_conv_target_stack_str .
+TYPES:
+  ty_conv_target_stack_tab TYPE TABLE OF ty_conv_target_stack_str .
+
+TYPES:
+  BEGIN OF ty_note_stat_str,
+    number      TYPE cwbntnumm,
+    implemented TYPE flag,
+    status      TYPE char1,
+    status_desc TYPE string,
+  END OF ty_note_stat_str .
+
+TYPES:
+  BEGIN OF ty_header_entry_str,
+    key   TYPE string,
+    value TYPE string,
+  END OF ty_header_entry_str .
+TYPES:
+  ty_header_entry_tab TYPE STANDARD TABLE OF ty_header_entry_str WITH DEFAULT KEY .
+
+TYPES:
+  BEGIN OF ty_bw_extractor_str,
+    oltpsource  TYPE char30,
+    extractor   TYPE char30,
+  END OF ty_bw_extractor_str .
+TYPES:
+  ty_bw_extractor_tab TYPE STANDARD TABLE OF ty_bw_extractor_str WITH DEFAULT KEY .
+
+TYPES:
+  BEGIN OF ty_bpa_kpi_str,
+    id    TYPE string,
+    text  TYPE string,
+  END OF ty_bpa_kpi_str .
+TYPES:
+  ty_bpa_kpi_tab TYPE STANDARD TABLE OF ty_bpa_kpi_str WITH KEY id .
+
+TYPES:
+  BEGIN OF ty_interface_str,
+    name                  TYPE char120,
+    callerprog            TYPE edi_fctnam,
+    application_component TYPE uffctr,
+    app_comp_desc         TYPE udtext,
+  END OF ty_interface_str .
+TYPES:
+  ty_interface_tab TYPE STANDARD TABLE OF ty_interface_str.
+
+TYPES:
+  BEGIN OF ts_fdq_error_msg_s,
+      type TYPE char1,
+      text TYPE char255,
+  END OF ts_fdq_error_msg_s .
+TYPES:
+  tt_fdq_error_msg_t TYPE STANDARD TABLE OF ts_fdq_error_msg_s .
+
+DATA: gv_expired_dat   TYPE i VALUE 30,
+      gv_immediate     TYPE boolean VALUE 'X',
+      gt_bpa_kpi       TYPE ty_bpa_kpi_tab,
+      gv_innovation_note_implemented TYPE boolean VALUE ' ',
+      gv_in_popup      TYPE boolean VALUE ' '.
+
+TABLES sscrfields.
+
+DEFINE add_info_mesg.
+  message &1 type 'I'.
+END-OF-DEFINITION.

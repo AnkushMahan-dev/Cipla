@@ -1,0 +1,57 @@
+*&---------------------------------------------------------------------*
+*&  Include           ZPP_FETCH_REC
+*&---------------------------------------------------------------------*
+"Fetching path for sending FTP file
+SELECT SINGLE param_name FROM zparam_table INTO lv_file1 WHERE id_name = 'ANALYTICS'.
+
+  IF sy-subrc EQ 0.
+    CONDENSE lv_file1.
+  ENDIF.
+IF      P_PROD_M  = 'X'.                            " For Product Master
+  PERFORM PROD_MASTER.
+ENDIF.
+IF  P_PLNT_M  = 'X'.
+  PERFORM PLANT_MASTER.                             " For Plant Master
+ENDIF.
+IF  P_MRP_DA  = 'X'.                                " For MRP Dashboard Master
+  PERFORM PROD_LOC_MASTER.
+ENDIF.
+IF  P_CUST_M  = 'X'.                                " For Customer Master
+  PERFORM CUSTOMER_MASTER.
+endif.
+IF P_VEND = 'X'.                                    " For Vendor Master
+PERFORM vend_master.
+ENDIF.
+IF  P_TTSLAM  = 'X'.                                " For Transit Time SLA Master
+  PERFORM TTSLAM.
+endif.
+IF  P_BONUS   = 'X'.                                " For Bonus Data
+  PERFORM BONUS.
+ENDIF.
+IF  P_O_STK   = 'X'.                                " For Opening Stock
+  PERFORM OPENING_STOCK.
+ENDIF.
+IF P_PO_STO = 'X'.                                  " For All PO/STO
+PERFORM ALL_PO_STO.
+ENDIF.
+IF P_BOM = 'X'.                                     " For Bill of Materials
+PERFORM BOM.
+ENDIF.
+IF P_ZLTSLA = 'X' AND LV_FLAG NE 'X'.               " For ZLT_SLA
+PERFORM ZLT_SLA.
+ENDIF.
+IF P_QA33 = 'X'.                                    " For QA33
+PERFORM SCM_QA33.
+ENDIF.
+IF P_STOCK = 'X'.                                   " For Stock Movement
+PERFORM ZPP_STOCK_MOV.
+ENDIF.
+IF P_D2D = 'X' AND LV_FLAG NE 'X'.                  " For Dispense to Dispatch
+PERFORM ZPP_D2D.
+ENDIF.
+IF P_MI24 = 'X' AND LV_FLAG NE 'X'.                 " For MI24-Physical Inventory List
+PERFORM ZPP_SCM_MI24.
+ENDIF.
+IF  P_CR_BLS  = 'X'.
+  PERFORM CREDIT_BLOCK.
+ENDIF.

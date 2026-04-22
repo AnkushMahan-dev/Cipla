@@ -1,0 +1,101 @@
+*----------------------------------------------------------------------*
+***INCLUDE ZPP_SCM_ANALYTICS_CONNECT2FTP.
+*----------------------------------------------------------------------*
+*&      Form  CONNECT_2_FTP
+*&---------------------------------------------------------------------*
+FORM connect_2_ftp  USING    l_dest
+                    CHANGING l_hdl
+                             l_exp.
+TYPES: BEGIN OF ty_sd_ftp,
+          userid   TYPE zsd_ftp-userid,
+          username TYPE zsd_ftp-username,
+          password TYPE zsd_ftp-password,
+          host     TYPE zsd_ftp-host,
+        END OF ty_sd_ftp.
+  DATA: wa_ftp1 TYPE ty_sd_ftp.
+
+  DATA:  l_user(30) TYPE c,
+         l_pwd(30) TYPE c,
+         l_host(64) TYPE c.
+
+
+  SELECT SINGLE userid
+                username
+                password
+                host
+    FROM zsd_ftp INTO wa_ftp1 WHERE userid = 'ANALYTICS'.
+
+
+  l_user = wa_ftp1-username.
+  l_pwd  = wa_ftp1-password.
+  l_host = wa_ftp1-host.
+
+  DATA: c_key TYPE i VALUE 26101957,
+        l_slen TYPE i.
+
+*HTTP_SCRAMBLE: used to scramble the password provided in a format recognized by SAP.
+  l_slen = strlen( l_pwd ).
+  CALL FUNCTION 'HTTP_SCRAMBLE'
+    EXPORTING
+      source      = l_pwd
+      sourcelen   = l_slen
+      key         = c_key
+    IMPORTING
+      destination = l_pwd.
+* To Connect to the Server using FTP
+  CALL FUNCTION 'FTP_CONNECT'
+    EXPORTING
+      user            = l_user
+      password        = l_pwd
+      host            = l_host
+      rfc_destination = l_dest
+    IMPORTING
+      handle          = l_hdl
+    EXCEPTIONS
+      OTHERS          = 1.
+
+  IF sy-subrc <> 0.
+    l_exp = 'X'.
+  ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  SEND_2_FTP
+*&---------------------------------------------------------------------*
+FORM send_2_ftp  USING    p_lv_file.
+*FTP_R3_TO_SERVER:used to transfer the internal table data as a file to other system in the character mode.
+  CALL FUNCTION 'FTP_R3_TO_SERVER'
+    EXPORTING
+      handle         = g_hdl
+      fname          = p_lv_file          "file path of destination system
+      character_mode = 'X'
+    TABLES
+      text           = ta_ftp
+    EXCEPTIONS
+      tcpip_error    = 1
+      command_error  = 2
+      data_error     = 3
+      OTHERS         = 4.
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+    WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4
+    RAISING invalid_output_file.
+  ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  DISCONNECT_FTP
+*&---------------------------------------------------------------------*
+FORM disconnect_ftp  USING    l_hdl
+                              l_dest.
+CALL FUNCTION 'FTP_DISCONNECT'
+    EXPORTING
+      handle = l_hdl.
+
+  CALL FUNCTION 'RFC_CONNECTION_CLOSE'
+    EXPORTING
+      destination = l_dest
+    EXCEPTIONS
+      OTHERS      = 1.
+
+ENDFORM.

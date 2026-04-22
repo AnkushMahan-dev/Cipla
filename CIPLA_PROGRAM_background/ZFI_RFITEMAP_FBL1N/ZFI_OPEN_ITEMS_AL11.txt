@@ -1,0 +1,1548 @@
+*&---------------------------------------------------------------------*
+*&  Include           ZFI_OPEN_ITEMS_AL11
+*&---------------------------------------------------------------------*
+* Title             : Ariba SAP Integration for invoice positing
+* Author            : Sushil Pandey / Shivaji Ingole
+* Program Type      : Executable
+* Creation Date     : 29.10.2020
+* Transaction       :
+* Functional design : FS_FI_339
+* Change request    : 8000006609/8000006782
+* Transport request : CRDK974236 / CRDK975380/CRDK975949
+* Description       : Ariba SAP Integration for invoice positing-File
+*                     send to AL11-for Open Items
+*&---------------------------------------------------------------------*
+* Modification Information
+* Date            : 30.03.2022
+* Author          : Satish Chakra
+* Change request  : 8000008093
+* Transport number: CRDK982473
+* Description     : Added column Header Text for newely created Variant
+*&---------------------------------------------------------------------*
+
+TYPES: BEGIN OF ty_open_items,
+         bukrs         TYPE rfposxext-bukrs,        " Company Code   ""SOC Added by pranita as on 27.01.2020 against ticket no. CRDK975958
+         konto         TYPE rfposxext-konto,        " Vendor Code
+         vend_n        TYPE adrc-name1,             " Vendor Name
+         xblnr         TYPE rfposxext-xblnr,        " Invoice Number
+         budat         TYPE rfposxext-budat,        " Invoice Date
+         faedt         TYPE rfposxext-faedt,        " Due Date
+         dmshb(20),"     TYPE RFPOSXEXT-dmshb,      " Invoice Amount
+         wt_qbshh(20),"  TYPE WITH_ITEM-WT_QBSHH,   " Withholding Tax
+         wt_qbshhn(20)," TYPE WITH_ITEM-WT_QBSHH,   " Net amount payable
+         stat(25),                                  " Status
+         zuonr         TYPE rfposxext-zuonr,        " PO Number
+         textr(30),                                 " Text
+         p_amt         TYPE with_item-wt_qbshh,     " Amount Paid
+         p_date        TYPE rfposxext-budat,        " Payment Date
+*         p_ref         TYPE sgtxt,                  " Payment Reference  "Commented by Pranita on 22.12.2020
+         p_bank        TYPE xblnr1,                 " Bank "
+         zlspr         TYPE t008t-textl,       " Payment block description requiredrfposxext-zlspr,        " Payment Bolck "added By Nilesh 17.11.2020 Added by Pranita on 22.12.2020
+         p_ref         TYPE sgtxt,                  " Payment Reference  "
+       END OF ty_open_items,
+
+** SOC SATISH CHAKRA #8000008093 29.03.2022
+       BEGIN OF ty_open_items1,
+         bukrs         TYPE rfposxext-bukrs,        " Company Code
+         konto         TYPE rfposxext-konto,        " Vendor Code
+         vend_n        TYPE adrc-name1,             " Vendor Name
+         xblnr         TYPE rfposxext-xblnr,        " Invoice Number
+         budat         TYPE rfposxext-budat,        " Invoice Date
+         faedt         TYPE rfposxext-faedt,        " Due Date
+         dmshb(20),"     TYPE RFPOSXEXT-dmshb,      " Invoice Amount
+         wt_qbshh(20),"  TYPE WITH_ITEM-WT_QBSHH,   " Withholding Tax
+         wt_qbshhn(20)," TYPE WITH_ITEM-WT_QBSHH,   " Net amount payable
+         stat(25),                                  " Status
+         zuonr         TYPE rfposxext-zuonr,        " PO Number
+         textr(30),                                 " Text
+         p_amt         TYPE with_item-wt_qbshh,     " Amount Paid
+         p_date        TYPE rfposxext-budat,        " Payment Date
+*         p_ref         TYPE sgtxt,                  " Payment Reference
+         p_bank        TYPE xblnr1,                 " Bank "
+         zlspr         TYPE t008t-textl,       " Payment block description requiredrfposxext-zlspr,
+         p_ref         TYPE sgtxt,                  " Payment Reference  "
+         bktxt         TYPE bktxt,
+       END OF ty_open_items1,
+
+       BEGIN OF ty_head_text,
+         bukrs TYPE bukrs,
+         belnr TYPE belnr_d,
+         gjahr TYPE gjahr,
+         bltxt TYPE bktxt,
+       END OF ty_head_text,
+** EOC SATISH CHAKRA #8000008093 29.03.2022
+
+       BEGIN OF ty_augbl_in,
+         augbl TYPE rfposxext-augbl,
+       END OF ty_augbl_in.
+"Structure corresponding to program ZFI_AP_PAYMENT_IAP_COPY-Begin
+TYPES : BEGIN OF ty_final_iap_app,
+          bukrs     TYPE bukrs,
+          belnr     TYPE char20, "belnr_d,
+          budat     TYPE char10, "budat,
+          gjahr     TYPE gjahr,
+          clr_belnr TYPE belnr_d,
+          clr_dt    TYPE char10, "augdt,
+          owclr_doc TYPE belnr_d,
+          owclr_dt  TYPE char10, "augdt,
+          sgtxt     TYPE sgtxt,
+          dmbtr     TYPE char16,
+          qbshb     TYPE char16,
+          bill_amt  TYPE char16,
+          xblnr     TYPE xblnr1,
+          net_dt    TYPE char10,
+        END OF ty_final_iap_app.
+
+DATA: wa_zfi_iap_copy  TYPE ty_final_iap_app,
+      ta_zfi_iap_copy  TYPE TABLE OF ty_final_iap_app,
+      gv_read_file(50),   "SOC commented by pranita as on 27.01.2020 against ticket no. CRDK975949
+      gv_string        TYPE string.
+"Structure corresponding to program ZFI_AP_PAYMENT_IAP_COPY-End
+
+DATA: wa_open_items   TYPE ty_open_items,
+      ta_open_items   TYPE TABLE OF ty_open_items,
+      wa_augbl_in     TYPE ty_augbl_in,
+      ta_augbl_in     TYPE TABLE OF ty_augbl_in,
+      wa_clear_items  TYPE ty_open_items,
+      ta_clear_items  TYPE TABLE OF ty_open_items,
+      wa_clear_items1 TYPE ty_open_items1, " Added by Satish Chakra #8000008093 29.03.2022
+      wa_head_text    TYPE ty_head_text, " Added by Satish Chakra #8000008093 29.03.2022
+      ta_head_text    TYPE TABLE OF ty_head_text, " Added by Satish Chakra #8000008093 29.03.2022
+      ta_clear_items1 TYPE TABLE OF ty_open_items1, " Added by Satish Chakra #8000008093 29.03.2022
+      gv_tab          TYPE truxs_t_text_data,
+      gv_tab1         TYPE truxs_t_text_data,
+      wa_tab          LIKE LINE OF gv_tab,
+*      gv_file_path(50),  "SOC commented by pranita as on 27.01.2020 against ticket no. CRDK975958
+      gv_file_path    TYPE string,    "SOC commented by pranita as on 27.01.2020 against ticket no. CRDK975958
+      gv_amt1         TYPE rfposxext-dmshb,
+      gv_amt2         TYPE rfposxext-dmshb,
+      gv_amt3         TYPE rfposxext-dmshb.
+
+DATA: lv_tab TYPE c VALUE cl_abap_char_utilities=>horizontal_tab.
+
+RANGES: r_blart FOR rfposxext-blart.
+RANGES: r_umskz FOR rfposxext-umskz.
+RANGES: r_konto FOR rfposxext-konto.
+
+CONSTANTS: co_set_zvp_open        TYPE setleaf-setname  VALUE 'ZVP_OPEN_DT'.
+CONSTANTS: co_set_zvpsplgl        TYPE setleaf-setname  VALUE 'ZVP_OPEN_SPL'.
+CONSTANTS: co_zvp_clear_scb_dt    TYPE setleaf-setname  VALUE 'ZVP_CLEAR_SCB_DT'.
+CONSTANTS: co_zvp_clear_scf_dt    TYPE setleaf-setname  VALUE 'ZVP_CLEAR_SCF_DT'.
+CONSTANTS: co_zvp_clear_scf_m_dt  TYPE setleaf-setname  VALUE 'ZVP_CLEAR_SCF_M_DT'.
+CONSTANTS: co_zvp_clear_cn_dt     TYPE setleaf-setname  VALUE 'ZVP_CLEAR_CN_DT'.
+CONSTANTS: co_zvp_clear_part_dt   TYPE setleaf-setname  VALUE 'ZVP_CLEAR_PARTIAL_DT'.
+CONSTANTS: co_zuonr_3             TYPE rfposxext-zuonr  VALUE '452'.
+CONSTANTS: co_augbl_2             TYPE rfposxext-augbl  VALUE '2'.
+CONSTANTS: co_augbl_3             TYPE rfposxext-augbl  VALUE '3'.
+CONSTANTS: co_augbl_4             TYPE rfposxext-augbl  VALUE '4'.
+CONSTANTS: co_augbl_11            TYPE rfposxext-augbl  VALUE '11'.
+CONSTANTS: co_augbl_15            TYPE rfposxext-augbl  VALUE '15'.
+CONSTANTS: co_t2_blart            TYPE rfposxext-blart  VALUE 'T2'.
+CONSTANTS: co_re                  TYPE rfposxext-blart  VALUE 'RE'.
+CONSTANTS: co_kz                  TYPE rfposxext-blart  VALUE 'KZ'.
+CONSTANTS: co_kg                  TYPE rfposxext-blart  VALUE 'KG'.
+CONSTANTS: co_kr                  TYPE rfposxext-blart  VALUE 'KR'.
+*CONSTANTS: co_re                  TYPE rfposxext-blart  VALUE 'RE'.
+CONSTANTS: co_sa                  TYPE rfposxext-blart  VALUE 'SA'.
+CONSTANTS: co_open_adv(20)                              VALUE 'Open Advance'.
+CONSTANTS: co_open_cn(20)                               VALUE 'Open CN'.
+CONSTANTS: co_open(4)                                   VALUE 'Open'.
+CONSTANTS: co_paid(4)                                   VALUE 'Paid'.
+CONSTANTS: co_cn_adj(20)                                VALUE 'CN Adjusted'.
+CONSTANTS: co_cleared(20)                                VALUE 'Cleared'.
+CONSTANTS: co_part_p(20)                                VALUE 'Partially paid'.
+CONSTANTS: co_adv_t(20)                                 VALUE 'Advance against PO– '.
+CONSTANTS: co_tds_deduct(20)                            VALUE 'TDS deduction'.
+CONSTANTS: co_zvp_file_path TYPE zparam_table-id_name   VALUE 'ZFI_VP'.
+CONSTANTS: co_file_f1(15)                               VALUE 'ZVP_Report_OPEN'.
+CONSTANTS: co_file_f2(16)                               VALUE 'ZVP_Report_CLEAR'.
+CONSTANTS: co_file_f3(20)                               VALUE 'ZVP_Report_CLEAR_EAS'. " Added by Satish Chakra #8000008093 29.03.2022
+CONSTANTS: co_var_z8(16)                                VALUE 'CLEARED_Z8_EAS'.
+*CONSTANTS: co_file_ext(5)                               VALUE '.xls'. "SOC Commented by pranita as on 27.01.2020 against ticket no. CRDK975949
+CONSTANTS: co_file_ext(5)                               VALUE '.CSV'. "SOC added by pranita as on 27.01.2020 against ticket no. CRDK975949
+CONSTANTS: co_e             TYPE t008t-spras                  VALUE 'E'. " LOC Added by Sushil as on 02.12.2020 against ticket no. 8000006782
+
+ DATA(lv_var) = syst-slset.
+
+IF x_opsel = abap_true.
+  DATA(ta_case1) = it_pos[].
+  DATA(ta_case8) = it_pos[].
+  """ SOC done by Sushil as on 02.12.2020 against ticket no. 8000006782
+  DATA(it_pos_zlspr) = it_pos[].
+  DELETE it_pos_zlspr WHERE zlspr IS INITIAL.
+  SORT it_pos_zlspr BY zlspr.
+  DELETE ADJACENT DUPLICATES FROM it_pos_zlspr COMPARING zlspr.
+  IF it_pos_zlspr[] IS NOT INITIAL.
+    SELECT * FROM t008t INTO TABLE @DATA(ta_t008t)
+      FOR ALL ENTRIES IN @it_pos_zlspr
+      WHERE spras = @co_e AND
+            zahls = @it_pos_zlspr-zlspr.
+
+  ENDIF.
+  """ EOC done by Sushil as on 02.12.2020 against ticket no. 8000006782
+  """ Process initiation for case 1
+  SELECT * FROM setleaf INTO TABLE @DATA(ta_set_open) WHERE setname = @co_set_zvp_open.
+
+
+  IF sy-subrc IS INITIAL.
+    LOOP AT ta_set_open INTO DATA(wa_setleaf).
+      r_blart-sign    =  'I'.
+      r_blart-option  = 'EQ'.
+      r_blart-low   = wa_setleaf-valfrom.
+      APPEND r_blart.
+      CLEAR r_blart.
+    ENDLOOP.
+  ENDIF.
+
+  DELETE ta_case1 WHERE blart NOT IN r_blart. " If document type( BLART ) not exist against setname = ZVP_OPEN_DT in setleaf table, that document will be excluded
+
+  "" Excluding vendors whose PO(ZUONR) begin with 452
+** SOC commented by Pranita Ticket 8000006782 on 02.03.2020
+*  LOOP AT ta_case1 ASSIGNING FIELD-SYMBOL(<fs_case1>).
+*    IF <fs_case1>-zuonr+0(3) = co_zuonr_3.
+*      r_konto-sign    =  'I'.
+*      r_konto-option  = 'EQ'.
+*      r_konto-low   = <fs_case1>-konto.
+*      APPEND r_konto.
+*      CLEAR r_konto.
+*    ENDIF.
+*
+*  ENDLOOP.
+*
+*  IF r_konto[] IS NOT INITIAL.
+*    DELETE ta_case1 WHERE konto IN r_konto.
+*  ENDIF.
+** EOC commented by Pranita against Ticket 8000006782 on 02.03.2020 ticket
+  ""Fetching value for Special GL indicator
+  SELECT * FROM setleaf INTO TABLE @DATA(ta_set_splgl) WHERE setname = @co_set_zvpsplgl.
+
+  IF sy-subrc IS INITIAL.
+    CLEAR wa_setleaf.
+    LOOP AT ta_set_splgl INTO wa_setleaf.
+      r_umskz-sign    =  'I'.
+      r_umskz-option  = 'EQ'.
+      r_umskz-low    = wa_setleaf-valfrom.
+      APPEND r_umskz.
+      CLEAR r_umskz.
+    ENDLOOP.
+  ENDIF.
+
+  DATA(ta_case1_blank) = ta_case1[].
+  DELETE ta_case1_blank WHERE umskz NE ''.
+  DELETE ta_case1 WHERE umskz NOT IN r_umskz. " Deleting records whose Special GL indicator not maintained in SETNAME = ZVP_OPEN_SPL
+  APPEND LINES OF ta_case1_blank TO ta_case1.
+
+
+  """ fetching details of Vendor name from vendor master-Begin
+  IF ta_case1[] IS NOT INITIAL.
+    SELECT
+      lifnr,
+      adrnr FROM lfa1 INTO TABLE @DATA(ta_lfa1_tmp)
+            FOR ALL ENTRIES IN @ta_case1
+            WHERE lifnr = @ta_case1-konto.
+
+    IF ta_lfa1_tmp[] IS NOT INITIAL.
+
+      SELECT
+        addrnumber,
+        name1 FROM adrc INTO TABLE @DATA(ta_adrc_tmp)
+              FOR ALL ENTRIES IN @ta_lfa1_tmp
+              WHERE addrnumber = @ta_lfa1_tmp-adrnr.
+
+    ENDIF.
+
+    SELECT
+        lifnr,
+        bukrs,
+        witht,
+        wt_subjct FROM lfbw INTO TABLE @DATA(lta_lfbw_tmp)
+                  FOR ALL ENTRIES IN @ta_case1
+                  WHERE lifnr = @ta_case1-konto AND
+                        bukrs = @ta_case1-bukrs AND
+                        wt_subjct IS NOT NULL.
+
+    IF lta_lfbw_tmp[] IS NOT INITIAL.
+      SELECT
+        bukrs,
+        belnr,
+        gjahr,
+        buzei,
+        witht,
+        wt_qbshh FROM with_item INTO TABLE @DATA(lta_with_item_tmp)
+                 FOR ALL ENTRIES IN @ta_case1
+                 WHERE  bukrs = @ta_case1-bukrs AND
+                        belnr = @ta_case1-belnr AND
+                        gjahr = @ta_case1-gjahr.
+      """ SOC Done by Sushil as on 02.12.2020 agains ticket no. 8000006782
+      DATA(lta_with_item_tmp1) = lta_with_item_tmp[].
+      SORT lta_with_item_tmp BY bukrs belnr gjahr.
+      DELETE ADJACENT DUPLICATES FROM lta_with_item_tmp COMPARING bukrs belnr gjahr.
+      LOOP AT lta_with_item_tmp ASSIGNING FIELD-SYMBOL(<fs_with_item_tmp>).
+
+        DATA(lta_with_item_copy) = lta_with_item_tmp1[].
+        DELETE lta_with_item_copy WHERE bukrs NE <fs_with_item_tmp>-bukrs.
+        DELETE lta_with_item_copy WHERE belnr NE <fs_with_item_tmp>-belnr.
+        DELETE lta_with_item_copy WHERE gjahr NE <fs_with_item_tmp>-gjahr.
+        CLEAR <fs_with_item_tmp>-wt_qbshh.
+        LOOP AT lta_with_item_copy INTO DATA(with_temp_copy).
+          <fs_with_item_tmp>-wt_qbshh = <fs_with_item_tmp>-wt_qbshh + with_temp_copy-wt_qbshh.
+        ENDLOOP.
+      ENDLOOP.
+      """ SOC Done by Sushil as on 02.12.2020 agains ticket no. 8000006782
+    ENDIF.
+
+  ENDIF.
+
+  """ fetching details of Vendor name from vendor master-End
+  DELETE ta_case8 WHERE blart NE co_t2_blart.
+
+  DATA(ta_case8_tmp) = ta_case8[].
+  SORT ta_case8     BY gjahr konto."konto added By nilesh 17.11.2020
+  SORT ta_case8_tmp BY gjahr konto."konto added By nilesh 17.11.2020
+
+  """ SOC done by Sushil as on 03.12.2020 against ticket no. 8000006782
+  IF ta_case8[] IS NOT INITIAL.
+    SELECT
+        lifnr
+        adrnr FROM lfa1 APPENDING TABLE ta_lfa1_tmp
+              FOR ALL ENTRIES IN ta_case8
+              WHERE lifnr = ta_case8-konto.
+
+    IF ta_lfa1_tmp[] IS NOT INITIAL.
+
+      SELECT
+        addrnumber
+        name1 FROM adrc INTO TABLE ta_adrc_tmp
+              FOR ALL ENTRIES IN ta_lfa1_tmp
+              WHERE addrnumber = ta_lfa1_tmp-adrnr.
+
+    ENDIF.
+  ENDIF.
+  """ EOC done by Sushil as on 03.12.2020 against ticket no. 8000006782
+  DELETE ADJACENT DUPLICATES FROM ta_case8 COMPARING gjahr konto. "konto added By nilesh 17.11.2020
+  LOOP AT ta_case8 ASSIGNING FIELD-SYMBOL(<fs_case1>).
+
+    DATA(lv_ind) = line_index( ta_case8_tmp[ gjahr = <fs_case1>-gjahr konto = <fs_case1>-konto ] ). "konto added By nilesh 17.11.2020
+    CLEAR <fs_case1>-dmshb.
+    LOOP AT ta_case8_tmp INTO DATA(wa_case8_tmp) FROM lv_ind.
+      IF ( wa_case8_tmp-gjahr NE <fs_case1>-gjahr OR wa_case8_tmp-konto NE <fs_case1>-konto ). "konto added By nilesh 17.11.2020
+        EXIT.
+
+      ELSE.
+        <fs_case1>-dmshb = <fs_case1>-dmshb + wa_case8_tmp-dmshb.
+      ENDIF.
+    ENDLOOP.
+  ENDLOOP.
+
+  """ Final data processing-Begin
+  LOOP AT ta_case1 ASSIGNING <fs_case1>.
+
+    wa_open_items = CORRESPONDING #( <fs_case1> ).
+
+    """ SOC Done by Sushil as on 02.12.2020 against ticket no. 8000006782
+    IF line_exists( ta_t008t[ zahls = <fs_case1>-zlspr ] ).
+      DATA(wa_t008t) = ta_t008t[ zahls = <fs_case1>-zlspr ].
+      wa_open_items-zlspr = wa_t008t-textl. " Payment Block description
+    ENDIF.
+    """ EOC Done by Sushil as on 02.12.2020 against ticket no. 8000006782
+
+    CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+      CHANGING
+        value = wa_open_items-dmshb.
+
+    IF line_exists( ta_lfa1_tmp[ lifnr = <fs_case1>-konto ] ).
+      DATA(wa_lfa1_tmp) = ta_lfa1_tmp[ lifnr = <fs_case1>-konto ].
+
+      IF line_exists( ta_adrc_tmp[ addrnumber = wa_lfa1_tmp-adrnr ] ).
+        DATA(wa_adrc_tmp) = ta_adrc_tmp[ addrnumber = wa_lfa1_tmp-adrnr ].
+        wa_open_items-vend_n = wa_adrc_tmp-name1. " Vendor Name
+      ENDIF.
+    ENDIF.
+
+    ""Logic-With holding tax
+    IF line_exists( lta_lfbw_tmp[ lifnr = <fs_case1>-konto bukrs = <fs_case1>-bukrs ] ).
+      DATA(wa_lfbw_tmp) = lta_lfbw_tmp[ lifnr = <fs_case1>-konto bukrs = <fs_case1>-bukrs ].
+
+      IF wa_lfbw_tmp-wt_subjct IS NOT INITIAL AND
+        line_exists( lta_with_item_tmp[ bukrs = <fs_case1>-bukrs belnr = <fs_case1>-belnr gjahr = <fs_case1>-gjahr ] ).
+        DATA(lwa_with_item_tmp) = lta_with_item_tmp[ bukrs = <fs_case1>-bukrs belnr = <fs_case1>-belnr gjahr = <fs_case1>-gjahr ].
+        wa_open_items-wt_qbshh = lwa_with_item_tmp-wt_qbshh. " Withholding tax
+
+        CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+          CHANGING
+            value = wa_open_items-wt_qbshh.
+
+      ENDIF.
+    ENDIF.
+
+    gv_amt1 = wa_open_items-dmshb.
+    gv_amt2 = wa_open_items-wt_qbshh.
+    gv_amt3 = wa_open_items-dmshb - wa_open_items-wt_qbshh.
+    wa_open_items-wt_qbshhn = gv_amt3. " Net amount payable
+
+    CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+      CHANGING
+        value = wa_open_items-wt_qbshhn.
+
+    "" Logic for Status-Begin
+    IF <fs_case1>-umskz IS NOT INITIAL.
+      wa_open_items-stat = co_open_adv.
+    ENDIF.
+    IF <fs_case1>-blart EQ co_kg.
+      wa_open_items-stat = co_open_cn.
+    ENDIF.
+    IF wa_open_items-stat IS INITIAL.
+      wa_open_items-stat = co_open.
+    ENDIF.
+
+    "" Logic for Status-End
+
+
+    "" Logic to update text column-Begin
+    IF <fs_case1>-umskz IS NOT INITIAL.
+      wa_open_items-textr = |{ co_adv_t }{ <fs_case1>-zuonr }|.
+    ENDIF.
+
+    wa_open_items-p_date  = ''.
+    wa_open_items-p_ref   = ''.
+    wa_open_items-p_bank  = ''.
+    "" Logic to update text column-End
+
+    wa_open_items-budat = <fs_case1>-bldat. "budat has been replaced by bldat-Sushil 03.12.2020
+    APPEND wa_open_items TO ta_open_items.
+    CLEAR wa_open_items.
+  ENDLOOP.
+
+  """ Appending line of Case 8-Begin
+  LOOP AT ta_case8 ASSIGNING <fs_case1>.
+    wa_open_items-konto = <fs_case1>-konto."konto added By nilesh 17.11.2020
+
+    """ SOC done by Sushil as on 02.12.2020 against ticket no. 8000006782
+    IF line_exists( ta_lfa1_tmp[ lifnr = <fs_case1>-konto ] ).
+      DATA(wa_lfa1_tmp_k) = ta_lfa1_tmp[ lifnr = <fs_case1>-konto ].
+
+      IF line_exists( ta_adrc_tmp[ addrnumber = wa_lfa1_tmp_k-adrnr ] ).
+        DATA(wa_adrc_tmp_k) = ta_adrc_tmp[ addrnumber = wa_lfa1_tmp_k-adrnr ].
+        wa_open_items-vend_n = wa_adrc_tmp_k-name1. " Vendor Name
+      ENDIF.
+    ENDIF.
+
+    """ EOC done by Sushil as on 02.12.2020 against ticket no. 8000006782
+    wa_open_items-budat = <fs_case1>-bldat. "budat has been replaced by bldat-Sushil 02.12.2020 "konto added By nilesh 17.11.2020
+    wa_open_items-dmshb = <fs_case1>-dmshb.
+    wa_open_items-stat  = co_tds_deduct.
+    wa_open_items-p_amt = <fs_case1>-dmshb.
+
+    IF wa_open_items-p_amt LT 0.
+      wa_open_items-p_amt =  wa_open_items-p_amt * -1.
+    ENDIF.
+    APPEND wa_open_items TO ta_open_items.
+    CLEAR wa_open_items.
+  ENDLOOP.
+  """ Appending line of Case 8-End
+
+ELSEIF x_clsel = abap_true.
+
+  IF it_pos IS NOT INITIAL.
+    SELECT bukrs belnr gjahr bktxt
+            FROM bkpf INTO TABLE ta_head_text
+            FOR ALL ENTRIES IN it_pos
+            WHERE bukrs = it_pos-bukrs
+            AND belnr = it_pos-belnr
+            AND gjahr = it_pos-gjahr.
+  ENDIF.
+  IF ta_head_text IS NOT INITIAL.
+    SORT ta_head_text BY bukrs belnr gjahr.
+  ENDIF.
+
+
+
+  """ Processing Case 7-Begin
+
+  DATA(ta_case7) = it_pos[].
+* SOC commented by Pranita against Ticket 8000006782 on 02.03.2020 ticket
+*  LOOP AT ta_case7 ASSIGNING <fs_case1>.
+*    IF <fs_case1>-zuonr+0(3) NE co_zuonr_3.
+*      <fs_case1>-zuonr = abap_true.
+*    ENDIF.
+*  ENDLOOP.
+*  DELETE ta_case7 WHERE zuonr = abap_true.
+** EOC commented by Pranita against Ticket 8000006782 on 02.03.2020 ticket
+*  LOOP AT ta_case7 ASSIGNING <fs_case1>.
+*
+*    IF line_exists( it_pos[ konto = <fs_case1>-konto ] ).
+*      DELETE it_pos[] WHERE konto = <fs_case1>-konto.
+*    ENDIF.
+*
+*  ENDLOOP.
+
+  """ Processing Case 7-End
+  DATA(ta_case2) = it_pos[].
+  DATA(ta_case3) = it_pos[].
+  DATA(ta_case4) = it_pos[].
+  DATA(ta_case5) = it_pos[].
+  DATA(ta_case6) = it_pos[].
+
+  CLEAR r_blart[].
+
+  CLEAR ta_lfa1_tmp[].
+  IF ta_case2[] IS NOT INITIAL.
+    SELECT
+        lifnr
+        adrnr FROM lfa1 INTO TABLE ta_lfa1_tmp
+              FOR ALL ENTRIES IN ta_case2
+              WHERE lifnr = ta_case2-konto.
+
+    IF ta_lfa1_tmp[] IS NOT INITIAL.
+      CLEAR ta_adrc_tmp[].
+      SELECT
+        addrnumber
+        name1 FROM adrc INTO TABLE ta_adrc_tmp
+              FOR ALL ENTRIES IN ta_lfa1_tmp
+              WHERE addrnumber = ta_lfa1_tmp-adrnr.
+
+    ENDIF.
+    CLEAR lta_lfbw_tmp[].
+    SELECT
+        lifnr
+        bukrs
+        witht
+        wt_subjct FROM lfbw INTO TABLE lta_lfbw_tmp
+                  FOR ALL ENTRIES IN ta_case2
+                  WHERE lifnr = ta_case2-konto AND
+                        bukrs = ta_case2-bukrs AND
+                        wt_subjct IS NOT NULL.
+
+    IF lta_lfbw_tmp[] IS NOT INITIAL.
+      CLEAR lta_with_item_tmp[].
+      SELECT
+        bukrs
+        belnr
+        gjahr
+        buzei
+        witht
+        wt_qbshh FROM with_item INTO TABLE lta_with_item_tmp
+                 FOR ALL ENTRIES IN ta_case2
+                 WHERE  bukrs = ta_case2-bukrs AND
+                        belnr = ta_case2-belnr AND
+                        gjahr = ta_case2-gjahr.
+      """ SOC Done by Sushil as on 02.12.2020 agains ticket no. 8000006782
+      CLEAR lta_with_item_tmp1[].
+      lta_with_item_tmp1 = lta_with_item_tmp[].
+      SORT lta_with_item_tmp BY bukrs belnr gjahr.
+      DELETE ADJACENT DUPLICATES FROM lta_with_item_tmp COMPARING bukrs belnr gjahr.
+      LOOP AT lta_with_item_tmp ASSIGNING <fs_with_item_tmp>.
+        CLEAR lta_with_item_copy[].
+        lta_with_item_copy = lta_with_item_tmp1[].
+        DELETE lta_with_item_copy WHERE bukrs NE <fs_with_item_tmp>-bukrs.
+        DELETE lta_with_item_copy WHERE belnr NE <fs_with_item_tmp>-belnr.
+        DELETE lta_with_item_copy WHERE gjahr NE <fs_with_item_tmp>-gjahr.
+        CLEAR <fs_with_item_tmp>-wt_qbshh.
+        CLEAR with_temp_copy.
+        LOOP AT lta_with_item_copy INTO with_temp_copy.
+          <fs_with_item_tmp>-wt_qbshh = <fs_with_item_tmp>-wt_qbshh + with_temp_copy-wt_qbshh.
+        ENDLOOP.
+      ENDLOOP.
+      """ SOC Done by Sushil as on 02.12.2020 agains ticket no. 8000006782
+    ENDIF.
+  ENDIF.
+  """ Processing Case 2-Begin
+  SELECT * FROM setleaf INTO TABLE @DATA(ta_set_zvp_clear_scb_dt)
+    WHERE setname = @co_zvp_clear_scb_dt.
+
+  IF sy-subrc IS INITIAL.
+    LOOP AT ta_set_zvp_clear_scb_dt INTO wa_setleaf.
+      r_blart-sign    =  'I'.
+      r_blart-option  = 'EQ'.
+      r_blart-low   = wa_setleaf-valfrom.
+      APPEND r_blart.
+      CLEAR r_blart.
+    ENDLOOP.
+  ENDIF.
+
+  DATA(ta_case2_f) = ta_case2[].
+  DELETE ta_case2_f WHERE blart NOT IN r_blart[]. " Excluding document which is not maintained in setleaf-setname = 'ZVP_CLEAR_SCB_DT'
+  DATA(ta_case2_tmp) = ta_case2_f[].
+  DATA(ta_case2_tmp_cl) = ta_case2_f[].
+  DATA(ta_case2_tmp1) = ta_case2_f[].
+*  CLEAR ta_case2_tmp[].
+
+  "" Fetching records whose clearing document number not starting with 2 or 15-begin
+** SOC commented by Pranita on 04.03.2020 against ticket 800006782  " The below functionality is implemented in line 816
+*  LOOP AT ta_case2_tmp1 ASSIGNING <fs_case1>.
+*    IF <fs_case1>-augbl+0(1) EQ  co_augbl_2 OR <fs_case1>-augbl+0(2) EQ  co_augbl_15.
+*      APPEND <fs_case1>  TO ta_case2_tmp.
+*    ENDIF.
+*  ENDLOOP.
+** EOC commented by Pranita on 04.03.2020 against ticket 800006782
+  "" Fetching records whose clearing document number not starting with 2 or 15-End
+
+  """ Final records of case 2
+  ""SOC Done by Sushil as on 02.12.2020 against ticket no. 8000006782
+
+  CLEAR ta_case2[].
+  ta_case2[] = ta_case2_tmp.
+  ""EOC Done by Sushil as on 02.12.2020 against ticket no. 8000006782
+  "Begin of commented Section-Sushil-02.12.2020
+**  LOOP AT ta_case2 ASSIGNING <fs_case1>.
+**    IF NOT line_exists( ta_case2_tmp[ augbl = <fs_case1>-augbl ] ).
+**      <fs_case1>-augbl = abap_true.
+**    ENDIF.
+**  ENDLOOP.
+**
+**  DELETE ta_case2 WHERE augbl = abap_true.
+  "End of commented Section-Sushil-02.12.2020
+
+
+  """ Processing Case 2-End
+
+  """ Processing Case 3-Begin
+
+  CLEAR r_blart[].
+  SELECT * FROM setleaf INTO TABLE @DATA(ta_set_zvp_clear_scf_dt)
+    WHERE setname = @co_zvp_clear_scf_dt.
+
+  IF sy-subrc IS INITIAL.
+    LOOP AT ta_set_zvp_clear_scf_dt INTO wa_setleaf.
+      r_blart-sign    =  'I'.
+      r_blart-option  = 'EQ'.
+      r_blart-low     = wa_setleaf-valfrom.
+      APPEND r_blart.
+      CLEAR r_blart.
+    ENDLOOP.
+  ENDIF.
+
+  DATA(ta_case_3_f) = ta_case3[].
+
+  DELETE ta_case_3_f WHERE blart NOT IN  r_blart[].
+
+  DATA(ta_case3_tmp) = ta_case_3_f[].
+
+  "Fetching entry whose clearing document not begin with 11-Begin
+  LOOP AT ta_case3_tmp ASSIGNING <fs_case1>.
+    IF <fs_case1>-augbl+0(2) NE co_augbl_11.
+      <fs_case1>-augbl = abap_true.
+    ENDIF.
+  ENDLOOP.
+
+  DELETE ta_case3_tmp WHERE augbl = abap_true.
+
+  "Fetching entry whose clearing document not begin with 11-Begin
+
+  """ Final internal table for case 3
+  LOOP AT ta_case3 ASSIGNING <fs_case1>.
+
+    IF NOT line_exists( ta_case3_tmp[ augbl = <fs_case1>-augbl ] ).
+      <fs_case1>-augbl = abap_true.
+    ENDIF.
+
+    IF <fs_case1>-dmshb IS INITIAL OR <fs_case1>-dmshb LE 0.
+      <fs_case1>-augbl = abap_true.
+
+    ENDIF.
+
+    IF <fs_case1>-dmshb GT 0 AND <fs_case1>-augbl = <fs_case1>-belnr.
+      <fs_case1>-augbl = abap_true.
+    ENDIF.
+
+    IF line_exists( ta_case3_tmp[ augbl = <fs_case1>-augbl ] ).
+
+      IF <fs_case1>-dmshb IS INITIAL OR <fs_case1>-dmshb LE 0.
+        <fs_case1>-augbl = abap_true.
+
+      ENDIF.
+
+      IF <fs_case1>-dmshb GT 0 AND <fs_case1>-augbl = <fs_case1>-belnr.
+        <fs_case1>-augbl = abap_true.
+      ENDIF.
+
+    ENDIF.
+  ENDLOOP.
+
+  DELETE ta_case3 WHERE augbl = abap_true.
+  """ Processing Case 3-End
+
+  """ Processing Case 4-Begin
+
+  CLEAR r_blart[].
+  SELECT * FROM setleaf INTO TABLE @DATA(ta_set_zvp_clear_scf_m_dt)
+    WHERE setname = @co_zvp_clear_scf_m_dt.
+
+  IF sy-subrc IS INITIAL.
+    LOOP AT ta_set_zvp_clear_scf_m_dt INTO wa_setleaf.
+      r_blart-sign    =  'I'.
+      r_blart-option  = 'EQ'.
+      r_blart-low     = wa_setleaf-valfrom.
+      APPEND r_blart.
+      CLEAR r_blart.
+    ENDLOOP.
+  ENDIF.
+
+  DATA(ta_case4_f) = ta_case4[].
+  DELETE ta_case4_f WHERE blart NOT IN r_blart.
+
+  LOOP AT ta_case4 ASSIGNING <fs_case1>.
+
+    IF NOT line_exists( ta_case4_f[ augbl = <fs_case1>-augbl ] ).
+      <fs_case1>-augbl = abap_true.
+
+    ELSEIF line_exists( ta_case4_f[ augbl = <fs_case1>-augbl ] ).
+
+      IF <fs_case1>-augbl+0(1) NE co_augbl_4.
+        <fs_case1>-augbl = abap_true.
+      ENDIF.
+
+      IF <fs_case1>-augbl+0(1) EQ co_augbl_4 AND <fs_case1>-blart NE co_sa.
+        <fs_case1>-augbl = abap_true.
+      ENDIF.
+    ENDIF.
+  ENDLOOP.
+
+  DELETE ta_case4 WHERE augbl = abap_true.
+
+  """ Processing Case 4-End
+
+  """ Processing Case 5-Begin
+
+  CLEAR r_blart[].
+  SELECT * FROM setleaf INTO TABLE @DATA(ta_set_zvp_clear_cn_dt)
+    WHERE setname = @co_zvp_clear_cn_dt.
+
+  IF sy-subrc IS INITIAL.
+    LOOP AT ta_set_zvp_clear_cn_dt  INTO wa_setleaf.
+      r_blart-sign    =  'I'.
+      r_blart-option  = 'EQ'.
+      r_blart-low     = wa_setleaf-valfrom.
+      APPEND r_blart.
+      CLEAR r_blart.
+    ENDLOOP.
+  ENDIF.
+
+  DATA(ta_case5_f) = ta_case5[].
+
+  DELETE ta_case5_f WHERE blart NOT IN r_blart[].
+  DATA: lv_augbl TYPE bsik-augbl.
+  LOOP AT ta_case5 ASSIGNING <fs_case1>.
+    lv_augbl =  <fs_case1>-augbl .
+    lv_augbl = | { lv_augbl ALPHA = OUT } |.
+    CONDENSE lv_augbl.
+    IF NOT line_exists( ta_case5_f[ augbl = <fs_case1>-augbl ] ).
+      <fs_case1>-augbl = abap_true.
+
+    ELSEIF line_exists( ta_case5_f[ augbl = <fs_case1>-augbl ] ).
+
+      IF lv_augbl+0(1) NE co_augbl_3.
+        <fs_case1>-augbl = abap_true.
+      ENDIF.
+
+      IF lv_augbl+0(1) EQ co_augbl_3 AND ( <fs_case1>-blart NE co_kg AND  <fs_case1>-blart NE co_kr AND <fs_case1>-blart NE co_re ).
+        <fs_case1>-augbl = abap_true.
+      ENDIF.
+
+    ENDIF.
+  ENDLOOP.
+
+  DELETE ta_case5 WHERE augbl = abap_true.
+
+
+  """ Processing Case 5-End
+
+  """ Processing Case 6-Begin
+
+  CLEAR r_blart[].
+  SELECT * FROM setleaf INTO TABLE @DATA(ta_set_zvp_clear_part_dt)
+    WHERE setname = @co_zvp_clear_part_dt.
+
+  IF sy-subrc IS INITIAL.
+    LOOP AT ta_set_zvp_clear_part_dt  INTO wa_setleaf.
+      r_blart-sign    =  'I'.
+      r_blart-option  = 'EQ'.
+      r_blart-low     = wa_setleaf-valfrom.
+      APPEND r_blart.
+      CLEAR r_blart.
+    ENDLOOP.
+  ENDIF.
+
+  DATA(ta_case6_f) = ta_case6[].
+  DATA(ta_case6_tmp) = ta_case6[].
+  CLEAR ta_case6[].
+  DELETE ta_case6_f WHERE blart NOT IN r_blart[].
+
+  SORT ta_case6_tmp BY augbl.
+  DELETE ADJACENT DUPLICATES FROM ta_case6_tmp COMPARING augbl.
+
+  LOOP AT ta_case6_tmp ASSIGNING <fs_case1>.
+
+    IF line_exists( ta_case6_f[ augbl = <fs_case1>-augbl ] ) AND <fs_case1>-augbl+0(1) = co_augbl_3.
+
+      DATA(ta_case6_re) = it_pos[].
+      DELETE ta_case6_re WHERE augbl NE <fs_case1>-augbl.
+      DELETE ta_case6_re WHERE blart NE co_re.
+      DESCRIBE TABLE ta_case6_re LINES DATA(lv_count_re).
+      IF lv_count_re EQ 1.
+        DATA(ta_case6_kz) = it_pos[].
+        DELETE ta_case6_kz WHERE augbl NE <fs_case1>-augbl.
+        DELETE ta_case6_kz WHERE blart NE co_kz.
+
+        IF ta_case6_kz[] IS NOT INITIAL.
+          APPEND LINES OF ta_case6_kz TO ta_case6.
+        ENDIF.
+      ENDIF.
+    ENDIF.
+
+  ENDLOOP.
+  """ Processing Case 6-End
+
+  """ Appending data of of case 2 to case 6 to final internal table of clear items-Begin
+  SELECT * FROM zfi_iap_vp_rec INTO TABLE @DATA(ta_zfi_iap_vp_rec)
+    FOR ALL ENTRIES IN @ta_case2
+    WHERE bukrs       = @ta_case2-bukrs AND
+          clr_belnr   = @ta_case2-augbl AND
+          gjahr       = @ta_case2-gjahr.
+
+  LOOP AT ta_case2 ASSIGNING <fs_case1>.
+
+    wa_clear_items = CORRESPONDING #( <fs_case1> ).
+    wa_clear_items-budat = <fs_case1>-bldat. " LOC Added by Sushil as on 02.12.2020 against ticket no 8000006782
+    CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+      CHANGING
+        value = wa_clear_items-dmshb.
+
+    IF line_exists( ta_lfa1_tmp[ lifnr = <fs_case1>-konto ] ).
+      wa_lfa1_tmp = ta_lfa1_tmp[ lifnr = <fs_case1>-konto ].
+
+      IF line_exists( ta_adrc_tmp[ addrnumber = wa_lfa1_tmp-adrnr ] ).
+        wa_adrc_tmp = ta_adrc_tmp[ addrnumber = wa_lfa1_tmp-adrnr ].
+        wa_clear_items-vend_n = wa_adrc_tmp-name1. " Vendor Name
+      ENDIF.
+    ENDIF.
+
+    ""Logic-With holding tax
+    IF line_exists( lta_lfbw_tmp[ lifnr = <fs_case1>-konto bukrs = <fs_case1>-bukrs ] ).
+      wa_lfbw_tmp = lta_lfbw_tmp[ lifnr = <fs_case1>-konto bukrs = <fs_case1>-bukrs ].
+
+      IF wa_lfbw_tmp-wt_subjct IS NOT INITIAL AND
+        line_exists( lta_with_item_tmp[ bukrs = <fs_case1>-bukrs belnr = <fs_case1>-belnr gjahr = <fs_case1>-gjahr ] ).
+
+        lwa_with_item_tmp = lta_with_item_tmp[ bukrs = <fs_case1>-bukrs belnr = <fs_case1>-belnr gjahr = <fs_case1>-gjahr ].
+
+        wa_clear_items-wt_qbshh = lwa_with_item_tmp-wt_qbshh. " Withholding tax
+
+        CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+          CHANGING
+            value = wa_clear_items-wt_qbshh.
+
+        """ SOC Done by Sushil as on 02.12.2020 against ticket no. 8000006782
+        gv_amt1 = <fs_case1>-dmshb.
+        gv_amt2 = lwa_with_item_tmp-wt_qbshh.
+        gv_amt3 = <fs_case1>-dmshb - lwa_with_item_tmp-wt_qbshh.
+        wa_clear_items-wt_qbshhn = gv_amt3. " Net amount payable
+        """ SOC Done by Sushil as on 02.12.2020 against ticket no. 8000006782
+
+*        wa_clear_items-wt_qbshhn = wa_clear_items-wt_qbshh. " Commented by Sushil
+
+        CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+          CHANGING
+            value = wa_clear_items-wt_qbshhn.
+      ELSE.
+** SOC added by Pranita against ticket 8000006782 on 28.12.2020
+        gv_amt3 = <fs_case1>-dmshb.
+        wa_clear_items-wt_qbshhn = gv_amt3. " Net amount payable
+
+        CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+          CHANGING
+            value = wa_clear_items-wt_qbshhn.
+** EOC added by Pranita against ticket 8000006782 on 28.12.2020
+      ENDIF.
+*      Start By Shivaji 8000006782.
+    ELSE.
+      gv_amt3 = <fs_case1>-dmshb.
+      wa_clear_items-wt_qbshhn = gv_amt3. " Net amount payable
+** SOC added by Pranita against ticket 8000006782 on 28.12.2020
+      CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+        CHANGING
+          value = wa_clear_items-wt_qbshhn.
+** EOC added by Pranita against ticket 8000006782 on 28.12.2020
+*      End By Shivaji 8000006782.
+    ENDIF.
+*    wa_clear_items-stat = co_paid. " SOC commented by Pranita on 04.03.2020 against ticket 800006782
+    " SOC Added by Pranita on 04.03.2020 against ticket 800006782
+    IF <fs_case1>-augbl+0(1) EQ  co_augbl_2 OR <fs_case1>-augbl+0(2) EQ  co_augbl_15.
+      wa_clear_items-stat = co_paid.
+    ELSE.
+      wa_clear_items-stat = co_cleared.
+    ENDIF.
+    " EOC Added by Pranita on 04.03.2020 against ticket 800006782
+*    Start By Shivaji 8000006782.
+*    IF line_exists( ta_zfi_iap_vp_rec[ bukrs = <fs_case1>-bukrs clr_belnr = <fs_case1>-augbl gjahr = <fs_case1>-gjahr ] ).
+*    DATA(wa_zfi_iap_vp_rec) = ta_zfi_iap_vp_rec[ bukrs = <fs_case1>-bukrs clr_belnr = <fs_case1>-augbl gjahr = <fs_case1>-gjahr ].
+    IF line_exists( ta_zfi_iap_vp_rec[ bukrs = <fs_case1>-bukrs clr_belnr = <fs_case1>-augbl gjahr = <fs_case1>-gjahr belnr = <fs_case1>-belnr ] ).
+      DATA(wa_zfi_iap_vp_rec) = ta_zfi_iap_vp_rec[ bukrs = <fs_case1>-bukrs clr_belnr = <fs_case1>-augbl gjahr = <fs_case1>-gjahr belnr = <fs_case1>-belnr ].
+* End By Shivaji 8000006782.
+      wa_clear_items-p_amt    = wa_zfi_iap_vp_rec-dmbtr.  " Amount Paid
+      wa_clear_items-p_date   = wa_zfi_iap_vp_rec-clr_dt.  " Payment Date
+      wa_clear_items-p_ref    = wa_zfi_iap_vp_rec-sgtxt.  " Payment Reference
+      wa_clear_items-p_bank   = wa_zfi_iap_vp_rec-bank_c.  " Payment Reference
+
+    ENDIF.
+
+    IF <fs_case1>-umskz IS NOT INITIAL.
+      wa_clear_items-textr = <fs_case1>-umskz.
+    ENDIF.
+
+    APPEND wa_clear_items TO ta_clear_items.
+
+** SOC SATISH CHAKRA #8000008093 29.03.2022
+
+    MOVE-CORRESPONDING wa_clear_items TO wa_clear_items1.
+    CLEAR wa_head_text.
+    READ TABLE ta_head_text INTO wa_head_text WITH KEY bukrs = <fs_case1>-bukrs
+                                                       belnr = <fs_case1>-belnr
+                                                       gjahr = <fs_case1>-gjahr BINARY SEARCH.
+    IF sy-subrc EQ 0.
+      wa_clear_items1-bktxt = wa_head_text-bltxt.
+    ENDIF.
+    wa_clear_items1-konto = |{ wa_clear_items1-konto alpha = out }|.
+    APPEND wa_clear_items1 TO ta_clear_items1.
+    CLEAR wa_clear_items1.
+
+*    wa_head_text-bukrs = <fs_case1>-bukrs.
+*    wa_head_text-belnr = <fs_case1>-belnr.
+*    wa_head_text-gjahr = <fs_case1>-gjahr.
+*    APPEND wa_head_text TO ta_head_text.
+*    CLEAR  wa_head_text.
+** EOC SATISH CHAKRA #8000008093 29.03.2022
+
+    CLEAR wa_clear_items.
+  ENDLOOP.
+
+
+  LOOP AT ta_case3 ASSIGNING <fs_case1>.
+
+    wa_clear_items = CORRESPONDING #( <fs_case1> ).
+    wa_clear_items-budat = <fs_case1>-bldat. " LOC Added by Sushil as on 02.12.2020 against ticket no 8000006782
+    CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+      CHANGING
+        value = wa_clear_items-dmshb.
+
+    IF line_exists( ta_lfa1_tmp[ lifnr = <fs_case1>-konto ] ).
+      wa_lfa1_tmp = ta_lfa1_tmp[ lifnr = <fs_case1>-konto ].
+
+      IF line_exists( ta_adrc_tmp[ addrnumber = wa_lfa1_tmp-adrnr ] ).
+        wa_adrc_tmp = ta_adrc_tmp[ addrnumber = wa_lfa1_tmp-adrnr ].
+        wa_clear_items-vend_n = wa_adrc_tmp-name1. " Vendor Name
+      ENDIF.
+    ENDIF.
+
+    ""Logic-With holding tax
+    IF line_exists( lta_lfbw_tmp[ lifnr = <fs_case1>-konto bukrs = <fs_case1>-bukrs ] ).
+      wa_lfbw_tmp = lta_lfbw_tmp[ lifnr = <fs_case1>-konto bukrs = <fs_case1>-bukrs ].
+
+      IF wa_lfbw_tmp-wt_subjct IS NOT INITIAL AND
+        line_exists( lta_with_item_tmp[ bukrs = <fs_case1>-bukrs belnr = <fs_case1>-belnr gjahr = <fs_case1>-gjahr ] ).
+
+        lwa_with_item_tmp = lta_with_item_tmp[ bukrs = <fs_case1>-bukrs belnr = <fs_case1>-belnr gjahr = <fs_case1>-gjahr ].
+
+        wa_clear_items-wt_qbshh = lwa_with_item_tmp-wt_qbshh. " Withholding tax
+
+        CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+          CHANGING
+            value = wa_clear_items-wt_qbshh.
+        """ SOC Done by Sushil as on 02.12.2020 against ticket no. 8000006782
+        gv_amt1 = <fs_case1>-dmshb.
+        gv_amt2 = lwa_with_item_tmp-wt_qbshh.
+        gv_amt3 = <fs_case1>-dmshb - lwa_with_item_tmp-wt_qbshh.
+        wa_clear_items-wt_qbshhn = gv_amt3. " Net amount payable
+        """ SOC Done by Sushil as on 02.12.2020 against ticket no. 8000006782
+
+*        wa_clear_items-wt_qbshhn = wa_clear_items-wt_qbshh." Commented by Sushil-02.12.2020
+
+        CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+          CHANGING
+            value = wa_clear_items-wt_qbshhn.
+      ELSE.
+** SOC added by Pranita against ticket 8000006782 on 28.12.2020
+        gv_amt3 = <fs_case1>-dmshb.
+        wa_clear_items-wt_qbshhn = gv_amt3. " Net amount payable
+
+        CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+          CHANGING
+            value = wa_clear_items-wt_qbshhn.
+** EOC added by Pranita against ticket 8000006782 on 28.12.2020
+      ENDIF.
+*      Start By Shivaji 8000006782.
+    ELSE.
+      gv_amt3 = <fs_case1>-dmshb.
+      wa_clear_items-wt_qbshhn = gv_amt3. " Net amount payable
+** SOC added by Pranita against ticket 8000006782 on 28.12.2020
+      CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+        CHANGING
+          value = wa_clear_items-wt_qbshhn.
+** EOC added by Pranita against ticket 8000006782 on 28.12.2020
+*      End By Shivaji 8000006782.
+    ENDIF.
+
+
+    "" Updating text field
+    IF <fs_case1>-umskz IS NOT INITIAL.
+      wa_clear_items-textr = |{ co_adv_t } { <fs_case1>-zuonr }|. "Text Field
+    ENDIF.
+
+    """ Updating Amount Paid field
+
+    IF <fs_case1>-dmshb LT 0.
+      wa_clear_items-p_amt = <fs_case1>-dmshb * -1.
+    ELSE.
+      wa_clear_items-p_amt = <fs_case1>-dmshb..
+    ENDIF.
+
+    wa_clear_items-p_date = <fs_case1>-augdt.  "" Clearing Date
+
+
+    wa_clear_items-stat = co_paid.
+    APPEND wa_clear_items TO ta_clear_items.
+
+** SOC SATISH CHAKRA #8000008093 29.03.2022
+    MOVE-CORRESPONDING wa_clear_items TO wa_clear_items1.
+    CLEAR wa_head_text.
+    READ TABLE ta_head_text INTO wa_head_text WITH KEY bukrs = <fs_case1>-bukrs
+                                                       belnr = <fs_case1>-belnr
+                                                       gjahr = <fs_case1>-gjahr BINARY SEARCH.
+    IF sy-subrc EQ 0.
+      wa_clear_items1-bktxt = wa_head_text-bltxt.
+    ENDIF.
+    wa_clear_items1-konto = |{ wa_clear_items1-konto alpha = out }|.
+    APPEND wa_clear_items1 TO ta_clear_items1.
+    CLEAR wa_clear_items1.
+*    wa_docno-bukrs = <fs_case1>-bukrs.
+*    wa_docno-belnr = <fs_case1>-belnr.
+*    wa_docno-gjahr = <fs_case1>-gjahr.
+*    APPEND wa_docno TO ta_docno.
+*    CLEAR  wa_docno.
+** EOC SATISH CHAKRA #8000008093 29.03.2022
+
+    CLEAR wa_clear_items.
+  ENDLOOP.
+
+  LOOP AT ta_case4 ASSIGNING <fs_case1>.
+
+    wa_clear_items = CORRESPONDING #( <fs_case1> ).
+    wa_clear_items-budat = <fs_case1>-bldat. " LOC Added by Sushil as on 02.12.2020 against ticket no 8000006782
+    CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+      CHANGING
+        value = wa_clear_items-dmshb.
+
+    IF line_exists( ta_lfa1_tmp[ lifnr = <fs_case1>-konto ] ).
+      wa_lfa1_tmp = ta_lfa1_tmp[ lifnr = <fs_case1>-konto ].
+
+      IF line_exists( ta_adrc_tmp[ addrnumber = wa_lfa1_tmp-adrnr ] ).
+        wa_adrc_tmp = ta_adrc_tmp[ addrnumber = wa_lfa1_tmp-adrnr ].
+        wa_clear_items-vend_n = wa_adrc_tmp-name1. " Vendor Name
+      ENDIF.
+    ENDIF.
+
+    ""Logic-With holding tax
+    IF line_exists( lta_lfbw_tmp[ lifnr = <fs_case1>-konto bukrs = <fs_case1>-bukrs ] ).
+      wa_lfbw_tmp = lta_lfbw_tmp[ lifnr = <fs_case1>-konto bukrs = <fs_case1>-bukrs ].
+
+      IF wa_lfbw_tmp-wt_subjct IS NOT INITIAL AND
+        line_exists( lta_with_item_tmp[ bukrs = <fs_case1>-bukrs belnr = <fs_case1>-belnr gjahr = <fs_case1>-gjahr ] ).
+
+        lwa_with_item_tmp = lta_with_item_tmp[ bukrs = <fs_case1>-bukrs belnr = <fs_case1>-belnr gjahr = <fs_case1>-gjahr ].
+
+        wa_clear_items-wt_qbshh = lwa_with_item_tmp-wt_qbshh. " Withholding tax
+
+        CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+          CHANGING
+            value = wa_clear_items-wt_qbshh.
+        """ SOC Done by Sushil as on 02.12.2020 against ticket no. 8000006782
+        gv_amt1 = <fs_case1>-dmshb.
+        gv_amt2 = lwa_with_item_tmp-wt_qbshh.
+        gv_amt3 = <fs_case1>-dmshb - lwa_with_item_tmp-wt_qbshh.
+        wa_clear_items-wt_qbshhn = gv_amt3. " Net amount payable
+        """ SOC Done by Sushil as on 02.12.2020 against ticket no. 8000006782
+*        wa_clear_items-wt_qbshhn = wa_clear_items-wt_qbshh. " Commented by Sushil 02.12.2020
+
+        CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+          CHANGING
+            value = wa_clear_items-wt_qbshhn.
+      ELSE.
+** SOC added by Pranita against ticket 8000006782 on 28.12.2020
+        gv_amt3 = <fs_case1>-dmshb.
+        wa_clear_items-wt_qbshhn = gv_amt3. " Net amount payable
+
+        CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+          CHANGING
+            value = wa_clear_items-wt_qbshhn.
+** EOC added by Pranita against ticket 8000006782 on 28.12.2020
+
+      ENDIF.
+*      Start By Shivaji 8000006782.
+    ELSE.
+      gv_amt3 = <fs_case1>-dmshb.
+      wa_clear_items-wt_qbshhn = gv_amt3. " Net amount payable
+** SOC added by Pranita against ticket 8000006782 on 28.12.2020
+      CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+        CHANGING
+          value = wa_clear_items-wt_qbshhn.
+** EOC added by Pranita against ticket 8000006782 on 28.12.2020
+*      End By Shivaji 8000006782.
+    ENDIF.
+
+
+    "" Updating text field
+    IF <fs_case1>-umskz IS NOT INITIAL.
+      wa_clear_items-textr = |{ co_adv_t } { <fs_case1>-zuonr }|. "Text Field
+    ENDIF.
+
+    """ Updating Amount Paid field
+
+    IF <fs_case1>-dmshb LT 0.
+      wa_clear_items-p_amt = <fs_case1>-dmshb * -1.
+    ELSE.
+      wa_clear_items-p_amt = <fs_case1>-dmshb..
+    ENDIF.
+
+    wa_clear_items-p_date = <fs_case1>-augdt.  "" Clearing Date
+
+    wa_clear_items-stat = co_paid.
+    APPEND wa_clear_items TO ta_clear_items.
+
+** SOC SATISH CHAKRA #8000008093 29.03.2022
+    MOVE-CORRESPONDING wa_clear_items TO wa_clear_items1.
+    CLEAR wa_head_text.
+    READ TABLE ta_head_text INTO wa_head_text WITH KEY bukrs = <fs_case1>-bukrs
+                                                       belnr = <fs_case1>-belnr
+                                                       gjahr = <fs_case1>-gjahr BINARY SEARCH.
+    IF sy-subrc EQ 0.
+      wa_clear_items1-bktxt = wa_head_text-bltxt.
+    ENDIF.
+    wa_clear_items1-konto = |{ wa_clear_items1-konto alpha = out }|.
+    APPEND wa_clear_items1 TO ta_clear_items1.
+    CLEAR wa_clear_items1.
+
+*    wa_docno-bukrs = <fs_case1>-bukrs.
+*    wa_docno-belnr = <fs_case1>-belnr.
+*    wa_docno-gjahr = <fs_case1>-gjahr.
+*    APPEND wa_docno TO ta_docno.
+*    CLEAR  wa_docno.
+** EOC SATISH CHAKRA #8000008093 29.03.2022
+
+    CLEAR wa_clear_items.
+  ENDLOOP.
+
+  LOOP AT ta_case5 ASSIGNING <fs_case1>.
+
+    wa_clear_items = CORRESPONDING #( <fs_case1> ).
+    wa_clear_items-budat = <fs_case1>-bldat. " LOC Added by Sushil as on 02.12.2020 against ticket no 8000006782
+    CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+      CHANGING
+        value = wa_clear_items-dmshb.
+
+    IF line_exists( ta_lfa1_tmp[ lifnr = <fs_case1>-konto ] ).
+      wa_lfa1_tmp = ta_lfa1_tmp[ lifnr = <fs_case1>-konto ].
+
+      IF line_exists( ta_adrc_tmp[ addrnumber = wa_lfa1_tmp-adrnr ] ).
+        wa_adrc_tmp = ta_adrc_tmp[ addrnumber = wa_lfa1_tmp-adrnr ].
+        wa_clear_items-vend_n = wa_adrc_tmp-name1. " Vendor Name
+      ENDIF.
+    ENDIF.
+
+    ""Logic-With holding tax
+    IF line_exists( lta_lfbw_tmp[ lifnr = <fs_case1>-konto bukrs = <fs_case1>-bukrs ] ).
+      wa_lfbw_tmp = lta_lfbw_tmp[ lifnr = <fs_case1>-konto bukrs = <fs_case1>-bukrs ].
+
+      IF wa_lfbw_tmp-wt_subjct IS NOT INITIAL AND
+        line_exists( lta_with_item_tmp[ bukrs = <fs_case1>-bukrs belnr = <fs_case1>-belnr gjahr = <fs_case1>-gjahr ] ).
+
+        lwa_with_item_tmp = lta_with_item_tmp[ bukrs = <fs_case1>-bukrs belnr = <fs_case1>-belnr gjahr = <fs_case1>-gjahr ].
+
+        wa_clear_items-wt_qbshh = lwa_with_item_tmp-wt_qbshh. " Withholding tax
+
+        CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+          CHANGING
+            value = wa_clear_items-wt_qbshh.
+        """ SOC Done by Sushil as on 02.12.2020 against ticket no. 8000006782
+        gv_amt1 = <fs_case1>-dmshb.
+        gv_amt2 = lwa_with_item_tmp-wt_qbshh.
+        gv_amt3 = <fs_case1>-dmshb - lwa_with_item_tmp-wt_qbshh.
+        wa_clear_items-wt_qbshhn = gv_amt3. " Net amount payable
+        """ SOC Done by Sushil as on 02.12.2020 against ticket no. 8000006782
+*        wa_clear_items-wt_qbshhn = wa_clear_items-wt_qbshh. " Commented by Sushil 02.12.2020
+
+        CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+          CHANGING
+            value = wa_clear_items-wt_qbshhn.
+      ELSE.
+** SOC added by Pranita against ticket 8000006782 on 28.12.2020
+        gv_amt3 = <fs_case1>-dmshb.
+        wa_clear_items-wt_qbshhn = gv_amt3. " Net amount payable
+
+        CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+          CHANGING
+            value = wa_clear_items-wt_qbshhn.
+** EOC added by Pranita against ticket 8000006782 on 28.12.2020
+      ENDIF.
+*      Start By Shivaji 8000006782.
+    ELSE.
+      gv_amt3 = <fs_case1>-dmshb.
+      wa_clear_items-wt_qbshhn = gv_amt3. " Net amount payable
+** SOC added by Pranita against ticket 8000006782 on 28.12.2020
+      CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+        CHANGING
+          value = wa_clear_items-wt_qbshhn.
+** EOC added by Pranita against ticket 8000006782 on 28.12.2020
+*      End By Shivaji 8000006782.
+    ENDIF.
+
+
+    "" Updating text field
+    IF <fs_case1>-umskz IS NOT INITIAL.
+      wa_clear_items-textr = |{ co_adv_t } { <fs_case1>-zuonr }|. "Text Field
+    ENDIF.
+
+    """ Updating Amount Paid field
+
+    IF <fs_case1>-dmshb LT 0.
+      wa_clear_items-p_amt = <fs_case1>-dmshb * -1.
+    ELSE.
+      wa_clear_items-p_amt = <fs_case1>-dmshb..
+    ENDIF.
+
+    wa_clear_items-p_date = <fs_case1>-augdt.  "" Clearing Date
+
+
+*    wa_clear_items-stat = co_cn_adj.
+    IF <fs_case1>-blart = co_kr OR <fs_case1>-blart = co_re.
+      wa_clear_items-stat = co_cleared.
+    ELSE.
+      wa_clear_items-stat = co_cn_adj.
+    ENDIF.
+
+    APPEND wa_clear_items TO ta_clear_items.
+
+** SOC SATISH CHAKRA #8000008093 29.03.2022
+    MOVE-CORRESPONDING wa_clear_items TO wa_clear_items1.
+    CLEAR wa_head_text.
+    READ TABLE ta_head_text INTO wa_head_text WITH KEY bukrs = <fs_case1>-bukrs
+                                                       belnr = <fs_case1>-belnr
+                                                       gjahr = <fs_case1>-gjahr BINARY SEARCH.
+    IF sy-subrc EQ 0.
+      wa_clear_items1-bktxt = wa_head_text-bltxt.
+    ENDIF.
+    wa_clear_items1-konto = |{ wa_clear_items1-konto alpha = out }|.
+    APPEND wa_clear_items1 TO ta_clear_items1.
+    CLEAR wa_clear_items1.
+
+*    wa_docno-bukrs = <fs_case1>-bukrs.
+*    wa_docno-belnr = <fs_case1>-belnr.
+*    wa_docno-gjahr = <fs_case1>-gjahr.
+*    APPEND wa_docno TO ta_docno.
+*    CLEAR  wa_docno.
+** EOC SATISH CHAKRA #8000008093 29.03.2022
+
+    CLEAR wa_clear_items.
+  ENDLOOP.
+
+  LOOP AT ta_case6 ASSIGNING <fs_case1>.
+
+    wa_clear_items = CORRESPONDING #( <fs_case1> ).
+    wa_clear_items-budat = <fs_case1>-bldat. " LOC Added by Sushil as on 02.12.2020 against ticket no 8000006782
+    CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+      CHANGING
+        value = wa_clear_items-dmshb.
+
+    IF line_exists( ta_lfa1_tmp[ lifnr = <fs_case1>-konto ] ).
+      wa_lfa1_tmp = ta_lfa1_tmp[ lifnr = <fs_case1>-konto ].
+
+      IF line_exists( ta_adrc_tmp[ addrnumber = wa_lfa1_tmp-adrnr ] ).
+        wa_adrc_tmp = ta_adrc_tmp[ addrnumber = wa_lfa1_tmp-adrnr ].
+        wa_clear_items-vend_n = wa_adrc_tmp-name1. " Vendor Name
+      ENDIF.
+    ENDIF.
+
+    ""Logic-With holding tax
+    IF line_exists( lta_lfbw_tmp[ lifnr = <fs_case1>-konto bukrs = <fs_case1>-bukrs ] ).
+      wa_lfbw_tmp = lta_lfbw_tmp[ lifnr = <fs_case1>-konto bukrs = <fs_case1>-bukrs ].
+
+      IF wa_lfbw_tmp-wt_subjct IS NOT INITIAL AND
+        line_exists( lta_with_item_tmp[ bukrs = <fs_case1>-bukrs belnr = <fs_case1>-belnr gjahr = <fs_case1>-gjahr ] ).
+
+        lwa_with_item_tmp = lta_with_item_tmp[ bukrs = <fs_case1>-bukrs belnr = <fs_case1>-belnr gjahr = <fs_case1>-gjahr ].
+
+        wa_clear_items-wt_qbshh = lwa_with_item_tmp-wt_qbshh. " Withholding tax
+
+        CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+          CHANGING
+            value = wa_clear_items-wt_qbshh.
+
+        """ SOC Done by Sushil as on 02.12.2020 against ticket no. 8000006782
+        gv_amt1 = <fs_case1>-dmshb.
+        gv_amt2 = lwa_with_item_tmp-wt_qbshh.
+        gv_amt3 = <fs_case1>-dmshb - lwa_with_item_tmp-wt_qbshh.
+        wa_clear_items-wt_qbshhn = gv_amt3. " Net amount payable
+        """ SOC Done by Sushil as on 02.12.2020 against ticket no. 8000006782
+*        wa_clear_items-wt_qbshhn = wa_clear_items-wt_qbshh. " Commented by Sushil 02.12.2020
+
+        CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+          CHANGING
+            value = wa_clear_items-wt_qbshhn.
+
+      ELSE.
+** SOC added by Pranita against ticket 8000006782 on 28.12.2020
+        gv_amt3 = <fs_case1>-dmshb.
+        wa_clear_items-wt_qbshhn = gv_amt3. " Net amount payable
+
+        CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+          CHANGING
+            value = wa_clear_items-wt_qbshhn.
+** EOC added by Pranita against ticket 8000006782 on 28.12.2020
+
+      ENDIF.
+*      Start By Shivaji 8000006782.
+    ELSE.
+      gv_amt3 = <fs_case1>-dmshb.
+      wa_clear_items-wt_qbshhn = gv_amt3. " Net amount payable
+** SOC added by Pranita against ticket 8000006782 on 28.12.2020
+      CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+        CHANGING
+          value = wa_clear_items-wt_qbshhn.
+** EOC added by Pranita against ticket 8000006782 on 28.12.2020
+*      End By Shivaji 8000006782.
+    ENDIF.
+
+
+    "" Updating text field
+    IF <fs_case1>-umskz IS NOT INITIAL.
+      wa_clear_items-textr = |{ co_adv_t } { <fs_case1>-zuonr }|. "Text Field
+    ENDIF.
+
+    """ Updating Amount Paid field
+
+    IF <fs_case1>-dmshb LT 0.
+      wa_clear_items-p_amt = <fs_case1>-dmshb * -1.
+    ELSE.
+      wa_clear_items-p_amt = <fs_case1>-dmshb.
+    ENDIF.
+
+    wa_clear_items-p_date = <fs_case1>-augdt.  "" Clearing Date
+
+    wa_clear_items-stat = co_part_p.
+    APPEND wa_clear_items TO ta_clear_items.
+
+** SOC SATISH CHAKRA #8000008093 29.03.2022
+    MOVE-CORRESPONDING wa_clear_items TO wa_clear_items1.
+    CLEAR wa_head_text.
+    READ TABLE ta_head_text INTO wa_head_text WITH KEY bukrs = <fs_case1>-bukrs
+                                                       belnr = <fs_case1>-belnr
+                                                       gjahr = <fs_case1>-gjahr BINARY SEARCH.
+    IF sy-subrc EQ 0.
+      wa_clear_items1-bktxt = wa_head_text-bltxt.
+    ENDIF.
+    wa_clear_items1-konto = |{ wa_clear_items1-konto alpha = out }|.
+    APPEND wa_clear_items1 TO ta_clear_items1.
+    CLEAR wa_clear_items1.
+
+*    wa_docno-bukrs = <fs_case1>-bukrs.
+*    wa_docno-belnr = <fs_case1>-belnr.
+*    wa_docno-gjahr = <fs_case1>-gjahr.
+*    APPEND wa_docno TO ta_docno.
+*    CLEAR  wa_docno.
+** EOC SATISH CHAKRA #8000008093 29.03.2022
+
+    CLEAR wa_clear_items.
+  ENDLOOP.
+
+
+  """ Appending data of of case 2 to case 6 to final internal table of clear items-End
+ENDIF.
+""" Final data processing-End
+
+""" SOC done by Sushil as on 02.12.2020 against ticket 8000006782
+SELECT SINGLE param_name
+            INTO @DATA(gv_name)
+            FROM zparam_table
+            WHERE id_name = 'SPL_CHAR'.
+
+""" EOC done by Sushil as on 02.12.2020 against ticket 8000006782
+IF x_opsel = abap_true.
+  """ SOC Done by Sushil as on 02.12.2020 against ticket no. 8000006782
+  LOOP AT ta_open_items ASSIGNING FIELD-SYMBOL(<fs_open_item>).
+    REPLACE ALL OCCURRENCES OF gv_name IN <fs_open_item>-xblnr WITH ''.
+    TRANSLATE <fs_open_item>-vend_n  USING gv_name.
+    TRANSLATE <fs_open_item>-xblnr   USING gv_name.
+    TRANSLATE <fs_open_item>-textr   USING gv_name.
+    TRANSLATE <fs_open_item>-p_ref   USING gv_name.
+  ENDLOOP.
+  """ EOC Done by Sushil as on 02.12.2020 against ticket no. 8000006782
+  """ File Sending to AL11-Begin
+  CALL FUNCTION 'SAP_CONVERT_TO_CSV_FORMAT'
+    EXPORTING
+      i_field_seperator    = '#'
+*     I_LINE_HEADER        =
+*     I_FILENAME           = ''
+*     I_APPL_KEEP          = ' '
+    TABLES
+      i_tab_sap_data       = ta_open_items
+    CHANGING
+      i_tab_converted_data = gv_tab1 "csv_converted_table
+    EXCEPTIONS
+      conversion_failed    = 1
+      OTHERS               = 2.
+
+ELSEIF x_clsel = abap_true.
+  """ File Sending to AL11-Begin
+  """ SOC Done by Sushil as on 02.12.2020 against ticket no. 8000006782
+  LOOP AT ta_clear_items ASSIGNING <fs_open_item>.
+    IF <fs_open_item>-wt_qbshh IS INITIAL.
+      IF <fs_open_item>-dmshb IS NOT INITIAL.
+* <fs_open_item>-wt_qbshhn = <fs_open_item>-dmshb.
+        DATA(lv_qbshhn) = <fs_open_item>-dmshb.
+        CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+          CHANGING
+            value = lv_qbshhn.
+        IF lv_qbshhn IS NOT INITIAL.
+          <fs_open_item>-wt_qbshhn = lv_qbshhn.
+        ENDIF.
+
+      ENDIF.
+
+    ENDIF.
+    TRANSLATE <fs_open_item>-vend_n  USING gv_name.
+    TRANSLATE <fs_open_item>-xblnr   USING gv_name.
+    TRANSLATE <fs_open_item>-textr   USING gv_name.
+    TRANSLATE <fs_open_item>-p_ref   USING gv_name.
+  ENDLOOP.
+  """ EOC Done by Sushil as on 02.12.2020 against ticket no. 8000006782
+
+** SOC SATISH CHAKRA #8000008093 29.03.2022
+  IF lv_var = co_var_z8.
+    CALL FUNCTION 'SAP_CONVERT_TO_CSV_FORMAT'
+    EXPORTING
+      i_field_seperator    = '#'
+*     I_LINE_HEADER        =
+*     I_FILENAME           = ''
+*     I_APPL_KEEP          = ' '
+    TABLES
+      i_tab_sap_data       = ta_clear_items1
+    CHANGING
+      i_tab_converted_data = gv_tab1 "csv_converted_table
+    EXCEPTIONS
+      conversion_failed    = 1
+      OTHERS               = 2.
+  else.
+** EOC SATISH CHAKRA #8000008093 29.03.2022
+
+  CALL FUNCTION 'SAP_CONVERT_TO_CSV_FORMAT'
+    EXPORTING
+      i_field_seperator    = '#'
+*     I_LINE_HEADER        =
+*     I_FILENAME           = ''
+*     I_APPL_KEEP          = ' '
+    TABLES
+      i_tab_sap_data       = ta_clear_items
+    CHANGING
+      i_tab_converted_data = gv_tab1 "csv_converted_table
+    EXCEPTIONS
+      conversion_failed    = 1
+      OTHERS               = 2.
+   endif.
+ENDIF.
+
+IF gv_tab1[] IS NOT INITIAL.
+
+  SELECT SINGLE * FROM zparam_table INTO @DATA(lwa_zparam_zvp_file_path)
+    WHERE id_name = @co_zvp_file_path AND
+          param_name IS NOT NULL.
+
+  IF sy-subrc IS INITIAL.
+    IF x_opsel = abap_true.
+
+      gv_file_path = |{ lwa_zparam_zvp_file_path-param_name }{ co_file_f1 }_{ sy-datlo }_{ sy-timlo }{ co_file_ext }|.
+
+    ELSEIF x_clsel = abap_true.
+
+      IF lv_var = co_var_z8. " Added by Satish Chakra #8000008093 29.03.2022
+
+        gv_file_path = |{ lwa_zparam_zvp_file_path-param_name }{ co_file_f3 }_{ sy-datlo }_{ sy-timlo }{ co_file_ext }|." Added by Satish Chakra #8000008093 29.03.2022
+
+      ELSE.
+
+        gv_file_path = |{ lwa_zparam_zvp_file_path-param_name }{ co_file_f2 }_{ sy-datlo }_{ sy-timlo }{ co_file_ext }|.
+
+      ENDIF.
+
+    ENDIF.
+IF lv_var = co_var_z8." Added by Satish Chakra #8000008093 29.03.2022
+** SOC SATISH CHAKRA #8000008093 29.03.2022
+   CONCATENATE
+    'Company Code'  """SOC Added by pranita as on 27.01.2020 against ticket no. CRDK975958
+    'Vendor Code'
+    'Vendor Name'
+    'Invoice Number'
+    'Invoice Date'
+    'Due Date'
+    'Invoice Amount'
+    'Withholding Tax'
+    'Net amount payable'
+    'Status'
+    'PO Number'
+    'Text'
+    'Amount Paid'
+    'Payment date'
+*    'Payment Reference'
+    'Bank'
+    'Payment Block'
+    'Payment Reference'
+    'Header Text'
+    INTO wa_tab SEPARATED BY lv_tab.
+    APPEND wa_tab TO gv_tab.
+    CLEAR wa_tab.
+    APPEND LINES OF gv_tab1 TO gv_tab.
+    OPEN DATASET gv_file_path IN TEXT MODE FOR OUTPUT ENCODING DEFAULT.
+
+    CHECK sy-subrc = 0.
+    LOOP AT gv_tab INTO wa_tab.
+      REPLACE ALL OCCURRENCES OF ';' IN wa_tab WITH lv_tab.
+      TRANSFER wa_tab TO gv_file_path.
+    ENDLOOP.
+    CLOSE DATASET gv_file_path.
+** EOC SATISH CHAKRA #8000008093 29.03.2022
+  ELSE." Added by Satish Chakra #8000008093 29.03.2022
+    CONCATENATE
+    'Company Code'  """SOC Added by pranita as on 27.01.2020 against ticket no. CRDK975958
+    'Vendor Code'
+    'Vendor Name'
+    'Invoice Number'
+    'Invoice Date'
+    'Due Date'
+    'Invoice Amount'
+    'Withholding Tax'
+    'Net amount payable'
+    'Status'
+    'PO Number'
+    'Text'
+    'Amount Paid'
+    'Payment date'
+*    'Payment Reference'          " Commented by Pranita on 22.12.2020
+    'Bank'
+    'Payment Block' 'Payment Reference' "added By Nilesh 17.11.2020
+    INTO wa_tab SEPARATED BY lv_tab.
+    APPEND wa_tab TO gv_tab.
+    CLEAR wa_tab.
+    APPEND LINES OF gv_tab1 TO gv_tab.
+    OPEN DATASET gv_file_path IN TEXT MODE FOR OUTPUT ENCODING DEFAULT.
+
+    CHECK sy-subrc = 0.
+    LOOP AT gv_tab INTO wa_tab.
+      REPLACE ALL OCCURRENCES OF ';' IN wa_tab WITH lv_tab.
+      TRANSFER wa_tab TO gv_file_path.
+    ENDLOOP.
+    CLOSE DATASET gv_file_path.
+
+  ENDIF." Added by Satish Chakra #8000008093 29.03.2022
+
+
+  ENDIF.
+ENDIF.
+""" File Sending to AL11-End

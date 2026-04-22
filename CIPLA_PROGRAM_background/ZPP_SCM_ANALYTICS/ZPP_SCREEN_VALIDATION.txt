@@ -1,0 +1,62 @@
+*&---------------------------------------------------------------------*
+*&  Include           ZPP_SCREEN_VALIDATION
+*&---------------------------------------------------------------------*
+CLEAR lv_flag.
+IF p_zltsla = 'X'.
+IF s_werksz[] IS INITIAL.
+LV_FLAG = 'X'.
+MESSAGE 'Input Field Plant is mandatory' TYPE 'S' DISPLAY LIKE 'E'.
+EXIT.
+ELSEIF s_mtartz[] IS INITIAL.
+LV_FLAG = 'X'.
+MESSAGE 'Input Field Material Type is mandatory' TYPE 'S' DISPLAY LIKE 'E'.
+EXIT.
+ENDIF.
+ENDIF.
+*IF P_MRP_DA = 'X' AND s_dash_t[] IS INITIAL.
+*MESSAGE 'Input field MRP Dashboard type is mandatory' TYPE 'S' DISPLAY LIKE 'E'.
+*ENDIF.
+
+IF p_po_sto = 'X' AND s_bsartp[] IS INITIAL.
+MESSAGE 'Input field Document type is mandatory' TYPE 'S' DISPLAY LIKE 'E'.
+ENDIF.
+IF p_d2d = 'X' AND D_WERKS[] IS INITIAL.
+LV_FLAG = 'X'.
+MESSAGE 'Input Field Plant is mandatory' TYPE 'S' DISPLAY LIKE 'E'.
+EXIT.
+ENDIF.
+
+IF P_MI24 = 'X' .
+IF IM_ZLDAT[] IS INITIAL.
+LV_FLAG = 'X'.
+MESSAGE 'Input Field Count Date is mandatory' TYPE 'S' DISPLAY LIKE 'E'.
+EXIT.
+ELSEIF IM_VARI IS INITIAL.
+LV_FLAG = 'X'.
+MESSAGE 'Input Field Variant Name is mandatory' TYPE 'S' DISPLAY LIKE 'E'.
+EXIT.
+ELSEIF IM_VARI IS NOT INITIAL.
+SELECT SINGLE VARIANT FROM VARID INTO @data(lv_variant)
+  WHERE report = 'RM07IDIF' AND
+        variant = @IM_VARI.
+IF sy-subrc NE 0 OR sy-subrc IS NOT INITIAL.
+LV_FLAG = 'X'.
+MESSAGE 'Invalid Variant Name' TYPE 'S' DISPLAY LIKE 'E'.
+EXIT.
+ENDIF.
+ENDIF.
+ENDIF.
+
+IF P_QA33 EQ 'X' AND QL_VARI IS INITIAL.
+LV_FLAG = 'X'.
+MESSAGE 'Input Field Variant Name is mandatory' TYPE 'S' DISPLAY LIKE 'E'.
+ELSEIF P_QA33 EQ 'X' AND QL_VARI IS NOT INITIAL.
+SELECT SINGLE VARIANT FROM VARID INTO lv_variant
+  WHERE report = 'RQEEAL10' AND
+        variant = QL_VARI.
+IF sy-subrc NE 0 OR sy-subrc IS NOT INITIAL.
+LV_FLAG = 'X'.
+MESSAGE 'Invalid Variant Name' TYPE 'S' DISPLAY LIKE 'E'.
+EXIT.
+ENDIF.
+ENDIF.

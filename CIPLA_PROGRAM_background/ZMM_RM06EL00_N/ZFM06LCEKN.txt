@@ -1,0 +1,65 @@
+*&---------------------------------------------------------------------*
+*&  Include           ZFM06LCEKN
+*&---------------------------------------------------------------------*
+*----------------------------------------------------------------------*
+*             Datenfelder für die Listen der Einkaufsbelege            *
+*----------------------------------------------------------------------*
+
+DATA: BEGIN OF COMMON PART FM06LCEK.
+
+*------------ Überschrift ---------------------------------------------*
+DATA: BEGIN OF UEB,
+          1(80),
+          2(80),
+          3(80),
+          4(80),
+          5(80),
+      END OF UEB.
+
+*ENHANCEMENT-POINT FM06LCEK_02 SPOTS ES_FM06LCEK STATIC INCLUDE BOUND.
+*$*$-Start: FM06LCEK_02-------------------------------------------------------------------------$*$*
+*ENHANCEMENT 1  MGV_MATNR_LAMA_FM06LCEK.    "active version
+* Note 505380                                                   C5031265
+* Extended Header
+DATA: BEGIN OF UEB1,
+          1(200),
+          2(200),
+          3(200),
+          4(200),
+          5(200),
+      END OF UEB1.
+*ENDENHANCEMENT.
+*$*$-End:   FM06LCEK_02-------------------------------------------------------------------------$*$*
+
+
+*ENHANCEMENT-POINT FM06LCEK_01 SPOTS ES_FM06LCEK STATIC INCLUDE BOUND.
+*$*$-Start: FM06LCEK_01-------------------------------------------------------------------------$*$*
+*ENHANCEMENT 1  AD_MPN_MD_FM06LCEK.    "active version
+*----------------------------------------------------------------------
+* zusätzliche Felder für Herstellerteil Nummer
+*----------------------------------------------------------------------
+DATA:  MAT_LEN TYPE I,
+       OFFSET TYPE I,
+       PAD TYPE I VALUE 3,
+       I_MPNCNV LIKE V_MPNCNV OCCURS 1 WITH HEADER LINE,
+       MANUFACTURER_LEN TYPE I,
+       OUTPUT_LINE_WIDTH TYPE I,
+       POSITION TYPE I,
+       LEN TYPE I.
+*ENDENHANCEMENT.
+*$*$-End:   FM06LCEK_01-------------------------------------------------------------------------$*$*
+
+
+*ENHANCEMENT-POINT FM06LCEK_03 SPOTS ES_FM06LCEK STATIC INCLUDE BOUND .
+*$*$-Start: FM06LCEK_03-------------------------------------------------------------------------$*$*
+*ENHANCEMENT 2  MGV_MATNR_LAMA_FM06LCEK.    "active version
+DATA:  REPID_FLAG TYPE C VALUE SPACE.
+*ENDENHANCEMENT.
+*$*$-End:   FM06LCEK_03-------------------------------------------------------------------------$*$*
+
+*------------ Hilfsfelder ---------------------------------------------*
+DATA: REJECT.
+DATA: LEERFLG.
+DATA: NOT_FOUND.
+
+DATA: END OF COMMON PART.

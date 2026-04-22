@@ -1,0 +1,55 @@
+*&---------------------------------------------------------------------*
+*& REPORT  ZPP_SCM_ANALYTICS
+*&---------------------------------------------------------------------*
+* PROGRAM
+* TITLE             : <SCM ANALYTICS>
+* AUTHOR            : <SUSHIL KUMAR PANDEY>
+* PROGRAM TYPE      : <EXECUTABLE >
+* CREATION DATE     : <06.09.2017>
+* TRANSACTION       : <ZPP_ANALYTICS>
+* FUNCTIONAL DESIGN : <PP/206>
+* TECHNICAL DESIGN  : <>
+* CHANGE REQUEST    : <8000003585>
+* TRANSPORT REQUEST : <CRDK948536>
+* TOC               :
+* DESCRIPTION       : <SCM ANALYTICS INTERFACE>
+*&---------------------------------------------------------------------*
+* MODIFICATION INFORMATION
+* DATE              : 24.10.2018
+* AUTHOR            : Sushil Pandey
+* CHANGE REQUEST    : <8000004920>
+* TRANSPORT REQUEST : <CRDK958347>
+* DESCRIPTION       : length of file has been optimised for each selection
+*&---------------------------------------------------------------------*
+
+REPORT ZPP_SCM_ANALYTICS NO STANDARD PAGE HEADING.
+"Include for Structure and Selection Screen
+INCLUDE zpp_sel_screen.
+
+
+at SELECTION-SCREEN.
+INCLUDE ZPP_SCREEN_VALIDATION.
+START-OF-SELECTION.
+IF LV_FLAG NE 'X'.
+"Fetching Records from tables
+INCLUDE ZPP_FETCH_REC.
+ENDIF.
+
+INCLUDE ZPP_SCM_ANALYTICS_PROD_MASTF.     " 1.  Product Master
+INCLUDE ZPP_SCM_ANALYTICS_PLANT_MAST.     " 2.  Plant Master
+INCLUDE ZPP_SCM_ANALYTICS_LOC_MAST.       " 3.  MRP Dashboard Master
+INCLUDE ZPP_SCM_ANALYTICS_CUST_MAST.      " 4.  Customer Master
+INCLUDE ZPP_VEND_MAST_SCM.                " 5.  Vendor Master
+INCLUDE ZPP_SCM_ANALYTICS_TTSLAMF01.      " 6.  For Transit Time SLA Master
+INCLUDE ZPP_SCM_ANALYTICS_BONUS.          " 7.  For Bonus Data
+INCLUDE ZPP_SCM_ANALYTICS_OP_STOCK.       " 8.  For Opening Stock
+INCLUDE ZPP_SCM_ANALYTICS_PO_STO.         " 9.  For All PO/STO
+INCLUDE ZPP_SCM_ANALYTICS_BOM.            " 10. For Bill of Materials
+INCLUDE ZPP_SCM_ANALYTICS_ZLTSLA.         " 11. For ZLT_SLA transaction
+INCLUDE ZPP_SCM_ANALYTICS_QA33.           " 12. For QA33
+INCLUDE ZPP_SCM_ANALYTICS_STOCK_MOV.      " 13. For Stock Movement
+INCLUDE ZPP_SCM_ANALYTICS_D2D.            " 14. For Dispense to Dispatch
+INCLUDE ZPP_SCM_ANALYTICS_MI24.           " 15. For MI24-Physical Inventory File
+INCLUDE ZPP_SCM_ANALYTICS_CR_BLOCK.       " 16. For Credit Block Status at Month End
+
+INCLUDE zpp_scm_analytics_connect2ftp.    " Contains FTP related information

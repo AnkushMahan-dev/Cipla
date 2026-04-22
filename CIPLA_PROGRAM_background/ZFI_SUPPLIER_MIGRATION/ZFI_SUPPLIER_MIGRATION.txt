@@ -1,0 +1,874 @@
+*&---------------------------------------------------------------------*
+*& Report  ZFI_SUPPLIER_MIGRATION
+*&
+*&---------------------------------------------------------------------*
+*&
+*&
+*&---------------------------------------------------------------------*
+*----------------------------------------------------------------------*
+* Program
+* Title           : Supplier Migration
+* Author          : Vema Teja
+* Program Type    : Report
+* Creation Date   : 26.02.2026
+* Transaction     : No
+* Functional design: Arijit Podder
+* Technical design: Vema Teja
+* Change request : 8000004648
+* Transport number:  CRDK9A001A
+* Description     : Suppl Data Mapping from  Krypton to Cimmra
+*----------------------------------------------------------------------*
+
+
+REPORT zfi_supplier_migration.
+
+
+TYPES : BEGIN OF ty_final,
+          id                            TYPE lfa1-emnfr,
+          vendornumber                  TYPE lfa1-lifnr,
+          contactnumber                 TYPE lfa1-telf1,
+          countrycode                   TYPE   lfa1-land1,
+          countryname                   TYPE t005t-landx,
+          i_have_gst                    TYPE j_1imovend-ven_class,
+          isgstverify                   TYPE char3,
+          gststatus                     TYPE char5,
+          gstverifydate                 TYPE char10,
+          gstvendorclassification       TYPE char10,
+          gstnumber                     TYPE lfa1-stcd3,
+          pan                           TYPE j_1imovend-j_1ipanno,
+          pan206_a_b_status             TYPE char50,
+          panholdername                 TYPE char50,
+          panlinkaadhar                 TYPE zfi_tax_tab-adpnyn,
+          panstatus                     TYPE char50,
+          panverifydate                 TYPE sy-datum,
+          ispanindividual               TYPE char10,
+          ispanverify                   TYPE char3,
+          title                         TYPE lfa1-anred,
+          typeofholder                  TYPE char10,
+          e_invoice_applicable          TYPE char10,
+          annualaggregateturnover       TYPE char10,
+          code                          TYPE  lfa1-lifnr,
+          name                          TYPE lfa1-name1,
+          legalname                     TYPE char10,
+          tradename                     TYPE lfa1-name1,
+          taxcode                       TYPE char10,
+          taxno                         TYPE char10,
+          taxpayertype                  TYPE char10,
+          unregisteredgstvendor         TYPE j_1imovend-ven_class,
+          organizationtype              TYPE char10,
+          organizationtypecode          TYPE char10,
+          locationtype                  TYPE char10,
+          state                         TYPE t005u-bezei,
+          city                          TYPE lfa1-ort01,
+          pincode                       TYPE lfa1-pstlz,
+          address1                      TYPE lfa1-stras,
+          address2                      TYPE t005u-bezei,
+          address3                      TYPE t005u-bezei,
+          islowertds                    TYPE char3,
+          ismsme                        TYPE char10,
+          msmenumber                    TYPE zfi_vend_msme-uan,
+          msmeenterprisetype            TYPE zfi_vend_msme-category,
+          tan                           TYPE char10,
+          tanstatus                     TYPE char10,
+          cin                           TYPE char10,
+          cinstatus                     TYPE j_1imovend-j_1issist,
+          w8_w9                         TYPE char10,
+          companyregistration           TYPE char10,
+          yearfounded                   TYPE char10,
+          companywebsite                TYPE char10,
+          phone                         TYPE  char10,
+          is_header_address_in_location TYPE char10,
+          entity_category_code          TYPE char10,
+          entity_category               TYPE char10,
+          registrationnumber            TYPE char10,
+          defaultcurrency               TYPE char10,
+          status                        TYPE char10,
+          supplierintroduceremail       TYPE char10,
+          supplierintroducerid          TYPE char10,
+          supplierintroducername        TYPE char10,
+          supplierinvitationid          TYPE char10,
+          isupdatebysupplier            TYPE char10,
+          createdsource                 TYPE char10,
+          country                       TYPE lfa1-land1,
+          location_type                 TYPE char10,
+          sez_type                      TYPE char10,
+          address_line1                 TYPE char50,
+          address_line2                 TYPE char50,
+          address_line3                 TYPE char50,
+*          state                              TYPE char50,
+*          city                               TYPE char50,
+          pin_code                      TYPE char50,
+          location_email                TYPE char50,
+          location_phone                TYPE char50,
+          company_code                  TYPE lfb1-bukrs,
+          company                       TYPE   lfa1-name1,
+          payment_term_code             TYPE  lfb1-zterm,
+          payment_term                  TYPE char50,
+          purchasing_organization_code  TYPE lfm1-ekorg,
+          purchasing_organization       TYPE t024e-ekotx,
+          gst_classification_code       TYPE j_1imovend-ven_class,
+          gst_classification            TYPE char10,
+          account_group_code            TYPE lfa1-ktokk,
+          account_group                 TYPE char10,
+          reco_account_code             TYPE lfb1-akont,
+          reco_account                  TYPE char10,
+          industry_key_code             TYPE lfa1-brsch,
+          industry_key                  TYPE char10,
+          schema_code                   TYPE lfm1-kalsk,
+          schema                        TYPE char10,
+          currency_code                 TYPE lfa1-j_sc_currency,
+          currency                      TYPE char10,
+          gr_based_iv                   TYPE lfm1-webre,
+          email                         TYPE adr6-smtp_addr,
+          contact_number                TYPE char10,
+          contact_purpose               TYPE char10,
+          contactlocation_id            TYPE char10,
+          bnkcountry                    TYPE lfbk-banks,
+          account_number                TYPE lfbk-bankn,
+          ifsc                          TYPE lfbk-bankl,
+          account_holder_name           TYPE lfbk-koinh,
+          bank_name                     TYPE bnka-banka,
+          branch_address                TYPE  char255,
+          bic                           TYPE bnka-swift,
+          micr                          TYPE bnka-swift,
+          swift                         TYPE bnka-swift,
+          iban                          TYPE bnka-bnklz,
+          is_agree                      TYPE char10,
+          payment_mode                  TYPE lfb1-zwels,
+          bnklocation_id                TYPE char10,
+          msme                          TYPE zfi_vend_msme-msme,
+          validto                       TYPE zfi_vend_msme-datbi,
+          validfrom                     TYPE zfi_vend_msme-datab,
+          vendorturnover                TYPE zfi_vend_msme-v_turn,
+          vendoruan                     TYPE zfi_vend_msme-uan,
+          whttaxtype                    TYPE lfbw-witht,
+          whttaxcode                    TYPE lfbw-wt_withcd,
+          recipienttype                 TYPE lfbw-qsrec,
+          exemptionnumber               TYPE lfbw-wt_exnr,
+          exemptionrate                 TYPE lfbw-wt_exrt,
+          exemptionfrom                 TYPE lfbw-wt_exdf,
+          exemptionto                   TYPE lfbw-wt_exdt,
+          erpsuppliercode               TYPE char10,
+          partnerfunction               TYPE wyt3-parvw,
+        END OF ty_final,
+
+        BEGIN OF ty_ftp,
+          line(3000) TYPE c,
+        END OF ty_ftp.
+
+DATA: ta_final TYPE TABLE OF ty_final,
+      wa_final TYPE ty_final,
+      ta_ftp   TYPE TABLE OF ty_ftp,
+      wa_ftp   TYPE ty_ftp.
+TABLES : lfa1.
+SELECTION-SCREEN : begin of block b1.
+ PARAMETERS : p_comcod type lfb1-bukrs.
+ select-OPTIONS : s_ven for lfa1-ktokk,
+                  s_dt  for  lfa1-erdat.
+SELECTION-SCREEN : End of block b1.
+
+START-OF-SELECTION.
+
+  PERFORM get_data.
+
+  IF NOT ta_final IS INITIAL.
+    PERFORM file_server. "Send file to AL11
+
+  ELSE.
+
+    MESSAGE 'No Data Found' TYPE 'S' DISPLAY LIKE 'E'.
+  ENDIF.
+
+*&---------------------------------------------------------------------*
+*&      Form  FILE_SERVER
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM file_server .
+  CONSTANTS : lc_id_name  TYPE zparam_table-id_name VALUE 'CIM_VNRSP',
+*              lc_id_name  TYPE zparam_table-id_name VALUE 'CIM_VEN',
+              lc_file(30) TYPE c VALUE 'Supplier_Migration_Data_',
+              lc_e        TYPE c VALUE 'E',
+              lc_i        TYPE c VALUE 'I',
+              lc_txt(4)   TYPE c VALUE '.TXT'.
+  DATA:gv_file_al11(128) TYPE c,
+       gv_file(1000)     TYPE c,
+       gv_exemptionrate  TYPE string.
+
+  gv_file = |{ sy-datum+6(2) }{ '.' }{ sy-datum+4(2) }{ '.' }{ sy-datum+0(4) }|.
+
+  SELECT SINGLE *
+      FROM zparam_table
+      INTO @DATA(wa_param)
+      WHERE id_name = @lc_id_name."'CCP_CM'.
+  IF sy-subrc NE 0.
+    MESSAGE 'Please maintain file path for AL11.' TYPE 'S' DISPLAY LIKE lc_e."'E'.
+    LEAVE LIST-PROCESSING.
+  ENDIF.
+  CONCATENATE wa_param-param_name lc_file gv_file lc_txt INTO gv_file_al11.
+
+  OPEN DATASET gv_file_al11 FOR OUTPUT IN TEXT MODE ENCODING DEFAULT.
+
+  CONCATENATE
+'id'
+'VendorNumber'
+'ContactNumber'
+'CountryCode'
+'CountryName'
+'i_have_gst'
+'IsGstVerify'
+'GstStatus'
+'GstVerifyDate'
+'GSTVendorClassification'
+'GstNumber'
+'Pan'
+'pan206_a_b_status'
+'PanHolderName'
+'PanLinkAadhar'
+'PanStatus'
+'PanVerifyDate'
+'IsPanIndividual'
+'IsPanVerify'
+'Title'
+'TypeOfHolder'
+'e_invoice_applicable'
+'AnnualAggregateTurnover'
+'Code'
+'Name'
+'LegalName'
+'TradeName'
+'TaxCode'
+'TaxNo'
+'TaxPayerType'
+'UnregisteredGstVendor'
+'OrganizationType'
+'OrganizationTypeCode'
+'LocationType'
+'State'
+'City'
+'PinCode'
+'Address1'
+'Address2'
+'Address3'
+'IsLowerTds'
+'IsMsme'
+'MsmeNumber'
+'MsmeEnterpriseType'
+'Tan'
+'TanStatus'
+'Cin'
+'CinStatus'
+'w8_w9'
+'CompanyRegistration'
+'YearFounded'
+'CompanyWebsite'
+'Phone'
+'is_header_address_same_in_location'
+'entity_category_code'
+'entity_category'
+'RegistrationNumber'
+'DefaultCurrency'
+'Status'
+'SupplierIntroducerEmail'
+'SupplierIntroducerId'
+'SupplierIntroducerName'
+'SupplierInvitationId'
+'IsUpdateBySupplier'
+'CreatedSource'
+'country'
+'location_type'
+'sez_type'
+'address_line1'
+'address_line2'
+'address_line3'
+*'state'
+*'city'
+'pin_code'
+'location_email'
+'location_phone'
+'company_code'
+'company'
+'payment_term_code'
+'payment_term'
+'purchasing_organization_code'
+'purchasing_organization'
+'gst_classification_code'
+'gst_classification'
+'account_group_code'
+'account_group'
+'reco_account_code'
+'reco_account'
+'industry_key_code'
+'industry_key'
+'schema_code'
+'schema'
+'currency_code'
+'currency'
+'gr_based_iv'
+'email'
+'contact_number'
+'contact_purpose'
+'Contactlocation_id'
+'bnkcountry'
+'account_number'
+'ifsc'
+'account_holder_name'
+'bank_name'
+'branch_address'
+'bic'
+'micr'
+'swift'
+'iban'
+'is_agree'
+'payment_mode'
+'bnklocation_id'
+'MSME'
+'ValidTo'
+'ValidFrom'
+'VendorTurnOver'
+'VendorUAN'
+'WHTTaxType'
+'WHTTaxCode'
+'Recipienttype'
+'ExemptionNumber'
+'ExemptionRate'
+'ExemptionFrom'
+'ExemptionTo'
+'ErpSupplierCode'
+'Partner Function'
+              INTO wa_ftp SEPARATED BY '|'.
+  TRANSFER wa_ftp TO gv_file_al11.
+  CLEAR wa_ftp.
+
+  LOOP AT ta_final INTO wa_final.
+
+    gv_exemptionrate = wa_final-exemptionrate.
+
+    CONCATENATE
+wa_final-id
+wa_final-vendornumber
+wa_final-contactnumber
+wa_final-countrycode
+wa_final-countryname
+wa_final-i_have_gst
+wa_final-isgstverify
+wa_final-gststatus
+wa_final-gstverifydate
+wa_final-gstvendorclassification
+wa_final-gstnumber
+wa_final-pan
+wa_final-pan206_a_b_status
+wa_final-panholdername
+wa_final-panlinkaadhar
+wa_final-panstatus
+wa_final-panverifydate
+wa_final-ispanindividual
+wa_final-ispanverify
+wa_final-title
+wa_final-typeofholder
+wa_final-e_invoice_applicable
+wa_final-annualaggregateturnover
+wa_final-code
+wa_final-name
+wa_final-legalname
+wa_final-tradename
+wa_final-taxcode
+wa_final-taxno
+wa_final-taxpayertype
+wa_final-unregisteredgstvendor
+wa_final-organizationtype
+wa_final-organizationtypecode
+wa_final-locationtype
+wa_final-state
+wa_final-city
+wa_final-pincode
+wa_final-address1
+wa_final-address2
+wa_final-address3
+*wa_final-state
+*wa_final-city
+wa_final-msmenumber
+wa_final-msmeenterprisetype
+wa_final-tan
+wa_final-tanstatus
+wa_final-cin
+wa_final-cinstatus
+wa_final-w8_w9
+wa_final-companyregistration
+wa_final-yearfounded
+wa_final-companywebsite
+wa_final-phone
+wa_final-is_header_address_in_location
+wa_final-entity_category_code
+wa_final-entity_category
+wa_final-registrationnumber
+wa_final-defaultcurrency
+wa_final-status
+wa_final-supplierintroduceremail
+wa_final-supplierintroducerid
+wa_final-supplierintroducername
+wa_final-supplierinvitationid
+wa_final-isupdatebysupplier
+wa_final-createdsource
+wa_final-country
+wa_final-location_type
+wa_final-sez_type
+wa_final-address_line1
+wa_final-address_line2
+wa_final-address_line3
+wa_final-state
+wa_final-city
+wa_final-pin_code
+wa_final-location_email
+wa_final-location_phone
+wa_final-company_code
+wa_final-company
+wa_final-payment_term_code
+wa_final-payment_term
+wa_final-purchasing_organization_code
+wa_final-purchasing_organization
+wa_final-gst_classification_code
+wa_final-gst_classification
+wa_final-account_group_code
+wa_final-account_group
+wa_final-reco_account_code
+wa_final-reco_account
+wa_final-industry_key_code
+wa_final-industry_key
+wa_final-schema_code
+wa_final-schema
+wa_final-currency_code
+wa_final-currency
+wa_final-gr_based_iv
+wa_final-email
+*wa_final-contact_number
+*wa_final-contact_purpose
+*wa_final-contactlocation_id
+wa_final-bnkcountry
+wa_final-account_number
+wa_final-ifsc
+wa_final-account_holder_name
+wa_final-bank_name
+wa_final-branch_address
+wa_final-bic
+wa_final-micr
+wa_final-swift
+wa_final-iban
+wa_final-is_agree
+wa_final-payment_mode
+wa_final-bnklocation_id
+wa_final-msme
+wa_final-validto
+wa_final-validfrom
+wa_final-vendorturnover
+wa_final-vendoruan
+wa_final-whttaxtype
+wa_final-whttaxcode
+wa_final-recipienttype
+wa_final-exemptionnumber
+gv_exemptionrate
+wa_final-exemptionfrom
+wa_final-exemptionto
+wa_final-erpsuppliercode
+wa_final-partnerfunction
+    INTO wa_ftp SEPARATED BY '|'.
+    TRANSFER wa_ftp TO gv_file_al11.
+
+    CLEAR: gv_exemptionrate,wa_ftp.
+  ENDLOOP.
+
+  CLOSE DATASET gv_file_al11.
+
+  MESSAGE 'Data uploaded sucessfully' TYPE 'S'."'I'.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  GET_DATA
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM get_data.
+
+  SELECT lifnr,emnfr,telf1,land1,stcd3,name1,ort01,pstlz,stras,regio,ktokk,brsch,j_sc_currency,adrnr,anred,erdat
+  FROM lfa1
+    INTO TABLE @DATA(ta_lfa1)
+    where ktokk in @s_ven and
+          erdat in @s_dt.
+
+  IF sy-subrc = 0.
+    "ADR6
+    SELECT addrnumber,smtp_addr FROM adr6
+      INTO TABLE @DATA(ta_adr6)
+      FOR ALL ENTRIES IN @ta_lfa1
+      WHERE addrnumber = @ta_lfa1-adrnr.
+
+    "T005T
+    SELECT land1,landx,spras FROM t005t
+      INTO TABLE @DATA(ta_t005t)
+      FOR ALL ENTRIES IN @ta_lfa1
+      WHERE land1 = @ta_lfa1-land1 AND
+            spras = 'E'.
+
+    "T005U
+    SELECT  spras,land1,bland,bezei FROM t005u
+      INTO TABLE @DATA(ta_t005u)
+      FOR ALL ENTRIES IN @ta_lfa1
+      WHERE land1 =  @ta_lfa1-land1 AND
+            bland = @ta_lfa1-regio  AND
+            spras = 'E'.
+
+
+    "j_1imovend
+    SELECT lifnr,ven_class,j_1ipanno, j_1issist FROM j_1imovend
+      INTO TABLE @DATA(ta_movend)
+      FOR ALL ENTRIES IN @ta_lfa1
+      WHERE lifnr = @ta_lfa1-lifnr.
+
+    "zfi_vend_msme
+    SELECT lifnr,msme,uan,category,datbi,datab,v_turn FROM zfi_vend_msme
+      INTO TABLE @DATA(ta_zfi_vend_msme)
+      FOR ALL ENTRIES IN @ta_lfa1
+      WHERE lifnr = @ta_lfa1-lifnr.
+
+    "zfi_tax_tab
+    SELECT lifnr,adpnyn FROM zfi_tax_tab
+      INTO TABLE @DATA(ta_zfi_tax_tab)
+      FOR ALL ENTRIES IN @ta_lfa1
+      WHERE lifnr = @ta_lfa1-lifnr.
+
+    "LFB1
+    SELECT lifnr,bukrs,zterm,akont,zwels FROM lfb1
+      INTO TABLE @DATA(ta_lfb1)
+      FOR ALL ENTRIES IN @ta_lfa1
+      WHERE lifnr = @ta_lfa1-lifnr and
+            bukrs = @p_comcod.
+    IF sy-subrc = 0.
+      "FIWTIN_TAN_EXEM
+      SELECT bukrs,koart,accno FROM fiwtin_tan_exem
+        INTO TABLE @DATA(ta_tan_exem)
+        FOR ALL ENTRIES IN @ta_lfb1
+        WHERE bukrs = @ta_lfb1-bukrs AND
+              accno = @ta_lfb1-lifnr AND
+              koart = 'K'.
+
+      "LFBW
+      SELECT lifnr,bukrs,witht,wt_withcd,qsrec,wt_exnr,wt_exrt,wt_exdf,wt_exdt FROM lfbw
+        INTO TABLE @DATA(ta_lfbw)
+        FOR ALL ENTRIES IN @ta_lfb1
+        WHERE lifnr = @ta_lfb1-lifnr.
+
+    ENDIF.
+
+    "LFM1
+    SELECT lifnr,ekorg,kalsk,webre FROM lfm1
+      INTO TABLE @DATA(ta_lfm1)
+      FOR ALL ENTRIES IN @ta_lfa1
+      WHERE lifnr = @ta_lfa1-lifnr.
+    IF sy-subrc = 0.
+      "T024E
+      SELECT ekorg,ekotx FROM t024e
+        INTO TABLE @DATA(ta_t024e)
+        FOR ALL ENTRIES IN @ta_lfm1
+        WHERE ekorg = @ta_lfm1-ekorg.
+    ENDIF.
+
+    "LFBK
+    SELECT lifnr,banks,bankl,bankn,koinh FROM lfbk
+      INTO TABLE @DATA(ta_lfbk)
+      FOR ALL ENTRIES IN @ta_lfa1
+      WHERE lifnr = @ta_lfa1-lifnr .
+    IF sy-subrc = 0.
+      "BNKA
+      SELECT banks,bankl,banka,brnch,stras,ort01,swift,bnklz FROM bnka
+        INTO TABLE @DATA(ta_bnka)
+        FOR ALL ENTRIES IN @ta_lfbk
+        WHERE banks = @ta_lfbk-banks AND
+              bankl = @ta_lfbk-bankl.
+    ENDIF.
+
+    "WYT3(partner functionPARVW -
+    SELECT lifnr,ekorg,ltsnr,werks,parvw,parza  FROM wyt3
+      INTO TABLE @DATA(ta_wyt3)
+      FOR ALL ENTRIES IN @ta_lfa1
+      WHERE lifnr = @ta_lfa1-lifnr.
+
+*    SELECT a~lifnr,
+*           a~bukrs,
+*           a~zterm,
+*           a~akont,
+*           a~zwels,
+*           b~witht,
+*           b~wt_withcd,
+*           b~qsrec,
+*           b~wt_exnr,
+*           b~wt_exrt,
+*           b~wt_exdf,
+*           b~wt_exdt,
+*           c~banks,
+*           c~bankl,
+*           c~bankn,
+*           c~koinh
+*      FROM lfb1 AS a
+*      LEFT OUTER JOIN  lfbw AS b
+*      ON a~lifnr = b~lifnr AND
+*         a~bukrs = b~bukrs
+*      LEFT OUTER join lfbk as c
+*      on a~lifnr = c~lifnr
+*      INTO TABLE @DATA(ta_lfb1_lfbw_lfbk)
+*      FOR ALL ENTRIES IN @ta_lfa1
+*      WHERE a~lifnr = @ta_lfa1-lifnr.
+
+*    SELECT a~lifnr,
+*           a~bukrs,
+*           a~zterm,
+*           a~akont,
+*           a~zwels,
+*           b~witht,
+*           b~wt_withcd,
+*           b~qsrec,
+*           b~wt_exnr,
+*           b~wt_exrt,
+*           b~wt_exdf,
+*           b~wt_exdt,
+*           c~banks,
+*           c~bankl,
+*           c~bankn,
+*           c~koinh,
+*           d~ekorg,
+*           d~parvw
+*      FROM lfb1 AS a
+*      LEFT OUTER JOIN  lfbw AS b
+*      ON a~lifnr = b~lifnr AND
+*         a~bukrs = b~bukrs
+*      LEFT OUTER join lfbk as c
+*      on a~lifnr = c~lifnr
+*      left OUTER join wyt3 as d
+*      on a~lifnr = d~lifnr
+*      INTO TABLE @DATA(ta_lfb1_lfbw_lfbk_wyt3)
+*      FOR ALL ENTRIES IN @ta_lfa1
+*      WHERE a~lifnr = @ta_lfa1-lifnr.
+
+    SELECT a~lifnr,
+         a~bukrs,
+         a~zterm,
+         a~akont,
+         a~zwels,
+         b~witht,
+         b~wt_withcd,
+         b~qsrec,
+         b~wt_exnr,
+         b~wt_exrt,
+         b~wt_exdf,
+         b~wt_exdt,
+         c~banks,
+         c~bankl,
+         c~bankn,
+         c~koinh,
+         d~ekorg,
+         d~parvw,
+         e~msme,
+         e~category,
+         e~datbi,
+         e~datab,
+         e~v_turn,
+         e~uan
+    FROM lfb1 AS a
+    LEFT OUTER JOIN  lfbw AS b
+    ON a~lifnr = b~lifnr AND
+       a~bukrs = b~bukrs
+    LEFT OUTER JOIN lfbk AS c
+    ON a~lifnr = c~lifnr
+    LEFT OUTER JOIN wyt3 AS d
+    ON a~lifnr = d~lifnr
+    LEFT OUTER JOIN zfi_vend_msme AS e
+     ON a~lifnr = e~lifnr
+    INTO TABLE @DATA(ta_lfb1_lfbw_lfbk_wyt3_msme)
+    FOR ALL ENTRIES IN @ta_lfa1
+    WHERE a~lifnr = @ta_lfa1-lifnr.
+
+  ENDIF.
+
+
+*  -----------------------
+  "Single record tables.
+*   -----------------------
+*  ADR6
+*  T005T
+*  T005U
+*  J_1imovend
+*  Zfi_tax_tab
+*  LFM1
+*  T024E
+*  FIWTIN_TAN_EXEM
+*  BNKA
+*  ADR6
+*   -----------------------------------------------------------------
+  "MUltiple record tables
+*   LFA1
+*   Zfi_vend_msme
+*   LFB1
+*   LFBW
+*   LFBK
+*   Wyt3
+*   ------------------------
+
+  SORT ta_zfi_vend_msme BY lifnr.
+  SORT ta_lfb1 BY lifnr.
+  SORT ta_lfbw BY lifnr bukrs.
+
+  SORT ta_adr6 BY addrnumber.
+  SORT ta_lfa1 BY lifnr.
+  SORT ta_t005u BY land1 bland.
+  SORT ta_t005t BY land1.
+  SORT ta_movend BY lifnr.
+  SORT ta_zfi_tax_tab BY lifnr.
+  SORT ta_tan_exem BY  accno bukrs.
+  SORT ta_bnka BY banks bankl.
+  SORT ta_lfm1 BY lifnr.
+  SORT ta_t024e BY ekorg.
+
+  LOOP AT ta_lfb1_lfbw_lfbk_wyt3_msme INTO DATA(wa_all_join).
+    wa_final-isgstverify = 'Yes'.
+    wa_final-gststatus = 'Valid'.
+    wa_final-ispanverify = 'Yes'.
+
+    READ TABLE ta_lfa1 INTO DATA(wa_lfa1) WITH KEY lifnr = wa_all_join-lifnr BINARY SEARCH.
+    IF sy-subrc = 0.
+      "ADR6
+      READ TABLE ta_adr6 INTO DATA(wa_adr6) WITH KEY addrnumber = wa_lfa1-adrnr.
+      IF sy-subrc = 0.
+        wa_final-email  =  wa_adr6-smtp_addr.
+      ENDIF.
+
+      "LFA1.
+      wa_final-id  = wa_lfa1-emnfr.
+      wa_final-vendornumber = wa_lfa1-lifnr.
+      wa_final-contactnumber = wa_lfa1-telf1.
+      wa_final-countrycode  = wa_lfa1-land1.
+      wa_final-gstnumber  = wa_lfa1-stcd3.
+      wa_final-code   = wa_lfa1-lifnr.
+      wa_final-name   = wa_lfa1-name1.
+      wa_final-tradename = wa_lfa1-name1.
+      wa_final-city  = wa_lfa1-ort01.
+      wa_final-address1 = wa_lfa1-stras.
+      wa_final-pincode  = wa_lfa1-pstlz.
+      wa_final-country = wa_lfa1-land1.
+      wa_final-company = wa_lfa1-name1.
+      wa_final-account_group_code = wa_lfa1-ktokk.
+      wa_final-industry_key_code = wa_lfa1-brsch.
+      wa_final-currency_code = wa_lfa1-j_sc_currency.
+      wa_final-title = wa_lfa1-anred.
+
+      "T005U.
+      READ TABLE ta_t005u INTO DATA(wa_t005u) WITH KEY land1 = wa_lfa1-land1 bland = wa_lfa1-regio BINARY SEARCH.
+      IF sy-subrc = 0.
+        wa_final-state = wa_t005u-bezei.
+        wa_final-address2 = wa_t005u-bezei.
+        wa_final-address3 = wa_t005u-bezei.
+      ENDIF.
+
+      "T005T
+      READ TABLE ta_t005t INTO DATA(wa_t005t) WITH KEY land1 = wa_lfa1-land1 BINARY SEARCH.
+      IF sy-subrc = 0.
+        wa_final-countryname = wa_t005t-landx.
+      ENDIF.
+
+      "j_1imovend
+      READ TABLE ta_movend INTO DATA(wa_movend) WITH KEY lifnr = wa_lfa1-lifnr BINARY SEARCH.
+      IF sy-subrc = 0.
+        wa_final-i_have_gst = wa_movend-ven_class.
+        wa_final-pan  = wa_movend-j_1ipanno.
+        wa_final-unregisteredgstvendor = wa_movend-ven_class.
+        wa_final-cinstatus = wa_movend-j_1issist.
+        wa_final-gst_classification_code = wa_movend-ven_class.
+      ENDIF.
+
+      "ZFI_TAX_TAB
+      READ TABLE ta_zfi_tax_tab INTO DATA(wa_tax_tab) WITH KEY lifnr = wa_lfa1-lifnr BINARY SEARCH.
+      IF sy-subrc = 0.
+        wa_final-panlinkaadhar = wa_tax_tab-adpnyn.
+      ENDIF.
+
+      "LFM1.
+      READ TABLE ta_lfm1 INTO DATA(wa_lfm1) WITH KEY lifnr = wa_lfa1-lifnr BINARY SEARCH.
+      IF sy-subrc = 0.
+        wa_final-purchasing_organization_code = wa_lfm1-ekorg.
+        wa_final-schema_code = wa_lfm1-kalsk.
+        wa_final-gr_based_iv = wa_lfm1-webre.
+        "T024E
+        READ TABLE ta_t024e INTO DATA(wa_t024e) WITH KEY ekorg = wa_lfm1-ekorg BINARY SEARCH.
+        IF sy-subrc = 0.
+          wa_final-purchasing_organization = wa_t024e-ekotx.
+        ENDIF.
+      ENDIF.
+    ENDIF.
+
+    "FIWTIN_TAN_EXEM
+    READ TABLE ta_tan_exem INTO DATA(wa_tan_exem) WITH KEY accno = wa_all_join-lifnr bukrs = wa_all_join-bukrs BINARY SEARCH.
+    IF sy-subrc = 0.
+      wa_final-islowertds = 'Yes'.
+    ELSE.
+      wa_final-islowertds = 'No'.
+    ENDIF.
+
+    "BNKA
+    READ TABLE ta_bnka INTO DATA(wa_bnka) WITH KEY banks = wa_all_join-banks bankl = wa_all_join-bankl BINARY SEARCH.
+    IF sy-subrc = 0.
+      wa_final-bank_name = wa_bnka-banka.
+      wa_final-branch_address = |{ wa_bnka-brnch },{ wa_bnka-stras },{ wa_bnka-ort01 }|.
+      wa_final-bic  = wa_bnka-swift.
+      wa_final-micr = wa_bnka-swift.
+      wa_final-swift = wa_bnka-swift.
+      wa_final-iban = wa_bnka-bnklz.
+    ENDIF.
+
+    "Multiple
+    "LFB1
+    wa_final-company_code = wa_all_join-bukrs.
+    wa_final-payment_term_code = wa_all_join-zterm.
+    wa_final-reco_account_code = wa_all_join-akont.
+    wa_final-payment_mode = wa_all_join-zwels.
+
+    "LFBW
+    wa_final-whttaxtype = wa_all_join-witht.
+    wa_final-whttaxcode = wa_all_join-wt_withcd.
+    wa_final-recipienttype = wa_all_join-qsrec.
+    wa_final-exemptionnumber = wa_all_join-wt_exnr.
+    wa_final-exemptionrate = wa_all_join-wt_exrt.
+    wa_final-exemptionfrom = wa_all_join-wt_exdf.
+    wa_final-exemptionto  = wa_all_join-wt_exdt.
+
+    "LFBK
+    wa_final-bnkcountry = wa_all_join-banks.
+    wa_final-account_number = wa_all_join-bankn.
+    wa_final-ifsc  = wa_all_join-bankl.
+    wa_final-account_holder_name = wa_all_join-koinh.
+
+    "WYT3
+    wa_final-partnerfunction = wa_all_join-parvw.
+
+    "zfi_vend_msme
+    wa_final-ismsme  = COND char10( WHEN wa_all_join-msme = 0 THEN 'Not MSME'
+                                    WHEN wa_all_join-msme = 1 THEN 'Medium'
+                                    WHEN wa_all_join-msme = 2 THEN 'Small'
+                                    WHEN wa_all_join-msme = 3 THEN 'Micro' ).
+    wa_final-msmenumber = wa_all_join-uan.
+    wa_final-msmeenterprisetype = wa_all_join-category.
+    wa_final-msme  = wa_all_join-msme.
+    wa_final-validto = wa_all_join-datbi.
+    wa_final-validfrom = wa_all_join-datab.
+    wa_final-vendorturnover = wa_all_join-v_turn.
+    wa_final-vendoruan = wa_all_join-uan.
+
+    APPEND wa_final TO ta_final.
+    CLEAR : wa_final,wa_lfa1,wa_t005u,wa_t005t,wa_movend,wa_tax_tab,wa_lfm1,wa_t024e,wa_tan_exem,wa_bnka.
+
+  ENDLOOP.
+
+ENDFORM.

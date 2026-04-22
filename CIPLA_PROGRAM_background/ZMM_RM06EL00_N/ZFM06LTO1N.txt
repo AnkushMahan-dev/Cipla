@@ -1,0 +1,33 @@
+*&---------------------------------------------------------------------*
+*&  Include           ZFM06LTO1N
+* Modification Information
+* Program Title    : Purchasing Documents per Vendor
+* Author           : Nilesh
+* Program Type     : Report
+* Creation Date    : 03.12.2019
+* Transaction      : ZME2L_1
+* Functional design: FS_MM_428
+* Technical design : TS_MM_428
+* Change request   : 8000005657
+* Transport number : CRDK966016
+* Description      : IN:MM:428:ND:8000005657:Supplier score card dash board - 01
+*--------------------------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+TABLES: EKKO,                          "Einkaufsbelegkopf
+        EKPO,                          "Einkaufsbelegposition
+        RM06E,                         "Hilfsfelder
+       *EKPO,
+        EKET,                          "Einkaufsbelegeinteilung
+        EKES,                          "Bestellbestätigungen
+        EKKN,                          "Einkaufsbelegkontierung
+        T160S,                         "Selektionsparameter
+        T160T,
+        T160L,                         "Scope of PUR Lists  "1876863
+        EKDY,
+        SSCRFIELDS,
+        eban,                         " added By Nilesh 12.07.2019 8000005554
+        aufk.                         " added By Nilesh 29.11.2019 8000005657
+*ENHANCEMENT-POINT EHP_RM06EL00_06 SPOTS /SAPPSPRO/ES_RM06EL00 STATIC .
+
+*---- WWW: zusätzliche Felder fürs Web-Reporting
+DATA  G_SUBMIT_INFO LIKE RSSUBINFO.     " Laufzeitinfo

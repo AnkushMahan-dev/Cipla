@@ -1,0 +1,645 @@
+*----------------------------------------------------------------------*
+***INCLUDE ZPP_SCM_ANALYTICS_LOC_MAST.
+*----------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*&      Form  PROD_LOC_MASTER
+*&---------------------------------------------------------------------*
+* MRP Dashboard Master
+* Modification Information
+* Date              : 07.11.2019
+* Author            : Nilesh Dabhekar
+* Functional design : PP/206
+* Change request    : 8000005901
+* Transport number  : CRDK965403
+* Description       : Added Filed in FTP
+*----------------------------------------------------------------------*
+
+FORM prod_loc_master .
+TYPES: BEGIN OF ty_loc_mas,
+        line(1000),
+       END OF ty_loc_mas.
+DATA: wa_ftp_loc_mas TYPE ty_loc_mas,
+      ta_ftp_loc_mas TYPE TABLE OF ty_loc_mas.
+
+
+DATA: lv_dat_con(8).
+select * from ZMRPDASH_MAIN INTO TABLE TA_MRPDASH_MAS
+  WHERE werks in s_werklm   AND
+        matnr in s_mat_lm   AND
+        type1 in s_dash_t   AND
+        mtart in s_mtatlm.
+******************" Process to send File on FTP server******************
+IF TA_MRPDASH_MAS[] IS NOT INITIAL.
+CLEAR: wa_ftp, lv_file, ta_ftp[].
+CONCATENATE
+'plnt_code'
+'mat_code'
+*SOC adding by Nilesh 05.11.2019 800005901
+'dash_type'
+'mat_desc'
+*EOC adding by Nilesh 05.11.2019 800005901
+'mat_type'
+'buom'
+'mrp_type'
+'mrp_cntrllr'
+'purch_grp'
+'pln_delv_time'
+'qc_time'
+'mat_loc_status'
+'ss'
+'reord_pt'
+'mov_prc'
+'curr'
+'lot_size'
+'fix_lot_size'
+'min_lot_size'
+'max_lot_size'
+'rnd_val'
+'pastpr_qty'
+'currpr_qty'
+'nxt1pr_qty'
+'nxt2pr_qty'
+*SOC adding by Nilesh 05.11.2019 800005901
+'nxt3pr_qty'
+'nxt4pr_qty'
+'nxt5pr_qty'
+'nxt6pr_qty'
+'nxt7pr_qty'
+'nxt8pr_qty'
+'nxt9pr_qty'
+'nxt10pr_qty'
+'nxt11pr_qty'
+*EOC adding by Nilesh 05.11.2019 800005901
+'pr_30days'
+'Pastpo_qty'
+'currpo_qty'
+*SOC adding by Nilesh 05.11.2019 800005901
+'nxt1po_qty'
+'nxt2po_qty'
+'nxt3po_qty'
+'nxt4po_qty'
+'nxt5po_qty'
+'nxt6po_qty'
+'nxt7po_qty'
+'nxt8po_qty'
+'nxt9po_qty'
+'nxt10po_qty'
+'nxt11po_qty'
+*EOC adding by Nilesh 05.11.2019 800005901
+'ord_qty'
+'trgt_qty'
+'unres_qty'
+'qi_qty'
+'blck_qty'
+'exp_stk'
+'exp30_stk'
+'exp60_stk'
+'exp90_stk'
+'exp180_stk'
+'unres_dos'
+'unresqi_das'
+'unresqipo_dos'
+'multi_bom'
+'bom_qty'
+'past_req'
+*SOC adding by Nilesh 05.11.2019 800005901
+'past6_req'
+'past5_req'
+'past4_req'
+'past3_req'
+'past2_req'
+'past1_req'
+*'next_req' "Commented By Nilesh 05.11.2019
+'curr_req'
+*EOC adding by Nilesh 05.11.2019 800005901
+'nxt1_req'
+'nxt2_req'
+*SOC adding by Nilesh 05.11.2019 800005901
+'nxt3_req'
+'nxt4_req'
+'nxt5_req'
+'nxt6_req'
+'nxt7_req'
+'nxt8_req'
+'nxt9_req'
+'nxt10_req'
+'nxt11_req'
+'nxt12_req'
+*EOC adding by Nilesh 05.11.2019 800005901
+*'fut_req' "Commented By Nilesh 05.11.2019
+'tot_req'
+'lastyr_con'
+*SOC adding by Nilesh 05.11.2019 800005901
+'past6_con'
+'past5_con'
+'past4_con'
+*EOC adding by Nilesh 05.11.2019 800005901
+'past3_con'
+'past2_con'
+'past1_con'
+'curr_con'
+'last_con_dt'
+'pr_resch'
+'pr_cancel'
+'shortage_dt'
+'net_avl_qty'
+*SOC adding by Nilesh 05.11.2019 800005901
+'crtd_date'
+'crtd_time'
+*EOC adding by Nilesh 05.11.2019 800005901
+INTO wa_ftp_loc_mas SEPARATED BY lv_tab. " wa_ftp has been replaced by wa_ftp_loc_mas against ticket no. 8000004920
+              APPEND wa_ftp_loc_mas to ta_ftp_loc_mas. " wa_ftp has been replaced by wa_ftp_loc_mas and ta_ftp by ta_ftp_loc_mas against ticket no. 8000004920
+              CLEAR wa_ftp.
+
+LOOP AT TA_MRPDASH_MAS INTO DATA(wa_mrp_tmp).
+SHIFT wa_mrp_tmp-MATNR LEFT DELETING LEADING '0'.
+wa_char-LV_CHAR1  = wa_mrp_tmp-WERKS           .        Condense wa_char-LV_CHAR1    .
+wa_char-LV_CHAR2  = wa_mrp_tmp-MATNR           .        Condense wa_char-LV_CHAR2    .
+*SOC adding by Nilesh 05.11.2019 800005901
+wa_char-LV_CHAR3  = wa_mrp_tmp-TYPE1           .        Condense wa_char-LV_CHAR3    .
+wa_char-LV_CHAR4  = wa_mrp_tmp-MAKTX           .        Condense wa_char-LV_CHAR4    .
+*EOC adding by Nilesh 05.11.2019 800005901
+wa_char-LV_CHAR5  = wa_mrp_tmp-MTART           .        Condense wa_char-LV_CHAR5    .
+wa_char-LV_CHAR6  = wa_mrp_tmp-MEINS           .        Condense wa_char-LV_CHAR6    .
+wa_char-LV_CHAR7  = wa_mrp_tmp-DISMM           .        Condense wa_char-LV_CHAR7    .
+wa_char-LV_CHAR8  = wa_mrp_tmp-DISPO           .        Condense wa_char-LV_CHAR8    .
+wa_char-LV_CHAR9  = wa_mrp_tmp-EKGRP           .        Condense wa_char-LV_CHAR9    .
+wa_char-LV_CHAR10  = wa_mrp_tmp-PLIFZ           .       Condense wa_char-LV_CHAR10   .
+wa_char-LV_CHAR11  = wa_mrp_tmp-WEBAZ           .       Condense wa_char-LV_CHAR11   .
+wa_char-LV_CHAR12 = wa_mrp_tmp-MMSTA           .        Condense wa_char-LV_CHAR12   .
+wa_char-LV_CHAR13 = wa_mrp_tmp-EISBE           .        Condense wa_char-LV_CHAR13   .
+wa_char-LV_CHAR14 = wa_mrp_tmp-MINBE           .        Condense wa_char-LV_CHAR14   .
+wa_char-LV_CHAR15 = wa_mrp_tmp-VERPR           .        Condense wa_char-LV_CHAR15   .
+wa_char-LV_CHAR16 = wa_mrp_tmp-WAERS           .        Condense wa_char-LV_CHAR16   .
+wa_char-LV_CHAR17 = wa_mrp_tmp-DISLS           .        Condense wa_char-LV_CHAR17   .
+wa_char-LV_CHAR18 = wa_mrp_tmp-BSTFE           .        Condense wa_char-LV_CHAR18   .
+wa_char-LV_CHAR19 = wa_mrp_tmp-BSTMI           .        Condense wa_char-LV_CHAR19   .
+wa_char-LV_CHAR20 = wa_mrp_tmp-BSTMA           .        Condense wa_char-LV_CHAR20   .
+wa_char-LV_CHAR21 = wa_mrp_tmp-BSTRF           .        Condense wa_char-LV_CHAR21   .
+wa_char-LV_CHAR22 = wa_mrp_tmp-QUAN_PAST_PR    .        Condense wa_char-LV_CHAR22   .
+wa_char-LV_CHAR23 = wa_mrp_tmp-QUAN_OPEN_PR    .        Condense wa_char-LV_CHAR23   .
+wa_char-LV_CHAR24 = wa_mrp_tmp-QUAN_NEXT_PR    .        Condense wa_char-LV_CHAR24   .
+
+*SOC by Commneted By nileh 05.11.2019 8000005901
+**wa_char-LV_CHAR23 = wa_mrp_tmp-QUAN_OTH_PR     .        Condense wa_char-LV_CHAR23   .
+*EOC by Commneted By nileh 05.11.2019 8000005901
+*SOC adding by Nilesh 05.11.2019 800005901
+wa_char-LV_CHAR25 = wa_mrp_tmp-QUAN_NEXT2_PR   .        Condense wa_char-LV_CHAR25   .
+wa_char-LV_CHAR26 = wa_mrp_tmp-QUAN_NEXT3_PR   .        Condense wa_char-LV_CHAR26   .
+wa_char-LV_CHAR27 = wa_mrp_tmp-QUAN_NEXT4_PR   .        Condense wa_char-LV_CHAR27   .
+wa_char-LV_CHAR28 = wa_mrp_tmp-QUAN_NEXT5_PR   .        Condense wa_char-LV_CHAR28   .
+wa_char-LV_CHAR29 = wa_mrp_tmp-QUAN_NEXT6_PR   .        Condense wa_char-LV_CHAR29   .
+wa_char-LV_CHAR30 = wa_mrp_tmp-QUAN_NEXT7_PR   .        Condense wa_char-LV_CHAR30   .
+wa_char-LV_CHAR31 = wa_mrp_tmp-QUAN_NEXT8_PR   .        Condense wa_char-LV_CHAR31   .
+wa_char-LV_CHAR32 = wa_mrp_tmp-QUAN_NEXT9_PR   .        Condense wa_char-LV_CHAR32   .
+wa_char-LV_CHAR33 = wa_mrp_tmp-QUAN_NEXT10_PR  .        Condense wa_char-LV_CHAR33   .
+wa_char-LV_CHAR34 = wa_mrp_tmp-QUAN_NEXT11_PR  .        Condense wa_char-LV_CHAR34   .
+*EOC adding by Nilesh 05.11.2019 800005901
+
+wa_char-LV_CHAR35 = wa_mrp_tmp-NO_30_PR        .        Condense wa_char-LV_CHAR35   .
+wa_char-LV_CHAR36 = wa_mrp_tmp-QUAN_PAST_PO    .        Condense wa_char-LV_CHAR36   .
+wa_char-LV_CHAR37 = wa_mrp_tmp-QUAN_OPEN_PO    .        Condense wa_char-LV_CHAR37   .
+wa_char-LV_CHAR38 = wa_mrp_tmp-QUAN_NEXT_PO    .        Condense wa_char-LV_CHAR38   .
+*SOC adding by Nilesh 05.11.2019 800005901
+wa_char-LV_CHAR39 = wa_mrp_tmp-QUAN_NEXT2_PO   .        Condense wa_char-LV_CHAR39   .
+wa_char-LV_CHAR40 = wa_mrp_tmp-QUAN_NEXT3_PO   .        Condense wa_char-LV_CHAR40   .
+wa_char-LV_CHAR41 = wa_mrp_tmp-QUAN_NEXT4_PO   .        Condense wa_char-LV_CHAR41   .
+wa_char-LV_CHAR42 = wa_mrp_tmp-QUAN_NEXT5_PO   .        Condense wa_char-LV_CHAR42   .
+wa_char-LV_CHAR43 = wa_mrp_tmp-QUAN_NEXT6_PO   .        Condense wa_char-LV_CHAR43   .
+wa_char-LV_CHAR44 = wa_mrp_tmp-QUAN_NEXT7_PO   .        Condense wa_char-LV_CHAR44   .
+wa_char-LV_CHAR45 = wa_mrp_tmp-QUAN_NEXT8_PO   .        Condense wa_char-LV_CHAR45   .
+wa_char-LV_CHAR46 = wa_mrp_tmp-QUAN_NEXT9_PO   .        Condense wa_char-LV_CHAR46   .
+wa_char-LV_CHAR47 = wa_mrp_tmp-QUAN_NEXT10_PO   .       Condense wa_char-LV_CHAR47   .
+wa_char-LV_CHAR48 = wa_mrp_tmp-QUAN_NEXT11_PO   .       Condense wa_char-LV_CHAR48   .
+*EOC adding by Nilesh 05.11.2019 800005901
+
+*SOC by Commneted By nileh 05.11.2019 8000005901
+*wa_char-LV_CHAR27 = wa_mrp_tmp-QUAN_FUT_PO     .        Condense wa_char-LV_CHAR27   .
+*EOC by Commneted By nileh 05.11.2019 8000005901
+
+wa_char-LV_CHAR49 = wa_mrp_tmp-QUAN_PLNUM      .        Condense wa_char-LV_CHAR49   .
+wa_char-LV_CHAR50 = wa_mrp_tmp-QUAN_AUFNR      .        Condense wa_char-LV_CHAR50   .
+wa_char-LV_CHAR51 = wa_mrp_tmp-CLABS_STOCK     .        Condense wa_char-LV_CHAR51   .
+wa_char-LV_CHAR52 = wa_mrp_tmp-CINSM_STOCK     .        Condense wa_char-LV_CHAR52   .
+wa_char-LV_CHAR53 = wa_mrp_tmp-CSPEM_STOCK     .        Condense wa_char-LV_CHAR53   .
+wa_char-LV_CHAR54 = wa_mrp_tmp-EXP_0_STOCK     .        Condense wa_char-LV_CHAR54   .
+wa_char-LV_CHAR55 = wa_mrp_tmp-EXP_30_STOCK    .        Condense wa_char-LV_CHAR55   .
+wa_char-LV_CHAR56 = wa_mrp_tmp-EXP_60_STOCK    .        Condense wa_char-LV_CHAR56   .
+wa_char-LV_CHAR57 = wa_mrp_tmp-EXP_90_STOCK    .        Condense wa_char-LV_CHAR57   .
+wa_char-LV_CHAR58 = wa_mrp_tmp-EXP_180_STOCK   .        Condense wa_char-LV_CHAR58   .
+wa_char-LV_CHAR59 = wa_mrp_tmp-BERW1_COV       .        Condense wa_char-LV_CHAR59   .
+wa_char-LV_CHAR60 = wa_mrp_tmp-BERW2_COV       .        Condense wa_char-LV_CHAR60   .
+wa_char-LV_CHAR61 = wa_mrp_tmp-BERW4_COV       .        Condense wa_char-LV_CHAR61   .
+wa_char-LV_CHAR62 = wa_mrp_tmp-MULTIPLE_BOM    .        Condense wa_char-LV_CHAR62   .
+wa_char-LV_CHAR63 = wa_mrp_tmp-QUAN_BOM        .        Condense wa_char-LV_CHAR63   .
+wa_char-LV_CHAR64 = wa_mrp_tmp-PAST_REQ        .        Condense wa_char-LV_CHAR64   .
+*SOC adding by Nilesh 05.11.2019 800005901
+wa_char-LV_CHAR65 = wa_mrp_tmp-PAST6_REQ       .        Condense wa_char-LV_CHAR65   .
+wa_char-LV_CHAR66 = wa_mrp_tmp-PAST5_REQ       .        Condense wa_char-LV_CHAR66   .
+wa_char-LV_CHAR67 = wa_mrp_tmp-PAST4_REQ       .        Condense wa_char-LV_CHAR67   .
+wa_char-LV_CHAR68 = wa_mrp_tmp-PAST3_REQ       .        Condense wa_char-LV_CHAR68   .
+wa_char-LV_CHAR69 = wa_mrp_tmp-PAST2_REQ       .        Condense wa_char-LV_CHAR69   .
+wa_char-LV_CHAR70 = wa_mrp_tmp-PAST1_REQ       .        Condense wa_char-LV_CHAR70   .
+*EOC adding by Nilesh 05.11.2019 800005901
+wa_char-LV_CHAR71 = wa_mrp_tmp-CURR_REQ        .        Condense wa_char-LV_CHAR71   .
+wa_char-LV_CHAR72 = wa_mrp_tmp-NEXT_REQ        .        Condense wa_char-LV_CHAR72   .
+wa_char-LV_CHAR73 = wa_mrp_tmp-NEXT2_REQ       .        Condense wa_char-LV_CHAR73   .
+*SOC adding by Nilesh 05.11.2019 800005901
+wa_char-LV_CHAR74 = wa_mrp_tmp-NEXT3_REQ       .        Condense wa_char-LV_CHAR74   .
+wa_char-LV_CHAR75 = wa_mrp_tmp-NEXT4_REQ       .        Condense wa_char-LV_CHAR75   .
+wa_char-LV_CHAR76 = wa_mrp_tmp-NEXT5_REQ       .        Condense wa_char-LV_CHAR76   .
+wa_char-LV_CHAR77 = wa_mrp_tmp-NEXT6_REQ       .        Condense wa_char-LV_CHAR77   .
+wa_char-LV_CHAR78 = wa_mrp_tmp-NEXT7_REQ       .        Condense wa_char-LV_CHAR78   .
+wa_char-LV_CHAR79 = wa_mrp_tmp-NEXT8_REQ       .        Condense wa_char-LV_CHAR79   .
+wa_char-LV_CHAR80 = wa_mrp_tmp-NEXT9_REQ       .        Condense wa_char-LV_CHAR80   .
+wa_char-LV_CHAR81 = wa_mrp_tmp-NEXT10_REQ      .        Condense wa_char-LV_CHAR81   .
+wa_char-LV_CHAR82 = wa_mrp_tmp-NEXT11_REQ      .        Condense wa_char-LV_CHAR82   .
+wa_char-LV_CHAR83 = wa_mrp_tmp-NEXT12_REQ      .        Condense wa_char-LV_CHAR83   .
+*EOC adding by Nilesh 05.11.2019 800005901
+
+wa_char-LV_CHAR84 = wa_mrp_tmp-TOT_REQ         .        Condense wa_char-LV_CHAR84   .
+wa_char-LV_CHAR85 = wa_mrp_tmp-PAST_YR_CONS    .        Condense wa_char-LV_CHAR85   .
+*SOC adding by Nilesh 05.11.2019 800005901
+wa_char-LV_CHAR86 = wa_mrp_tmp-PAST6_CONS      .        Condense wa_char-LV_CHAR86   .
+wa_char-LV_CHAR87 = wa_mrp_tmp-PAST5_CONS      .        Condense wa_char-LV_CHAR87   .
+wa_char-LV_CHAR88 = wa_mrp_tmp-PAST4_CONS      .        Condense wa_char-LV_CHAR88   .
+*EOC adding by Nilesh 05.11.2019 800005901
+wa_char-LV_CHAR89 = wa_mrp_tmp-PAST3_CONS      .        Condense wa_char-LV_CHAR89   .
+wa_char-LV_CHAR90 = wa_mrp_tmp-PAST2_CONS      .        Condense wa_char-LV_CHAR90   .
+wa_char-LV_CHAR91 = wa_mrp_tmp-PAST_CONS       .        Condense wa_char-LV_CHAR91   .
+wa_char-LV_CHAR92 = wa_mrp_tmp-CURR_CONS       .        Condense wa_char-LV_CHAR92   .
+CONCATENATE wa_mrp_tmp-date_cons+6(2) wa_mrp_tmp-date_cons+4(2) wa_mrp_tmp-date_cons+0(4) INTO wa_char-LV_CHAR93. CONDENSE wa_char-LV_CHAR93.
+*wa_char-LV_CHAR54 = wa_mrp_tmp-DATE_CONS       .
+wa_char-LV_CHAR94 = wa_mrp_tmp-PROP_RESCH      .        CONDENSE wa_char-LV_CHAR94.
+wa_char-LV_CHAR95 = wa_mrp_tmp-PROP_CNCL       .        CONDENSE wa_char-LV_CHAR95.
+CONCATENATE wa_mrp_tmp-PROD_SHORT+6(2) wa_mrp_tmp-PROD_SHORT+4(2) wa_mrp_tmp-PROD_SHORT+0(4) INTO wa_char-LV_CHAR96. CONDENSE wa_char-LV_CHAR96.
+*wa_char-LV_CHAR57 = wa_mrp_tmp-PROD_SHORT      .
+wa_char-LV_CHAR97 = wa_mrp_tmp-NET_AVAIL_QTY   . CONDENSE wa_char-LV_CHAR97.
+*SOC adding by Nilesh 05.11.2019 800005901
+wa_char-LV_CHAR98 = wa_mrp_tmp-CRDAT   . CONDENSE wa_char-LV_CHAR98.
+wa_char-LV_CHAR99 = wa_mrp_tmp-CRTIM   . CONDENSE wa_char-LV_CHAR99.
+*EOC adding by Nilesh 05.11.2019 800005901
+
+""""""" Shifting negative sign from last to begining
+*SOC adding by Nilesh 05.11.2019 800005901
+REPLACE ALL OCCURRENCES OF '-' in wa_char-LV_CHAR13 WITH ''.
+IF sy-subrc EQ 0.
+CONCATENATE '-' wa_char-LV_CHAR13 INTO wa_char-LV_CHAR13.
+ENDIF.
+REPLACE ALL OCCURRENCES OF '-' in wa_char-LV_CHAR14 WITH ''.
+IF sy-subrc EQ 0.
+CONCATENATE '-' wa_char-LV_CHAR14 INTO wa_char-LV_CHAR14.
+ENDIF.
+REPLACE ALL OCCURRENCES OF '-' in wa_char-LV_CHAR15 WITH ''.
+IF sy-subrc EQ 0.
+CONCATENATE '-' wa_char-LV_CHAR15 INTO wa_char-LV_CHAR15.
+ENDIF.
+REPLACE ALL OCCURRENCES OF '-' in wa_char-LV_CHAR16 WITH ''.
+IF sy-subrc EQ 0.
+CONCATENATE '-' wa_char-LV_CHAR16 INTO wa_char-LV_CHAR16.
+ENDIF.
+REPLACE ALL OCCURRENCES OF '-' in wa_char-LV_CHAR17 WITH ''.
+IF sy-subrc EQ 0.
+CONCATENATE '-' wa_char-LV_CHAR17 INTO wa_char-LV_CHAR17.
+ENDIF.
+REPLACE ALL OCCURRENCES OF '-' in wa_char-LV_CHAR18 WITH ''.
+IF sy-subrc EQ 0.
+CONCATENATE '-' wa_char-LV_CHAR18 INTO wa_char-LV_CHAR18.
+ENDIF.
+REPLACE ALL OCCURRENCES OF '-' in wa_char-LV_CHAR19 WITH ''.
+IF sy-subrc EQ 0.
+CONCATENATE '-' wa_char-LV_CHAR19 INTO wa_char-LV_CHAR19.
+ENDIF.
+REPLACE ALL OCCURRENCES OF '-' in wa_char-LV_CHAR20 WITH ''.
+IF sy-subrc EQ 0.
+CONCATENATE '-' wa_char-LV_CHAR20 INTO wa_char-LV_CHAR20.
+ENDIF.
+REPLACE ALL OCCURRENCES OF '-' in wa_char-LV_CHAR21 WITH ''.
+IF sy-subrc EQ 0.
+CONCATENATE '-' wa_char-LV_CHAR21 INTO wa_char-LV_CHAR21.
+ENDIF.
+REPLACE ALL OCCURRENCES OF '-' in wa_char-LV_CHAR22 WITH ''.
+IF sy-subrc EQ 0.
+CONCATENATE '-' wa_char-LV_CHAR22 INTO wa_char-LV_CHAR22.
+ENDIF.
+REPLACE ALL OCCURRENCES OF '-' in wa_char-LV_CHAR23 WITH ''.
+IF sy-subrc EQ 0.
+CONCATENATE '-' wa_char-LV_CHAR23 INTO wa_char-LV_CHAR23.
+ENDIF.
+REPLACE ALL OCCURRENCES OF '-' in wa_char-LV_CHAR24 WITH ''.
+IF sy-subrc EQ 0.
+CONCATENATE '-' wa_char-LV_CHAR24 INTO wa_char-LV_CHAR24.
+ENDIF.
+REPLACE ALL OCCURRENCES OF '-' in wa_char-LV_CHAR25 WITH ''.
+IF sy-subrc EQ 0.
+CONCATENATE '-' wa_char-LV_CHAR25 INTO wa_char-LV_CHAR25.
+ENDIF.
+REPLACE ALL OCCURRENCES OF '-' in wa_char-LV_CHAR26 WITH ''.
+IF sy-subrc EQ 0.
+CONCATENATE '-' wa_char-LV_CHAR26 INTO wa_char-LV_CHAR26.
+ENDIF.
+REPLACE ALL OCCURRENCES OF '-' in wa_char-LV_CHAR27 WITH ''.
+IF sy-subrc EQ 0.
+CONCATENATE '-' wa_char-LV_CHAR27 INTO wa_char-LV_CHAR27.
+ENDIF.
+REPLACE ALL OCCURRENCES OF '-' in wa_char-LV_CHAR28 WITH ''.
+IF sy-subrc EQ 0.
+CONCATENATE '-' wa_char-LV_CHAR28 INTO wa_char-LV_CHAR28.
+ENDIF.
+REPLACE ALL OCCURRENCES OF '-' in wa_char-LV_CHAR29 WITH ''.
+IF sy-subrc EQ 0.
+CONCATENATE '-' wa_char-LV_CHAR29 INTO wa_char-LV_CHAR29.
+ENDIF.
+REPLACE ALL OCCURRENCES OF '-' in wa_char-LV_CHAR30 WITH ''.
+IF sy-subrc EQ 0.
+CONCATENATE '-' wa_char-LV_CHAR30 INTO wa_char-LV_CHAR30.
+ENDIF.
+REPLACE ALL OCCURRENCES OF '-' in wa_char-LV_CHAR31 WITH ''.
+IF sy-subrc EQ 0.
+CONCATENATE '-' wa_char-LV_CHAR31 INTO wa_char-LV_CHAR31.
+ENDIF.
+REPLACE ALL OCCURRENCES OF '-' in wa_char-LV_CHAR32 WITH ''.
+IF sy-subrc EQ 0.
+CONCATENATE '-' wa_char-LV_CHAR32 INTO wa_char-LV_CHAR32.
+ENDIF.
+REPLACE ALL OCCURRENCES OF '-' in wa_char-LV_CHAR33 WITH ''.
+IF sy-subrc EQ 0.
+CONCATENATE '-' wa_char-LV_CHAR33 INTO wa_char-LV_CHAR33.
+ENDIF.
+REPLACE ALL OCCURRENCES OF '-' in wa_char-LV_CHAR34 WITH ''.
+IF sy-subrc EQ 0.
+CONCATENATE '-' wa_char-LV_CHAR34 INTO wa_char-LV_CHAR34.
+ENDIF.
+REPLACE ALL OCCURRENCES OF '-' in wa_char-LV_CHAR35 WITH ''.
+IF sy-subrc EQ 0.
+CONCATENATE '-' wa_char-LV_CHAR35 INTO wa_char-LV_CHAR35.
+ENDIF.
+REPLACE ALL OCCURRENCES OF '-' in wa_char-LV_CHAR36 WITH ''.
+IF sy-subrc EQ 0.
+CONCATENATE '-' wa_char-LV_CHAR36 INTO wa_char-LV_CHAR36.
+ENDIF.
+REPLACE ALL OCCURRENCES OF '-' in wa_char-LV_CHAR37 WITH ''.
+IF sy-subrc EQ 0.
+CONCATENATE '-' wa_char-LV_CHAR37 INTO wa_char-LV_CHAR37.
+ENDIF.
+REPLACE ALL OCCURRENCES OF '-' in wa_char-LV_CHAR38 WITH ''.
+IF sy-subrc EQ 0.
+CONCATENATE '-' wa_char-LV_CHAR38 INTO wa_char-LV_CHAR38.
+ENDIF.
+REPLACE ALL OCCURRENCES OF '-' in wa_char-LV_CHAR39 WITH ''.
+IF sy-subrc EQ 0.
+CONCATENATE '-' wa_char-LV_CHAR39 INTO wa_char-LV_CHAR39.
+ENDIF.
+REPLACE ALL OCCURRENCES OF '-' in wa_char-LV_CHAR40 WITH ''.
+IF sy-subrc EQ 0.
+CONCATENATE '-' wa_char-LV_CHAR40 INTO wa_char-LV_CHAR40.
+ENDIF.
+REPLACE ALL OCCURRENCES OF '-' in wa_char-LV_CHAR41 WITH ''.
+IF sy-subrc EQ 0.
+CONCATENATE '-' wa_char-LV_CHAR41 INTO wa_char-LV_CHAR41.
+ENDIF.
+REPLACE ALL OCCURRENCES OF '-' in wa_char-LV_CHAR42 WITH ''.
+IF sy-subrc EQ 0.
+CONCATENATE '-' wa_char-LV_CHAR42 INTO wa_char-LV_CHAR42.
+ENDIF.
+REPLACE ALL OCCURRENCES OF '-' in wa_char-LV_CHAR43 WITH ''.
+IF sy-subrc EQ 0.
+CONCATENATE '-' wa_char-LV_CHAR43 INTO wa_char-LV_CHAR43.
+ENDIF.
+REPLACE ALL OCCURRENCES OF '-' in wa_char-LV_CHAR44 WITH ''.
+IF sy-subrc EQ 0.
+CONCATENATE '-' wa_char-LV_CHAR44 INTO wa_char-LV_CHAR44.
+ENDIF.
+REPLACE ALL OCCURRENCES OF '-' in wa_char-LV_CHAR45 WITH ''.
+IF sy-subrc EQ 0.
+CONCATENATE '-' wa_char-LV_CHAR45 INTO wa_char-LV_CHAR45.
+ENDIF.
+REPLACE ALL OCCURRENCES OF '-' in wa_char-LV_CHAR46 WITH ''.
+IF sy-subrc EQ 0.
+CONCATENATE '-' wa_char-LV_CHAR46 INTO wa_char-LV_CHAR46.
+ENDIF.
+REPLACE ALL OCCURRENCES OF '-' in wa_char-LV_CHAR47 WITH ''.
+IF sy-subrc EQ 0.
+CONCATENATE '-' wa_char-LV_CHAR47 INTO wa_char-LV_CHAR47.
+ENDIF.
+REPLACE ALL OCCURRENCES OF '-' in wa_char-LV_CHAR48 WITH ''.
+IF sy-subrc EQ 0.
+CONCATENATE '-' wa_char-LV_CHAR48 INTO wa_char-LV_CHAR48.
+ENDIF.
+REPLACE ALL OCCURRENCES OF '-' in wa_char-LV_CHAR49 WITH ''.
+IF sy-subrc EQ 0.
+CONCATENATE '-' wa_char-LV_CHAR49 INTO wa_char-LV_CHAR49.
+ENDIF.
+REPLACE ALL OCCURRENCES OF '-' in wa_char-LV_CHAR50 WITH ''.
+IF sy-subrc EQ 0.
+CONCATENATE '-' wa_char-LV_CHAR50 INTO wa_char-LV_CHAR50.
+ENDIF.
+REPLACE ALL OCCURRENCES OF '-' in wa_char-LV_CHAR51 WITH ''.
+IF sy-subrc EQ 0.
+CONCATENATE '-' wa_char-LV_CHAR51 INTO wa_char-LV_CHAR51.
+ENDIF.
+REPLACE ALL OCCURRENCES OF '-' in wa_char-LV_CHAR52 WITH ''.
+IF sy-subrc EQ 0.
+CONCATENATE '-' wa_char-LV_CHAR52 INTO wa_char-LV_CHAR52.
+ENDIF.
+REPLACE ALL OCCURRENCES OF '-' in wa_char-LV_CHAR53 WITH ''.
+IF sy-subrc EQ 0.
+CONCATENATE '-' wa_char-LV_CHAR53 INTO wa_char-LV_CHAR53.
+ENDIF.
+REPLACE ALL OCCURRENCES OF '-' in wa_char-LV_CHAR54 WITH ''.
+IF sy-subrc EQ 0.
+CONCATENATE '-' wa_char-LV_CHAR54 INTO wa_char-LV_CHAR54.
+ENDIF.
+REPLACE ALL OCCURRENCES OF '-' in wa_char-LV_CHAR55 WITH ''.
+IF sy-subrc EQ 0.
+CONCATENATE '-' wa_char-LV_CHAR55 INTO wa_char-LV_CHAR55.
+ENDIF.
+REPLACE ALL OCCURRENCES OF '-' in wa_char-LV_CHAR56 WITH ''.
+IF sy-subrc EQ 0.
+CONCATENATE '-' wa_char-LV_CHAR56 INTO wa_char-LV_CHAR56.
+ENDIF.
+REPLACE ALL OCCURRENCES OF '-' in wa_char-LV_CHAR57 WITH ''.
+IF sy-subrc EQ 0.
+CONCATENATE '-' wa_char-LV_CHAR57 INTO wa_char-LV_CHAR57.
+ENDIF.
+REPLACE ALL OCCURRENCES OF '-' in wa_char-LV_CHAR58 WITH ''.
+IF sy-subrc EQ 0.
+CONCATENATE '-' wa_char-LV_CHAR58 INTO wa_char-LV_CHAR5.
+ENDIF.
+REPLACE ALL OCCURRENCES OF '-' in wa_char-LV_CHAR59 WITH ''.
+IF sy-subrc EQ 0.
+CONCATENATE '-' wa_char-LV_CHAR59 INTO wa_char-LV_CHAR59.
+ENDIF.
+REPLACE ALL OCCURRENCES OF '-' in wa_char-LV_CHAR60 WITH ''.
+IF sy-subrc EQ 0.
+CONCATENATE '-' wa_char-LV_CHAR60 INTO wa_char-LV_CHAR60.
+ENDIF.
+*EOC adding by Nilesh 05.11.2019 800005901
+""""""" End of shifting negative sign
+CONCATENATE
+wa_char-LV_CHAR1
+wa_char-LV_CHAR2
+*SOC adding by Nilesh 05.11.2019 800005901
+wa_char-LV_CHAR3
+wa_char-LV_CHAR4
+*EOC adding by Nilesh 05.11.2019 800005901
+wa_char-LV_CHAR5
+wa_char-LV_CHAR6
+wa_char-LV_CHAR7
+wa_char-LV_CHAR8
+wa_char-LV_CHAR9
+wa_char-LV_CHAR10
+wa_char-LV_CHAR11
+wa_char-LV_CHAR12
+wa_char-LV_CHAR13
+wa_char-LV_CHAR14
+wa_char-LV_CHAR15
+wa_char-LV_CHAR16
+wa_char-LV_CHAR17
+wa_char-LV_CHAR18
+wa_char-LV_CHAR19
+wa_char-LV_CHAR20
+wa_char-LV_CHAR21
+wa_char-LV_CHAR22
+wa_char-LV_CHAR23
+wa_char-LV_CHAR24
+*SOC adding by Nilesh 05.11.2019 800005901
+wa_char-LV_CHAR25
+wa_char-LV_CHAR26
+wa_char-LV_CHAR27
+wa_char-LV_CHAR28
+wa_char-LV_CHAR29
+wa_char-LV_CHAR30
+wa_char-LV_CHAR31
+wa_char-LV_CHAR32
+wa_char-LV_CHAR33
+wa_char-LV_CHAR34
+*EOC adding by Nilesh 05.11.2019 800005901
+wa_char-LV_CHAR35
+wa_char-LV_CHAR36
+wa_char-LV_CHAR37
+wa_char-LV_CHAR38
+wa_char-LV_CHAR39
+wa_char-LV_CHAR40
+wa_char-LV_CHAR41
+wa_char-LV_CHAR42
+wa_char-LV_CHAR43
+wa_char-LV_CHAR44
+wa_char-LV_CHAR45
+wa_char-LV_CHAR46
+wa_char-LV_CHAR47
+*SOC adding by Nilesh 05.11.2019 800005901
+wa_char-LV_CHAR48
+wa_char-LV_CHAR49
+wa_char-LV_CHAR50
+wa_char-LV_CHAR51
+wa_char-LV_CHAR52
+wa_char-LV_CHAR53
+wa_char-LV_CHAR54
+wa_char-LV_CHAR55
+wa_char-LV_CHAR56
+wa_char-LV_CHAR57
+*EOC adding by Nilesh 05.11.2019 800005901
+wa_char-LV_CHAR58
+wa_char-LV_CHAR59
+wa_char-LV_CHAR60
+wa_char-LV_CHAR61
+wa_char-LV_CHAR62
+wa_char-LV_CHAR63
+*SOC adding by Nilesh 05.11.2019 800005901
+wa_char-LV_CHAR64
+wa_char-LV_CHAR65
+wa_char-LV_CHAR66
+wa_char-LV_CHAR67
+wa_char-LV_CHAR68
+wa_char-LV_CHAR69
+*EOC adding by Nilesh 05.11.2019 800005901
+wa_char-LV_CHAR70
+wa_char-LV_CHAR71
+wa_char-LV_CHAR72
+*SOC adding by Nilesh 05.11.2019 800005901
+wa_char-LV_CHAR73
+wa_char-LV_CHAR74
+wa_char-LV_CHAR75
+wa_char-LV_CHAR76
+wa_char-LV_CHAR77
+wa_char-LV_CHAR78
+wa_char-LV_CHAR79
+wa_char-LV_CHAR80
+wa_char-LV_CHAR81
+wa_char-LV_CHAR82
+*EOC adding by Nilesh 05.11.2019 800005901
+wa_char-LV_CHAR83
+wa_char-LV_CHAR84
+*SOC adding by Nilesh 05.11.2019 800005901
+wa_char-LV_CHAR85
+wa_char-LV_CHAR86
+wa_char-LV_CHAR87
+*EOC adding by Nilesh 05.11.2019 800005901
+wa_char-LV_CHAR88
+wa_char-LV_CHAR89
+wa_char-LV_CHAR90
+wa_char-LV_CHAR91
+wa_char-LV_CHAR92
+wa_char-LV_CHAR93
+wa_char-LV_CHAR94
+wa_char-LV_CHAR95
+wa_char-LV_CHAR96
+wa_char-LV_CHAR97
+wa_char-LV_CHAR98
+wa_char-LV_CHAR99
+ INTO wa_ftp_loc_mas SEPARATED BY lv_tab. " wa_ftp has been replaced by wa_ftp_loc_mas against ticket no. 8000004920
+APPEND wa_ftp_loc_mas to ta_ftp_loc_mas. " wa_ftp has been replaced by wa_ftp_loc_mas and ta_ftp by ta_ftp_loc_mas against ticket no. 8000004920
+CLEAR: wa_char, wa_ftp, wa_ftp_loc_mas.
+ENDLOOP.
+
+PERFORM connect_2_ftp USING g_dest CHANGING g_hdl exp5.
+IF exp5 IS INITIAL AND ta_ftp_loc_mas[] IS NOT INITIAL.
+CONCATENATE lv_file1 'material_location_master.txt' INTO lv_file.
+
+IF lv_file IS NOT INITIAL.
+*****data lv_command(100) type c.
+*****DATA:lv_dest  TYPE rfcdes-rfcdest VALUE 'SAPFTPA'.
+*****data: lta_data TYPE TABLE OF datab.
+*****CONSTANTS lc_del(3) VALUE 'del'.
+*****BREAK abap4.
+*****lv_command =  |{ lc_del } { lv_file1 }{ '' }{ 'material_location_master.txt'} |.
+*****CALL FUNCTION 'FTP_COMMAND'
+*****  EXPORTING
+*****   HANDLE                = g_hdl
+*****    command               = lv_command
+*****   COMPRESS              =
+*****   RFC_DESTINATION       = lv_dest
+*****  tables
+*****    data                  = lta_data
+***** EXCEPTIONS
+*****   TCPIP_ERROR           = 1
+*****   COMMAND_ERROR         = 2
+*****   DATA_ERROR            = 3
+*****   OTHERS                = 4.
+*FTP_R3_TO_SERVER:used to transfer the internal table data as a file to other system in the character mode.
+  CALL FUNCTION 'FTP_R3_TO_SERVER'
+    EXPORTING
+      handle         = g_hdl
+      fname          = lv_file "p_lv_file          "file path of destination system
+      character_mode = 'X'
+    TABLES
+      text           = ta_ftp_loc_mas
+    EXCEPTIONS
+      tcpip_error    = 1
+      command_error  = 2
+      data_error     = 3
+      OTHERS         = 4.
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+    WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4
+    RAISING invalid_output_file.
+  ENDIF.
+*PERFORM send_2_ftp USING lv_file.
+ENDIF.
+ENDIF.
+PERFORM disconnect_ftp USING g_hdl g_dest.
+************************** " End of Process to Send file on FTP Server***********************
+ENDIF.
+
+ENDFORM.

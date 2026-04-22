@@ -1,0 +1,877 @@
+*&---------------------------------------------------------------------*
+*& Report  /OBIZ/EXP_REG                                               *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+*&                                                                     *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+
+*&---------------------------------------------------------------------*
+*&   Change Log
+*&
+*&   Author        : OBIZDEV
+*&   CR    E6DK912058        : Coll_Exp_0908_39
+*&   Date          : 21-04-2009
+*&---------------------------------------------------------------------*
+
+*&---------------------------------------------------------------------*
+*&   Change Log
+*&
+*& Author            : Priyanka kore
+*& CR                : 8000004812
+*& Date              : 20-09-2018
+*& Transaction       : /OBIZ/EXP_REG
+*& Functional design :
+*& Technical design  :
+*& Transport number  : CRDK957538
+*& Description       : addition of new RadioButton fully revised w/o BRC no.
+*&---------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*&   Change Log
+*&
+*& Author            : Prashant Shetty
+*& CR                : 8000005513
+*& Date              : 12-07-2019
+*& Transaction       : /OBIZ/EXP_REG
+*& Functional design : FS_Collabera_SD_002
+*& Technical design  :
+*& Transport number  : CRDK963723
+*& Description       : Send report details to AL11 directory
+*&                     Change done in Include : /OBIZ/EXP_REG_CREATE_FIELD_F01
+*&---------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*&   Change Log
+*&
+*& Author            : Prashant Shetty
+*& CR                : 8000005513
+*& Date              : 23-07-2019
+*& Transaction       : /OBIZ/EXP_REG
+*& Functional design : FS_Collabera_SD_002
+*& Technical design  :
+*& Transport number  : CRDK963860
+*& Description       : Remove the extra values which was uploaded in AL11 Directory
+*&                     Only to show those fields which are in alv output
+*&---------------------------------------------------------------------*
+
+REPORT  /obiz/exp_reg                           .
+
+
+TYPE-POOLS: slis.
+
+*{   REPLACE        CRDK907748                                        4
+*\TABLES:/obiz/z_expregs, vbrk, /obiz/zxp_shphd, vbrp.
+***Start of Code Change to Include Factory Packing List Details.
+TABLES:/obiz/z_expregs, vbrk, /obiz/zxp_shphd, vbrp,
+       zobiz_fplhdr, zobiz_dtldpkl,vbfa,vbak,vbkd,kna1,lips,mara.
+
+*}   REPLACE
+
+DATA: it_inv TYPE STANDARD TABLE OF /obiz/z_expregs,
+      wa_inv LIKE LINE OF it_inv.
+*Modified Revamp CR: Coll_Exp_0908_39 {
+TYPES: BEGIN OF st_so,
+         so_vbeln  TYPE vbap-vbeln,
+         so_posnr  TYPE vbap-posnr,
+         so_qun    TYPE vbap-kwmeng,
+         so_uom    TYPE vbap-vrkme,
+         so_cur    TYPE vbap-waerk,
+         so_netpr  TYPE vbap-netpr,
+         so_netwr  TYPE vbap-netwr,
+         so_val_rs TYPE vbap-netwr,
+*{   INSERT         CRDK913485                                       10
+         so_shp_pt TYPE vbap-vstel, ""Shipping Point
+*}   INSERT
+       END OF st_so.
+TYPES: BEGIN OF st_soexrt,
+         vbeln   TYPE vbkd-vbeln,
+*{   INSERT         CRDK908239                                        6
+         bzirk   TYPE vbkd-bzirk,
+         "cODE Added by ### for getting PO on 26.06.2014
+         bstkd   TYPE vbkd-bstkd,
+         bstdk   TYPE vbkd-bstdk,
+         "End
+*}   INSERT
+         so_exrt TYPE vbkd-kurrf,
+       END OF st_soexrt.
+DATA: it_soexrt TYPE TABLE OF st_soexrt.
+DATA: it_so TYPE TABLE OF st_so.
+*{   INSERT         CRDK909241                                        8
+"Code added by ### 26.06.2014
+DATA wa_soexrt LIKE LINE OF it_soexrt.
+DATA :it_vbrp TYPE TABLE OF vbrp,
+      wa_vbrp LIKE LINE OF it_vbrp.
+"End
+DATA :it_lips TYPE TABLE OF lips,
+      wa_lips LIKE LINE OF it_lips.
+
+DATA :it_strg_des TYPE TABLE OF t001l,
+      wa_strg_des LIKE LINE OF it_strg_des.
+DATA :wrk_temp_doc LIKE /obiz/zxp_dcset-doc_nr.
+DATA:wrk_port TYPE /obiz/zxp_shphd-port_load.
+*}   INSERT
+
+TYPES: BEGIN OF st_register.
+        INCLUDE STRUCTURE /obiz/zxp_register.
+TYPES: so_qun     TYPE vbap-kwmeng,
+       so_uom     TYPE vbap-vrkme,
+       so_cur     TYPE vbap-waerk,
+       so_netpr   TYPE vbap-netpr,
+       so_netwr   TYPE vbap-netwr,
+       so_exrt    TYPE vbkd-kurrf,
+       so_val_rs  TYPE vbap-netwr,
+       inv_exrt   TYPE /obiz/zxp_shphd-inv_exgh,
+       inv_valrs  TYPE vbrp-netwr,
+       cnt_det    TYPE string,
+       adv_lic    TYPE string,
+       epcg_lic   TYPE string,
+       sales_area TYPE string,
+       firc_no    TYPE /obiz/zxp_genhd-firc_no,
+*{   INSERT         CRDK934268                                       13
+*Begin of Code for Issue Id:45300 dtd:16.03.2016
+       frgt_inr   TYPE netwr_fp,
+*End of Code for Issue Id:45300 dtd:16.03.2016
+       port_load  TYPE /obiz/zxp_shphd-port_load,
+
+*}   INSERT
+       adv_amt1   TYPE /obiz/zxp_shphd-adv_amt1.
+*{   INSERT         CRDK902351                                        3
+* Start of code insert for exp_req_053 dtd 20.01.2014
+TYPES :zzstrcondition TYPE /obiz/zxp_shphd-zzstrcondition.
+TYPES : charg    TYPE zobiz_fplhdr-charg,
+        mfgdt    TYPE zobiz_fplhdr-mfgdt,
+        expdt    TYPE zobiz_fplhdr-expdt,
+        retestdt TYPE zobiz_fplhdr-retestdt,
+        extwg    TYPE /obiz/zxp_item-extwg.
+TYPES : fpnum(100) TYPE c,  "To show multiple fpl seperated by comma
+        mfg_plant  TYPE name1. "To show the Plant description
+TYPES : ntgew       TYPE /obiz/zxp_item-ntgew,
+        brgew       TYPE /obiz/zxp_item-brgew,
+        gewei       TYPE /obiz/zxp_item-gewei,
+        pack_type   TYPE /obiz/zxp_item-pack_type,
+        no_pack     TYPE /obiz/zxp_item-no_pack,
+        shp_biltype TYPE /obiz/zxp_item-shp_biltype.
+TYPES : dbk_amt   TYPE /obiz/zxp_item-netwr,
+        fps_amt   TYPE /obiz/zxp_item-netwr,
+        fms_amt   TYPE /obiz/zxp_item-netwr,
+        mlfps_amt TYPE /obiz/zxp_item-netwr,
+        tag       TYPE string. "To Show FPS/FMS/DMLFPS
+* End of code insert for exp_req_053 dtd 20.01.2014
+*****  Code change for Adding new fields in Export reg. Dt. 02/06/14
+TYPES : ordertyp1     TYPE vbak-auart,
+        org           TYPE vbak-vkorg,
+        dist          TYPE vbak-vtweg,
+        sloff         TYPE vbak-vkbur,
+        div           TYPE vbak-spart,
+        slgrp         TYPE vbak-vkgrp,
+        ordercre      TYPE vbak-ernam,
+        orderdt1      TYPE vbak-erdat,
+        ordertime     TYPE vbak-erzet,
+        ordertypdesc  TYPE tvakt-bezei,
+        sloffdesc     TYPE tvkbt-bezei,
+        slgrpdesc     TYPE tvgrt-bezei,
+        custom_house  TYPE /obiz/zxp_shphd-custom_house,
+        port_dschr    TYPE /obiz/zxp_shphd-port_dschr,
+        invdt         TYPE /obiz/zxp_genhd-invdt,
+        shp_type      TYPE /obiz/zxp_shphd-shp_type,
+        bzirk         TYPE vbkd-bzirk,
+        bztxt         TYPE t171t-bztxt,
+        banka         TYPE bnka-banka,
+
+*****  Code change for Adding new fields in Export reg. Dt. 02/06/14
+        "Code ADDED by ### 0n 26.06.2014
+        po            TYPE vbkd-bstkd,
+        podt          TYPE vbkd-bstdk,
+        delno         TYPE vbrp-vgbel,
+        deldt         TYPE likp-erdat,
+        sorg          TYPE tvkot-vtext,  "Sales Organisation
+        disch         TYPE tvtwt-vtext,  "Distribution Channel
+        divi          TYPE tspat-vtext,  "Division
+        fino          TYPE bseg-belnr,   "FI Posting NUmber
+        coco          TYPE bseg-bukrs,   "Company Code
+        year          TYPE bseg-gjahr,   "Year
+        dhl           TYPE bseg-xref3,   "DHL
+        bkrf          TYPE bseg-xref1,   "Bank Ref no
+        rmno          TYPE bseg-xref2,   "RM No
+        sh_top_cn     TYPE kna1-land1,
+        fri_for       TYPE /obiz/zxp_shphd-load_agent, "Frieght forwarder
+        length        TYPE zobiz_dtldpkl-length, ""lENGTH
+        width         TYPE zobiz_dtldpkl-width, ""WIDTH
+        height        TYPE zobiz_dtldpkl-height, ""HEIGHT
+        cbm           TYPE zobiz_dtldpkl-cbm, ""CBM
+        volumewt      TYPE zobiz_dtldpkl-volumewt, ""VOLUMEWT
+        strg_ctn      TYPE t143t-tbtxt, "Storage Condition
+        sl_prty       TYPE vbpa-kunnr, "Sold to party Code
+        sp_prty       TYPE vbpa-kunnr, "Ship to party Code
+        cha_des       TYPE lfa1-name1, "CHA Description
+        fri_des       TYPE lfa1-name1, "Freight Forwarder Description
+        strg_loc      TYPE lips-lgort, ""Storage Code
+        sld_coun_code TYPE t005t-land1, "Sold To party Country code
+        shp_coun_code TYPE t005t-land1, "Ship to party country code,
+        pay_tm_code   TYPE vbrk-zterm, "Payment term Code
+        del_plant     TYPE lips-werks, "Plant
+        lgobe         TYPE t001l-lgobe, "Plant
+        ex_ben_des    TYPE /obiz/zxp_codmst-cod_desc, ""Export benefit description
+        shp_pt_cd     TYPE vbap-vstel, "Shipping point Code
+        shp_pt_cd_des TYPE tvstt-vtext, "Shipping point Code description
+        zsrvrfd       TYPE /obiz/zxp_shphd-zsrvrfd,
+        zlacrtdt      TYPE /obiz/zxp_shphd-zlacrtdt,
+        zsrvr         TYPE char5,
+        fcl_lcl       TYPE /obiz/zxp_shphd-zzfcl_lcl, ""FCL/LCL
+        other_amt1    TYPE /obiz/zxp_shphd-other_amt1,
+        other_cur1    TYPE /obiz/zxp_shphd-other_cur1,
+        other_amt2    TYPE /obiz/zxp_shphd-other_amt2,
+        other_cur2    TYPE /obiz/zxp_shphd-other_cur2.
+*}   INSERT
+TYPES: END OF st_register.
+
+*DATA: it_bill TYPE STANDARD TABLE OF /obiz/zxp_register,
+DATA: it_bill TYPE STANDARD TABLE OF st_register,
+      wa_bill LIKE LINE OF it_bill.
+*End}
+*{   INSERT         CRDK933102                                       12
+*Begin of Code for Issue Id 45300 dtd 22.02.2016
+*Defining Struture to Display Header Wise Details
+DATA lv_invoice TYPE /obiz/zxp_item-doc_nr.
+TYPES : BEGIN OF st_register_header,
+*          SALES_AREA    TYPE string,                          "Sales Area
+*          SLOFF         TYPE vbak-VKBUR,                      "Sales Office
+*          SLOFFDESC     TYPE TVKBT-BEZEI,                     "Sales Off. Desc
+          shiptoparty    TYPE /obiz/zxp_register-shiptoparty,  "Customer Ship-to Party
+          cntryname2     TYPE /obiz/zxp_register-cntryname2,   "Country Ship-to Party
+          inco1          TYPE /obiz/zxp_register-inco1,        "Incoterms 1
+          bol_num        TYPE /obiz/zxp_register-bol_num,      "B/L / AWB No.
+          cinvno         TYPE /obiz/zxp_register-cinvno,       "Commercial Invoice Num
+          curr1          TYPE /obiz/zxp_register-curr1,        "Invoice Currency
+          netwr          TYPE /obiz/zxp_register-netwr,        "Invoice value in FC
+          inv_valrs      TYPE vbrp-netwr,                      "Invoice value in INR
+          frgt           TYPE /obiz/zxp_item-frgt,             "Freight
+          frgt_inr       TYPE netwr_fp,                        "Freight Value in INR
+          zzstrcondition TYPE /obiz/zxp_shphd-zzstrcondition,  "Storage Condition
+          ins            TYPE /obiz/zxp_register-ins,          "Insurance
+          vesselname     TYPE /obiz/zxp_shphd-vesselname,      "Vessel/Flight detail
+          bol_date       TYPE /obiz/zxp_register-bol_date,     "B/L / AWB Date
+          shp_type       TYPE /obiz/zxp_shphd-shp_type,        "Shipment Type
+          port_dschr     TYPE /obiz/zxp_shphd-port_dschr,      "Port Of Discharge
+          port_load      TYPE /obiz/zxp_shphd-port_load,
+          cha_des        TYPE lfa1-name1,                      "CHA Description
+          fri_for        TYPE /obiz/zxp_shphd-load_agent,      "Freight Forwarder
+          fri_des        TYPE lfa1-name1,                      "Fri_For_Description
+          ntgew          TYPE /obiz/zxp_item-ntgew,            "Total Net Weight
+          brgew          TYPE /obiz/zxp_item-brgew,            "Total Gross Weight
+          gewei          TYPE /obiz/zxp_item-gewei,            "Unit of Weight
+          no_pack        TYPE /obiz/zxp_item-no_pack,          "No of Packs
+          cbm            TYPE zobiz_dtldpkl-cbm,               "CBM
+          volumewt       TYPE zobiz_dtldpkl-volumewt,          "VOLUMEWT
+          fcl_lcl        TYPE /obiz/zxp_shphd-zzfcl_lcl,       "FCL/LCL
+          zzvol_wgt      TYPE /obiz/zxp_register-zzvol_wgt,    "Actual Volumetric Weight
+          zzpallet_no    TYPE /obiz/zxp_register-zzpallet_no,  "Number of pallets
+          zzno_container TYPE /obiz/zxp_register-zzno_container,  "Number of Containers
+          zzfrgt_kg      TYPE /obiz/zxp_shphd-zzfrgt_kg,
+          zzfrgt_rate    TYPE /obiz/zxp_shphd-zzfrgt_rate,
+*          ZZFRGT_rate   type /OBIZ/ZXP_SHPHD-ZZFRGT_KG,
+          zzfrgt_uom     TYPE /obiz/zxp_shphd-zzfrgt_uom,
+          zzremarks      TYPE /obiz/zxp_shphd-zzremarks,
+          shp_line       TYPE  /obiz/zxp_coddsc,
+          user_id        TYPE bname, "Added By Anil Kumar on 18.10.2017 for the ticket 8000003785
+          user_text      TYPE ad_namtext, "Added By Anil Kumar on 18.10.2017 for the ticket 8000003785
+        END OF st_register_header.
+"Workarea and Internal Table Declaration for Header wise
+DATA   :  it_header       TYPE TABLE OF st_register_header,
+          wa_header       LIKE LINE OF it_header,
+          it_header1      TYPE TABLE OF st_register_header,
+          wa_header1      LIKE LINE OF it_header1,
+          it_header2      TYPE TABLE OF st_register_header,
+          wa_header2      LIKE LINE OF it_header2,
+          it_header_temp  TYPE TABLE OF st_register_header,
+          wa_header_temp  LIKE LINE OF it_header_temp,
+          it_header_temp1 TYPE TABLE OF st_register_header,
+          wa_header_temp1 LIKE LINE OF it_header_temp1,
+          it_header_temp2 TYPE TABLE OF st_register_header,
+
+
+          "Fieldcat Declaration for Header wise
+          it_fieldcat_h   TYPE slis_t_fieldcat_alv,
+          ls_fieldcat_h   TYPE slis_fieldcat_alv,
+          "Declaration of Sort internal table and work area
+          it_sort_h       TYPE slis_t_sortinfo_alv,
+          wa_sort_h       LIKE LINE OF it_sort_h.
+
+
+TYPES : BEGIN OF ty_fcl_lcl,
+          bol_num TYPE /obiz/zxp_register-bol_num,
+          fcl_lcl TYPE /obiz/zxp_shphd-zzfcl_lcl,
+        END OF ty_fcl_lcl.
+
+DATA  : wa_t_fcl TYPE ty_fcl_lcl,
+        it_t_fcl TYPE TABLE OF ty_fcl_lcl.
+
+
+
+
+*End of Code of Issue Id 45300 dtd 22.02.2016
+*}End
+*}   INSERT
+DATA: wrk_vkgrp_text TYPE tvgrt-bezei,
+      wrk_vkbur_text TYPE tvkbt-bezei,
+      wrk_comminv    LIKE vbrk-vbeln,
+      wrk_commposnr  LIKE vbrp-posnr,
+      wrk_sld_name   LIKE kna1-name1,
+      wrk_sld_landx  LIKE t005t-landx,
+      wrk_shp_party  LIKE kna1-kunnr,
+      wrk_shp_name   LIKE kna1-name1,
+      wrk_shp_landx  LIKE t005t-landx.
+
+DATA: it_fieldcat TYPE slis_t_fieldcat_alv,
+      ls_layout   TYPE slis_layout_alv,
+      it_sort     TYPE slis_t_sortinfo_alv.
+
+DATA: gt_events   TYPE slis_t_event.
+DATA: g_form_top_of_page  TYPE slis_formname VALUE 'TOP_OF_PAGE'.
+
+DATA wrk_cnt TYPE i VALUE 0.
+
+DATA wrk_salesrtno LIKE vbap-vbeln.
+
+DATA: it_tvgrt TYPE TABLE OF tvgrt,
+      wa_tvgrt LIKE LINE OF it_tvgrt.
+
+DATA: it_tvkbt TYPE TABLE OF tvkbt,
+      wa_tvkbt LIKE LINE OF it_tvkbt.
+
+TYPES: BEGIN OF st_vbeln,
+         vbeln LIKE vbrp-vbeln,
+         posnr LIKE vbrp-posnr,
+         vgbel LIKE vbrp-vgbel,
+         vgpos LIKE vbrp-vgpos,
+         aubel LIKE vbrp-aubel,
+         aupos LIKE vbrp-aupos,
+       END OF st_vbeln.
+
+DATA: it_vbeln TYPE TABLE OF st_vbeln,
+      wa_vbeln LIKE LINE OF it_vbeln.
+
+TYPES: BEGIN OF st_vbpa,
+         vbeln LIKE vbpa-vbeln,
+         kunnr LIKE vbpa-kunnr,
+       END OF st_vbpa.
+
+DATA: it_vbpa TYPE TABLE OF st_vbpa,
+      wa_vbpa LIKE LINE OF it_vbpa.
+*Commented CR: Coll_Exp_0908_39  {
+*TYPES: BEGIN OF st_cha,
+*        lifnr  LIKE /obiz/zxp_chachg-lifnr,
+*        billno LIKE /obiz/zxp_chachg-billno,
+*        total  LIKE /obiz/zxp_chachg-total,
+*        vchno  LIKE /obiz/zxp_chachg-vchno,
+*        vchdt  LIKE /obiz/zxp_chachg-vchdt,
+*        chqno  LIKE /obiz/zxp_chachg-chqno,
+*        chqdt  LIKE /obiz/zxp_chachg-chqdt,
+*        vbeln  LIKE /obiz/zxp_chachg-vbeln,
+*       END OF st_cha.
+*
+*DATA: it_cha TYPE TABLE OF st_cha,
+*      wa_cha LIKE LINE OF it_cha.
+*End}
+
+TYPES: BEGIN OF st_shp,
+         doc_nr         TYPE /obiz/zxp_shphd-doc_nr,
+         bol_num        TYPE /obiz/zxp_shphd-bol_num,
+         bol_date       TYPE /obiz/zxp_shphd-bol_date,
+         bol_duedt      TYPE /obiz/zxp_shphd-bol_duedt,
+         bank_refnr     TYPE /obiz/zxp_shphd-bank_refnr,
+         boe_pdt        TYPE /obiz/zxp_shphd-boe_pdt,
+         vesselname     TYPE /obiz/zxp_shphd-vesselname,
+         contrno        TYPE /obiz/zxp_genhd-contrno,
+         firc_no        TYPE /obiz/zxp_genhd-firc_no,
+         adv_amt1       TYPE /obiz/zxp_shphd-adv_amt1,
+         brc_nr         TYPE /obiz/zxp_shphd-brc_nr,
+         brc_date       TYPE /obiz/zxp_shphd-brc_date,
+*{   INSERT         CRDK902351                                        1
+* Start of code insert for exp_req_053 dtd 20.01.2014
+         zzstrcondition TYPE /obiz/zxp_shphd-zzstrcondition,
+         custom_house   TYPE /obiz/zxp_shphd-custom_house,
+         load_agent     TYPE /obiz/zxp_shphd-load_agent,
+         port_dschr     TYPE /obiz/zxp_shphd-port_dschr,
+         invdt          TYPE /obiz/zxp_genhd-invdt,
+         shp_type       TYPE /obiz/zxp_shphd-shp_type,
+         bankl          TYPE /obiz/zxp_genhd-bankl,
+         cha_code       TYPE char10,
+         fri_code       TYPE char10,
+         cha_des        TYPE lfa1-name1, "CHA Description
+         fri_des        TYPE lfa1-name1, "Freight Forwarder Description
+         zsrvrfd        TYPE /obiz/zxp_shphd-zsrvrfd,
+         zsrvr          TYPE char5,
+         zlacrtdt       TYPE /obiz/zxp_shphd-zlacrtdt,
+         port_load      TYPE /obiz/zxp_shphd-port_load,
+
+* End of code insert for exp  _req_053 dtd 20.01.2014
+*}   INSERT
+
+       END OF st_shp.
+
+TYPES: BEGIN OF st_itm,
+         doc_nr  TYPE /obiz/zxp_item-doc_nr,
+         posnr   TYPE /obiz/zxp_item-posnr,
+         fob_val TYPE /obiz/zxp_item-fobval,
+         frgt    TYPE /obiz/zxp_item-frgt,
+         insu    TYPE /obiz/zxp_item-insu,
+         disc    TYPE /obiz/zxp_item-disc,
+*-------------/EXPREG Sumitha Frederick 23.09.2008 Insert Start-------------------------------*
+* < Inserted Code >
+         comm    TYPE /obiz/zxp_item-comm,
+*-------------/EXPREG Sumitha Frederick 23.09.2008 Insert End---------------------------------*
+       END OF st_itm.
+
+DATA: it_shp TYPE TABLE OF st_shp,
+      wa_shp LIKE LINE OF it_shp.
+
+DATA: it_itm TYPE TABLE OF st_itm,
+      wa_itm TYPE st_itm.
+
+TYPES: BEGIN OF st_realiz,
+         doc_nr       LIKE /obiz/zxp_partre-doc_nr,
+         real_date    LIKE /obiz/zxp_partre-real_date,
+         value_realiz LIKE /obiz/zxp_partre-value_realiz,
+         fully_real   LIKE /obiz/zxp_partre-fully_real,
+       END OF st_realiz.
+
+DATA: it_realiz TYPE TABLE OF st_realiz,
+      wa_realiz LIKE LINE OF it_realiz.
+
+DATA: it_lic TYPE TABLE OF /obiz/zxp_lic,
+      wa_lic LIKE LINE OF it_lic.
+
+TYPES: BEGIN OF st_ret,
+         vbeln  LIKE vbak-vbeln,
+         posnr  LIKE vbap-posnr,
+         kwmeng LIKE vbap-kwmeng,
+         vrkme  LIKE vbap-vrkme,
+         waerk  LIKE vbap-waerk,
+         netwr  LIKE vbap-netwr,
+         vgbel  LIKE vbap-vgbel,
+         vgpos  LIKE vbap-vgpos,
+       END OF st_ret.
+
+DATA: it_ret TYPE TABLE OF st_ret,
+      wa_ret LIKE LINE OF it_ret.
+
+TYPES: BEGIN OF st_crdt,
+         vbeln LIKE vbrk-vbeln,
+         fkdat LIKE vbrk-fkdat,
+         aubel LIKE vbrp-aubel,
+         aupos LIKE vbrp-aupos,
+       END OF st_crdt.
+
+DATA: it_crdt TYPE TABLE OF st_crdt,
+      wa_crdt LIKE LINE  OF it_crdt.
+
+TYPES: BEGIN OF st_comm,
+         knumv LIKE konv-knumv,
+         kschl LIKE konv-kschl,
+         kposn LIKE konv-kposn,
+         kwert LIKE konv-kwert,
+       END OF st_comm.
+
+DATA: it_comm TYPE TABLE OF st_comm,
+      wa_comm LIKE LINE OF it_comm.
+
+TYPES: BEGIN OF st_plant,
+         werks LIKE t001w-werks,
+         name1 LIKE t001w-name1,
+       END OF st_plant.
+
+DATA : it_plant TYPE TABLE OF st_plant,
+       wa_plant LIKE LINE  OF it_plant.
+
+*DATA: it_pproc TYPE TABLE OF /obiz/zxp_prcproc,
+*      wa_pproc TYPE zxp_prcproc.
+
+TYPES: BEGIN OF st_codes,
+         code     TYPE /obiz/zxp_codmst-code,
+         cod_desc TYPE /obiz/zxp_codmst-cod_desc,
+       END   OF st_codes.
+
+DATA: it_codes TYPE TABLE OF st_codes,
+      wa_codes LIKE LINE OF it_codes.
+*To correct the Performance Checks  in code inspector for Base product Request.
+
+DATA:s_trackno TYPE RANGE OF  /obiz/zlidepbval-trackno.
+
+DATA: wa_bill_tmp TYPE /obiz/zxp_register.
+
+TYPES: BEGIN OF st_vbfa,
+         vbelv TYPE vbrp-vbeln,
+         posnv TYPE vbrp-posnr,
+         vbeln TYPE vbrp-vbeln,
+         posnn TYPE vbrp-posnr,
+       END OF st_vbfa.
+DATA: it_vbfa TYPE TABLE OF st_vbfa.
+*Inserted Revamp CR: Coll_Exp_0908_39 {
+DATA: it_pre_item TYPE TABLE OF /obiz/zxp_item.
+DATA: wa_vbfa TYPE st_vbfa.
+DATA: it_doclnk TYPE TABLE OF /obiz/zxp_doclnk.
+
+DATA: wrk_preshp_cls TYPE  /obiz/zxp_doclnk-doc_clas.  "Pre-shipment class
+DATA: wrk_pstshp_cls TYPE  /obiz/zxp_doclnk-doc_clas.  "Post-shipment class.
+DATA: wrk_brc_cls    TYPE  /obiz/zxp_doclnk-doc_clas.  "BRC class.
+*{   INSERT         CRDK936309                                       14
+DATA: wrk_promo_cls    TYPE  /obiz/zxp_doclnk-doc_clas.
+*}   INSERT
+
+TYPES: BEGIN OF st_preshpdet,
+         doc_nr     TYPE /obiz/zxp_shphd-doc_nr,
+         invdt      TYPE /obiz/zxp_genhd-invdt,
+         bol_num    TYPE /obiz/zxp_shphd-bol_num,
+         bol_date   TYPE /obiz/zxp_shphd-bol_date,
+         fin_destin TYPE /obiz/zxp_shphd-fin_destin,
+         shp_line   TYPE /obiz/zxp_shphd-shp_line,
+         shp_bilno  TYPE /obiz/zxp_shphd-shp_bilno,
+         shp_bildt  TYPE /obiz/zxp_shphd-shp_bildt,
+         bol_duedt  TYPE /obiz/zxp_shphd-bol_duedt,
+         vesselname TYPE /obiz/zxp_shphd-vesselname,
+         inv_exgh   TYPE /obiz/zxp_shphd-inv_exgh,
+         shp_biltyp TYPE /obiz/zxp_shphd-shp_biltyp,
+         contrno    TYPE /obiz/zxp_genhd-contrno,
+*{   INSERT         CRDK902351                                        2
+* Start of code insert for exp_req_053 dtd 20.01.2014
+*ZSHOWINPRNTOUT type /obiz/zxp_shphd-ZSHOWINPRNTOUT,
+* End of code insert for exp_req_053 dtd 20.01.2014
+*}   INSERT
+       END OF st_preshpdet.
+
+TYPES: BEGIN OF st_cntdet,
+         indent_no TYPE /obiz/zxp_cnitm-indent_no,
+         cont_no   TYPE /obiz/zxp_cnitm-cont_no,
+         vbeln     TYPE /obiz/zxp_cnitm-vbeln,
+         posnr     TYPE /obiz/zxp_cnitm-posnr,
+       END OF st_cntdet.
+
+DATA: it_preshpdet TYPE TABLE OF  st_preshpdet.
+DATA: wrk_depbrt TYPE /obiz/zlidepbrt-depbrt.
+DATA: it_cntdet TYPE TABLE OF st_cntdet.
+DATA: it_tvkot TYPE TABLE OF tvkot.
+DATA: it_tvtwt TYPE TABLE OF tvtwt.
+DATA: it_tspat TYPE TABLE OF tspat.
+
+DATA wa_tvkot LIKE LINE OF it_tvkot.
+DATA wa_tspat LIKE LINE OF it_tspat.
+DATA wa_tvtwt LIKE LINE OF it_tvtwt.
+
+DATA wrk_vkorg_text TYPE tvkot-vtext.
+DATA wrk_tvtwt_text TYPE tvtwt-vtext.
+DATA wrk_tspat_text TYPE tspat-vtext.
+*{   INSERT         CRDK907748                                        5
+*Start of Code for Including FPL Details.
+TYPES : BEGIN OF st_fpl,
+          doc_nr    TYPE zobiz_dtldpkl-doc_nr,
+          fpnum     TYPE zobiz_fplhdr-fpnum,
+          charg     TYPE zobiz_fplhdr-charg,
+          posnr     TYPE zobiz_fplhdr-posnr,
+          matnr     TYPE zobiz_fplhdr-matnr,
+          mfgdt     TYPE zobiz_fplhdr-mfgdt,
+          expdt     TYPE zobiz_fplhdr-expdt,
+          retestdt  TYPE zobiz_fplhdr-retestdt,
+          mfg_plant TYPE zobiz_fplhdr-werks,
+        END OF st_fpl.
+DATA : it_fpl TYPE TABLE OF st_fpl,
+       wa_fpl LIKE LINE OF it_fpl.
+
+DATA : it_air   TYPE TABLE OF /obiz/cust_air,
+       wa_air   LIKE LINE OF it_air,
+       it_fps   TYPE TABLE OF /obiz/fpsrates,
+       wa_fps   LIKE LINE OF it_fps,
+       it_fms   TYPE TABLE OF /obiz/fmsrates,
+       wa_fms   LIKE LINE OF it_fms,
+       it_mlfps TYPE TABLE OF /obiz/mlfprates,
+       wa_mlfps LIKE LINE OF it_mlfps.
+*End of Code for Including FPL Details.
+DATA: it_likp TYPE STANDARD TABLE OF likp,
+      wa_likp LIKE LINE OF it_likp.
+
+DATA: it_vbap TYPE STANDARD TABLE OF vbap,
+      wa_vbap LIKE LINE OF it_vbap.
+
+DATA :it_ekko TYPE TABLE OF ekko,
+      wa_ekko LIKE LINE OF it_ekko.
+
+DATA :it_bseg TYPE TABLE OF bseg,
+      wa_bseg LIKE LINE OF it_bseg.
+DATA :it_lic_des TYPE TABLE OF /obiz/zxp_codmst,
+      wa_lic_des LIKE LINE OF it_lic_des.
+
+DATA :it_mara TYPE TABLE OF mara,
+      wa_mara LIKE LINE OF it_mara.
+
+DATA  :it_stg_loc TYPE TABLE OF t143t,
+       wa_stg_loc LIKE LINE OF it_stg_loc.
+TYPES BEGIN OF st_inv1.
+        INCLUDE STRUCTURE  /obiz/z_expregs.
+TYPES:year  TYPE bseg-gjahr.
+TYPES END OF st_inv1.
+
+DATA :it_inv1 TYPE TABLE OF st_inv1,
+      wa_inv1 LIKE LINE OF it_inv1.
+*
+DATA :it_btup TYPE TABLE OF zobiz_batchupd, "Batch Update FI Table
+      wa_btup LIKE LINE OF it_btup.
+
+DATA :it_lfa1_cha TYPE TABLE OF lfa1,
+      wa_lfa1_cha LIKE LINE OF it_lfa1_cha.
+DATA :it_lfa1_fri TYPE TABLE OF lfa1,
+      wa_lfa1_fri LIKE LINE OF it_lfa1_fri.
+
+DATA :it_sh_pt TYPE TABLE OF tvstt,
+      wa_sh_pt LIKE LINE OF it_sh_pt.
+
+DATA :it_detpkl TYPE TABLE OF zobiz_dtldpkl,
+      wa_detpkl LIKE LINE OF it_detpkl.
+
+DATA :it_detpkl1 TYPE TABLE OF zobiz_dtldpkl,
+      wa_detpkl1 LIKE LINE OF it_detpkl1.
+
+DATA :wrk_sld_land1 TYPE t005t-land1,
+      wrk_shp_land1 TYPE t005t-land1.
+
+DATA: it_inv_temp TYPE STANDARD TABLE OF /obiz/z_expregs,
+      wa_inv_temp LIKE LINE OF it_inv_temp,
+      ls_variant  TYPE disvariant.
+
+
+DATA : it_ccond TYPE STANDARD TABLE OF /obiz/zxp_prccon,
+       wa_ccond LIKE LINE OF it_ccond.
+DATA  wrk_knumv LIKE konv-knumv.
+DATA: it_konv TYPE STANDARD TABLE OF konv,
+      wa_konv LIKE LINE OF it_konv.
+DATA : wa_freight   TYPE  /obiz/zxp_shphd-frgt_amt1,
+       flag_freight TYPE i,
+       wrk_invoice  TYPE vbeln.
+*}   INSERT
+*{   INSERT         CRDK933102                                       11
+*Begin of Code for Issue Id 45300 dtd 22.02.2016
+SELECTION-SCREEN BEGIN OF BLOCK b2 WITH FRAME TITLE text-003.
+PARAMETERS : p_header RADIOBUTTON GROUP rad2,
+             p_item   RADIOBUTTON GROUP rad2 DEFAULT 'X'.
+SELECTION-SCREEN END OF BLOCK b2.
+*End of Code for Issue Id 45300 dtd 22.02.2016
+
+*}   INSERT
+*End}
+* Selection Screen
+SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE text-001.
+SELECT-OPTIONS : s_invno FOR vbrk-vbeln,
+                 s_date  FOR vbrk-fkdat,
+                 s_waerk FOR vbrk-waerk,
+                 s_cntry FOR /obiz/zxp_shphd-cntry_dest,
+                 s_vkorg FOR vbrk-vkorg NO INTERVALS,
+                 s_kunag FOR vbrk-kunag,
+                 s_aubel FOR vbrp-aubel,
+                 s_werks FOR vbrp-werks.
+*{   INSERT         CRDK909241                                        7
+"Code Added by ### on 26.06.2014
+SELECT-OPTIONS   :s_bolno  FOR /obiz/zxp_shphd-bol_num NO INTERVALS.
+"End
+"Code adde by ### on 20.10.2014.
+SELECT-OPTIONS :
+                s_boedt FOR /obiz/zxp_shphd-bol_duedt,
+                s_disch FOR vbrk-vtweg,""Distribution channel
+                s_div FOR vbak-spart,"""Division
+                slgrp FOR vbak-vkgrp,""Sales Group
+                sloff FOR vbak-vkbur,""Sales Office
+                s_dist FOR vbkd-bzirk,"District
+                s_spty FOR kna1-land1,
+                s_batch FOR lips-charg,
+* Start of code for Issue ID 53297 Dt 20.01.2017
+                s_shblno FOR /obiz/zxp_shphd-shp_bilno MATCHCODE OBJECT zzshpbilnum,
+                s_shbldt FOR /obiz/zxp_shphd-shp_bildt.
+* End of code for Issue ID 53297 Dt 20.01.2017
+*PARAMETERS : p_real as CHECKBOX ."USER-COMMAND check
+
+PARAMETERS: p_real   RADIOBUTTON GROUP rad1, "Realized
+            p_n_real RADIOBUTTON GROUP rad1, "Not realized
+            preal_n  RADIOBUTTON GROUP rad1 DEFAULT 'X'.
+*Ënd
+
+* Start of code #8000004812 : for addition of new RB for Fully Realized Invoice without BRC Number on 20/09/2018.
+SELECTION-SCREEN BEGIN OF LINE.
+PARAMETERS : rd_r_brc RADIOBUTTON GROUP rad1. " Realized without BRC No.
+SELECTION-SCREEN COMMENT 5(79) text-004 FOR FIELD rd_r_brc.
+SELECTION-SCREEN END OF LINE.
+* end of code #8000004812 : for addition of new RB for Fully Realized Invoice without BRC Number on 20/09/2018.
+*}   INSERT
+SELECTION-SCREEN END OF BLOCK b1.
+*{   INSERT         CRDK912952                                        9
+SELECTION-SCREEN BEGIN OF BLOCK c1 WITH FRAME TITLE text-002.
+PARAMETERS :s_vrnt  TYPE  slis_vari.
+PARAMETERS : cb_ftp AS CHECKBOX.
+
+SELECTION-SCREEN END OF BLOCK c1.
+
+
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR s_vrnt .
+  PERFORM get_variant.
+*}   INSERT
+
+START-OF-SELECTION.
+
+  CLEAR: it_inv,  it_tvgrt, it_tvkbt, it_lic,  it_vbeln, "it_cha,
+         it_shp,  it_codes, it_ret,   it_crdt, it_vbpa,  it_realiz,
+         it_comm, it_plant. " it_pproc.
+
+  REFRESH: it_inv,  it_tvgrt, it_tvkbt, it_lic,  it_vbeln, "it_cha,
+           it_shp,  it_codes, it_ret,   it_crdt, it_vbpa,  it_realiz,
+           it_comm, it_plant. " it_pproc.
+*Inserted Revamp CR: Coll_Exp_0908_39 {
+  PERFORM get_class.
+*End}
+  PERFORM get_inv_data.
+  PERFORM fetch_table_data.
+
+  LOOP AT it_inv INTO wa_inv.
+
+    CLEAR: wrk_vkgrp_text,   wrk_vkbur_text,   wrk_comminv,    wrk_commposnr,
+           wrk_sld_name,     wrk_sld_landx,    wrk_shp_name,   wrk_shp_landx,
+           wrk_shp_party,    wa_bill.
+
+* Sales Office/Group
+    PERFORM get_ibm.
+
+* Customs Invoice & Ship/Sold-to party.
+    PERFORM get_cinv_party.
+
+*Commented Revamp CR: Coll_Exp_0908_39 {
+* Get CHA details
+*    PERFORM get_cha_dtls.
+
+* Despatch date
+*    PERFORM get_are_dt.
+*End}
+*Commented Revamp CR: Coll_Exp_0908_39 {
+* BOL & Bank Ref no from Post-Shipment Level (Doc Clas: 0006)
+*    PERFORM get_bol_bnk.
+*End}
+
+* Get FOB, Freight and Insurance
+    PERFORM get_fob_frgt_insu.
+
+* Shipping Lines
+    PERFORM get_ship_line.
+
+* Actual Payment Due Date
+    PERFORM get_payment_dt.
+
+* Realisation details.
+    PERFORM get_realize_dtls.
+
+* License Details
+    PERFORM get_lic_dtls.
+
+*Commented Revamp CR: Coll_Exp_0908_39 {
+* Sales return and Credit Note
+*    PERFORM get_salesrt_dtls.
+*End}
+*-------------/EXPREG Sumitha Frederick 23.09.2008 Insert Start-------------------------------*
+*<Commented code>
+
+* Commission for the line item.
+*    PERFORM get_comm_item.
+*-------------/EXPREG Sumitha Frederick 23.09.2008 Insert Start-------------------------------*
+
+* Sr No and Order Dates
+    PERFORM gen_sno_to_ordt.
+
+* Payment Terms
+    PERFORM get_payment_term.
+
+* Plant Name
+    PERFORM get_plant.
+
+* Invoice Value and Net Price
+    PERFORM get_inv_value.
+*   Get BRC Details
+    PERFORM get_brcdata.
+
+* Move fields.
+    PERFORM move_fld_it.
+
+    APPEND wa_bill TO it_bill.
+    CLEAR : wa_bill, wa_shp.
+  ENDLOOP.
+*{   INSERT         CRDK912952                                        1
+  PERFORM del_data.
+*}   INSERT
+
+  SORT it_bill BY ctinno ctindt.
+*{   INSERT         CRDK921505                                        2
+
+  LOOP AT it_bill INTO wa_bill.
+    IF wrk_temp_doc EQ wa_bill-cinvno.
+      CLEAR wa_bill-fcl_lcl.
+      CLEAR wa_bill-zzvol_wgt.
+      CLEAR wa_bill-zzpallet_no.
+      CLEAR wa_bill-zzno_container.
+      MODIFY it_bill FROM wa_bill TRANSPORTING fcl_lcl
+                                               zzvol_wgt
+                                               zzpallet_no
+                                               zzno_container.
+    ENDIF.
+    wrk_temp_doc = wa_bill-cinvno.
+    IF  wrk_invoice = wa_bill-cinvno.
+      CLEAR wa_bill-frgt_inr.
+      MODIFY it_bill FROM wa_bill TRANSPORTING frgt_inr.
+
+
+    ENDIF.
+
+    IF wa_bill-cinvno IS NOT INITIAL.
+      CLEAR wrk_port.
+      SELECT SINGLE port_load
+             FROM  /obiz/zxp_shphd
+             INTO wrk_port
+             WHERE doc_nr = wa_bill-cinvno.
+      IF wrk_port IS NOT INITIAL.
+        wa_bill-port_load = wrk_port.
+        MODIFY it_bill FROM wa_bill TRANSPORTING port_load.
+
+      ENDIF.
+
+    ENDIF.
+
+
+*At new CINVNO.
+*  break abap2.
+*  flag_freight = '1'.
+*  ENDAT .
+
+*  if flag_freight = '1'.
+*    CLEAR flag_freight.
+*    ELSE.
+*      CLEAR wa_bill-frgt_inr.
+*      MODIFY it_bill FROM wa_bill TRANSPORTING frgt_inr.
+*      endif.
+    wrk_invoice = wa_bill-cinvno.
+  ENDLOOP.
+
+  IF it_bill IS INITIAL .
+    MESSAGE s006(zobiz_chamsgcls).
+    LEAVE LIST-PROCESSING.
+    LEAVE TO SCREEN 0.
+  ENDIF.
+*}   INSERT
+
+* Build the Field Catalog
+  PERFORM create_field_cat.
+
+* Set the Layout
+  PERFORM create_layout.
+
+* Build Events
+  PERFORM events_build USING gt_events[].
+
+* Set the Sort Criteria
+  PERFORM create_sort.
+
+* Display the Grid
+  PERFORM display_field_cat.
+
+  INCLUDE /obiz/exp_reg_create_field_f01.

@@ -1,0 +1,373 @@
+*&---------------------------------------------------------------------*
+*&  Include           ZMM_RM06EAUTN
+*&---------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*&  Include           RM06EAUT
+*&---------------------------------------------------------------------*
+*----------------------------------------------------------------------*
+* Modification Information
+* Date            : 30.10.2019
+* Author          : Charitha S
+* Change request  : 8000005879
+* Transport number: <CRDK965214>
+* Description     : Addition of deletion indicator and pur doc stat fields
+*-----------------------------------------------------------------------*
+  DEFINE convert_range.
+    data: lt_&1 type tt_rsdsselopt.
+    LOOP AT &1.
+      MOVE-CORRESPONDING &1 TO ls_range.
+      APPEND ls_range TO lt_&1.
+    ENDLOOP.
+  END-OF-DEFINITION.
+
+************************************************************************************************
+* Check if the user's authorization is restricted with regard to required authorization objects
+************************************************************************************************
+  TYPES: BEGIN OF ty_auth,
+           bstyp TYPE ekko-bstyp,
+           value TYPE ust12-objct,
+         END OF ty_auth.
+  TYPES tt_auths TYPE STANDARD TABLE OF ty_auth WITH DEFAULT KEY .
+
+  DATA lv_user            TYPE usr02-bname.
+  DATA lt_usrequired_auth TYPE tt_auths.
+  DATA lt_auth_value      TYPE susr_t_usvalues.
+  DATA lt_auth_allval     TYPE susr_t_usvalues.
+
+  INSERT VALUE #( bstyp = 'A' value = 'M_ANFR_EKO' ) INTO TABLE lt_usrequired_auth. "#EC NOTEXT
+  INSERT VALUE #( bstyp = 'A' value = 'M_ANFR_EKG' ) INTO TABLE lt_usrequired_auth. "#EC NOTEXT
+  INSERT VALUE #( bstyp = 'A' value = 'M_ANFR_BSA' ) INTO TABLE lt_usrequired_auth. "#EC NOTEXT
+  INSERT VALUE #( bstyp = 'A' value = 'M_ANFR_WRK' ) INTO TABLE lt_usrequired_auth. "#EC NOTEXT
+  INSERT VALUE #( bstyp = 'A' value = 'M_ANGB_EKO' ) INTO TABLE lt_usrequired_auth. "#EC NOTEXT
+  INSERT VALUE #( bstyp = 'A' value = 'M_ANGB_EKG' ) INTO TABLE lt_usrequired_auth. "#EC NOTEXT
+  INSERT VALUE #( bstyp = 'A' value = 'M_ANGB_BSA' ) INTO TABLE lt_usrequired_auth. "#EC NOTEXT
+  INSERT VALUE #( bstyp = 'A' value = 'M_ANGB_WRK' ) INTO TABLE lt_usrequired_auth. "#EC NOTEXT
+  INSERT VALUE #( bstyp = 'F' value = 'M_BEST_EKO' ) INTO TABLE lt_usrequired_auth. "#EC NOTEXT
+  INSERT VALUE #( bstyp = 'F' value = 'M_BEST_EKG' ) INTO TABLE lt_usrequired_auth. "#EC NOTEXT
+  INSERT VALUE #( bstyp = 'F' value = 'M_BEST_BSA' ) INTO TABLE lt_usrequired_auth. "#EC NOTEXT
+  INSERT VALUE #( bstyp = 'F' value = 'M_BEST_WRK' ) INTO TABLE lt_usrequired_auth. "#EC NOTEXT
+  INSERT VALUE #( bstyp = 'L' value = 'M_RAHM_EKO' ) INTO TABLE lt_usrequired_auth. "#EC NOTEXT
+  INSERT VALUE #( bstyp = 'L' value = 'M_RAHM_EKG' ) INTO TABLE lt_usrequired_auth. "#EC NOTEXT
+  INSERT VALUE #( bstyp = 'L' value = 'M_RAHM_BSA' ) INTO TABLE lt_usrequired_auth. "#EC NOTEXT
+  INSERT VALUE #( bstyp = 'L' value = 'M_RAHM_WRK' ) INTO TABLE lt_usrequired_auth. "#EC NOTEXT
+  INSERT VALUE #( bstyp = 'K' value = 'M_RAHM_EKO' ) INTO TABLE lt_usrequired_auth. "#EC NOTEXT
+  INSERT VALUE #( bstyp = 'K' value = 'M_RAHM_EKG' ) INTO TABLE lt_usrequired_auth. "#EC NOTEXT
+  INSERT VALUE #( bstyp = 'K' value = 'M_RAHM_BSA' ) INTO TABLE lt_usrequired_auth. "#EC NOTEXT
+  INSERT VALUE #( bstyp = 'K' value = 'M_RAHM_WRK' ) INTO TABLE lt_usrequired_auth. "#EC NOTEXT
+
+  READ TABLE r_bstyp INTO DATA(ls_bstyp) WITH KEY sign = 'I' option = 'EQ'. "#EC NOTEXT
+  IF sy-subrc IS INITIAL AND NOT ls_bstyp-low IS INITIAL.
+    DELETE lt_usrequired_auth WHERE bstyp <> ls_bstyp-low.
+  ENDIF.
+
+  lv_user = cl_abap_syst=>get_user_name( ).
+  LOOP AT lt_usrequired_auth INTO DATA(ls_usrequired_auth).
+    CLEAR lt_auth_value.
+    CALL FUNCTION 'SUSR_USER_AUTH_FOR_OBJ_GET'
+      EXPORTING
+        user_name           = lv_user
+        sel_object          = ls_usrequired_auth-value
+      TABLES
+        values              = lt_auth_value
+      EXCEPTIONS
+        user_name_not_exist = 1
+        not_authorized      = 2
+        internal_error      = 3
+        OTHERS              = 4.
+    IF NOT sy-subrc IS INITIAL.
+      CLEAR lt_auth_value.
+    ELSE.
+      LOOP AT lt_auth_value TRANSPORTING NO FIELDS WHERE field = 'ACTVT' AND ( von = '*' OR von = '3' ).
+        EXIT.
+      ENDLOOP.
+      IF sy-subrc IS INITIAL.
+        LOOP AT lt_auth_value TRANSPORTING NO FIELDS WHERE field <> 'ACTVT' AND von = '*' AND bis IS INITIAL.
+          EXIT.
+        ENDLOOP.
+        CHECK NOT sy-subrc IS INITIAL.
+      ENDIF.
+    ENDIF.
+
+    APPEND LINES OF lt_auth_value TO lt_auth_allval.
+  ENDLOOP.
+********************************************************************************************
+
+  TYPES: BEGIN OF lty_ekko_projection,
+           ekorg TYPE ekko-ekorg,
+           ekgrp TYPE ekko-ekgrp,
+           bsart TYPE ekko-bsart,
+           bstyp TYPE ekko-bstyp,
+         END OF lty_ekko_projection.
+
+  DATA:          lt_ekko_all    TYPE TABLE OF ekko.
+  DATA:          lt_ekko_proj   TYPE TABLE OF lty_ekko_projection.
+*  FIELD-SYMBOLS: <fs_ekko_proj> TYPE lty_ekko_projection,
+*                 <fs_ekko_all>  TYPE ekko.
+
+  DATA: lt_where_trusted        TYPE rsds_where_tab.
+  DATA: lt_where_ekko_trusted   TYPE rsds_where_tab.
+  DATA: lt_where_ekpo_trusted   TYPE rsds_where_tab.
+
+  DATA: lv_bsart TYPE string,
+        lv_bstyp TYPE string,
+        lv_ekorg TYPE string,
+        lv_ekgrp TYPE string.
+
+  DATA: lv_sql_line             TYPE string.
+  DATA: lv_af_whitelist         TYPE string.
+  DATA: lv_af_whitelist_sql     TYPE string.
+  DATA: lv_af_blacklist_sql     TYPE string.
+
+*-  Check for EhP4-Switch and Central Contract - do nothing, because Central Contracts are not displayed
+  IF cl_ops_switch_check=>mm_sfws_p2pse( ) = cl_mmpur_constants=>yes.
+    lv_af_blacklist_sql = |( ekko~bstyp = 'K' AND ekko~statu = 'K' )|. "#EC NOTEXT
+    IF NOT lt_auth_allval IS INITIAL.
+      SELECT DISTINCT ekorg ekgrp bsart bstyp FROM ekko AS ekko
+         INTO CORRESPONDING FIELDS OF TABLE lt_ekko_proj
+         WHERE lifnr IN el_lifnr
+           AND ekorg IN el_ekorg
+           AND bstyp IN r_bstyp
+           AND NOT (lv_af_blacklist_sql)
+           AND bsart IN s_bsart
+           AND ekgrp IN s_ekgrp
+           AND ebeln IN s_ebeln
+           AND reswk IN s_reswk
+           AND bedat IN s_bedat
+           AND memorytype IN s_memtyp.
+    ENDIF.
+  ELSEIF NOT lt_auth_allval IS INITIAL.
+* Select all group of data selected by user
+    SELECT DISTINCT ekorg ekgrp bsart bstyp FROM ekko
+       INTO CORRESPONDING FIELDS OF TABLE lt_ekko_proj
+       WHERE lifnr IN el_lifnr
+         AND ekorg IN el_ekorg
+         AND bstyp IN r_bstyp
+         AND bsart IN s_bsart
+         AND ekgrp IN s_ekgrp
+         AND ebeln IN s_ebeln
+         AND reswk IN s_reswk
+         AND bedat IN s_bedat
+         AND memorytype IN s_memtyp                            "Park&Hold
+      GROUP BY ekorg ekgrp bsart bstyp.
+  ENDIF.
+
+* Check for which BSTYP/BSART/EKORG/EKGRP combinations the user has authorizations
+  LOOP AT lt_ekko_proj ASSIGNING FIELD-SYMBOL(<fs_ekko_proj>).
+    CLEAR ekko.
+    MOVE-CORRESPONDING <fs_ekko_proj> TO ekko.
+    lv_bstyp = ekko-bstyp.
+    lv_bsart = ekko-bsart.
+    lv_ekgrp = ekko-ekgrp.
+    lv_ekorg = ekko-ekorg.
+    CONDENSE: lv_bsart, lv_bstyp, lv_ekgrp, lv_ekorg.
+*   create single auth. filter entry
+    lv_sql_line = '( ' && | ekko~bstyp = '{ lv_bstyp }'| &&
+                          | AND ekko~bsart = '{ lv_bsart }'| && cl_abap_char_utilities=>cr_lf &&
+                          | AND ekko~ekorg = '{ lv_ekorg }'| &&
+                          | AND ekko~ekgrp = '{ lv_ekgrp }'| && ' )' && cl_abap_char_utilities=>cr_lf. "#EC NOTEXT.
+    PERFORM berechtigungen_kopf(sapfm06d).
+    IF sy-subrc IS INITIAL.
+*      "-- Build the white list
+*      IF NOT lv_af_whitelist_sql IS INITIAL.
+*        CONCATENATE lv_af_whitelist_sql 'OR' lv_sql_line INTO lv_af_whitelist_sql SEPARATED BY space. "#EC NOTEXT
+*      ELSE.
+*        lv_af_whitelist_sql = lv_sql_line.
+*      ENDIF.
+
+    ELSE.
+*   set flag xauth to 'X' so that there is a message on the screen that shows that the list is not complete.
+      PERFORM set_xauth(sapfm06l).
+
+      "Build the black list
+      IF NOT lv_af_blacklist_sql IS INITIAL.
+        CONCATENATE lv_af_blacklist_sql 'OR' lv_sql_line INTO lv_af_blacklist_sql SEPARATED BY space. "#EC NOTEXT
+      ELSE.
+        lv_af_blacklist_sql = lv_sql_line.
+      ENDIF.
+
+    ENDIF.
+  ENDLOOP.
+
+  IF NOT lv_af_blacklist_sql IS INITIAL.
+* There was one limitation because of missing user's authorization as least
+    REPLACE ALL OCCURRENCES OF cl_abap_char_utilities=>cr_lf IN lv_af_blacklist_sql WITH space IN CHARACTER MODE.
+* Set the filter to be used in where clause while selecting headers
+    lv_authfilter_ekko = lv_af_blacklist_sql.
+  ENDIF.
+
+  IF NOT lv_af_whitelist_sql IS INITIAL.
+* Split lines of the white list using line breaks inserted before to avoid SQL statements are getting cut off
+    SPLIT lv_af_whitelist_sql AT cl_abap_char_utilities=>cr_lf
+     INTO TABLE DATA(lt_af_whitelist_sql).
+
+    LOOP AT lt_af_whitelist_sql INTO DATA(ls_af_whitelist_sql).
+      IF NOT ls_af_whitelist_sql IS INITIAL.
+        APPEND ls_af_whitelist_sql TO lt_where_ekko_trusted.
+      ENDIF.
+    ENDLOOP.
+    CLEAR lt_af_whitelist_sql.
+  ENDIF.
+
+  TYPES: BEGIN OF lty_ekpo_projection,
+           bstyp TYPE ekpo-bstyp,
+           werks TYPE ekpo-werks,
+         END OF lty_ekpo_projection.
+
+  DATA: lt_ekpo_buf           TYPE ekpo_tty.
+  DATA: lt_ekpo_projection    TYPE STANDARD TABLE OF lty_ekpo_projection.
+  DATA: lv_werks              TYPE string.
+
+* Get all distinct bstyp and werks groups for all items of the purcase order
+* It is to perform the authority check only to these groups the user is not authorized to
+* instead of doing that for each item
+  IF NOT lt_auth_allval IS INITIAL.
+    IF lv_authfilter_ekko IS INITIAL.
+      SELECT DISTINCT ekpo~bstyp werks
+          FROM ekpo AS ekpo INNER JOIN ekko AS ekko ON ekko~ebeln = ekpo~ebeln
+          INTO CORRESPONDING FIELDS OF TABLE lt_ekpo_projection
+         WHERE lifnr IN el_lifnr
+           AND ekorg IN el_ekorg
+           AND ekpo~bstyp IN r_bstyp
+           AND bsart IN s_bsart
+           AND ekgrp IN s_ekgrp
+           AND ekpo~ebeln IN s_ebeln
+           AND reswk IN s_reswk
+           AND bedat IN s_bedat
+           AND memorytype IN s_memtyp
+           AND matnr IN r_matnr
+           AND werks IN s_werks
+           AND wepos IN r_wepos
+           AND repos IN r_repos
+           AND retpo IN r_rtpos
+*           AND ekpo~loekz IN r_loekz  "Commented by Charitha as per FS_MM_428 on 25.10.2019 for CR# 8000005879
+           AND knttp IN s_knttp
+           AND matkl IN s_matkl
+           AND ean11 IN s_ean11
+           AND idnlf IN s_idnlf
+           AND ltsnr IN s_ltsnr
+           AND aktnr IN s_aktnr
+           AND saiso IN s_saiso
+           AND saisj IN s_saisj
+           AND procstat IN s_prsta      "Added by Charitha as per FS_MM_428 on 25.10.2019 for CR# 8000005879
+           AND ekpo~loekz IN s_loekz    "Added by Charitha as per FS_MM_428 on 25.10.2019 for CR# 8000005879
+           GROUP BY ekpo~bstyp werks
+           ORDER BY ekpo~bstyp werks.
+    ELSE.
+      SELECT DISTINCT ekpo~bstyp werks
+          FROM ekpo AS ekpo INNER JOIN ekko AS ekko ON ekko~ebeln = ekpo~ebeln
+          INTO CORRESPONDING FIELDS OF TABLE lt_ekpo_projection
+         WHERE lifnr IN el_lifnr
+           AND ekorg IN el_ekorg
+           AND ekpo~bstyp IN r_bstyp
+           AND bsart IN s_bsart
+           AND ekgrp IN s_ekgrp
+           AND ekpo~ebeln IN s_ebeln
+           AND reswk IN s_reswk
+           AND bedat IN s_bedat
+           AND memorytype IN s_memtyp
+           AND NOT (lv_authfilter_ekko) "to consider user-defined authorizations for headers determined above
+           AND matnr IN r_matnr
+           AND werks IN s_werks
+           AND wepos IN r_wepos
+           AND repos IN r_repos
+           AND retpo IN r_rtpos
+*           AND ekpo~loekz IN r_loekz  "Commented by Charitha as per FS_MM_428 on 25.10.2019 for CR# 8000005879
+           AND knttp IN s_knttp
+           AND matkl IN s_matkl
+           AND ean11 IN s_ean11
+           AND idnlf IN s_idnlf
+           AND ltsnr IN s_ltsnr
+           AND aktnr IN s_aktnr
+           AND saiso IN s_saiso
+           AND saisj IN s_saisj
+           AND procstat IN s_prsta      "Added by Charitha as per FS_MM_428 on 25.10.2019 for CR# 8000005879
+           AND ekpo~loekz IN s_loekz    "Added by Charitha as per FS_MM_428 on 25.10.2019 for CR# 8000005879
+           GROUP BY ekpo~bstyp werks
+           ORDER BY ekpo~bstyp werks.
+    ENDIF.
+  ENDIF.
+* Restrict each WERKS that the user is not authorized to
+  CLEAR:  lv_af_whitelist_sql, lv_af_blacklist_sql.
+  LOOP AT lt_ekpo_projection ASSIGNING FIELD-SYMBOL(<fs_ekpo_projection>).
+    MOVE-CORRESPONDING <fs_ekpo_projection> TO ekpo."for perfroming of auth.check
+
+    lv_bstyp = ekpo-bstyp.
+    lv_werks = ekpo-werks.
+    CONDENSE: lv_bstyp, lv_werks.
+
+*   create single auth. filter entry
+    lv_sql_line = '( ' && | ekpo~bstyp = '{ lv_bstyp }'| &&
+                          | AND ekpo~werks = '{ lv_werks }'| && ' )' && cl_abap_char_utilities=>cr_lf. "#EC NOTEXT.
+    PERFORM berechtigungen_pos(sapfm06d).
+    IF sy-subrc IS INITIAL.
+*      "-- Build the white list
+*      IF NOT lv_af_whitelist_sql IS INITIAL.
+*        CONCATENATE lv_af_whitelist_sql 'OR' lv_sql_line INTO lv_af_whitelist_sql SEPARATED BY space. "#EC NOTEXT
+*      ELSE.
+*        lv_af_whitelist_sql = lv_sql_line.
+*      ENDIF.
+    ELSE.
+*   set flag xauth to 'X' so that there is a message on the screen that shows that the list is not complete.
+      PERFORM set_xauth(sapfm06l).
+
+      "Build the black list
+      IF NOT lv_af_blacklist_sql IS INITIAL.
+        CONCATENATE lv_af_blacklist_sql 'OR' lv_sql_line INTO lv_af_blacklist_sql SEPARATED BY space. "#EC NOTEXT
+      ELSE.
+        lv_af_blacklist_sql = lv_sql_line.
+      ENDIF.
+    ENDIF.
+  ENDLOOP.
+
+  IF NOT lv_af_blacklist_sql IS INITIAL.
+* There was one limitation because of missing end user authorization as least
+    REPLACE ALL OCCURRENCES OF cl_abap_char_utilities=>cr_lf IN lv_af_blacklist_sql WITH space IN CHARACTER MODE.
+* Set the filter to be used in where clause while selecting headers
+    lv_authfilter_ekpo = lv_af_blacklist_sql.
+  ENDIF.
+  IF NOT lv_af_whitelist_sql IS INITIAL.
+* Split lines of the white list using line breaks inserted before to avoid SQL statements are getting cut off
+    CLEAR lt_af_whitelist_sql.
+    SPLIT lv_af_whitelist_sql AT cl_abap_char_utilities=>cr_lf
+     INTO TABLE lt_af_whitelist_sql.
+
+    LOOP AT lt_af_whitelist_sql INTO ls_af_whitelist_sql.
+      IF NOT ls_af_whitelist_sql IS INITIAL.
+        APPEND ls_af_whitelist_sql TO lt_where_ekpo_trusted.
+      ENDIF.
+    ENDLOOP.
+    CLEAR lt_af_whitelist_sql.
+  ENDIF.
+
+* Build the result set of limitations because of missing end user authorization
+  IF lt_where_ekpo_trusted IS NOT INITIAL AND lt_where_ekko_trusted IS NOT INITIAL.
+    APPEND '(' TO lt_where_trusted.
+    APPEND LINES OF lt_where_ekpo_trusted TO lt_where_trusted.
+    APPEND ') AND (' TO lt_where_trusted.
+    APPEND LINES OF lt_where_ekko_trusted TO lt_where_trusted.
+    APPEND ')' TO lt_where_trusted.
+  ENDIF.
+***********************************************************************
+
+* Convert the ranges to be used in the data provider provides access to the PO History values
+  CONSTANTS c_elikz_me2star_default   TYPE abap_bool VALUE abap_true. "default value of the parameter
+  CONSTANTS c_cleared_me2star_default TYPE abap_bool VALUE abap_true. "default value of the parameter
+  DATA ls_range  TYPE rsdsselopt.
+  convert_range el_lifnr.
+  convert_range el_ekorg.
+  convert_range s_ekgrp.
+  convert_range s_ebeln.
+  convert_range r_matnr.
+
+* Instantiate a data provider to read aggregated PO History values if HDB is available
+* or the original ME_READ_HISTORY results if not
+  cl_mmpur_read_history_dao=>create(
+                  iv_dbsysopt = p_aut     "it's used for unit-tests only
+                  it_filter   = lt_where_trusted "as union of ekko and ekpo subsets
+                  it_lifnr    = lt_el_lifnr  "it's declared by macro convert_range
+                  it_ekorg    = lt_el_ekorg
+                  it_ekgrp    = lt_s_ekgrp
+                  it_ebeln    = lt_s_ebeln
+                  it_matnr    = lt_r_matnr
+                  iv_elikz    = c_elikz_me2star_default
+                  iv_cleared  = c_cleared_me2star_default ).

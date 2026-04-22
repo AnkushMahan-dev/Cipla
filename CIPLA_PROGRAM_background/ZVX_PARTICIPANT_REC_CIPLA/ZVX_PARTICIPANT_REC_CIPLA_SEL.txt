@@ -1,0 +1,24 @@
+*&---------------------------------------------------------------------*
+*&  Include           ZVX_PARTICIPANT_REC_CIPLA_SEL
+*&---------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+* Include Name    :  ZVX_PARTICIPANT_REC_CIPLA_SEL                     *
+* Creation Date   :  05-March-2020                                     *
+* Author          :  Sindhuja Dhulipudi                                *
+* Application Area:  Agreements                                        *
+* ---------------------------------------------------------------------*
+* Description: Report to create a job in BB_ASP~AFTER_SAVE method to   *
+*              create the CR participation records when saving the     *
+*              BB Agreement
+*----------------------------------------------------------------------*
+* Change History:                                                      *
+*----------------------------------------------------------------------*
+* Date        Created By     Task #      Description                   *
+* ---------------------------------------------------------------------*
+* 05-March-2020  ABAP1      CRDK968332      Initial Development        *
+*                                                                      *
+*&---------------------------------------------------------------------*
+TABLES: /irm/ipbbasp.
+SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME.
+PARAMETERS: p_knuma TYPE /irm/ipbbasp-knuma_ag.
+SELECTION-SCREEN END OF BLOCK b1.

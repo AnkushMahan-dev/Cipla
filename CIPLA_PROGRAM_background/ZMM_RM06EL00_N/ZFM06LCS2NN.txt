@@ -1,0 +1,19 @@
+*&---------------------------------------------------------------------*
+*&  Include           ZFM06LCS2NN
+*CRDK966016
+*&---------------------------------------------------------------------*
+***SOC By Nilesh 29.11.2019 8000005657
+
+PARAMETERS : p_cer RADIOBUTTON GROUP grp1 USER-COMMAND MD MODIF ID MD1 DEFAULT 'X' ,
+             p_ord RADIOBUTTON GROUP grp1 MODIF ID MD2.
+
+SELECT-OPTIONS :s_aufex FOR aufk-aufex MODIF ID ID1.
+SELECT-OPTIONS :s_aufnr FOR aufk-aufnr MODIF ID ID2.
+
+***EOC By Nilesh 29.11.2019 8000005657
+
+PARAMETERS : p_fore RADIOBUTTON GROUP grp2 DEFAULT 'X',
+             p_back RADIOBUTTON GROUP grp2.
+*             p_tcode type sy-tcode.
+
+PARAMETER T_code TYPE sy-tcode OBLIGATORY.

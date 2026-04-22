@@ -1,0 +1,164 @@
+*----------------------------------------------------------------------*
+***INCLUDE ZPP_SCM_ANALYTICS_BONUS.
+*----------------------------------------------------------------------*
+*&      Form  BONUS
+*&---------------------------------------------------------------------*
+FORM bonus .
+TYPES: BEGIN OF ty_ftp_bonus,
+        line(300),
+       END OF ty_ftp_bonus.
+DATA: wa_ftp_bonus TYPE ty_ftp_bonus,
+      ta_ftp_bonus TYPE TABLE OF ty_ftp_bonus.
+SELECT
+  KAPPL,
+  KSCHL,
+  VKORG,
+  VTWEG,
+  WERKS,
+  MATNR,
+  DATBI,
+  DATAB,
+  KNUMH FROM KOTN902 INTO TABLE @data(ta_kotn902)
+        where KAPPL IN @S_KAPPL  AND
+              KSCHL IN @S_KSCHL  AND
+              VKORG IN @s_vkorgb AND
+              VTWEG IN @s_vtwegb AND
+              WERKS IN @s_werksb AND
+              MATNR IN @s_matnrb AND
+              DATBI IN @s_datbi  AND
+              datab IN @s_datab.
+IF ta_kotn902[] IS NOT INITIAL.
+SELECT
+  KNUMH,
+  KNRMM,
+  KNRZM FROM KONDN INTO TABLE @data(ta_kondn)
+        for ALL ENTRIES IN @ta_kotn902
+        WHERE KNUMH = @ta_kotn902-KNUMH.
+ENDIF.
+DATA: lv_knrmm TYPE kondn-knrmm.
+LOOP AT ta_kotn902 INTO data(wa_kotn902) .
+  wa_bonus-KAPPL      = wa_kotn902-KAPPL .
+  wa_bonus-KSCHL      = wa_kotn902-KSCHL .
+  wa_bonus-VKORG      = wa_kotn902-VKORG .
+  wa_bonus-VTWEG      = wa_kotn902-VTWEG .
+  wa_bonus-WERKS      = wa_kotn902-WERKS .
+  wa_bonus-MATNR      = wa_kotn902-MATNR .
+  CONCATENATE wa_kotn902-DATBI+6(2) wa_kotn902-DATBI+4(2) wa_kotn902-DATBI+0(4) INTO WA_BONUS-valid_to.
+  CONCATENATE wa_kotn902-DATAB+6(2) wa_kotn902-DATAB+4(2) wa_kotn902-DATAB+0(4) INTO WA_BONUS-valid_f.
+  wa_bonus-KNUMH      = wa_kotn902-KNUMH .
+  READ TABLE ta_kondn INTO DATA(wa_kondn) WITH KEY KNUMH = wa_kotn902-KNUMH.
+  IF sy-subrc EQ 0.
+    WA_BONUS-KNRZM  = wa_kondn-KNRZM.
+    WA_BONUS-knrmm  = wa_kondn-knrmm.
+    IF wa_kondn-knrmm > 0.
+      lv_knrmm  = ( wa_kondn-KNRZM / wa_kondn-knrmm ) * 100.
+      else.
+      lv_knrmm  = wa_kondn-KNRZM.
+    ENDIF.
+  ENDIF.
+  WA_BONUS-bonus = lv_knrmm.
+  DATA: lv_days TYPE I.
+  CALL FUNCTION 'HR_99S_INTERVAL_BETWEEN_DATES'
+    EXPORTING
+     BEGDA           =  wa_kotn902-DATAB
+      endda          =  wa_kotn902-DATBI
+*     TAB_MODE        = ' '
+   IMPORTING
+     DAYS            = lv_days.
+  WA_BONUS-days = lv_days.
+  CONDENSE: WA_BONUS-knrmm, wa_bonus-knrzm, wa_bonus-days.
+  SHIFT WA_BONUS-matnr LEFT DELETING LEADING '0'.
+  append WA_BONUS to TA_BONUS.
+  CLEAR WA_BONUS.
+ENDLOOP.
+
+***************** "Process to send Bonus Data on FTP Server*******************
+IF TA_BONUS[] IS NOT INITIAL.
+CLEAR: wa_ftp_bonus, ta_ftp_bonus[], lv_file.
+CONCATENATE
+'app'
+'disc_type'
+'comp_code'
+'dist_chnl_code'
+'plnt_code'
+'mat_code'
+'valid_to'
+'valid_from'
+'Condn_rec'
+'min_qty'
+'free_qty'
+'bonus_prcnt'
+'bonus_days' INTO wa_ftp_bonus SEPARATED BY lv_tab. " wa_ftp has been replaced by wa_ftp_bonus against ticket number 8000004920
+APPEND wa_ftp_bonus to ta_ftp_bonus. " wa_ftp has been replaced by wa_ftp_bonus and ta_ftp by ta_ftp_bonus against ticket number 8000004920
+CLEAR wa_ftp_bonus.
+LOOP AT TA_BONUS INTO WA_BONUS.
+CONCATENATE
+wa_bonus-KAPPL
+wa_bonus-KSCHL
+wa_bonus-VKORG
+wa_bonus-VTWEG
+wa_bonus-WERKS
+wa_bonus-MATNR
+wa_bonus-VALID_To
+wa_bonus-valid_f
+wa_bonus-KNUMH
+wa_bonus-KNRMM
+wa_bonus-KNRZM
+wa_bonus-BONUS
+wa_bonus-DAYS INTO wa_ftp_bonus SEPARATED BY lv_tab. " " wa_ftp has been replaced by wa_ftp_bonus against ticket number 8000004920
+APPEND wa_ftp_bonus to ta_ftp_bonus. " wa_ftp has been replaced by wa_ftp_bonus and ta_ftp by ta_ftp_bonus against ticket number 8000004920
+CLEAR: wa_ftp_bonus, wa_bonus.
+ENDLOOP.
+
+PERFORM connect_2_ftp USING g_dest CHANGING g_hdl exp5.
+CLEAR: wa_ftp_bonus,lv_file.
+
+IF exp5 IS INITIAL AND ta_ftp_bonus[] IS NOT INITIAL.
+CONCATENATE lv_file1 'bonus_data.txt' INTO lv_file.
+IF lv_file IS NOT INITIAL.
+*****data lv_command(100) type c.
+*****DATA:lv_dest  TYPE rfcdes-rfcdest VALUE 'SAPFTPA'.
+*****data: lta_data TYPE TABLE OF datab.
+*****CONSTANTS lc_del(3) VALUE 'del'.
+*****BREAK abap4.
+*****lv_command =  |{ lc_del } { lv_file1 }{ '' }{ 'bonus_data.txt'} |.
+*****CALL FUNCTION 'FTP_COMMAND'
+*****  EXPORTING
+*****   HANDLE                = g_hdl
+*****    command               = lv_command
+*****   COMPRESS              =
+*****   RFC_DESTINATION       = lv_dest
+*****  tables
+*****    data                  = lta_data
+***** EXCEPTIONS
+*****   TCPIP_ERROR           = 1
+*****   COMMAND_ERROR         = 2
+*****   DATA_ERROR            = 3
+*****   OTHERS                = 4.
+*PERFORM send_2_ftp USING lv_file.
+*FTP_R3_TO_SERVER:used to transfer the internal table data as a file to other system in the character mode.
+  CALL FUNCTION 'FTP_R3_TO_SERVER'
+    EXPORTING
+      handle         = g_hdl
+      fname          = lv_file "p_lv_file          "file path of destination system
+      character_mode = 'X'
+    TABLES
+      text           = ta_ftp_bonus
+    EXCEPTIONS
+      tcpip_error    = 1
+      command_error  = 2
+      data_error     = 3
+      OTHERS         = 4.
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+    WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4
+    RAISING invalid_output_file.
+  ENDIF.
+ENDIF.
+ENDIF.
+PERFORM disconnect_ftp USING g_hdl g_dest.
+************************** " End of Process to Send file on FTP Server***********************
+ENDIF.
+
+
+ENDFORM.

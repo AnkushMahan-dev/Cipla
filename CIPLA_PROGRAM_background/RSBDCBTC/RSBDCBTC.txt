@@ -1,0 +1,876 @@
+*****************************************************************
+*@(#)RSBDCBTC   %I%   SAP %E%
+*****************************************************************
+*
+*     SAP AG Walldorf
+*     Systeme, Anwendungen und Produkte in der Datenverarbeitung
+*
+*     (C) Copyright SAP AG 1997
+*
+*****************************************************************
+*
+*  Projekt:          R/3 BatchInput
+*  Entwickl.-Stand:  SAP   , BIN-Datenbank
+*
+*  Source-Typ:       Report
+*
+*  Autor:            SAP
+*
+*****************************************************************
+*  Entwicklungsstand:
+*  ------------------
+*  29.11.92 vh Funktionalität wird erweitert
+*           vh - Starten einer Batch-Input Mappe
+*           vh - Löschen einer Batch-Input Mappe
+*           vh - Freigeben einer Batch-Input Mappe
+*  17.03.94 vh Drucken von Mappeninhalten
+*  18.07.94 vh Enqueue und Dequeue
+*  25.07.94 vh globales Dequeue eingebaut
+*  16.08.94 vh Loeschen erfolgt nur noch Transaktionsweise
+*  23.11.95 vh Loeschen erfolgt im 10-er Block Transaktionsweise
+*  13.02.96 vh Vor jedem Abspielen wird geprüft ob die Mappe
+*              anderweitig abgespielt wird
+*  20.06.96 vh Queue_Id mit Wert SPACE wird nicht mehr durchgelassen
+*  08.08.96 cj Drucken im Hintergrund ausgeschaltet (SY-SUBTY)
+*  13.08.96 vh globales Dequeue wird verfeinert enql1
+*  07.01.97 vh Dequeue wird verfeinert mit GNAME = APQI
+*           vh                             GTARG = *QID*
+*           vh                             GUNAME= SPACE
+*  23.07.97 vh Funktionsbaustein ENQUE_REPORT durch ENQUEUE_REPORT
+*           vh ersetzt, Löschen von Sperren
+*
+*****************************************************************
+REPORT RSBDCBTC_NEW MESSAGE-ID 00 LINE-SIZE 80
+                NO STANDARD PAGE HEADING.
+*---------------------------------------------------------------------*
+* Vorbemerkung:                                                       *
+*                                                                     *
+* Dieser Report dient zum Batchlauf von Batch-Input Mappen            *
+* mit folgender Funktionalität:                                       *
+* - STARTEN   einer Batch-Input Mappe.    Modus 'N' Dunkel abspielen  *
+* - LÖSCHEN  einer Batch-Input Mappe      Modus 'D' oder 'P'          *
+*    ( Modus 'D' loescht Mappe;  'P' loescht Mappe + Protokolle)      *
+* - FREIGEBEN einer Batch-Input Mappe     Modus 'F'                   *
+* - FREIGEB_C einer Mappe 'in Erstellung' Modus 'C'                   *
+* - DRUCKEN   einer Batch-Input Mappe     Modus 'R'                   *
+*                                                                     *
+*---------------------------------------------------------------------*
+*-- Datendefinitionen zum Report                                   ---*
+*---------------------------------------------------------------------*
+*
+Data mtab type standard table of apqi  "interne Tabelle
+                       initial size 0.
+DATA wa_apqi like line of mtab.        "workarea definition
+Data wa_mtab like line of mtab.
+*
+DATA wa_apqd type apqd.                "workarea definition
+*
+DATA: QCOUNT    TYPE I VALUE 0,
+      RETURN    TYPE I VALUE 0,
+      APQD_DELA TYPE I VALUE 1000,
+      APQD_DELB TYPE I VALUE 5000.
+
+DATA: STARTEN(01)   VALUE 'N',
+      LOESCHEN(01)  VALUE 'D',
+      LOESCHEP(01)  VALUE 'P',
+      FREIGEBEN(01) VALUE 'F',
+      FREIGEB_C(01) VALUE 'C',
+      DRUCKEN(01)   VALUE 'R'.
+*
+DATA:                                  " reports
+  DRUREPORT(12) TYPE C VALUE 'RSBDCDRU'.   " Drucken Mappeninhalt
+*
+DATA BEGIN OF LOG.
+        INCLUDE STRUCTURE RLOG.        "Uebergabeparameter RSBDCLOG
+DATA END OF LOG.
+*
+DATA:
+  BEGIN OF T ,                         "Counter fuer Transaktionsstatus
+    COUNT TYPE I VALUE 0,
+    FIN(4)  TYPE N VALUE 0,
+    ERR(4)  TYPE N VALUE 0,
+    BOOK(4) TYPE N VALUE 0,
+    DEL(4)  TYPE N VALUE 0,
+    GES(4)  TYPE N VALUE 0,
+    SON(4)  TYPE N VALUE 0,
+    ANZ_ERR_MAP TYPE I VALUE 0,
+  END OF T.
+*
+DATA: BEGIN OF ANAL,
+  COUNT  TYPE I VALUE 0,               " zaehler
+  ECOUNT TYPE I VALUE 0,               " zaehler
+  BA     LIKE APQD-TRANS,              " block anfang
+  BE     LIKE APQD-TRANS,              " block ende
+  FKT1   LIKE APQD-TRANS,              " faktor1
+  FKT2   LIKE APQD-TRANS,              " faktor2
+  BLK#   LIKE APQD-TRANS,              " lfd. blocknr
+  MAXBLK LIKE APQD-TRANS,              " max .block
+      END OF ANAL.
+*
+DATA: BEGIN OF ENQ  ,
+         DATATYP LIKE APQI-DATATYP,    "enqueue-object
+         GROUPID LIKE APQI-GROUPID ,   "enqueue-object
+         OBJECT  LIKE APQI-QID,        "enqueue-object
+         RC      LIKE SY-SUBRC,        "enqueue-rc
+         USER    LIKE SY-UNAME,        "enqueue-user
+         MAPPE   LIKE APQI-GROUPID,    "enqueue-mappe
+      END OF ENQ.
+*
+*---------------------------------------------------------------------*
+*----  PARAMETER                       RSBDCSUB  ---------------------*
+*---------------------------------------------------------------------*
+
+PARAMETERS: QUEUE_ID LIKE APQI-QID     DEFAULT 0,
+            MAPPE    LIKE APQI-GROUPID NO-DISPLAY,
+            MODUS(1) DEFAULT 'N'   NO-DISPLAY,
+            LOGALL   DEFAULT SPACE NO-DISPLAY,
+            ERRFEND  DEFAULT SPACE NO-DISPLAY.
+*
+*---------------------------------------------------------------------*
+*----  START-OF-SELECTION              RSBDCBTC  ---------------------*
+*---------------------------------------------------------------------*
+
+START-OF-SELECTION.
+
+  RETURN = 0.
+
+  IF QUEUE_ID EQ SPACE.
+    RETURN = 398.
+    PERFORM SEND_MSG.
+    EXIT.
+  ENDIF.
+
+* Die CALL 'BDC_START_GROUP' in der Form STARTEN_MAPPE endet das ABAP-
+* Program, wenn das Abspielen gut gelaufen ist. Nur wenn etwas falsch
+* gelaufen ist, wird das C-Programm das Kontrol zu dem ABAP-Programm
+* zurückgegeben und dann läuft Perform DEQUEUE.
+*
+* In dieser Form gibt es die CALL FUNCTION 'ENQUEUE_REPORT'. Das ist
+* eine Auswertungsfunktion. d.h. es wird nichts gesperrt, sondern nur
+* gefragt und ermittelt, ob es eine Sperrung für APQI mit gegebener QID
+* gibt. Mit CALL FUNCTION ENQUE_DELETE wird diese Sperre löschen.
+*
+  case modus.
+    when starten .
+      PERFORM STARTEN_MAPPE. PERFORM DEQUEUE.
+    when loeschen or loeschep.
+      PERFORM MAPPE_LOESCHEN. PERFORM DEQUEUE.
+    when freigeben or freigeb_c.
+      PERFORM MAPPE_FREIGEBEN. PERFORM DEQUEUE.
+    when drucken.
+      PERFORM MAPPE_DRUCKEN.
+    when others.
+      RETURN = 310.
+  endcase.
+
+  PERFORM SEND_MSG.
+*
+END-OF-SELECTION.
+*
+*---------------------------------------------------------------------*
+*----  FORM ROUTINEN     ZU REPORT     RSBDCSUB  ---------------------*
+*---------------------------------------------------------------------*
+*/
+*---------------------------------------------------------------------*
+* FORM : starten_mappe                                                *
+*                                                                     *
+*---------------------------------------------------------------------*
+FORM STARTEN_MAPPE.
+*
+*** Starten einer ausgewaehlten Batch-Input Mappe
+*
+  CLEAR RETURN.
+  clear wa_apqi.
+  clear wa_mtab.
+  clear mtab[].
+*
+  SELECT  * FROM APQI into WA_APQI     " dirty read
+             WHERE QID = QUEUE_ID.     " wegen qid
+  endselect.
+
+  if sy-subrc ne 0.
+    return = 306.                      " Keine Mappe vorhanden
+    EXIT.
+  else.
+    SELECT SINGLE FOR UPDATE * FROM APQI into wa_mtab
+    WHERE DESTSYS        =    WA_APQI-DESTSYS
+    AND   DESTAPP        =    WA_APQI-DESTAPP
+    AND   DATATYP        =    WA_APQI-DATATYP
+    AND   GROUPID        =    WA_APQI-GROUPID
+    AND   PROGID         =    WA_APQI-PROGID
+    AND   FORMID         =    WA_APQI-FORMID
+    AND   MANDANT        =    WA_APQI-MANDANT
+    AND   QATTRIB        =    WA_APQI-QATTRIB
+    AND   QID            =    WA_APQI-QID.
+*
+    IF SY-SUBRC NE 0.
+      RETURN = 309.             " Die angeforderte Mappe ist belegt
+      EXIT.
+    ENDIF.
+  endif.
+*
+*  IF WA_MTAB-QSTATE = 'C'    OR     "Cre, in Erstellung
+*     WA_MTAB-QSTATE = 'F'    OR     "Fin, verarbeitet
+*     WA_MTAB-QSTATE = 'R'.          "Res, in Bearbeitung
+*    RETURN = 309.                   "werden nicht gestartet
+*    EXIT.
+*  ENDIF.
+*
+  IF WA_MTAB-QSTATE NE ' '   AND
+     WA_MTAB-QSTATE NE 'E'   AND
+     WA_MTAB-QSTATE NE 'S'.
+    RETURN = 309.
+    EXIT.
+  ENDIF.
+* Mappen mit Status
+* 'C' = in Erstellung, 'F' = verarbeitet oder 'R' = in Bearbeting
+* werden nicht gestartet. Eventuell auch Mappen mit unbekanntem Status
+* werden hier nicht gestartet. Nur Mappen mit Status ' ', 'E' oder 'S'
+* werden gestartet.
+*
+* Wir empfohlen dringend den Kunden dieses Program nur mit RSBDCSUB
+* zu benutzen, wenn er eine Mappe dunkel abspielen will. Damit werden
+* keine Mappe mit Status ' ' und 'E' abgespielt. Was nicht falsch ist,
+* aber nicht sauber.
+*
+  IF WA_MTAB-STARTDATE GT SY-DATUM.    "Mappe ist gesperrt
+    RETURN = 312.
+    EXIT.
+  ENDIF.
+*
+  IF RETURN = 0.
+    MODUS = 'N'.                       " dunkel abspielen
+    IF LOGALL NE 'A'.
+      LOGALL = SPACE.
+    ENDIF.
+*
+    DATA: HEX02 TYPE X VALUE '02'.
+    IF SY-SUBTY O HEX02.               " siehe Hinweis 46937/98 nicht
+      SUBTRACT 2 FROM SY-SUBTY .       " loeschen.
+    ENDIF.
+
+    CALL 'BDC_START_GROUP' ID 'GROUP'    FIELD WA_MTAB-GROUPID
+                           ID 'QUID'     FIELD WA_MTAB-QID
+                           ID 'DISPLAY'  FIELD MODUS
+                           ID 'LOG'      FIELD LOGALL "all message
+                           ID 'ERRORFORCEEND' FIELD ERRFEND.
+
+  ENDIF.
+*
+ENDFORM.                               " starten_mappe.
+*/
+*---------------------------------------------------------------------*
+* FORM : mappe_loeschen                                               *
+*                                                                     *
+*---------------------------------------------------------------------*
+FORM MAPPE_LOESCHEN.
+*
+*** Loeschen einer ausgewaehlten Batch-Input Mappe
+*
+  CLEAR RETURN.
+  clear wa_apqi.
+  clear wa_mtab.
+*
+  SELECT  * FROM APQI into wa_mtab
+            WHERE QID = QUEUE_ID.
+  ENDSELECT.
+
+  PERFORM ENQUEUE USING WA_MTAB-DATATYP
+                        WA_MTAB-GROUPID
+                        WA_MTAB-QID.
+  SY-SUBRC = RETURN = 0.
+
+* update released
+  WA_MTAB-QSTATE = 'S'.
+*
+  UPDATE APQI SET QSTATE  =  WA_MTAB-QSTATE
+              WHERE DESTSYS   =  WA_MTAB-DESTSYS AND
+                    DESTAPP   =  WA_MTAB-DESTAPP AND
+                    DATATYP   =  WA_MTAB-DATATYP AND
+                    GROUPID   =  WA_MTAB-GROUPID AND
+                    PROGID    =  WA_MTAB-PROGID  AND
+                    FORMID    =  WA_MTAB-FORMID  AND
+                    QID       =  WA_MTAB-QID.
+  COMMIT WORK.
+
+* loeschen der APQD-Daten. Datenteil
+  PERFORM DEL_MAPPE_DATA_NEU.
+
+  IF RETURN EQ 304.
+*   loeschen der APQI-Datein. Infoteil
+    DELETE FROM APQI WHERE DESTSYS = WA_MTAB-DESTSYS AND
+                           DESTAPP = WA_MTAB-DESTAPP AND
+                           DATATYP = WA_MTAB-DATATYP AND
+                           GROUPID = WA_MTAB-GROUPID AND
+                           PROGID  = WA_MTAB-PROGID  AND
+                           QID     = WA_MTAB-QID.
+
+    IF SY-SUBRC NE 0.
+*       RETURN = 317.
+    ELSE.
+      IF MODUS EQ LOESCHEP.
+        LOG-MODUS = 'Q'.               " loeschen von Protokollen
+        LOG-MAPN  = WA_MTAB-GROUPID.
+        LOG-QUID  = WA_MTAB-QID.
+        PERFORM LOESCHEN_PROTOKOLL.
+      ENDIF.
+      RETURN = 304.
+    ENDIF.
+  ENDIF.
+*
+ENDFORM.                               " mappe_loeschen.
+*
+*---------------------------------------------------------------------*
+* FORM : mappe_freigeben                                             *
+*                                                                     *
+*---------------------------------------------------------------------*
+FORM MAPPE_FREIGEBEN.
+*
+*** Freigeben einer ausgewaehlten Batch-Input Mappe
+*
+  DATA: QSTATE TYPE APQI-QSTATE.
+*
+  CLEAR RETURN.
+  clear mtab[].
+  clear wa_apqi.
+  clear wa_mtab.
+*
+  SELECT  * FROM APQI into WA_MTAB
+       WHERE QID = QUEUE_ID.
+  ENDSELECT.
+
+  PERFORM ENQUEUE USING WA_MTAB-DATATYP WA_MTAB-GROUPID WA_MTAB-QID.
+  SY-SUBRC = RETURN = 0.
+* Nur Mappen mit Status S, R oder C koennen freigegeben werden.
+  IF WA_MTAB-QSTATE = 'S'    OR     "S - Aussetzt für Aenderung
+     WA_MTAB-QSTATE = 'R'    OR     "R - Reserviert
+     WA_MTAB-QSTATE = 'C'.          "C - in Erstellung
+  ELSE.
+    RETURN = 309.
+    EXIT.
+  ENDIF.
+*
+  CLEAR QSTATE.
+  IF MODUS EQ FREIGEB_C. "freigeben einer Mappe aus 'in Erstellung'
+    QSTATE = 'C'.
+  ENDIF.
+  WA_MTAB-QSTATE = SPACE.
+*
+  PERFORM ZAEHLER_KORRIGIEREN.
+*
+  WA_MTAB-PUTACTIVE = SPACE.
+  WA_MTAB-PUTPID = 0.
+*
+  IF QSTATE EQ 'C'.                    " mappen in erstellung
+    WA_MTAB-PUTTRANS = WA_MTAB-TRANSCNT.
+    WA_MTAB-PUTBLOCK = WA_MTAB-TRANSCNT + WA_MTAB-MSGCNT.
+    WA_MTAB-PUTACTIVE = SPACE.
+    PERFORM UPDATE_CREATE_MODE .
+  ELSE.                                " mappen in bearbeitung
+    PERFORM UPDATE_RELEASE_MODE .
+  ENDIF.
+*
+  IF SY-SUBRC NE 0.
+    RETURN = 327.
+  ELSE .
+    RETURN = 305.
+    COMMIT WORK.
+  ENDIF.
+*
+ENDFORM.                               " mappe_freigeben
+*/
+*---------------------------------------------------------------------*
+* FORM : update_create_mode .                                         *
+*                                                                     *
+*---------------------------------------------------------------------*
+FORM UPDATE_CREATE_MODE .
+*
+*** Batch-Input Update auf die Tabelle APQI um dei Zaehler neu
+*** zu bestimmen     modus   create
+*** nur bei Mappen die freigegeben werden
+*
+  UPDATE APQI
+  SET   QSTATE        =  SPACE
+        PUTACTIVE     =  WA_MTAB-PUTACTIVE
+        PUTPID        =  WA_MTAB-PUTPID
+        PUTTRANS      =  WA_MTAB-PUTTRANS
+        PUTBLOCK      =  WA_MTAB-PUTBLOCK
+        TRANSCNT      =  WA_MTAB-TRANSCNT
+        MSGCNT        =  WA_MTAB-MSGCNT
+        TRANSCNTE     =  WA_MTAB-TRANSCNTE
+        MSGCNTE       =  WA_MTAB-MSGCNTE
+        TRANSCNTF     =  WA_MTAB-TRANSCNTF
+        MSGCNTF       =  WA_MTAB-MSGCNTF
+        TRANSCNTD     =  WA_MTAB-TRANSCNTD
+        MSGCNTD       =  WA_MTAB-MSGCNTD
+*
+  WHERE DESTSYS       =  WA_MTAB-DESTSYS
+  AND   DESTAPP       =  WA_MTAB-DESTAPP
+  AND   DATATYP       =  WA_MTAB-DATATYP
+  AND   GROUPID       =  WA_MTAB-GROUPID
+  AND   PROGID        =  WA_MTAB-PROGID
+  AND   FORMID        =  WA_MTAB-FORMID
+  AND   QID           =  WA_MTAB-QID.
+*
+ENDFORM.                               " UPDATE_CREATE_MODE .
+*/
+*---------------------------------------------------------------------*
+* FORM : update_release_mode .                                        *
+*                                                                     *
+*---------------------------------------------------------------------*
+FORM UPDATE_RELEASE_MODE .
+*
+*** Batch-Input Update auf die Tabelle APQI um dei Zaehler neu
+*** zu bestimmen     modus   create
+*** nur bei Mappen die freigegeben werden
+*
+  UPDATE APQI
+  SET   QSTATE        =  SPACE
+        PUTACTIVE     =  WA_MTAB-PUTACTIVE
+        TRANSCNT      =  WA_MTAB-TRANSCNT
+        MSGCNT        =  WA_MTAB-MSGCNT
+        TRANSCNTE     =  WA_MTAB-TRANSCNTE
+        MSGCNTE       =  WA_MTAB-MSGCNTE
+        TRANSCNTF     =  WA_MTAB-TRANSCNTF
+        MSGCNTF       =  WA_MTAB-MSGCNTF
+        TRANSCNTD     =  WA_MTAB-TRANSCNTD
+        MSGCNTD       =  WA_MTAB-MSGCNTD
+*
+  WHERE DESTSYS       =  WA_MTAB-DESTSYS
+  AND   DESTAPP       =  WA_MTAB-DESTAPP
+  AND   DATATYP       =  WA_MTAB-DATATYP
+  AND   GROUPID       =  WA_MTAB-GROUPID
+  AND   PROGID        =  WA_MTAB-PROGID
+  AND   FORMID        =  WA_MTAB-FORMID
+  AND   QID           =  WA_MTAB-QID.
+*
+ENDFORM.                               " update_release_mode .
+*/
+*---------------------------------------------------------------------*
+* FORM : mappe_drucken                                               *
+*                                                                     *
+*---------------------------------------------------------------------*
+FORM MAPPE_DRUCKEN   .
+*
+*** drucken   einer ausgewaehlten Batch-Input Mappe
+*
+  clear WA_MTAB.
+*
+  MOVE QUEUE_ID TO WA_MTAB-QID.
+*
+*   IMPORT PARAMS FROM MEMORY ID 'DRUPAR'.
+*
+  SUBMIT (DRUREPORT)  TO SAP-SPOOL
+     AND RETURN
+     SPOOL PARAMETERS %_PRINT
+     WITHOUT SPOOL DYNPRO
+     WITH QUEUE_ID EQ WA_MTAB-QID.
+*   GET PARAMETER ID 'SPI' FIELD SPOOLID.
+*
+ENDFORM.                               "  mappe_drucken
+*/
+*---------------------------------------------------------------------*
+* FORM : zaehler_korrigieren.                                         *
+*                                                                     *
+*---------------------------------------------------------------------*
+FORM ZAEHLER_KORRIGIEREN.
+*
+*** Batch-Input Transaktions- und Messagezaehler neu bestimmen
+*** nur bei Mappen die freigegeben werden
+*
+  CLEAR: T,
+         WA_MTAB-TRANSCNT,
+         WA_MTAB-MSGCNT,
+         WA_MTAB-TRANSCNTE,
+         WA_MTAB-MSGCNTE,
+         WA_MTAB-TRANSCNTD,
+         WA_MTAB-MSGCNTD,
+         WA_MTAB-TRANSCNTF,
+         WA_MTAB-MSGCNTF.
+  clear WA_APQD.
+*
+  SELECT * FROM APQD into wa_apqd
+            WHERE QID = WA_MTAB-QID.
+*   AND   VARDATA    LIKE  'S%'.    "kz fuer transaktionssatz
+    CHECK WA_APQD-VARDATA(1) EQ 'S'.
+*                          in case of performance: dynamic-sql
+    PERFORM DYNAMIC_SQL USING 2.
+*
+    IF WA_APQD-VARDATA+1(1) = 'E'.
+      WA_MTAB-TRANSCNTE = WA_MTAB-TRANSCNTE + 1.
+      WA_MTAB-MSGCNTE   = WA_MTAB-MSGCNTE + ( T-COUNT - 1 ).
+      WA_MTAB-TRANSCNT  = WA_MTAB-TRANSCNT  + 1.
+      WA_MTAB-MSGCNT    = WA_MTAB-MSGCNT  + ( T-COUNT - 1 ).
+    ENDIF.
+*
+    IF WA_APQD-VARDATA+1(1) = 'F'.
+      WA_MTAB-TRANSCNTF = WA_MTAB-TRANSCNTF + 1.
+      WA_MTAB-MSGCNTF   = WA_MTAB-MSGCNTF + ( T-COUNT - 1 ).
+      WA_MTAB-TRANSCNT  = WA_MTAB-TRANSCNT  + 1.
+      WA_MTAB-MSGCNT    = WA_MTAB-MSGCNT  + ( T-COUNT - 1 ).
+    ENDIF.
+*
+    IF WA_APQD-VARDATA+1(1) = 'S' OR
+       WA_APQD-VARDATA+1(1) = 'D' .
+      WA_MTAB-TRANSCNTD = WA_MTAB-TRANSCNTD + 1.
+      WA_MTAB-MSGCNTD   = WA_MTAB-MSGCNTD + ( T-COUNT - 1 ).
+      WA_MTAB-TRANSCNT  = WA_MTAB-TRANSCNT  + 1.
+      WA_MTAB-MSGCNT    = WA_MTAB-MSGCNT  + ( T-COUNT - 1 ).
+    ENDIF.
+*
+    IF WA_APQD-VARDATA+1(1) = 'B' OR
+       WA_APQD-VARDATA+1(1) = ' ' OR
+       WA_APQD-VARDATA+1(1) = 'C' OR
+       WA_APQD-VARDATA+1(1) = 'R'.
+      WA_MTAB-TRANSCNT  = WA_MTAB-TRANSCNT  + 1.
+      WA_MTAB-MSGCNT    = WA_MTAB-MSGCNT  + ( T-COUNT - 1 ).
+    ENDIF.
+*
+  ENDSELECT.
+*
+ENDFORM.                               " zaehler_korrigieren.
+*/
+*---------------------------------------------------------------------*
+*       FORM dynamic_sql                                              *
+*---------------------------------------------------------------------*
+*
+FORM DYNAMIC_SQL USING ACCES.
+*                          in case of performance: dynamic-sql
+  CASE ACCES.
+    WHEN 1.                            "ermitteln anzahl apqd-saetze
+      SELECT COUNT(*) FROM APQD into qcount
+             WHERE QID = WA_MTAB-QID.
+    WHEN 2.                            "ermitteln anzahl apqd-saetze
+      SELECT COUNT(*) FROM APQD into t-count
+             WHERE QID   = WA_MTAB-QID AND
+                   TRANS = WA_APQD-TRANS.
+    WHEN 3.
+
+  ENDCASE.
+*
+ENDFORM.                               "dynamic_sql
+*/
+*---------------------------------------------------------------------*
+* FORM : del_mappe_data_neu                                           *
+*                                                                     *
+*---------------------------------------------------------------------*
+FORM DEL_MAPPE_DATA_NEU.
+*
+*** Loeschen  einer Batch-Input Mappe    Datenteil
+*   in Partitionen  zu jeweils 5000 Sätzen
+*
+  WA_APQD-TRANS = 1.
+  PERFORM DYNAMIC_SQL USING 2.         " ermitteln anzahl saetze/trans.
+  IF T-COUNT EQ 0.
+    T-COUNT = 10.
+  ENDIF.
+*
+  PERFORM DYNAMIC_SQL USING 1.         " ermitteln gesamtanzahl saetze
+  IF QCOUNT EQ 0.                      " nix da
+    RETURN = 304.
+    EXIT.
+  ENDIF.
+
+  IF QCOUNT LE APQD_DELB.              " max. 5000 saetze loeschen
+    DELETE FROM APQD
+           WHERE QID =  WA_MTAB-QID.   " loeschen einer mappe
+
+    IF SY-SUBRC NE 0.
+*       RETURN = 317.
+    ELSE.
+      RETURN = 304.
+      COMMIT WORK.
+    ENDIF.
+  ELSE.
+    CLEAR: ANAL.
+    ANAL-FKT1 = APQD_DELA / T-COUNT.   "blockfaktor
+    IF ANAL-FKT1 EQ 0.
+      ANAL-FKT1 = 1.
+    ENDIF.
+*
+*     timeout bei delete abfangen
+*     verhindern dass das rollbacksegment der DB platzt
+*     durch commit work
+*                                      " loeschblock
+*     ANAL-FKT1 = 1.                   " 1 transaktion
+    ANAL-FKT1 = 10.                    "10 transaktionen gleichzeitig
+
+    DO.                                "timeout bei delete abfangen
+      ANAL-COUNT = ANAL-COUNT + 1.     " partitionierung der mappe
+      IF ANAL-COUNT EQ 1.
+        ANAL-BA = 1.
+      ELSE.
+        ANAL-BA = ANAL-BE.
+      ENDIF.
+
+      ANAL-BE = ANAL-BE + ANAL-FKT1.
+      IF ANAL-BE GT QCOUNT.
+        ANAL-BE = QCOUNT.
+      ENDIF.
+
+      DELETE FROM APQD                 " loeschen einer mappe
+             WHERE QID = WA_MTAB-QID AND
+             TRANS BETWEEN  ANAL-BA AND ANAL-BE.
+
+      IF SY-SUBRC NE 0.
+*         RETURN = 317.
+      ELSE.
+*         RETURN = 304.
+        COMMIT WORK.
+      ENDIF.
+
+      IF ANAL-BE GE QCOUNT.
+        EXIT.
+      ENDIF.
+    ENDDO.
+
+    QCOUNT = 0.
+    PERFORM DYNAMIC_SQL USING 1.       " ermitteln gesamtanzahl saetze
+    IF QCOUNT GT 0.                    " nachlesen
+*       RETURN = 317.
+      DELETE FROM APQD
+             WHERE QID = WA_MTAB-QID.  " loeschen einer mappe
+      IF SY-SUBRC NE 0.                " endgültig  !!!!
+*         RETURN = 317.
+      ELSE.
+        RETURN = 304.
+        COMMIT WORK.
+      ENDIF.
+    ELSE.
+      RETURN = 304.
+      SY-SUBRC = 0.
+    ENDIF.
+  ENDIF.
+*
+*
+ENDFORM.                               " del_mappe_data_neu.
+*/
+*---------------------------------------------------------------------*
+* FORM : enqueue                                                      *
+*---------------------------------------------------------------------*
+* sperren einer qid gegen weitere verarbeitung    teil 1              *
+*---------------------------------------------------------------------*
+FORM ENQUEUE   USING    BITYP
+                        BIGROUP
+                        OBJECT .
+*
+  CLEAR ENQ.
+  ENQ-DATATYP = BITYP.
+  ENQ-GROUPID = BIGROUP.
+  ENQ-OBJECT  = OBJECT.
+  PERFORM ENQUEUE_OBJECT_QID    USING    ENQ-DATATYP
+                                         ENQ-GROUPID
+                                         ENQ-OBJECT
+                                CHANGING ENQ-RC
+                                         ENQ-USER.
+*
+ENDFORM.                               " enqueue
+*/
+*---------------------------------------------------------------------*
+* FORM : enqueue_object_qid                                           *
+*---------------------------------------------------------------------*
+* sperren einer qid gegen weitere verarbeitung                        *
+*---------------------------------------------------------------------*
+FORM ENQUEUE_OBJECT_QID    USING    ENQ_DATATYP
+                                    ENQ_GROUPID
+                                    ENQ_OBJECT
+                           CHANGING ENQ_RC
+                                    ENQ_USER.
+*
+  CLEAR RETURN.
+  CALL FUNCTION 'ENQUEUE_BDC_QID'
+       EXPORTING
+            DATATYP        = ENQ_DATATYP
+            GROUPID        = ENQ_GROUPID
+            QID            = ENQ_OBJECT
+       EXCEPTIONS
+            FOREIGN_LOCK   = 1
+            SYSTEM_FAILURE = 99.
+*
+  ENQ_RC    = SY-SUBRC.
+  ENQ-MAPPE = WA_MTAB-GROUPID.
+  ENQ_USER  = SY-MSGV1.
+*
+  CASE ENQ_RC.
+    WHEN 0.
+      RETURN = 0.
+    WHEN 1.
+      RETURN = 322.
+    WHEN OTHERS.
+      RETURN = 353.
+  ENDCASE.
+*
+ENDFORM.                               " enqueue_object_qid
+*/
+*---------------------------------------------------------------------*
+* FORM : dequeue                                                      *
+*---------------------------------------------------------------------*
+* entsperren einer qid für weitere verarbeitung                       *
+*---------------------------------------------------------------------*
+FORM DEQUEUE .
+*
+  PERFORM DEQUEUE1.
+  EXIT.
+*
+ENDFORM.                               " DEQUEUE
+*/
+*---------------------------------------------------------------------*
+* FORM : dequeue1                                                     *
+*---------------------------------------------------------------------*
+* entsperren einer qid für weitere verarbeitung                       *
+*---------------------------------------------------------------------*
+FORM DEQUEUE1.
+*
+  DATA: BEGIN OF ENQL OCCURS 0.
+          INCLUDE STRUCTURE SEQG3.
+  DATA: END OF ENQL.
+*
+  DATA: BEGIN OF ENQL1 OCCURS 0.
+          INCLUDE STRUCTURE SEQG3.
+  DATA: END OF ENQL1.
+*
+  DATA: LGARG LIKE SEQG3-GARG.
+  DATA: GNAME    LIKE  SEQG3-GNAME.
+  DATA: GTARG    LIKE  SEQG3-GTARG.
+  DATA: GUNAME   LIKE  SEQG3-GUNAME.
+  DATA: GCLIENT  LIKE  SEQG3-GCLIENT.
+  DATA: ENQCNT   LIKE  SY-INDEX.
+*
+  REFRESH ENQL.
+  GNAME   = 'APQI'.                    "tabelle apqi
+  GUNAME  = SPACE.                     "benutzer der sperren, alle
+  GCLIENT = WA_MTAB-MANDANT.           "laufender mandant
+  CONCATENATE '*' WA_MTAB-QID '*' INTO GTARG. " sperrargument *QID*
+*
+  CALL FUNCTION 'ENQUEUE_REPORT'
+       EXPORTING
+            GCLIENT = GCLIENT
+            GUNAME  = GUNAME
+            GNAME   = GNAME
+            GTARG   = GTARG
+       IMPORTING
+            SUBRC   = ENQ-RC
+       TABLES
+            ENQ     = ENQL.
+*
+  ENQCNT = 0.
+  REFRESH ENQL1.
+  CLEAR ENQL1.
+*
+  LOOP AT ENQL.
+    MOVE ENQL-GARG TO LGARG.
+*   SHIFT LGARG BY  74 PLACES.         "Release 30
+*    SHIFT LGARG BY  106 PLACES.       "Release 40 ?????
+    SHIFT LGARG BY  130 PLACES.        "Release 40
+    IF WA_MTAB-QID  EQ    LGARG(20).
+      ENQCNT = ENQCNT + 1.
+      MOVE ENQL TO ENQL1.
+      APPEND ENQL1.
+    ENDIF.
+  ENDLOOP.
+*
+  IF ENQCNT GT 0.
+    CALL FUNCTION 'ENQUE_DELETE'
+         EXPORTING
+              SUPPRESS_SYSLOG_ENTRY = 'X'
+         IMPORTING
+              SUBRC = ENQ-RC
+         TABLES
+              ENQ   = ENQL1.
+*
+*    PERFORM ENQUEUE USING WA_MTAB-DATATYP WA_MTAB-GROUPID WA_MTAB-QID.
+  ENDIF.
+*
+ENDFORM.                               " DEQUEUE1
+
+
+*/
+*---------------------------------------------------------------------*
+* FORM : send_msg                                                     *
+*                                                                     *
+*---------------------------------------------------------------------*
+FORM SEND_MSG.
+*
+*** Ausgabe von Bildschirmnachrichten
+*
+  CASE RETURN.
+    WHEN 0.
+*
+    WHEN 301.      " Cursor nicht innerhalb der Liste
+      MESSAGE S301.
+    WHEN 302.                          " Datum ungueltig
+      MESSAGE S302 WITH WA_MTAB-STARTDATE.
+    WHEN 303.                          " Zeit ungueltig
+      MESSAGE S303.
+    WHEN 304.                          " $ Mappe(n) wurde(n) geloescht
+      MESSAGE S304 WITH ' ' ' ' .
+    WHEN 305.                          " $ Mappe(n) wurde(n) freigegeben
+      MESSAGE S305 WITH ' ' ' ' ' '.
+    WHEN 306.                          " BDC- Mappennmame fehlt
+      MESSAGE S306.
+    WHEN 308.                          " Die Batch-Input Datei ist leer
+      MESSAGE S308.
+    WHEN 309.      " Die angeforderte Mappe ist belegt
+      MESSAGE S309.
+    WHEN 310.                          " Ungueltiger Verarbeitungsmodus
+      MESSAGE S310.
+    WHEN 312.       " System beschaeftigt, bitte warten
+      MESSAGE S312.
+    WHEN 313.      " Bitte waehlen Sie mindestens eine Mappe aus
+      MESSAGE S313 WITH ' ' ' '.
+    WHEN 320.      " Mappe defekt, nicht abspielen siehe Trans.Header
+      MESSAGE S320.
+    WHEN 321.      " Mappe defekt, nicht abspielen siehe Mess.Header
+      MESSAGE S320.
+    WHEN 322.                          " Mappe gesperrt
+      MESSAGE S322 WITH WA_MTAB-GROUPID WA_MTAB-QID WA_MTAB-USERID.
+    WHEN 326.                          " Mappe $ wird abgespielt
+      MESSAGE S326 WITH WA_MTAB-GROUPID .
+    WHEN 327.      " Fehler beim 'AENDERN' der Mappe 'TAB-MAPN'.
+      MESSAGE S307 WITH 'Ändern'(048) ' ' ' '.
+    WHEN 353.                          " Fehler in der Sperrverwaltung
+      MESSAGE S353 WITH WA_MTAB-GROUPID WA_MTAB-QID.
+    WHEN 384.                          " Anfang der Mappe erreicht
+      MESSAGE S384.
+    WHEN 385.                          " Ende  der Mappe erreicht
+      MESSAGE S385.
+    WHEN 398.      " Freie Fehlermeldung des Batch-Input mit $$$$
+      MESSAGE S398 WITH TEXT-006  WA_MTAB-QID 'nicht gültig'(049) ' '.
+    WHEN 427.      " Nur Status reserve oder create darf geaendert w.
+      MESSAGE S327.
+    WHEN OTHERS.
+      MESSAGE S399.
+  ENDCASE.
+*
+  CLEAR: RETURN.
+*
+ENDFORM.                               " send_msg.
+*/
+*---------------------------------------------------------------------*
+* FORM : LOESCHEN_PROTOKOLL                                           *
+*---------------------------------------------------------------------*
+* Protokolle löschen                                                  *
+*---------------------------------------------------------------------*
+FORM LOESCHEN_PROTOKOLL.
+*
+  DATA: I_APQL LIKE APQL OCCURS 0 WITH HEADER LINE.
+*
+  CALL FUNCTION 'BDC_PROTOCOL_SELECT_QID'
+    EXPORTING
+      QUEUE_ID = LOG-QUID
+    TABLES
+      APQLTAB  = I_APQL
+    EXCEPTIONS
+      OTHERS   = 1.
+*
+  IF SY-SUBRC = 0.
+    LOOP AT I_APQL.
+      CALL FUNCTION 'BDC_PROTOCOL_DELETE'
+        EXPORTING
+          TEMSE_ID = I_APQL-TEMSEID
+        EXCEPTIONS
+          OTHERS   = 1.  "#EC *
+    ENDLOOP.
+  ENDIF.
+*
+ENDFORM.                    " LOESCHEN_PROTOKOLL
