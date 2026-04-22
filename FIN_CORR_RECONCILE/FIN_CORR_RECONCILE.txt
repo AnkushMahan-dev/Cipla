@@ -1,0 +1,258 @@
+*&---------------------------------------------------------------------*
+*& Report FIN_CORR_RECONCILE
+*&---------------------------------------------------------------------*
+*& Program to start the reconciliation of GL data prior to S/4 HANA
+*& Financila Data Migratrion.
+*&---------------------------------------------------------------------*
+REPORT fin_corr_reconcile.
+TABLES:
+  fin_corr_issue.
+***Table for Key with BUKRS and GJAHR.
+TYPES:
+  BEGIN OF key,
+    bukrs TYPE bukrs,
+    gjahr TYPE gjahr,
+  END OF key.
+
+DATA:
+  gt_key   TYPE TABLE OF key,
+  ir_belnr TYPE TABLE OF fagl_range_belnr,
+  gs_key   LIKE LINE OF gt_key.
+
+DATA:
+  exp(1)                   TYPE c,
+  go_fin_fb_corr_reconcile TYPE REF TO cl_fin_fb_corr_reconcile,
+  is_belnr                 TYPE fagl_range_belnr,
+  gv_run_id                TYPE fin_corr_run_id,
+  lv_answer                TYPE char1,
+  gv_fullrun(1)            TYPE c.
+
+*** Block for partial run input parameters
+SELECTION-SCREEN BEGIN OF BLOCK 001 WITH FRAME TITLE TEXT-102 .
+SELECT-OPTIONS: se_bukrs FOR fin_corr_issue-bukrs.
+SELECT-OPTIONS: se_gjahr FOR fin_corr_issue-gjahr.
+SELECT-OPTIONS: se_belnr FOR fin_corr_issue-belnr.
+SELECTION-SCREEN END OF BLOCK 001.
+
+*** Developer mode to restrict data selection
+SELECTION-SCREEN BEGIN OF BLOCK 002 WITH FRAME TITLE TEXT-103.
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN COMMENT 1(20) TEXT-004 FOR FIELD p_index MODIF ID inc.
+SELECTION-SCREEN POSITION 23.
+PARAMETERS: p_index TYPE fin_corr_index AS CHECKBOX DEFAULT 'X' MODIF ID inc.
+SELECTION-SCREEN END OF LINE.
+
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN COMMENT 1(20) TEXT-005 FOR FIELD p_bseg MODIF ID inc.
+SELECTION-SCREEN POSITION 23.
+PARAMETERS: p_bseg TYPE fin_corr_entryview AS CHECKBOX DEFAULT 'X' MODIF ID inc.
+SELECTION-SCREEN END OF LINE.
+
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN COMMENT 1(20) TEXT-006 FOR FIELD p_newgl MODIF ID inc.
+SELECTION-SCREEN POSITION 23.
+PARAMETERS: p_newgl TYPE fin_corr_newgl AS CHECKBOX DEFAULT 'X' MODIF ID inc.
+SELECTION-SCREEN END OF LINE.
+SELECTION-SCREEN END OF BLOCK 002.
+
+*** Control parameters
+SELECTION-SCREEN BEGIN OF BLOCK 003 WITH FRAME TITLE TEXT-104.
+SELECTION-SCREEN BEGIN OF LINE.
+SELECTION-SCREEN COMMENT 1(20) TEXT-007 FOR FIELD p_pack.
+PARAMETERS: p_pack TYPE fin_corr_packsize DEFAULT 100.  "should be matched to default value of CL_FIN_FB_CORR_RECONCILE=>MV_PACKAGE_SIZE
+SELECTION-SCREEN END OF LINE.
+SELECTION-SCREEN END OF BLOCK 003.
+
+AT SELECTION-SCREEN.
+  PERFORM check_input.
+
+START-OF-SELECTION.
+*** Prompt background shceduling due to long runtime, continue if rejected
+  IF sy-batch IS INITIAL.
+    CALL FUNCTION 'POPUP_TO_CONFIRM'
+      EXPORTING
+        titlebar              = TEXT-200
+        text_question         = TEXT-201
+        default_button        = '2'
+        display_cancel_button = ' '
+      IMPORTING
+        answer                = lv_answer.
+  ELSE.
+    lv_answer = 1.
+  ENDIF.
+
+  IF lv_answer <> '1'.
+    EXIT.
+  ENDIF.
+
+
+** prepare belnr range table for exporting
+  PERFORM fill_ranges.
+*** Get run ID
+  PERFORM get_run_id.
+*** Update packages into DB table fin_corr_package
+  PERFORM update_packages.
+*** Start reconciliation process
+  PERFORM reconciliation.
+
+AT SELECTION-SCREEN OUTPUT.
+  LOOP AT SCREEN.
+    IF screen-group1 = 'INC'.
+      IF exp = 'X'.
+        screen-invisible = 0.
+      ELSE.
+        screen-invisible = 1.
+      ENDIF.
+      MODIFY SCREEN.
+    ENDIF.
+  ENDLOOP.
+*--------------------------------------------------------------------------------------------------*
+****************************************SUB ROUTINES************************************************                                                                      *
+*--------------------------------------------------------------------------------------------------*
+FORM check_input.
+  DATA:
+    lv_response   TYPE char1.
+
+  IF se_belnr IS NOT INITIAL.
+    CLEAR gv_fullrun.
+    IF sy-batch IS INITIAL.
+    CALL FUNCTION 'POPUP_TO_CONFIRM'
+      EXPORTING
+        titlebar              = TEXT-200
+        text_question         = TEXT-202
+        default_button        = '2'
+        display_cancel_button = ' '
+      IMPORTING
+        answer                = lv_response.
+    ELSE.
+      lv_response = 1.
+    ENDIF.
+  ELSE.
+    gv_fullrun = 'X'.
+    lv_response = 1.
+  ENDIF.
+  IF lv_response <> '1'.
+    STOP.
+  ENDIF.
+  IF sy-ucomm EQ 'SAPONLY'. exp = 'X'. ENDIF.
+ENDFORM.                    " CHECK_INPUT
+*&---------------------------------------------------------------------*
+*&      Form  reconciliation
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM reconciliation.
+  DATA: lt_pack TYPE TABLE OF fin_corr_package.
+  DATA: ls_pack LIKE LINE OF lt_pack.
+*** select the work pacakges for current run.
+  SELECT * FROM fin_corr_package INTO TABLE lt_pack
+    WHERE run_id = gv_run_id
+      AND processed = ' '.
+  LOOP AT lt_pack INTO ls_pack.
+***Call process method for each key.
+    CREATE OBJECT go_fin_fb_corr_reconcile EXPORTING iv_package_size = p_pack.
+    CALL METHOD go_fin_fb_corr_reconcile->process
+      EXPORTING
+        iv_run_id      = ls_pack-run_id
+        iv_bukrs       = ls_pack-bukrs
+        iv_gjahr       = ls_pack-gjahr
+        ir_belnr       = ir_belnr
+        iv_check_bseg  = p_bseg
+        iv_check_index = p_index
+        iv_check_newgl = p_newgl.
+*** Commit result of each run
+    COMMIT WORK.
+  ENDLOOP.
+*** In dialogue mode, give a success message at the end of the reconciliation.
+  IF sy-batch IS INITIAL.
+    MESSAGE i100(fin_fb_recon) WITH gv_run_id.
+  ELSE.
+    MESSAGE s100(fin_fb_recon) WITH gv_run_id.
+  ENDIF.
+ENDFORM.                    "reconciliation
+*&---------------------------------------------------------------------*
+*&      Form  FILL_RANGES
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM fill_ranges .
+  LOOP AT se_belnr.
+    MOVE-CORRESPONDING se_belnr TO is_belnr.
+    APPEND is_belnr TO ir_belnr.
+  ENDLOOP.
+  IF gv_fullrun = 'X'.
+*** Get all packages from BKPF
+    SELECT DISTINCT bukrs gjahr FROM bkpf INTO TABLE gt_key WHERE bukrs IN se_bukrs AND gjahr IN se_gjahr.
+*** Add Marker package for client level run with gjahr = '9999'
+    IF ( se_bukrs IS INITIAL AND se_gjahr IS INITIAL ).
+      CLEAR gs_key-bukrs.
+      gs_key-gjahr = '9999'.
+      APPEND gs_key TO gt_key.
+    ENDIF.
+  ELSEIF ( se_bukrs IS INITIAL AND se_gjahr IS INITIAL ).
+***For Delta run company code or fiscal year is needed.
+    MESSAGE e016(gu)
+    WITH 'Enter Comp. Code & Year or Select full run'.
+  ELSE.
+    SELECT DISTINCT bukrs gjahr FROM bkpf INTO TABLE gt_key WHERE bukrs IN se_bukrs AND gjahr IN se_gjahr.
+  ENDIF.
+*** Make sure no duplicates in gt_key
+  SORT gt_key BY bukrs gjahr.
+  DELETE ADJACENT DUPLICATES FROM gt_key.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  UPDATE_PACKAGES
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM update_packages .
+  DATA: lt_package TYPE if_fin_fb_corr_types=>tt_package.
+  DATA: ls_package TYPE if_fin_fb_corr_types=>ts_package.
+  DATA: lt_pack TYPE TABLE OF fin_corr_package WITH HEADER LINE.
+  DATA: lv_partial_checks TYPE fin_corr_package-partial_checks.
+  DATA: lr_util TYPE REF TO cl_fin_fb_corr_utility.
+  FIELD-SYMBOLS: <pack> TYPE fin_corr_package.
+
+  CLEAR: lv_partial_checks.
+*** full run or partial run?
+  IF gv_fullrun IS INITIAL OR ( p_index <> 'X' OR p_bseg <> 'X' OR p_newgl <> 'X' ).
+    lv_partial_checks = 'X'.
+  ENDIF.
+  LOOP AT gt_key INTO gs_key.
+    lt_pack-run_id = gv_run_id.
+    lt_pack-bukrs = gs_key-bukrs.
+    lt_pack-gjahr = gs_key-gjahr.
+    lt_pack-partial_checks = lv_partial_checks.
+    APPEND lt_pack.
+  ENDLOOP.
+
+  LOOP AT lt_pack ASSIGNING <pack>.
+    MOVE-CORRESPONDING <pack> TO ls_package.
+    APPEND ls_package TO lt_package.
+  ENDLOOP.
+
+*** Update database and commit.
+  lr_util = cl_fin_fb_corr_utility=>get_instance( ).
+  lr_util->store_packages( EXPORTING it_package = lt_package ).
+  COMMIT WORK.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  GET_RUN_ID
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM get_run_id .
+  DATA: lr_util TYPE REF TO cl_fin_fb_corr_utility.
+*** get_runid
+  lr_util = cl_fin_fb_corr_utility=>get_instance( ).
+  gv_run_id = lr_util->get_next_run_id( ).
+ENDFORM.
