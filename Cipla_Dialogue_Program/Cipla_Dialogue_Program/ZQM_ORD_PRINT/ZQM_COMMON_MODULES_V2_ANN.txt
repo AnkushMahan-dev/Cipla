@@ -1,0 +1,1853 @@
+*&---------------------------------------------------------------------*
+*&  Include           ZQM_COMMON_MODULES_V2_ANN
+*&---------------------------------------------------------------------*
+* Program         : Issuance of Annexture
+* Title           : Annexture Development
+* Author          : Sushil Pandey
+* Program Type    : Module Pool
+* Creation Date   : 18.12.2020
+* Transaction     : ZQM_ANNEXTURE
+* Functional design: QM_155
+* Technical design:
+* Change request :  <8000006529>
+* Transport number: <transport number>
+* Description     : Issuance of Annexture
+*----------------------------------------------------------------------*
+* Modification Information
+* Date            :
+* Author          :
+* Transport number:
+* Description     :
+*	*----------------------------------------------------------------------*
+
+MODULE f4_werks INPUT.
+  TYPES: BEGIN OF ty_plant,
+           werks TYPE werks_d,
+           name1 TYPE adrc-name1,    "t001w-name1,
+*          name2 TYPE t001w-name2,     "added on 23.09.2014
+         END OF ty_plant.
+  DATA: lt_plant TYPE STANDARD TABLE OF ty_plant,
+        ls_plant TYPE ty_plant.
+
+
+  CLEAR: gt_return[], gt_return.
+  SELECT werks FROM zqm_master_annex INTO CORRESPONDING FIELDS OF TABLE lt_plant.
+  SORT lt_plant BY werks.
+  DELETE ADJACENT DUPLICATES FROM lt_plant.
+  IF lt_plant IS NOT INITIAL.
+    SELECT werks name1 FROM t001w CLIENT SPECIFIED
+          INTO TABLE lt_plant FOR ALL ENTRIES IN lt_plant WHERE mandt = sy-mandt AND werks = lt_plant-werks.
+
+***      soa on 23.09.2014 for logic changes in formulation ll
+    LOOP AT lt_plant INTO ls_plant. " WHERE name2 = 'FORMULATION LL'.
+      PERFORM fetch_plantname USING ls_plant-werks CHANGING ls_plant-name1.
+      MODIFY lt_plant FROM ls_plant.
+    ENDLOOP.
+***      eoa on 23.09.2014 for logic changes in formulation ll
+
+    CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+      EXPORTING
+        retfield        = 'werks'
+        value_org       = 'S'
+      TABLES
+        value_tab       = lt_plant
+        return_tab      = gt_return
+      EXCEPTIONS
+        parameter_error = 1
+        no_values_found = 2
+        OTHERS          = 3.
+
+
+    DATA: lt_fields TYPE TABLE OF dynpread WITH HEADER LINE.
+    REFRESH lt_fields.
+
+    lt_fields-fieldname = 'P_PLANT'.
+
+    APPEND lt_fields.
+
+    CALL FUNCTION 'DYNP_VALUES_READ'
+      EXPORTING
+        dyname               = sy-repid
+        dynumb               = sy-dynnr
+*       TRANSLATE_TO_UPPER   = ' '
+*       REQUEST              = ' '
+*       PERFORM_CONVERSION_EXITS             = ' '
+*       PERFORM_INPUT_CONVERSION             = ' '
+*       DETERMINE_LOOP_INDEX = ' '
+*       START_SEARCH_IN_CURRENT_SCREEN       = ' '
+*       START_SEARCH_IN_MAIN_SCREEN          = ' '
+*       START_SEARCH_IN_STACKED_SCREEN       = ' '
+*       START_SEARCH_ON_SCR_STACKPOS         = ' '
+*       SEARCH_OWN_SUBSCREENS_FIRST          = ' '
+*       SEARCHPATH_OF_SUBSCREEN_AREAS        = ' '
+      TABLES
+        dynpfields           = lt_fields
+      EXCEPTIONS
+        invalid_abapworkarea = 1
+        invalid_dynprofield  = 2
+        invalid_dynproname   = 3
+        invalid_dynpronummer = 4
+        invalid_request      = 5
+        no_fielddescription  = 6
+        invalid_parameter    = 7
+        undefind_error       = 8
+        double_conversion    = 9
+        stepl_not_found      = 10
+        OTHERS               = 11.
+    IF sy-subrc <> 0.
+* Implement suitable error handling here
+    ENDIF.
+
+    IF p_plant IS INITIAL.
+      READ TABLE lt_fields INDEX 1.
+      IF lt_fields-fieldvalue IS INITIAL.
+        p_plant = gt_return-fieldval.
+      ENDIF.
+    ENDIF. "added on 05.07.2017 for 8000003393
+
+*    p_plant = gt_return-fieldval.
+  ENDIF.
+ENDMODULE.                 " F4_WERKS  INPUT
+*&---------------------------------------------------------------------*
+*&      Module  F4_PROD_VER  INPUT
+*&---------------------------------------------------------------------*
+MODULE f4_prod_ver INPUT.
+  TYPES: BEGIN OF ty_prod_ver,
+           werks  TYPE zqm_ann_data-werks,
+           ann_no TYPE zqm_ann_data-ann_no,
+         END OF ty_prod_ver.
+  DATA: lt_ver_f4 TYPE TABLE OF ty_prod_ver WITH HEADER LINE.
+
+  DATA: lt_ret_pv LIKE ddshretval OCCURS 0 WITH HEADER LINE.  "added on 05.07.2017
+
+
+  IF p_mat IS NOT INITIAL.
+*
+    CLEAR: gt_return[], gt_return, lt_ret_pv[].
+*  SELECT verid text1 FROM mkal INTO CORRESPONDING FIELDS OF TABLE lt_ver_f4 WHERE matnr = p_mat AND werks = p_plant.
+    CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+      EXPORTING
+        retfield        = 'VERID'
+        value_org       = 'S'
+      TABLES
+        value_tab       = lt_ver_f4
+        return_tab      = lt_ret_pv   "gt_return
+      EXCEPTIONS
+        parameter_error = 1
+        no_values_found = 2
+        OTHERS          = 3.
+*
+*
+**    p_prd_vn = gt_return-fieldval.
+
+*  IF p_prd_vn IS INITIAL AND p_dms IS INITIAL.  "added on 05.07.2017 for 8000003393
+
+
+    DATA: lt_fields_plant TYPE TABLE OF dynpread WITH HEADER LINE.
+    REFRESH lt_fields_plant.
+
+    lt_fields_plant-fieldname = 'P_PRD_VN'.
+
+    APPEND lt_fields_plant.
+
+    CALL FUNCTION 'DYNP_VALUES_READ'
+      EXPORTING
+        dyname               = sy-repid
+        dynumb               = sy-dynnr
+*       TRANSLATE_TO_UPPER   = ' '
+*       REQUEST              = ' '
+*       PERFORM_CONVERSION_EXITS             = ' '
+*       PERFORM_INPUT_CONVERSION             = ' '
+*       DETERMINE_LOOP_INDEX = ' '
+*       START_SEARCH_IN_CURRENT_SCREEN       = ' '
+*       START_SEARCH_IN_MAIN_SCREEN          = ' '
+*       START_SEARCH_IN_STACKED_SCREEN       = ' '
+*       START_SEARCH_ON_SCR_STACKPOS         = ' '
+*       SEARCH_OWN_SUBSCREENS_FIRST          = ' '
+*       SEARCHPATH_OF_SUBSCREEN_AREAS        = ' '
+      TABLES
+        dynpfields           = lt_fields_plant
+      EXCEPTIONS
+        invalid_abapworkarea = 1
+        invalid_dynprofield  = 2
+        invalid_dynproname   = 3
+        invalid_dynpronummer = 4
+        invalid_request      = 5
+        no_fielddescription  = 6
+        invalid_parameter    = 7
+        undefind_error       = 8
+        double_conversion    = 9
+        stepl_not_found      = 10
+        OTHERS               = 11.
+    IF sy-subrc <> 0.
+* Implement suitable error handling here
+    ENDIF.
+
+    IF p_prd_vn IS INITIAL.
+      READ TABLE lt_fields_plant INDEX 1.
+      IF lt_fields_plant-fieldvalue IS INITIAL.
+        p_prd_vn = lt_ret_pv-fieldval.
+      ENDIF.
+    ENDIF.
+  ENDIF.
+ENDMODULE.                 " F4_PROD_VER INPUT
+*&---------------------------------------------------------------------*
+*&      Module  F4_DATE  INPUT
+*&---------------------------------------------------------------------*
+MODULE f4_date INPUT.
+
+ENDMODULE.                 " F4_DATE  INPUT
+*&---------------------------------------------------------------------*
+*&      Module  F4_MATNR_EXISTING  INPUT
+*&---------------------------------------------------------------------*
+MODULE f4_matnr_existing INPUT.
+  TYPES:  BEGIN OF ty_mat,
+            matnr TYPE makt-matnr,
+            maktx TYPE makt-maktx,
+          END OF ty_mat.
+  DATA: lt_mat TYPE TABLE OF ty_mat WITH HEADER LINE.
+  CLEAR: gt_return[], gt_return.
+
+  SELECT matnr FROM zpp_master_doc CLIENT SPECIFIED INTO CORRESPONDING FIELDS OF TABLE lt_mat
+          WHERE mandt  = sy-mandt AND dokar = doc_type.
+  IF sy-subrc = 0.
+    SELECT matnr maktx
+      FROM makt CLIENT SPECIFIED
+      INTO CORRESPONDING FIELDS OF TABLE lt_mat
+      FOR ALL ENTRIES IN lt_mat
+      WHERE mandt = sy-mandt
+      AND matnr = lt_mat-matnr
+      AND spras = sy-langu.
+
+    CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+      EXPORTING
+        retfield        = 'MATNR'
+        value_org       = 'S'
+      TABLES
+        value_tab       = lt_mat
+        return_tab      = gt_return
+      EXCEPTIONS
+        parameter_error = 1
+        no_values_found = 2
+        OTHERS          = 3.
+    p_mat = gt_return-fieldval.
+  ELSE.
+    MESSAGE s006(zppr_formu).
+  ENDIF.
+ENDMODULE.                 " F4_MATNR_EXISTING  INPUT
+*&---------------------------------------------------------------------*
+*&      Module  F4_WERKS_EXISTING  INPUT
+*&---------------------------------------------------------------------*
+MODULE f4_werks_existing INPUT.
+  CLEAR: gt_return[], gt_return.
+
+  SELECT werks FROM zqm_master_annex INTO CORRESPONDING FIELDS OF TABLE lt_plant.
+**  IF lt_plant[] IS NOT INITIAL.
+**
+**    SELECT werks_ass,
+**           werks_main
+**            FROM zpp_form_plant
+**            INTO TABLE @DATA(lta_form_plant)
+**             FOR ALL ENTRIES IN @lt_plant
+**               WHERE werks_main EQ @lt_plant-werks.
+**    IF sy-subrc = 0.
+**
+**      LOOP AT lta_form_plant INTO DATA(lwa_fplant).
+**        CLEAR ls_plant.
+**        READ TABLE lt_plant INTO ls_plant WITH KEY werks = lwa_fplant-werks_ass.
+**        IF sy-subrc <> 0.
+**          ls_plant-werks = lwa_fplant-werks_ass.
+**          APPEND ls_plant TO lt_plant.
+**          CLEAR ls_plant.
+**        ENDIF.
+**        CLEAR lwa_fplant.
+**      ENDLOOP.
+**
+**    ENDIF.
+**
+**  ENDIF.
+
+  SORT lt_plant BY werks.
+  DELETE ADJACENT DUPLICATES FROM lt_plant.
+  IF lt_plant IS NOT INITIAL.
+    SELECT werks name1 FROM  t001w
+      INTO TABLE lt_plant FOR ALL ENTRIES IN lt_plant WHERE werks = lt_plant-werks.
+
+***      soa on 23.09.2014 for logic changes in formulation ll
+    LOOP AT lt_plant INTO ls_plant. " WHERE name2 = 'FORMULATION LL'.
+      PERFORM fetch_plantname USING ls_plant-werks CHANGING ls_plant-name1.
+      MODIFY lt_plant FROM ls_plant.
+    ENDLOOP.
+***      eoa on 23.09.2014 for logic changes in formulation ll
+    CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+      EXPORTING
+        retfield        = 'WERKS'
+        value_org       = 'S'
+      TABLES
+        value_tab       = lt_plant
+        return_tab      = gt_return
+      EXCEPTIONS
+        parameter_error = 1
+        no_values_found = 2
+        OTHERS          = 3.
+    p_plant = gt_return-fieldval.
+  ELSE.
+    MESSAGE s006(zppr_formu).
+  ENDIF.
+
+
+ENDMODULE.                 " F4_WERKS_EXISTING  INPUT
+*&---------------------------------------------------------------------*
+*&      Module  F4_PRD_VN_EXISTING  INPUT
+*&---------------------------------------------------------------------*
+MODULE f4_prd_vn_existing INPUT.
+  CLEAR: gt_return[], gt_return.
+  IF p_plant IS NOT INITIAL.
+    doc_type = 'ZAN'.
+
+    SELECT werks ann_no FROM zqm_ann_data INTO CORRESPONDING FIELDS OF TABLE lt_ver_f4
+           WHERE  werks = p_plant AND
+                  dokar = doc_type.
+    IF sy-subrc = 0.
+      SORT lt_ver_f4 BY werks ann_no.
+      DELETE ADJACENT DUPLICATES FROM lt_ver_f4.
+
+      CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+        EXPORTING
+          retfield        = 'ANN_NO'
+          value_org       = 'S'
+        TABLES
+          value_tab       = lt_ver_f4
+          return_tab      = gt_return
+        EXCEPTIONS
+          parameter_error = 1
+          no_values_found = 2
+          OTHERS          = 3.
+      ann_no = gt_return-fieldval.
+
+    ENDIF.
+  ELSE.
+    MESSAGE s007(zppr_formu).
+  ENDIF.
+  IF p_plant IS NOT INITIAL AND ann_no IS NOT INITIAL.
+    SELECT SINGLE MAX( dokvr ) FROM zqm_ann_data INTO @DATA(lv_dokvr_upd)
+          WHERE werks   = @p_plant AND
+                ann_no  = @ann_no.
+    IF sy-subrc IS INITIAL.
+      p_dms = lv_dokvr_upd.
+    ENDIF.
+  ENDIF.
+ENDMODULE.                 " F4_PRD_VN_EXISTING  INPUT
+*&---------------------------------------------------------------------*
+*&      Module  F4_PROCESS_ORDER  INPUT
+*&---------------------------------------------------------------------*
+MODULE f4_process_order INPUT.
+  TYPES: BEGIN OF ty_po_f4,
+           aufnr TYPE aufnr,
+           matnr TYPE matnr,
+         END OF ty_po_f4.
+  DATA: lt_po_f4 TYPE TABLE OF ty_po_f4,
+        lt_mara  TYPE TABLE OF mara.
+  CLEAR: gt_return, gt_return[].
+  IF p_batch IS NOT INITIAL.
+    SELECT aufnr FROM afpo INTO TABLE lt_po_f4 WHERE charg = p_batch.
+  ELSE.
+***     soc on 03.11.2014  for znvl matty in bpr
+*    SELECT * FROM mara INTO TABLE lt_mara WHERE mtart = c_mtart_bpr.
+    SELECT * FROM mara INTO TABLE lt_mara WHERE mtart = c_mtart_bpr OR mtart = c_mtart_znvl.
+***     eoc on 03.11.2014  for znvl matty in bpr
+    SELECT aufnr matnr FROM afpo INTO TABLE lt_po_f4 FOR ALL ENTRIES IN lt_mara WHERE matnr = lt_mara-matnr.
+  ENDIF.
+  CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+    EXPORTING
+      retfield        = 'AUFNR'
+      value_org       = 'S'
+    TABLES
+      value_tab       = lt_po_f4
+      return_tab      = gt_return
+    EXCEPTIONS
+      parameter_error = 1
+      no_values_found = 2
+      OTHERS          = 3.
+  p_order = gt_return-fieldval.
+ENDMODULE.                 " F4_PROCESS_ORDER  INPUT
+*&---------------------------------------------------------------------*
+*&      Module  F4_ORDER  INPUT
+*&---------------------------------------------------------------------*
+MODULE f4_order INPUT.
+  CLEAR: gt_return, gt_return[].
+
+  SELECT aufnr matnr FROM zppt_printlog INTO TABLE lt_po_f4
+    WHERE aufnr NE ''.
+  SORT lt_po_f4 BY aufnr matnr.
+  DELETE ADJACENT DUPLICATES FROM lt_po_f4 COMPARING aufnr matnr.
+  CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+    EXPORTING
+      retfield        = 'AUFNR'
+      value_org       = 'S'
+    TABLES
+      value_tab       = lt_po_f4
+      return_tab      = gt_return
+    EXCEPTIONS
+      parameter_error = 1
+      no_values_found = 2
+      OTHERS          = 3.
+  p_order = gt_return-fieldval.
+ENDMODULE.                 " F4_ORDER  INPUT
+*&---------------------------------------------------------------------*
+*&      Module  F4_BATCH  INPUT
+*&---------------------------------------------------------------------*
+MODULE f4_batch INPUT.
+  TYPES: BEGIN OF ty_batch_f4,
+           charg TYPE afpo-charg,
+           matnr TYPE afpo-matnr,
+         END OF ty_batch_f4.
+  DATA: lt_batch_f4 TYPE TABLE OF ty_batch_f4.
+  CLEAR: gt_return, gt_return[].
+
+  IF doc_type = 'BMR'.
+***    soc  on 06.10.2014
+*    SELECT * FROM mara INTO TABLE lt_mara WHERE mtart = c_mtart.
+    SELECT * FROM mara INTO TABLE lt_mara WHERE mtart = c_mtart OR mtart = c_mtart_znvl.
+***    eoc  on 06.10.2014
+  ELSEIF doc_type = 'BPR'.
+***     soc on 03.11.2014  for znvl matty in bpr
+*    SELECT * FROM mara INTO TABLE lt_mara WHERE mtart = c_mtart_bpr.
+    SELECT * FROM mara INTO TABLE lt_mara WHERE mtart = c_mtart_bpr OR mtart = c_mtart_znvl.
+***     eoc on 03.11.2014  for znvl matty in bpr
+  ENDIF.
+  SELECT charg matnr FROM afpo INTO TABLE lt_batch_f4 FOR ALL ENTRIES IN lt_mara WHERE matnr = lt_mara-matnr.
+  DELETE lt_batch_f4 WHERE charg IS INITIAL.
+  CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+    EXPORTING
+      retfield        = 'CHARG'
+      value_org       = 'S'
+    TABLES
+      value_tab       = lt_batch_f4
+      return_tab      = gt_return
+    EXCEPTIONS
+      parameter_error = 1
+      no_values_found = 2
+      OTHERS          = 3.
+  p_batch = gt_return-fieldval.
+ENDMODULE.                 " F4_BATCH  INPUT
+*&---------------------------------------------------------------------*
+*&      Module  GET_STATIC_FILENAME_ON_F4  INPUT
+*&---------------------------------------------------------------------*
+MODULE get_static_filename_on_f4 INPUT.
+  DATA: lt_file TYPE filetable,
+        ls_file TYPE LINE OF filetable,
+        lv_rc   TYPE i.
+
+  DATA: lv_cur_dir TYPE string,
+        l_len      TYPE i.
+
+  CALL METHOD cl_gui_frontend_services=>directory_get_current
+    CHANGING
+      current_directory = lv_cur_dir.
+*    EXCEPTIONS
+*      directory_get_current_failed = 1
+*      cntl_error                   = 2
+*      error_no_gui                 = 3
+*      not_supported_by_gui         = 4
+*      others                       = 5
+  .
+  IF sy-subrc <> 0.
+*   Implement suitable error handling here
+  ENDIF.
+
+*  CLEAR wa_bmr_path.
+*  READ TABLE ta_bmr_path INTO wa_bmr_path WITH KEY path_cat = 'U'.
+*  IF wa_bmr_path-path IS NOT INITIAL.
+*    lv_cur_dir = wa_bmr_path-path.
+*    l_len = strlen( lv_cur_dir ).
+
+  CALL METHOD cl_gui_frontend_services=>file_open_dialog
+    EXPORTING
+      window_title            = 'Select File'
+      default_filename        = '*.doc'
+      multiselection          = ' '
+      initial_directory       = lv_cur_dir
+    CHANGING
+      file_table              = lt_file
+      rc                      = lv_rc
+    EXCEPTIONS
+      file_open_dialog_failed = 1
+      cntl_error              = 2
+      error_no_gui            = 3
+      not_supported_by_gui    = 4.
+
+  LOOP AT lt_file INTO ls_file.
+    p_static = ls_file-filename.
+  ENDLOOP.
+*  ENDIF.
+ENDMODULE.                 " GET_STATIC_FILENAME_ON_F4  INPUT
+*&---------------------------------------------------------------------*
+*&      Module  REPRINT_REASON_LIST  INPUT
+*&---------------------------------------------------------------------*
+MODULE reprint_reason_list INPUT.
+  DATA: lt_reason TYPE vrm_values.
+  IF lt_reason IS INITIAL.
+    SELECT reason_code reason FROM zqm_reason INTO TABLE lt_reason.
+  ENDIF.
+  CALL FUNCTION 'VRM_SET_VALUES'
+    EXPORTING
+      id     = 'P_REASON'
+      values = lt_reason.
+ENDMODULE.                 " REPRINT_REASON_LIST  INPUT
+*&---------------------------------------------------------------------*
+*&      Module  MATERIAL_VALIDATION  INPUT
+*&---------------------------------------------------------------------*
+MODULE material_validation INPUT.
+  DATA: lv_text  TYPE string, lv_mtart TYPE mtart.
+  CLEAR: p_mdesc.
+  ", g_time. "timezone changes for 8000003697 by payal on 14.11.2017
+  IF p_mat IS NOT INITIAL.
+    SELECT SINGLE maktx
+      FROM makt CLIENT SPECIFIED
+      INTO lv_text
+      WHERE mandt = sy-mandt
+      AND matnr = p_mat
+      AND spras = sy-langu.
+    IF sy-subrc <> 0.
+      MESSAGE e004(zppr_formu).
+    ELSEIF doc_type = 'BMR'.
+      SELECT SINGLE mtart
+        INTO lv_mtart
+        FROM mara
+        WHERE matnr = p_mat
+*        AND mtart = c_mtart.                     "commented on 06.10.2014
+        AND mtart IN (c_mtart , c_mtart_znvl).    "added on 06.10.2014
+      IF sy-subrc IS NOT INITIAL.
+        MESSAGE e017(zppr_formu) WITH 'SFG'.
+      ENDIF.
+    ELSEIF doc_type = 'BPR'.
+      SELECT SINGLE mtart
+        INTO lv_mtart
+        FROM mara
+        WHERE matnr = p_mat
+***     soc on 03.11.2014  for znvl matty in bpr
+*        AND mtart = c_mtart_bpr.
+        AND mtart IN (c_mtart_bpr , c_mtart_znvl).
+***     eoc on 03.11.2014  for znvl matty in bpr
+      IF sy-subrc IS NOT INITIAL.
+        MESSAGE e017(zppr_formu) WITH 'FG'.
+      ENDIF.
+    ENDIF.
+
+    PERFORM idnrk_conversion_input USING p_mat CHANGING p_mat.
+    PERFORM fetch_comp_text USING p_mat lv_text CHANGING p_mdesc.
+  ENDIF.
+
+ENDMODULE.                 " MATERIAL_VALIDATION  INPUT
+*&---------------------------------------------------------------------*
+*&      Module  PLANT_VALIDATION  INPUT
+*&---------------------------------------------------------------------*
+MODULE plant_validation INPUT.
+  DATA: lv_plant TYPE werks.
+  CLEAR: lv_plant.
+  IF p_plant IS NOT INITIAL.
+    SELECT SINGLE name1 FROM t001w INTO p_wdesc WHERE werks = p_plant.
+    IF sy-subrc <> 0.
+      MESSAGE e005(zppr_formu).
+    ELSE.
+      PERFORM fetch_plantname USING p_plant CHANGING p_wdesc.
+      PERFORM fetch_seclorepath USING p_plant. " temp comt by vrushali
+    ENDIF.
+***    SELECT SINGLE werks FROM mkal INTO lv_plant WHERE matnr = p_mat AND werks = p_plant.
+***    IF sy-subrc <> 0.
+***      MESSAGE e018(zppr_formu).
+***    ENDIF.
+
+    IF p_mat IS NOT INITIAL AND p_plant IS NOT INITIAL AND p_prd_vn IS NOT INITIAL.
+
+      SELECT MAX( dokvr ) FROM zppt_printlog INTO  p_dms
+        WHERE matnr = p_mat    AND
+              werks = p_plant  AND
+              verid = p_prd_vn AND
+              status_desc = 'Approved'.
+    ENDIF.
+    PERFORM check_auth_plant_cv2 USING p_plant.
+  ENDIF.
+ENDMODULE.                 " PLANT_VALIDATION  INPUT
+*&---------------------------------------------------------------------*
+*&      Module  PROD_VER_VALIDATION  INPUT
+*&---------------------------------------------------------------------*
+MODULE prod_ver_validation INPUT.
+
+  IF ann_no IS NOT INITIAL.
+    SELECT SINGLE ann_no FROM zqm_master_annex INTO @DATA(lv_ann_no)
+      WHERE werks = @p_plant.
+    IF sy-subrc IS NOT INITIAL.
+      MESSAGE e303(zqm) WITH p_plant.
+    ENDIF.
+  ENDIF.
+*  CLEAR p_dms. "added on 01.06.2017 by payal
+  IF p_prd_vn IS NOT INITIAL AND p_mat IS NOT INITIAL AND p_plant IS NOT INITIAL.
+***    soc on 14.01.2015
+*    SELECT SINGLE matnr werks verid stlal stlan plnnr alnal mksp INTO CORRESPONDING FIELDS OF gs_mkal
+    SELECT SINGLE * INTO CORRESPONDING FIELDS OF gs_mkal
+***    eoc on 14.01.2015
+      FROM mkal WHERE matnr = p_mat AND werks = p_plant AND verid = p_prd_vn AND stlan = 1.
+    IF sy-subrc <> 0.
+      MESSAGE e009(zppr_formu).
+    ELSE.
+***      soa on 29.06.2015 solman 8000000876
+      IF gs_mkal-mksp EQ '1' .
+*        MESSAGE e089(zppr_formu)." Commented by Darshan #8000002584
+*   PV is Locked for any Usage.
+      ELSEIF gs_mkal-adatu GT sy-datum OR gs_mkal-bdatu LT sy-datum.
+*        MESSAGE e090(zppr_formu)." Commented by Darshan #8000002584
+*   Creation date not in Validity Period
+      ENDIF.
+***      eoa on 29.06.2015 solman 8000000876
+
+      PERFORM validate_bom USING gs_mkal-stlal.
+      PERFORM validate_lot_size USING gs_mkal-bstmi gs_mkal-bstma wa_stko-bmeng.      "added on 14.01.2015
+      "ELSE.
+      REFRESH gt_mdoc[].   "added on 02.11.2016
+
+      SELECT * FROM zqm_ann_data INTO TABLE gt_mdoc
+        WHERE werks = p_plant AND ann_no = ann_no AND dokar = doc_type.
+      IF sy-subrc = 0.
+        SORT gt_mdoc BY dokvr DESCENDING.
+        READ TABLE gt_mdoc INTO gs_mdoc INDEX 1.
+        p_dms = gs_mdoc-dokvr.
+        p_stat_desc = gs_mdoc-stabk.
+
+        CALL FUNCTION 'BAPI_DOCUMENT_GETSTATUS' "Read Document Status
+          EXPORTING
+            documenttype      = gs_mdoc-dokar
+            documentnumber    = gs_mdoc-dms_doc
+            documentpart      = gs_mdoc-doktl
+            documentversion   = gs_mdoc-dokvr
+          IMPORTING
+            statusextern      = p_stat
+            statusintern      = g_old_status_int
+            statusdescription = p_stat_desc
+            return            = gs_dms_return.
+        IF p_dms IS NOT INITIAL AND gs_mdoc_header IS INITIAL.
+          PERFORM select_mdoc_header.
+        ENDIF.
+
+
+        "so added for #8000003013 By Payal S on 06.09.2017 2. Latest file download
+        CLEAR g_draft.
+        IF p_stat = 'AV'.
+          EXIT.
+        ELSE.
+          g_draft = 'X'.
+        ENDIF.
+        "eo added for #8000003013 By Payal S on 06.09.2017
+      ENDIF.
+    ENDIF.
+
+
+    PERFORM lock_mdoc.
+  ENDIF.
+
+  break abap4.
+  IF p_plant IS NOT INITIAL AND ann_no IS NOT INITIAL AND doc_type IS NOT INITIAL.
+
+    SELECT * FROM zqm_ann_data INTO TABLE gt_mdoc
+            WHERE werks = p_plant AND ann_no = ann_no AND dokar = doc_type.
+    IF sy-subrc = 0.
+
+      SORT gt_mdoc BY dokvr DESCENDING.
+      READ TABLE gt_mdoc INTO gs_mdoc INDEX 1.
+      p_dms = gs_mdoc-dokvr.
+      p_stat_desc = gs_mdoc-stabk.
+
+      CALL FUNCTION 'BAPI_DOCUMENT_GETSTATUS' "Read Document Status
+        EXPORTING
+          documenttype      = gs_mdoc-dokar
+          documentnumber    = gs_mdoc-dms_doc
+          documentpart      = gs_mdoc-doktl
+          documentversion   = gs_mdoc-dokvr
+        IMPORTING
+          statusextern      = p_stat
+          statusintern      = g_old_status_int
+          statusdescription = p_stat_desc
+          return            = gs_dms_return.
+
+      CLEAR g_draft.
+      IF p_stat = 'AV'.
+        EXIT.
+      ELSE.
+        g_draft = 'X'.
+      ENDIF.
+
+    ENDIF.
+  ENDIF.
+
+ENDMODULE.                 " PROD_VER_VALIDATION  INPUT
+*&---------------------------------------------------------------------*
+*&      Module  DATE_VALIDATION  INPUT
+*&---------------------------------------------------------------------*
+MODULE date_validation INPUT.
+  IF p_date IS NOT INITIAL.
+    SELECT SINGLE ddtext
+      FROM dd07t
+      INTO p_format
+      WHERE domname = 'ZPP_FORMAT'
+      AND ddlanguage = sy-langu
+      AND valpos = p_date.
+    IF sy-subrc <> 0.
+      MESSAGE e001(zppr_formu).
+    ENDIF.
+  ENDIF.
+ENDMODULE.                 " DATE_VALIDATION  INPUT
+*&---------------------------------------------------------------------*
+*&      Module  MATERIAL_EXISTING_VALIDATION  INPUT
+*&---------------------------------------------------------------------*
+MODULE material_existing_validation INPUT.
+*  CLEAR g_time. "timezone changes for 8000003697 by payal on 14.11.2017
+  IF p_mat IS NOT INITIAL.
+    SELECT matnr FROM zpp_master_doc CLIENT SPECIFIED INTO CORRESPONDING FIELDS OF TABLE lt_mat
+           WHERE mandt = sy-mandt AND dokar = doc_type AND matnr = p_mat.
+    IF sy-subrc = 0.
+      SELECT SINGLE maktx
+        FROM makt CLIENT SPECIFIED
+        INTO lv_text
+        WHERE matnr = p_mat
+        AND spras = sy-langu.
+    ELSE.
+      MESSAGE e025(zppr_formu).
+    ENDIF.
+    PERFORM idnrk_conversion_input USING p_mat CHANGING p_mat.
+    PERFORM fetch_comp_text USING p_mat lv_text CHANGING p_mdesc.
+  ENDIF.
+ENDMODULE.                 " MATERIAL_EXISTING_VALIDATION  INPUT
+*&---------------------------------------------------------------------*
+*&      Module  PLANT_EXISTING_VALIDATION  INPUT
+*&---------------------------------------------------------------------*
+MODULE plant_existing_validation INPUT.
+  IF sy-tcode = 'ZQM_ANNMASTER_PRINT' AND fcode = 'EXECUTE' AND p_master = abap_true AND p_stat_desc NE 'Approved'.
+    MESSAGE e304(zqm).
+  ENDIF.
+  IF p_plant IS NOT INITIAL." AND p_mat IS NOT INITIAL.
+    IF sy-subrc = 0.
+      PERFORM fetch_plantname USING p_plant CHANGING p_wdesc.
+      PERFORM fetch_seclorepath USING p_plant.
+    ELSE.
+      MESSAGE e008(zppr_formu).
+    ENDIF.
+    PERFORM check_auth_plant_cv2 USING p_plant.
+
+  ENDIF.
+
+ENDMODULE.                 " PLANT_EXISTING_VALIDATION  INPUT
+*&---------------------------------------------------------------------*
+*&      Module  PROD_VER_EXISTING_VALIDATION  INPUT
+*&---------------------------------------------------------------------*
+MODULE prod_ver_existing_validation INPUT.
+
+  IF p_prd_vn IS NOT INITIAL AND p_plant IS NOT INITIAL AND p_mat IS NOT INITIAL.
+    SELECT * FROM zqm_ann_data CLIENT SPECIFIED INTO TABLE gt_mdoc
+           WHERE mandt = sy-mandt AND dokar = doc_type AND werks = p_plant.
+    IF sy-subrc <> 0.
+      MESSAGE e008(zppr_formu).
+    ELSE.
+      SELECT SINGLE stlal mksp INTO CORRESPONDING FIELDS OF gs_mkal
+      FROM mkal WHERE matnr = p_mat AND werks = p_plant AND verid = p_prd_vn AND stlan = 1.
+      IF sy-subrc <> 0.
+        MESSAGE e009(zppr_formu).
+      ELSE."IF gs_mkal-mksp EQ '1' .
+        PERFORM validate_bom USING gs_mkal-stlal.
+        "ELSE.
+        SORT gt_mdoc BY dokvr DESCENDING.
+        READ TABLE gt_mdoc INTO gs_mdoc INDEX 1.
+        p_dms = gs_mdoc-dokvr.
+        CALL FUNCTION 'BAPI_DOCUMENT_GETSTATUS' "Read Document Status
+          EXPORTING
+            documenttype      = gs_mdoc-dokar
+            documentnumber    = gs_mdoc-dms_doc "doknr
+            documentpart      = gs_mdoc-doktl
+            documentversion   = gs_mdoc-dokvr
+          IMPORTING
+            statusextern      = p_stat
+            statusintern      = g_old_status_int
+            statusdescription = p_stat_desc
+            return            = gs_dms_return.
+      ENDIF.
+    ENDIF.
+    PERFORM lock_mdoc.
+  ENDIF.
+
+  IF p_plant IS NOT INITIAL  AND ann_no IS NOT INITIAL.
+
+    SELECT *
+            FROM zqm_ann_data
+            INTO CORRESPONDING FIELDS OF TABLE lta_ann_dt_ch
+            WHERE werks = p_plant.
+    IF sy-subrc = 0.
+
+      CLEAR lwa_zqm_ann_data_ch.
+      READ TABLE lta_ann_dt_ch INTO lwa_zqm_ann_data_ch WITH KEY werks = p_plant
+                                                                 ann_no = ann_no.
+      IF sy-subrc = 0.
+
+        gs_mdoc-dokar    = lwa_zqm_ann_data_ch-dokar.
+        gs_mdoc-dms_doc  = lwa_zqm_ann_data_ch-dms_doc.
+        gs_mdoc-doktl    = lwa_zqm_ann_data_ch-doktl.
+        gs_mdoc-dokvr    = lwa_zqm_ann_data_ch-dokvr.
+
+        CALL FUNCTION 'BAPI_DOCUMENT_GETSTATUS' "Read Document Status
+          EXPORTING
+            documenttype      = gs_mdoc-dokar
+            documentnumber    = gs_mdoc-dms_doc
+            documentpart      = gs_mdoc-doktl
+            documentversion   = p_dms           "gs_mdoc-dokvr
+          IMPORTING
+            statusextern      = p_stat
+            statusintern      = g_old_status_int
+            statusdescription = p_stat_desc
+            return            = gs_dms_return.
+
+      ENDIF.
+    ENDIF.
+  ENDIF.
+
+
+ENDMODULE.                 " PROD_VER_EXISTING_VALIDATION  INPUT
+*&---------------------------------------------------------------------*
+*&      Module  EXIT_COMMAND  INPUT
+*&---------------------------------------------------------------------*
+MODULE exit_command INPUT.
+  LEAVE PROGRAM.
+ENDMODULE.                 " EXIT_COMMAND  INPUT
+*&---------------------------------------------------------------------*
+*&      Module  SCREEN_MODIFY  OUTPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE screen_modify OUTPUT.
+
+
+  IF p_plant IS NOT INITIAL ."AND p_plant IS NOT INITIAL .
+    SET CURSOR FIELD 'ANN_NO' .
+  ENDIF.
+
+  IF ann_no IS NOT INITIAL ."AND p_plant IS NOT INITIAL .
+    SET CURSOR FIELD 'P_STATIC' .
+  ENDIF.
+
+  IF p_static IS NOT INITIAL ."AND p_plant IS NOT INITIAL .
+    SET CURSOR FIELD 'P_DATE' .
+  ENDIF.
+
+  IF p_plant IS NOT INITIAL AND ann_no IS NOT INITIAL.
+    LOOP AT SCREEN.
+      IF screen-name = 'P_MAT' OR screen-name = 'P_PLANT' OR screen-name = 'ANN_NO'.
+        screen-input = 0.
+        MODIFY SCREEN.
+      ENDIF.
+    ENDLOOP.
+  ENDIF.
+ENDMODULE.                 " SCREEN_MODIFY  OUTPUT
+*&---------------------------------------------------------------------*
+*&      Form  CHECK_AUTH_PLANT_CV2
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_P_WDESC  text
+*----------------------------------------------------------------------*
+FORM check_auth_plant_cv2  USING    p_werks.
+
+  AUTHORITY-CHECK OBJECT 'M_MSEG_WMB'
+             ID 'ACTVT' DUMMY
+             ID 'WERKS' FIELD p_werks.
+  IF sy-subrc <> 0.
+    MESSAGE e066(zppr_formu) WITH p_werks.
+*   You dont have authorization for this plant.
+*    No authorisation to this plant
+*    No authorization to Plant XXXX
+  ENDIF.
+ENDFORM.                    " CHECK_AUTH_PLANT_CV2
+*&---------------------------------------------------------------------*
+*&      Form  FETCH_SECLOREPATH
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_P_PLANT  text
+*----------------------------------------------------------------------*
+FORM fetch_seclorepath  USING    p_plant.
+  SELECT * FROM  zqm_ann_path CLIENT SPECIFIED
+    INTO TABLE ta_bmr_path
+         WHERE  mandt     = sy-mandt
+         AND    werks     = p_plant.
+*         AND    path_cat = 'D'.  "added on 17.08.2015
+  IF sy-subrc <> 0.
+    MESSAGE e085(zppr_formu).
+*   Preview path not maintained
+  ENDIF.
+ENDFORM.                    " FETCH_SECLOREPATH
+*&---------------------------------------------------------------------*
+*&      Module  STATIC_VALIDATION  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE static_validation INPUT.
+  IF p_static IS NOT INITIAL.
+    TRANSLATE p_static TO UPPER CASE.
+    TRANSLATE wa_bmr_path-path TO UPPER CASE.
+
+    CLEAR wa_bmr_path.
+    READ TABLE ta_bmr_path INTO wa_bmr_path WITH KEY path_cat = 'U'.
+    IF wa_bmr_path-path IS NOT INITIAL.
+      l_len = strlen( wa_bmr_path-path ).
+      IF p_static+0(l_len) NE wa_bmr_path-path+0(l_len).
+*        MESSAGE e087(zppr_formu).
+*   Path is not valid
+      ENDIF.
+    ELSE.
+      MESSAGE e309(zqm).
+*   Path not maintained.
+    ENDIF.
+  ENDIF.
+ENDMODULE.                 " STATIC_VALIDATION  INPUT
+*&---------------------------------------------------------------------*
+*&      Module  F4_ANN_NO  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE f4_ann_no INPUT.
+  CLEAR: lt_fields, lt_fields[].
+  SELECT werks, ann_no FROM zqm_master_annex INTO TABLE @DATA(ta_ann_no) WHERE werks = @p_plant.
+
+  CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+    EXPORTING
+      retfield        = 'ANN_NO'
+      value_org       = 'S'
+    TABLES
+      value_tab       = ta_ann_no
+      return_tab      = gt_return
+    EXCEPTIONS
+      parameter_error = 1
+      no_values_found = 2
+      OTHERS          = 3.
+  READ TABLE gt_return INDEX 1.
+  IF sy-subrc IS INITIAL.
+    ann_no = gt_return-fieldval.
+  ENDIF.
+  lt_fields-fieldname = 'ANN_NO'.
+
+  APPEND lt_fields.
+
+  CALL FUNCTION 'DYNP_VALUES_READ'
+    EXPORTING
+      dyname               = sy-repid
+      dynumb               = sy-dynnr
+*     TRANSLATE_TO_UPPER   = ' '
+*     REQUEST              = ' '
+*     PERFORM_CONVERSION_EXITS             = ' '
+*     PERFORM_INPUT_CONVERSION             = ' '
+*     DETERMINE_LOOP_INDEX = ' '
+*     START_SEARCH_IN_CURRENT_SCREEN       = ' '
+*     START_SEARCH_IN_MAIN_SCREEN          = ' '
+*     START_SEARCH_IN_STACKED_SCREEN       = ' '
+*     START_SEARCH_ON_SCR_STACKPOS         = ' '
+*     SEARCH_OWN_SUBSCREENS_FIRST          = ' '
+*     SEARCHPATH_OF_SUBSCREEN_AREAS        = ' '
+    TABLES
+      dynpfields           = lt_fields
+    EXCEPTIONS
+      invalid_abapworkarea = 1
+      invalid_dynprofield  = 2
+      invalid_dynproname   = 3
+      invalid_dynpronummer = 4
+      invalid_request      = 5
+      no_fielddescription  = 6
+      invalid_parameter    = 7
+      undefind_error       = 8
+      double_conversion    = 9
+      stepl_not_found      = 10
+      OTHERS               = 11.
+  IF sy-subrc <> 0.
+* Implement suitable error handling here
+  ENDIF.
+
+  IF ann_no IS INITIAL.
+    READ TABLE lt_fields INDEX 1.
+    IF lt_fields-fieldvalue IS INITIAL.
+      ann_no = gt_return-fieldval.
+    ENDIF.
+  ENDIF.
+
+
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  F4_MAT  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE f4_mat INPUT.
+
+  IF sy-tcode = 'ZQM_ANN_PREPARE'.
+
+    CLEAR: gt_return, gt_return[].
+
+    SELECT matnr, werks FROM mkal INTO TABLE @DATA(lt_mkal).
+    SORT lt_mkal BY matnr.
+    DELETE ADJACENT DUPLICATES FROM lt_mkal COMPARING matnr.
+
+    CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+      EXPORTING
+        retfield        = 'MATNR'
+        value_org       = 'S'
+      TABLES
+        value_tab       = lt_mkal
+        return_tab      = gt_return
+      EXCEPTIONS
+        parameter_error = 1
+        no_values_found = 2
+        OTHERS          = 3.
+    p_mat = gt_return-fieldval.
+
+  ELSEIF sy-tcode = 'ZQM_ANN_VERIFY'.
+
+    CLEAR: gt_return, gt_return[].
+
+    SELECT
+      matnr
+      FROM zqm_ann_prepare INTO TABLE @DATA(lta_zqm_ann_prep).
+    SORT lta_zqm_ann_prep BY matnr.
+    DELETE ADJACENT DUPLICATES FROM lta_zqm_ann_prep COMPARING matnr.
+
+    CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+      EXPORTING
+        retfield        = 'MATNR'
+        value_org       = 'S'
+      TABLES
+        value_tab       = lta_zqm_ann_prep
+        return_tab      = gt_return
+      EXCEPTIONS
+        parameter_error = 1
+        no_values_found = 2
+        OTHERS          = 3.
+    p_mat = gt_return-fieldval.
+
+
+  ENDIF.
+ENDMODULE.
+
+MODULE f4_plant INPUT.
+
+  CLEAR: gt_return, gt_return[].
+  DATA(lv_mat_con) = |{ p_mat ALPHA = IN }|.
+
+  SELECT matnr, werks FROM mkal INTO TABLE @DATA(lt_mkal1)
+    WHERE matnr = @lv_mat_con.
+  SORT lt_mkal1 BY matnr werks.
+  DELETE ADJACENT DUPLICATES FROM lt_mkal1 COMPARING matnr werks.
+
+  CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+    EXPORTING
+      retfield        = 'WERKS'
+      value_org       = 'S'
+    TABLES
+      value_tab       = lt_mkal1
+      return_tab      = gt_return
+    EXCEPTIONS
+      parameter_error = 1
+      no_values_found = 2
+      OTHERS          = 3.
+  p_plant = gt_return-fieldval.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Form  F_ALV_DISPLAY
+*&---------------------------------------------------------------------*
+FORM f_alv_display .
+
+  lv_mat_con = |{ p_mat ALPHA = IN }|.
+
+**  SELECT SINGLE werks_ass
+**         FROM zpp_form_plant
+**         INTO p_plant
+**         WHERE werks_main = p_plant.
+
+  SELECT matnr,
+         werks,
+         verid  FROM mkal INTO TABLE @DATA(lta_mkal_ann_prep)
+                WHERE matnr = @lv_mat_con AND
+                      werks = @p_plant    AND
+                      verid = @p_prd_vn.
+  IF lta_mkal_ann_prep[] IS NOT INITIAL.
+
+    SELECT * FROM zqm_ann_prepare INTO TABLE @DATA(lta_zqm_ann_prepare_ex)
+      FOR ALL ENTRIES IN @lta_mkal_ann_prep
+      WHERE werks = @lta_mkal_ann_prep-werks
+      AND   verid = @lta_mkal_ann_prep-verid.
+
+    DELETE lta_zqm_ann_prepare_ex WHERE chk = abap_true.
+*    DELETE lta_zqm_ann_prepare_ex WHERE approved = abap_true.
+
+    SELECT * FROM zqm_ann_data INTO TABLE @DATA(lta_zqm_ann_data)
+      WHERE werks = @p_plant.
+  ENDIF.
+
+  SORT lta_zqm_ann_data BY werks ann_no dokvr DESCENDING.
+  DELETE ADJACENT DUPLICATES FROM lta_zqm_ann_data COMPARING werks ann_no.
+  CLEAR: lta_zqm_ann_prepare[].
+
+  LOOP AT lta_zqm_ann_data  ASSIGNING FIELD-SYMBOL(<fs_zqm_ann_data>).
+
+    lwa_zqm_ann_prepare = CORRESPONDING #( <fs_zqm_ann_data> ).
+
+    IF line_exists( lta_mkal_ann_prep[ werks =  <fs_zqm_ann_data>-werks ] ).
+
+      DATA(lwa_mkal_ann) = lta_mkal_ann_prep[ werks =  <fs_zqm_ann_data>-werks ].
+      lwa_zqm_ann_prepare = CORRESPONDING #( <fs_zqm_ann_data> ).
+      lwa_zqm_ann_prepare-matnr = |{ lwa_mkal_ann-matnr ALPHA = IN }|.
+      lwa_zqm_ann_prepare-doknr = |{ <fs_zqm_ann_data>-dms_doc ALPHA = OUT }|.
+      lwa_zqm_ann_prepare-verid = lwa_mkal_ann-verid.
+
+      CALL FUNCTION 'BAPI_DOCUMENT_GETSTATUS' "Read Document Status
+        EXPORTING
+          documenttype    = <fs_zqm_ann_data>-dokar
+          documentnumber  = <fs_zqm_ann_data>-dms_doc
+          documentpart    = <fs_zqm_ann_data>-doktl
+          documentversion = <fs_zqm_ann_data>-dokvr
+        IMPORTING
+          statusextern    = p_stat.
+*            statusintern      = g_old_status_int
+*            statusdescription = p_stat_desc
+*            return            = gs_dms_return.
+
+      IF p_stat = 'AV'.
+
+        IF NOT line_exists( lta_zqm_ann_prepare_ex[ matnr   = lwa_zqm_ann_prepare-matnr
+                                                    werks   = lwa_zqm_ann_prepare-werks
+                                                    verid   = lwa_zqm_ann_prepare-verid
+                                                    ann_no  = lwa_zqm_ann_prepare-ann_no
+                                                    doknr   = lwa_zqm_ann_prepare-doknr
+                                                    dokvr   = lwa_zqm_ann_prepare-dokvr ] ).
+
+
+          lwa_zqm_ann_prepare-dokvr_b = p_dms.
+          APPEND lwa_zqm_ann_prepare TO lta_zqm_ann_prepare.
+
+        ELSEIF
+
+*        IF
+
+          line_exists( lta_zqm_ann_prepare_ex[ matnr   = lwa_zqm_ann_prepare-matnr
+                                                  werks   = lwa_zqm_ann_prepare-werks
+                                                  verid   = lwa_zqm_ann_prepare-verid
+                                                  ann_no  = lwa_zqm_ann_prepare-ann_no
+                                                  doknr   = lwa_zqm_ann_prepare-doknr
+                                                  dokvr   = lwa_zqm_ann_prepare-dokvr ] ).
+
+          DATA(lwa_zqm_ann_prepare_ex1) = lta_zqm_ann_prepare_ex[ matnr   = lwa_zqm_ann_prepare-matnr
+                                                       werks   = lwa_zqm_ann_prepare-werks
+                                                       verid   = lwa_zqm_ann_prepare-verid
+                                                       ann_no  = lwa_zqm_ann_prepare-ann_no ].
+*                                                       doknr   = lwa_zqm_ann_prepare-doknr
+*                                                       dokvr   = lwa_zqm_ann_prepare-dokvr ].
+
+
+          lwa_zqm_ann_prepare-dokvr_b = p_dms.
+          lwa_zqm_ann_prepare-app_st = lwa_zqm_ann_prepare_ex1-app_st.
+          lwa_zqm_ann_prepare-app_copy = lwa_zqm_ann_prepare_ex1-app_copy.
+          APPEND lwa_zqm_ann_prepare TO lta_zqm_ann_prepare.
+
+
+        ENDIF.
+
+      ENDIF.
+      CLEAR lwa_zqm_ann_prepare.
+    ENDIF.
+
+  ENDLOOP.
+  SORT lta_zqm_ann_prepare BY matnr werks verid ann_no DESCENDING dokvr.
+  DELETE ADJACENT DUPLICATES FROM lta_zqm_ann_prepare COMPARING matnr werks verid ann_no.
+
+  IF lta_zqm_ann_prepare[] IS NOT INITIAL.
+    CLEAR lta_fieldcat[].
+    PERFORM fill_field USING 'MATNR'        ''      ''   ''     text-01a '15'.
+    PERFORM fill_field USING 'WERKS'        ''      ''   ''     text-01b '5'.
+    PERFORM fill_field USING 'VERID'        ''      ''   ''     text-01c '10'.
+    PERFORM fill_field USING 'ANN_NO'       ''      ''   ''     text-01d '20'.
+    PERFORM fill_field USING 'DOKNR'        ''      ''   ''     text-01e '20'.
+    PERFORM fill_field USING 'DOKVR'        ''      ''   ''     text-01f '20'.
+    PERFORM fill_field USING 'DOKVR_B'      ''      ''   ''     text-o1i '20'.
+    PERFORM fill_field USING 'NO_COPY'      ''      ''   ''     text-01g '10'.
+    PERFORM fill_field USING 'APP_COPY'     ''      ''   ''     text-01n '15'.
+    PERFORM fill_field USING 'APP_ST'       ''      ''   ''     text-01o '15'.
+
+    CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+      EXPORTING
+        i_callback_program       = sy-repid
+        i_callback_pf_status_set = 'PF_STATUS'
+        i_callback_user_command  = 'USER_COMMAND'
+*       IS_LAYOUT                =
+        it_fieldcat              = lta_fieldcat
+*       I_SAVE                   = ' '
+      TABLES
+        t_outtab                 = lta_zqm_ann_prepare
+      EXCEPTIONS
+        program_error            = 1
+        OTHERS                   = 2.
+    IF sy-subrc EQ 0.
+* Implement suitable error handling here
+      CLEAR fcode.
+    ENDIF.
+
+  ELSE.
+    MESSAGE 'No document is in active status for given input' TYPE 'S' DISPLAY LIKE 'E'.
+    LEAVE LIST-PROCESSING.
+  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Module  F4_PRDV  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE f4_prdv INPUT.
+  CLEAR: gt_return, gt_return[].
+  lv_mat_con = |{ p_mat ALPHA = IN }|.
+
+  SELECT matnr, werks, verid FROM mkal INTO TABLE @DATA(lt_mkal11)
+    WHERE matnr = @lv_mat_con AND
+          werks = @p_plant.
+  SORT lt_mkal11 BY matnr werks.
+  DELETE ADJACENT DUPLICATES FROM lt_mkal11 COMPARING matnr werks verid.
+
+  CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+    EXPORTING
+      retfield        = 'P_PRD_VN'
+      value_org       = 'S'
+    TABLES
+      value_tab       = lt_mkal11
+      return_tab      = gt_return
+    EXCEPTIONS
+      parameter_error = 1
+      no_values_found = 2
+      OTHERS          = 3.
+  p_prd_vn = gt_return-fieldval.
+ENDMODULE.
+
+FORM  fill_field  USING  p_tab_field_name  TYPE slis_fieldcat_alv-fieldname
+      p_ref_field_name TYPE slis_fieldcat_alv-ref_fieldname
+      p_ref_field_table TYPE slis_fieldcat_alv-ref_tabname
+      p_no_zero TYPE  slis_fieldcat_alv-no_zero
+      p_short_text
+      p_outputlen TYPE slis_fieldcat_alv-outputlen.
+
+  CLEAR lwa_fieldcat.
+  lv_pos = lv_pos + 1.
+  lwa_fieldcat-col_pos       = lv_pos.
+  lwa_fieldcat-fieldname     = p_tab_field_name.
+  lwa_fieldcat-ref_fieldname = p_ref_field_name.
+  lwa_fieldcat-ref_tabname   = p_ref_field_table.
+  lwa_fieldcat-seltext_s     = p_short_text.
+  lwa_fieldcat-seltext_m     = p_short_text.
+  lwa_fieldcat-outputlen     = p_outputlen.
+
+  IF lwa_fieldcat-fieldname = 'NO_COPY' OR lwa_fieldcat-fieldname = 'CHK' OR ( lwa_fieldcat-fieldname = 'APP_ST' AND ( syst-dynnr = '4200' OR syst-dynnr = '4400' ) ).
+    lwa_fieldcat-edit = abap_true.
+  ENDIF.
+
+  IF lwa_fieldcat-fieldname = 'APP_ST'.
+    lwa_fieldcat-ref_fieldname = 'APP_ST'.
+    lwa_fieldcat-ref_tabname = 'ZQM_ANN_PREPARE'.
+  ENDIF.
+
+  IF lwa_fieldcat-fieldname = 'CHK'.
+    lwa_fieldcat-checkbox = abap_true.
+  ENDIF.
+
+  IF lwa_fieldcat-fieldname = 'MATNR' OR
+     lwa_fieldcat-fieldname = 'AUFNR'.
+    lwa_fieldcat-no_zero = abap_true.
+  ENDIF.
+  APPEND lwa_fieldcat TO  lta_fieldcat.
+  CLEAR lwa_fieldcat.
+ENDFORM.
+
+FORM user_command  USING p_ucomm    LIKE sy-ucomm
+                         p_selfield TYPE slis_selfield.
+
+  DATA: lv_msg_add TYPE string. "Added by Gajanan - 09.04.2025 - CR#8000003007
+  break abap4.
+  IF sy-ucomm = 'SAVE'.
+    IF lta_zqm_ann_prepare[] IS NOT INITIAL.
+      CALL FUNCTION 'GET_GLOBALS_FROM_SLVC_FULLSCR'
+        IMPORTING
+          e_grid = gv_ref_grid.
+
+      IF gv_ref_grid IS NOT INITIAL.
+        CALL METHOD gv_ref_grid->check_changed_data.
+      ENDIF.
+      DELETE lta_zqm_ann_prepare WHERE no_copy = ''.
+      LOOP AT lta_zqm_ann_prepare ASSIGNING FIELD-SYMBOL(<fs_crdt>).
+        <fs_crdt>-matnr = |{ <fs_crdt>-matnr ALPHA = IN }|.
+        <fs_crdt>-cr_by = sy-uname.
+        <fs_crdt>-cr_on = sy-datum.
+        <fs_crdt>-cr_time = sy-uzeit.
+        CLEAR: <fs_crdt>-app_st. "Added by Gajanan - 06.03.2025 - CR#8000003007
+
+      ENDLOOP.
+*      PERFORM lock_mdoc1.
+*      CHECK gv_flag eq abap_false.
+
+      MODIFY zqm_ann_prepare FROM TABLE lta_zqm_ann_prepare.
+      MESSAGE s106(zqm).
+      CALL SCREEN 7000.
+
+    ELSEIF lta_zqm_ann_addprint[] IS NOT INITIAL.
+
+      SELECT * FROM zqm_ann_addprint INTO TABLE @DATA(lta_printcount)
+        FOR ALL ENTRIES IN @lta_zqm_ann_addprint
+        WHERE matnr     = @p_mat                         AND
+              werks     = @p_plant                       AND
+              verid     = @p_prd_vn                      AND
+              status    = @lta_zqm_ann_addprint-status   AND
+              doknr     = @lta_zqm_ann_addprint-doknr    AND
+              dokvr     = @lta_zqm_ann_addprint-dokvr    AND
+              ann_no    = @lta_zqm_ann_addprint-ann_no.
+      IF sy-subrc IS INITIAL.
+        DATA(lta_addprint_reqno) = lta_printcount[].
+        SORT lta_addprint_reqno BY ann_no print_count DESCENDING.
+        DELETE ADJACENT DUPLICATES FROM lta_addprint_reqno COMPARING ann_no print_count.
+*        DELETE lta_printcount WHERE printtype IS INITIAL.
+        DELETE lta_printcount WHERE ( app_st = 'A' AND print_stat = abap_true ) OR ( app_st = 'R' ) .
+
+      ENDIF.
+
+      CALL FUNCTION 'GET_GLOBALS_FROM_SLVC_FULLSCR'
+        IMPORTING
+          e_grid = gv_ref_grid.
+
+      IF gv_ref_grid IS NOT INITIAL.
+        CALL METHOD gv_ref_grid->check_changed_data.
+      ENDIF.
+      DATA(lta_zqm_ann_chngdata) = lta_zqm_ann_addprint[].
+      DELETE lta_zqm_ann_chngdata WHERE no_copy = ''.
+      LOOP AT lta_zqm_ann_chngdata ASSIGNING FIELD-SYMBOL(<fs_crdt_add>).
+*      LOOP AT lta_zqm_ann_addprint ASSIGNING FIELD-SYMBOL(<fs_crdt_add>).
+
+*        "SOA by Gajanan - 09.04.2025 - CR#8000003007
+*        SELECT COUNT(*) FROM zqm_ann_addprint
+*          WHERE matnr = gs_afpo-matnr
+*            AND werks = gs_afpo-werks
+*            AND verid = gs_afpo-verid
+*            AND status = gs_mdoc-stabk
+*            AND doknr = gs_mdoc-dms_doc
+*            AND dokvr = gs_afpo-dokvr
+*            AND ann_no = gs_mdoc-ann_no
+*            AND print_stat = abap_false.
+*
+*        IF sy-subrc = 0.
+*          MESSAGE 'request for additional print' TYPE 'S' DISPLAY LIKE 'E'.
+*          LEAVE LIST-PROCESSING.
+*        ENDIF.
+*        "EOA by Gajanan - 09.04.2025 - CR#8000003007
+
+        <fs_crdt_add>-cr_by       = sy-uname.
+        <fs_crdt_add>-cr_on       = sy-datum.
+        <fs_crdt_add>-cr_time     = sy-uzeit.
+        <fs_crdt_add>-printtype     = 'AP'.
+        CLEAR: <fs_crdt_add>-app_st. "Added by Gajanan - 06.03.2025 - CR#8000003007
+
+        READ TABLE lta_addprint_reqno INTO DATA(lwa_addprint_reqno) WITH KEY ann_no = <fs_crdt_add>-ann_no.
+        IF sy-subrc = 0.
+          <fs_crdt_add>-print_count = lwa_addprint_reqno-print_count + 1.
+        ELSE.
+          <fs_crdt_add>-print_count = 1.
+        ENDIF.
+
+        IF line_exists( lta_printcount[ matnr   = <fs_crdt_add>-matnr
+                                        werks   = <fs_crdt_add>-werks
+                                        verid   = <fs_crdt_add>-verid
+                                        status  = <fs_crdt_add>-status
+                                        doknr   = <fs_crdt_add>-doknr
+                                        dokvr   = <fs_crdt_add>-dokvr
+                                        ann_no  = <fs_crdt_add>-ann_no
+                                        print_stat = abap_false ] ).
+          CONCATENATE 'Additional print for' <fs_crdt_add>-ann_no 'already requested' INTO lv_msg_add SEPARATED BY space.
+          MESSAGE lv_msg_add TYPE 'E'.
+
+        ENDIF.
+
+*        DATA(lta_addprint_reqno_temp) = lta_addprint_reqno[].
+*        DELETE lta_addprint_reqno_temp WHERE ann_no <> <fs_crdt_add>-ann_no.
+*        IF lta_addprint_reqno_temp IS INITIAL.
+*          <fs_crdt_add>-req_ct = 1.
+*        ELSE.
+*
+*          READ TABLE  lta_addprint_reqno_temp INTO DATA(lwa_addprint_reqno_temp) INDEX 1.
+*          IF sy-subrc = 0.
+*            <fs_crdt_add>-req_ct = lwa_addprint_reqno_temp-req_ct + 1.
+*            CLEAR: lwa_addprint_reqno_temp.
+*          ENDIF.
+*
+*        ENDIF.
+
+
+
+*        IF line_exists( lta_addprint_reqno_temp[ matnr   = <fs_crdt_add>-matnr
+**        IF line_exists( lta_printcount[ matnr   = <fs_crdt_add>-matnr
+*                                        werks   = <fs_crdt_add>-werks
+*                                        verid   = <fs_crdt_add>-verid
+*                                        status  = <fs_crdt_add>-status
+*                                        doknr   = <fs_crdt_add>-doknr
+*                                        ann_no  = <fs_crdt_add>-ann_no ] ).
+*
+*          DATA(lwa_printcount) = lta_addprint_reqno_temp[ matnr   = <fs_crdt_add>-matnr
+**          DATA(lwa_printcount) = lta_printcount[ matnr   = <fs_crdt_add>-matnr
+*                                        werks   = <fs_crdt_add>-werks
+*                                        verid   = <fs_crdt_add>-verid
+*                                        status  = <fs_crdt_add>-status
+*                                        doknr   = <fs_crdt_add>-doknr
+*                                        ann_no  = <fs_crdt_add>-ann_no ].
+*          <fs_crdt_add>-print_count = lwa_printcount-print_count + 1.
+*        ELSE.
+*          <fs_crdt_add>-print_count = 1.
+*        ENDIF.
+        CLEAR: lwa_addprint_reqno.
+      ENDLOOP.
+
+      IF lta_zqm_ann_chngdata[] IS NOT INITIAL.
+        MODIFY zqm_ann_addprint FROM TABLE lta_zqm_ann_chngdata.
+*        MODIFY zqm_ann_addprint FROM TABLE lta_zqm_ann_addprint.
+        MESSAGE s315(zqm).
+        CALL SCREEN 7000.
+      ENDIF.
+    ENDIF.
+
+  ELSEIF sy-ucomm = 'APPR'.
+    IF lta_zqm_ann_prepare[] IS NOT INITIAL.
+      CALL FUNCTION 'GET_GLOBALS_FROM_SLVC_FULLSCR'
+        IMPORTING
+          e_grid = gv_ref_grid.
+
+      IF gv_ref_grid IS NOT INITIAL.
+        CALL METHOD gv_ref_grid->check_changed_data.
+      ENDIF.
+
+      "SOA by Gajanan - 25.10.2024 - CR#8000003007
+      DATA(ta_zqm_ann_prepare_temp) = lta_zqm_ann_prepare.
+      DELETE ta_zqm_ann_prepare_temp WHERE chk IS INITIAL.
+      IF ta_zqm_ann_prepare_temp IS INITIAL.
+        MESSAGE 'Select at list one checkbox to process' TYPE 'E'.
+      ENDIF.
+      "EOA by Gajanan - 25.10.2024 - CR#8000003007
+      DELETE lta_zqm_ann_prepare WHERE no_copy = ''.
+
+      LOOP AT lta_zqm_ann_prepare ASSIGNING <fs_crdt>.
+        IF <fs_crdt>-chk = abap_true.
+          "SOA by Gajanan - 06.03.2025 - CR#8000003007
+          IF <fs_crdt>-app_st IS INITIAL.
+            MESSAGE 'Approve/Rejection Status is mandatory' TYPE 'E'.
+
+*          ELSEIF <fs_crdt>-app_st <> 'A' OR <fs_crdt>-app_st <> 'R'.
+*            MESSAGE 'Invalid Status' TYPE 'E'.
+
+          ENDIF.
+          "EOA by Gajanan - 06.03.2025 - CR#8000003007
+
+          <fs_crdt>-app_by    = sy-uname.
+          <fs_crdt>-app_on    = sy-datum.
+          <fs_crdt>-app_time  = sy-uzeit.
+          <fs_crdt>-chk = abap_false. "Added by Gajanan - 25.10.2024 - CR#8000003007
+          IF <fs_crdt>-app_st = 'A'.
+            <fs_crdt>-approved = abap_true.
+            <fs_crdt>-app_copy = <fs_crdt>-no_copy.
+          ELSEIF <fs_crdt>-app_st = 'R'.
+            <fs_crdt>-del_chk   = abap_true.
+            <fs_crdt>-approved = abap_false.
+          ENDIF.
+        ENDIF.
+      ENDLOOP.
+
+      MODIFY zqm_ann_prepare FROM TABLE lta_zqm_ann_prepare.
+      MESSAGE s106(zqm).
+      CLEAR: p_mat, p_plant, p_prd_vn, p_dms.
+      CALL SCREEN 4200.
+
+    ELSEIF lta_zqm_ann_addprint[] IS NOT INITIAL.
+
+      CALL FUNCTION 'GET_GLOBALS_FROM_SLVC_FULLSCR'
+        IMPORTING
+          e_grid = gv_ref_grid.
+
+      IF gv_ref_grid IS NOT INITIAL.
+        CALL METHOD gv_ref_grid->check_changed_data.
+      ENDIF.
+      DELETE lta_zqm_ann_addprint WHERE no_copy = ''.
+      LOOP AT lta_zqm_ann_addprint ASSIGNING <fs_crdt_add>.
+        "SOA by Gajanan - 06.03.2025 - CR#8000003007
+        IF <fs_crdt_add>-app_st IS INITIAL.
+          MESSAGE 'Approve/Rejection Status is mandatory' TYPE 'E'.
+
+*          ELSEIF <fs_crdt>-app_st <> 'A' OR <fs_crdt>-app_st <> 'R'.
+*            MESSAGE 'Invalid Status' TYPE 'E'.
+
+        ENDIF.
+        "EOA by Gajanan - 06.03.2025 - CR#8000003007
+        <fs_crdt_add>-app_by    = sy-uname.
+        <fs_crdt_add>-app_on    = sy-datum.
+        <fs_crdt_add>-app_time  = sy-uzeit.
+        IF <fs_crdt_add>-app_st = 'A'.
+          <fs_crdt_add>-approved = abap_true.
+          <fs_crdt_add>-app_copy = <fs_crdt_add>-no_copy.
+        ELSEIF <fs_crdt_add>-app_st = 'R'.
+*          <fs_crdt_add>-del_chk   = abap_true.
+          <fs_crdt_add>-approved = abap_false.
+        ENDIF.
+
+      ENDLOOP.
+
+      MODIFY zqm_ann_addprint FROM TABLE lta_zqm_ann_addprint.
+      MESSAGE s106(zqm).
+      CLEAR: p_mat, p_plant, p_prd_vn, p_dms, p_order, p_mdesc, p_wdesc.
+      CALL SCREEN 4400.
+    ENDIF.
+
+*  ELSEIF sy-ucomm = 'DEL'.
+*    break abap4.
+*
+*    CALL FUNCTION 'GET_GLOBALS_FROM_SLVC_FULLSCR'
+*      IMPORTING
+*        e_grid = gv_ref_grid.
+*
+*    IF gv_ref_grid IS NOT INITIAL.
+*      CALL METHOD gv_ref_grid->check_changed_data.
+*    ENDIF.
+*
+*    "SOA by Gajanan - 25.10.2024 - CR#8000003007
+*    REFRESH: ta_zqm_ann_prepare_temp[].
+*    ta_zqm_ann_prepare_temp = lta_zqm_ann_prepare.
+*    DELETE ta_zqm_ann_prepare_temp WHERE chk IS INITIAL.
+*    IF ta_zqm_ann_prepare_temp IS INITIAL.
+*      MESSAGE 'Select at list one checkbox to process' TYPE 'E'.
+*    ENDIF.
+*    "EOA by Gajanan - 25.10.2024 - CR#8000003007
+*
+*    LOOP AT lta_zqm_ann_prepare ASSIGNING <fs_crdt>.
+*      IF <fs_crdt>-chk = abap_true.
+*        <fs_crdt>-del_chk   = abap_true.
+*        <fs_crdt>-app_by    = sy-uname.
+*        <fs_crdt>-app_on    = sy-datum.
+*        <fs_crdt>-app_time  = sy-uzeit.
+*        <fs_crdt>-chk = abap_false. "Added by Gajanan - 25.10.2024 - CR#8000003569
+*      ENDIF.
+*    ENDLOOP.
+*
+*    MODIFY zqm_ann_prepare FROM TABLE lta_zqm_ann_prepare.
+*    DELETE lta_zqm_ann_prepare WHERE chk EQ abap_true.
+*
+*    p_selfield-refresh = abap_true.
+
+  ELSEIF sy-ucomm = 'EXIT'.
+    CALL SCREEN 7000.
+
+  ELSEIF sy-ucomm = 'BACK'.
+    CLEAR: p_mat, p_plant, p_prd_vn,p_dms.
+  ENDIF.
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form  F_ALV_VASNN
+*&---------------------------------------------------------------------*
+FORM f_alv_vasnn .
+*lv_mat_con = |{ p_mat ALPHA = OUT }|.
+  SELECT * FROM zqm_ann_prepare INTO TABLE lta_zqm_ann_prepare
+    WHERE matnr = p_mat AND "lv_mat_con     AND
+          werks = p_plant   AND
+          verid = p_prd_vn  AND
+          approved = ''     AND
+          del_chk = ''. "Added by Gajanan - 25.10.2024 - CR#8000003569
+  IF lta_zqm_ann_prepare IS NOT INITIAL.
+**    LOOP AT lta_zqm_ann_prepare ASSIGNING FIELD-SYMBOL(<fs_zqm_ann_prepare>).
+**      <fs_zqm_ann_prepare>-approved = 'X'.
+**    ENDLOOP.
+    IF lta_zqm_ann_prepare[] IS NOT INITIAL.
+      CLEAR lta_fieldcat[].
+      PERFORM fill_field USING 'CHK'       ''      ''   ''        text-01m '06'.
+      PERFORM fill_field USING 'MATNR'        ''      ''   ''     text-01a '15'.
+      PERFORM fill_field USING 'WERKS'        ''      ''   ''     text-01b '10'.
+      PERFORM fill_field USING 'VERID'        ''      ''   ''     text-01c '20'.
+      PERFORM fill_field USING 'ANN_NO'       ''      ''   ''     text-01d '20'.
+      PERFORM fill_field USING 'DOKNR'        ''      ''   ''     text-01e '20'.
+      PERFORM fill_field USING 'DOKVR'        ''      ''   ''     text-01f '20'.
+      PERFORM fill_field USING 'NO_COPY'      ''      ''   ''     text-01g '15'.
+      PERFORM fill_field USING 'APP_COPY'     ''      ''   ''     text-01n '15'.
+      PERFORM fill_field USING 'APP_ST'       ''      ''   ''     text-01o '15'.
+*      PERFORM fill_field USING 'APPROVED'     ''      ''   ''     text-01h '20'.
+
+      CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+        EXPORTING
+          i_callback_program       = sy-repid
+          i_callback_pf_status_set = 'PF_STATUS'
+          i_callback_user_command  = 'USER_COMMAND'
+*         IS_LAYOUT                =
+          it_fieldcat              = lta_fieldcat
+*         I_SAVE                   = ' '
+        TABLES
+          t_outtab                 = lta_zqm_ann_prepare
+        EXCEPTIONS
+          program_error            = 1
+          OTHERS                   = 2.
+
+    ENDIF.
+
+  ELSEIF lta_zqm_ann_prepare[] IS INITIAL.
+    MESSAGE 'No records found to approve' TYPE 'S' DISPLAY LIKE 'E'.
+  ENDIF.
+ENDFORM.
+
+FORM pf_status USING rt_extab TYPE slis_t_extab.
+  CLEAR rt_extab[].
+
+  IF sy-tcode = 'ZQM_ANN_PREPARE'.
+    APPEND 'EXECUTE'  TO rt_extab.
+    APPEND 'APPR'     TO rt_extab.
+    APPEND 'DEL'      TO rt_extab.
+    SET PF-STATUS 'S5000' EXCLUDING rt_extab.
+  ELSEIF sy-tcode = 'ZQM_ANN_VERIFY'.
+    APPEND 'EXECUTE'  TO rt_extab.
+    APPEND 'SAVE'  TO rt_extab.
+    SET PF-STATUS 'S5000' EXCLUDING rt_extab.
+  ELSEIF sy-tcode = 'ZQM_ANN_ADDP'.
+    APPEND 'EXECUTE'  TO rt_extab.
+    APPEND 'APPR'     TO rt_extab.
+    APPEND 'DEL'      TO rt_extab.
+    SET PF-STATUS 'S5000' EXCLUDING rt_extab.
+  ELSEIF sy-tcode = 'ZQM_ANN_ADDV'.
+    APPEND 'EXECUTE'  TO rt_extab.
+    APPEND 'SAVE'  TO rt_extab.
+    SET PF-STATUS 'S5000' EXCLUDING rt_extab.
+  ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Module  F4_PLANT_4200  INPUT
+*&---------------------------------------------------------------------*
+MODULE f4_plant_4200 INPUT.
+
+  CLEAR: gt_return, gt_return[].
+  lv_mat_con = |{ p_mat ALPHA = OUT }|.
+  IF p_mat IS NOT INITIAL.
+    SELECT
+      matnr,
+      werks FROM zqm_ann_prepare INTO TABLE @DATA(lta_zqm_ann_prep_mat)
+                 WHERE matnr = @lv_mat_con.
+    SORT lta_zqm_ann_prep_mat BY matnr werks.
+    DELETE ADJACENT DUPLICATES FROM lta_zqm_ann_prep_mat COMPARING matnr.
+
+    CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+      EXPORTING
+        retfield        = 'WERKS'
+        value_org       = 'S'
+      TABLES
+        value_tab       = lta_zqm_ann_prep_mat
+        return_tab      = gt_return
+      EXCEPTIONS
+        parameter_error = 1
+        no_values_found = 2
+        OTHERS          = 3.
+
+    p_plant = gt_return-fieldval.
+  ENDIF.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  F4_PRDV_4200  INPUT
+*&---------------------------------------------------------------------*
+MODULE f4_prdv_4200 INPUT.
+  CLEAR: gt_return, gt_return[].
+  lv_mat_con = |{ p_mat ALPHA = OUT }|.
+
+  SELECT matnr, werks, verid FROM zqm_ann_prepare INTO TABLE @DATA(lta_zqm_ann_prep_ver)
+    WHERE matnr = @lv_mat_con AND
+          werks = @p_plant.
+  SORT lta_zqm_ann_prep_ver BY matnr werks.
+  DELETE ADJACENT DUPLICATES FROM lta_zqm_ann_prep_ver COMPARING matnr werks verid.
+
+  CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+    EXPORTING
+      retfield        = 'P_PRD_VN'
+      value_org       = 'S'
+    TABLES
+      value_tab       = lta_zqm_ann_prep_ver
+      return_tab      = gt_return
+    EXCEPTIONS
+      parameter_error = 1
+      no_values_found = 2
+      OTHERS          = 3.
+  p_prd_vn = gt_return-fieldval.
+ENDMODULE.
+
+*&---------------------------------------------------------------------*
+*&      Form  F_ALV_DISPLAY_ADD
+*&---------------------------------------------------------------------*
+FORM f_alv_display_add .
+
+
+  DELETE lta_zqm_ann_addprint WHERE status NE 'AV'.
+
+  IF lta_zqm_ann_addprint IS INITIAL.
+    MESSAGE e304(zqm).
+
+  ELSE.
+    CLEAR lta_fieldcat[].
+    PERFORM fill_field USING 'MATNR'        ''      ''   ''     text-01a '15'.
+    PERFORM fill_field USING 'WERKS'        ''      ''   ''     text-01b '10'.
+    PERFORM fill_field USING 'VERID'        ''      ''   ''     text-01c '20'.
+    PERFORM fill_field USING 'DOKVR'        ''      ''   ''     text-o1i '20'.
+    PERFORM fill_field USING 'AUFNR'        ''      ''   ''     text-01j '20'.
+    PERFORM fill_field USING 'CHARG'        ''      ''   ''     text-01k '20'.
+    PERFORM fill_field USING 'ANN_NO'       ''      ''   ''     text-01d '20'.
+    PERFORM fill_field USING 'NO_COPY'      ''      ''   ''     text-01g '20'.
+    PERFORM fill_field USING 'APP_COPY'     ''      ''   ''     text-01n '15'.
+    PERFORM fill_field USING 'APP_ST'       ''      ''   ''     text-01o '15'.
+
+*lwa_layout-colwidth_optimize = abap_true.
+    lwa_layout-zebra             = abap_true.
+
+    CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+      EXPORTING
+        i_callback_program       = sy-repid
+        i_callback_pf_status_set = 'PF_STATUS'
+        i_callback_user_command  = 'USER_COMMAND'
+        is_layout                = lwa_layout
+        it_fieldcat              = lta_fieldcat
+*       I_SAVE                   = ' '
+      TABLES
+        t_outtab                 = lta_zqm_ann_addprint
+      EXCEPTIONS
+        program_error            = 1
+        OTHERS                   = 2.
+
+  ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  F_ALV_ADD_ANN
+*&---------------------------------------------------------------------*
+FORM f_alv_add_ann .
+
+  SELECT * FROM zqm_ann_addprint INTO TABLE lta_zqm_ann_addprint
+    WHERE aufnr     = p_order       AND
+          werks     = p_plant       AND
+          matnr     = p_mat         AND
+          verid     = p_prd_vn      AND
+          approved  = ''            AND
+          app_st    = abap_false.
+  IF lta_zqm_ann_addprint IS NOT INITIAL.
+    LOOP AT lta_zqm_ann_addprint ASSIGNING FIELD-SYMBOL(<fs_zqm_ann_addprint>).
+      <fs_zqm_ann_addprint>-approved = 'X'.
+    ENDLOOP.
+
+    CLEAR lta_fieldcat[].
+    PERFORM fill_field USING 'MATNR'        ''      ''   ''     text-01a '15'.
+    PERFORM fill_field USING 'WERKS'        ''      ''   ''     text-01b '10'.
+    PERFORM fill_field USING 'VERID'        ''      ''   ''     text-01c '20'.
+    PERFORM fill_field USING 'DOKVR'        ''      ''   ''     text-o1i '20'.
+    PERFORM fill_field USING 'AUFNR'        ''      ''   ''     text-01j '20'.
+    PERFORM fill_field USING 'CHARG'        ''      ''   ''     text-01k '20'.
+    PERFORM fill_field USING 'ANN_NO'       ''      ''   ''     text-01d '20'.
+    PERFORM fill_field USING 'NO_COPY'      ''      ''   ''     text-01g '20'.
+    PERFORM fill_field USING 'APP_COPY'     ''      ''   ''     text-01n '15'.
+    PERFORM fill_field USING 'APP_ST'       ''      ''   ''     text-01o '15'.
+
+
+    CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+      EXPORTING
+        i_callback_program       = sy-repid
+        i_callback_pf_status_set = 'PF_STATUS'
+        i_callback_user_command  = 'USER_COMMAND'
+*       IS_LAYOUT                =
+        it_fieldcat              = lta_fieldcat
+*       I_SAVE                   = ' '
+      TABLES
+        t_outtab                 = lta_zqm_ann_addprint
+      EXCEPTIONS
+        program_error            = 1
+        OTHERS                   = 2.
+
+
+  ELSEIF lta_zqm_ann_prepare[] IS INITIAL.
+    MESSAGE 'No records found to approve for Additional print of Annexure' TYPE 'S' DISPLAY LIKE 'E'.
+
+  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Module  ANN_NO_LIST  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE ann_no_list INPUT.
+  DATA: lt_ann_no TYPE TABLE OF vrm_value,
+        ls_ann_no TYPE vrm_value.
+  IF lt_ann_no IS INITIAL.
+    SELECT * FROM zqm_ann_addprint INTO TABLE @DATA(lta_ann_no)
+      WHERE matnr      = @p_mat
+        AND werks      = @p_plant
+        AND verid      = @p_prd_vn
+        AND dokvr      = @p_dms
+        AND print_stat = @abap_true.
+
+    IF NOT lta_ann_no IS INITIAL .
+      SORT lta_ann_no BY ann_no.
+      DELETE ADJACENT DUPLICATES FROM lta_ann_no COMPARING ann_no.
+
+      break abap4.
+      LOOP AT lta_ann_no INTO DATA(lwa_ann_no).
+        IF sy-tabix = 1.
+          DATA(lv_tab) = '001'.
+        ENDIF.
+        ls_ann_no-key = ls_ann_no-key + lv_tab.
+        CONDENSE ls_ann_no-key NO-GAPS.
+        ls_ann_no-text = lwa_ann_no-ann_no.
+        APPEND ls_ann_no TO lt_ann_no.
+        lv_tab = lv_tab + 1.
+        CLEAR: ls_ann_no.
+
+      ENDLOOP.
+
+      CALL FUNCTION 'VRM_SET_VALUES'
+        EXPORTING
+          id     = 'P_ANN_NO'
+          values = lt_ann_no.
+
+    ENDIF.
+  ENDIF.
+
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  ANN_NO_LISTB  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE ann_no_listb INPUT.
+  DATA: lt_ann_nob TYPE TABLE OF vrm_value,
+        ls_ann_nob TYPE vrm_value.
+
+  IF lta_zqm_ann_prepare[] IS NOT INITIAL.
+    REFRESH: lt_ann_nob[].
+    SORT lta_zqm_ann_prepare BY ann_no.
+    DELETE ADJACENT DUPLICATES FROM lta_zqm_ann_prepare COMPARING ann_no.
+    break abap4.
+    LOOP AT lta_zqm_ann_prepare INTO DATA(lwa_zqm_ann_prepare_list).
+      IF sy-tabix = 1.
+        DATA(lv_tabb) = '001'.
+      ENDIF.
+      ls_ann_nob-key = ls_ann_nob-key + lv_tabb.
+      CONDENSE ls_ann_nob-key NO-GAPS.
+      ls_ann_nob-text = lwa_zqm_ann_prepare_list-ann_no.
+      APPEND ls_ann_nob TO lt_ann_nob.
+      lv_tabb = lv_tabb + 1.
+      CLEAR: ls_ann_nob,lwa_zqm_ann_prepare_list.
+
+    ENDLOOP.
+
+    CALL FUNCTION 'VRM_SET_VALUES'
+      EXPORTING
+        id     = 'P_ANN_NO'
+        values = lt_ann_nob.
+
+  ENDIF.
+
+ENDMODULE.

@@ -1,0 +1,1059 @@
+*&---------------------------------------------------------------------*
+*& Report  ZPP_MDOCLIST
+*&
+*&---------------------------------------------------------------------*
+*----------------------------------------------------------------------*
+* Program
+* Title           : <BMR BPR and API reports>
+* Author          : <NILESH JADHAV>
+* Program Type    : <type of the program>
+* Creation Date   : <13-05-2014>
+* Transaction     : <transaction code of program>
+* Functional design: <document with functional specifications>
+* Technical design: <document with technical specifications>
+* Change request : <change request number>
+* Transport number: <transport number>
+* Description     : <BPR : Master Printing Log>
+*----------------------------------------------------------------------*
+* Modification Information
+* Date            : 14.11.2017
+* Author          : Payal S
+* Change request  : SOLMAN ticket : CR8000003697
+* Transport number:
+* Description     : Time Zone specific date & time changes for Uganda and valid throghout all regions
+*	*----------------------------------------------------------------------*
+
+REPORT zpp_mdoclist.
+TABLES :zppt_printlog , t001w ,makt, mara,zpp_docstatus,zpp_mdoc_header,zpp_master_doc,drap,dd07t,afpo,mast .
+TABLES : sscrfields .
+TYPE-POOLS : vrm.
+TYPES :  BEGIN OF exp,
+           s_exptyp(30) TYPE c,
+         END OF exp.
+DATA: name    TYPE vrm_id,
+      list    TYPE vrm_values,
+      list_e  TYPE vrm_values,
+      value   LIKE LINE OF list,
+      value_e LIKE LINE OF list_e,
+      exp_tab TYPE STANDARD TABLE OF exp INITIAL SIZE 30 WITH HEADER LINE.
+
+* ALV grid output table.
+TYPES : BEGIN OF ty_alv,
+          srno         TYPE i,
+          dokar        TYPE zppt_printlog-dokar,
+          werks        TYPE zppt_printlog-werks,
+          name1        TYPE t001w-name1,
+          matnr        TYPE matnr,
+          maktx        TYPE maktx,
+          stlnr        TYPE stnum,
+          plnnr        TYPE plnnr,
+          verid        TYPE verid,
+          dokvr        TYPE dokvr,
+          bsize(20)    TYPE c,
+          ddtext       TYPE rn1datum-format,
+          ex_type(20)  TYPE c,
+          sel_sec(100) TYPE c,
+          status(2)    TYPE c,
+          a_datum      TYPE rn1datum-datex,
+*        r_datum(8) TYPE c,
+        END OF ty_alv.
+
+DATA : ta_alv TYPE TABLE OF ty_alv,
+       wa_alv TYPE ty_alv.
+
+DATA: g_layout TYPE slis_layout_alv.
+DATA  : ta_fieldcat TYPE slis_t_fieldcat_alv ##NEEDED,
+        g_pos       TYPE i,
+        g_pos1      TYPE i,
+        wa_layout   TYPE slis_layout_alv.
+DATA : g_repid  LIKE sy-repid.
+DATA : p_stat           TYPE stabk, p_stat_desc TYPE dostx,g_old_status_int TYPE dokst,gs_dms_return TYPE bapiret2.
+TYPES  : BEGIN OF ty_master_f4,
+           dokar TYPE dokar,
+           werks TYPE werks_d,
+           matnr TYPE matnr,
+           doknr TYPE doknr,
+           verid TYPE verid,
+           dokvr TYPE dokvr,
+         END OF ty_master_f4.
+
+DATA : ta_master_f4 TYPE TABLE OF ty_master_f4,
+       wa_master_f4 TYPE  ty_master_f4.
+* Plant
+TYPES: BEGIN OF ty_plant,
+         werks TYPE werks_d,
+         name1 TYPE t001w-name1,
+       END OF ty_plant.
+
+DATA: ta_plant   TYPE STANDARD TABLE OF ty_plant,
+      wa_plant   TYPE ty_plant,
+      ta_plantop LIKE ddshretval OCCURS 0 WITH HEADER LINE.
+TYPES  : BEGIN OF ty_zpp_master_doc,
+           dokar         TYPE dokar,
+           werks         TYPE werks_d,
+           matnr         TYPE matnr,
+           doknr         TYPE doknr,
+           verid         TYPE verid,
+           dokvr         TYPE dokvr,
+           dateformat    TYPE zpp_format,
+           expiry_ind    TYPE char1,
+           description   TYPE char1,
+           category      TYPE char1,
+           labelclaim    TYPE char1,
+           shelf_life    TYPE char1,
+           markt_auth_no TYPE char1,
+           country       TYPE char1,
+           cust_fgcode   TYPE char1,
+           cust_batch    TYPE char1,
+           packbefore    TYPE char1,
+           regular       TYPE char1,
+           dokst         TYPE dokst,
+           datum         TYPE datum,
+         END OF ty_zpp_master_doc.
+
+DATA : ta_zpp_master_doc TYPE TABLE OF ty_zpp_master_doc,
+       wa_zpp_master_doc TYPE  ty_zpp_master_doc.
+*batch size
+TYPES: BEGIN OF ty_bsize,
+         bmeng TYPE bmeng,
+         bmein TYPE bmein,
+         matnr TYPE matnr,
+         werks TYPE werks_d,
+         verid TYPE verid,
+       END OF ty_bsize.
+
+TYPES : BEGIN OF ty_dateformat,
+          valpos TYPE valpos,
+          ddtext TYPE ddtext,
+        END OF ty_dateformat.
+
+*Approved/Released Date
+TYPES : BEGIN OF ty_statusdate,
+          dokvr TYPE dokvr,
+          doknr TYPE doknr,
+          dokst TYPE dokst,
+          datum TYPE datum,
+        END OF ty_statusdate.
+DATA : lta_statusdate   TYPE STANDARD TABLE OF ty_statusdate,
+       lwa_statusdate   TYPE ty_statusdate,
+       lta_statusdate_c TYPE STANDARD TABLE OF ty_statusdate,
+       lwa_statusdate_c TYPE ty_statusdate.
+*Bom
+TYPES: BEGIN OF ty_bom,
+         stlnr TYPE stnum,
+         matnr TYPE matnr,
+         werks TYPE werks_d,
+         stlal TYPE stlal,
+       END OF ty_bom.
+*recipe
+TYPES: BEGIN OF ty_recipe,
+         plnnr TYPE plnnr,
+         matnr TYPE matnr,
+         werks TYPE werks_d,
+         verid TYPE verid,
+         stlal TYPE stlal,
+       END OF ty_recipe.
+
+* Plant
+*TYPES: BEGIN OF ty_plant,
+*        werks TYPE werks_d,
+*        name1 TYPE t001w-name1,
+*       END OF ty_plant.
+
+*Material Description
+TYPES: BEGIN OF ty_makt,
+         matnr TYPE matnr,
+         maktx TYPE maktx,
+       END OF ty_makt.
+
+DATA : g_count TYPE i .
+"datA : s_dokar type zppt_printlog-dokar.
+CONSTANTS : c_doctype(3) TYPE c VALUE 'BPR'.
+
+SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE text-001.
+SELECT-OPTIONS: s_matnr FOR mara-matnr .
+SELECT-OPTIONS: s_plant FOR t001w-werks.
+SELECT-OPTIONS: s_verid FOR zpp_master_doc-verid.
+SELECT-OPTIONS: s_dokvr FOR zpp_master_doc-dokvr.
+SELECT-OPTIONS :s_status FOR zppt_printlog-status.
+SELECT-OPTIONS :s_dtfrmt FOR zpp_mdoc_header-dateformat."dd07t-valpos.
+*SELECT-OPTIONS :s_exptyp FOR  zpp_mdoc_header-expiry_ind.
+SELECT-OPTIONS : s_date FOR zppt_printlog-created_on.
+SELECTION-SCREEN END OF BLOCK b1.
+SELECTION-SCREEN BEGIN OF BLOCK b2 WITH FRAME TITLE text-001.
+PARAMETERS: s_exptyp(20) AS LISTBOX VISIBLE LENGTH 27.
+PARAMETERS: p_selsec(30) AS LISTBOX VISIBLE LENGTH 30.
+" following variable from main program
+PARAMETERS: doc_type(3) TYPE c NO-DISPLAY.
+SELECTION-SCREEN END OF BLOCK b2.
+*---------------------------------------------------------------------*
+* A T - S E L E C T I O N - S C R E E N  - VALUE REQUEST                             *
+*---------------------------------------------------------------------*
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR s_plant-low.
+  PERFORM f4_werks.
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR s_plant-high.
+  PERFORM f4_werks.
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR s_verid-low.
+  PERFORM f4_verid.
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR s_verid-high.
+  PERFORM f4_verid.
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR s_dokvr-low.
+  PERFORM f4_dokvr.
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR s_dokvr-high.
+  PERFORM f4_dokvr.
+
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR s_status-high.
+  PERFORM f4_status.
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR s_status-low.
+  PERFORM f4_status.
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR s_dtfrmt-high.
+  PERFORM f4_dtfrmt.
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR s_dtfrmt-low.
+  PERFORM f4_dtfrmt.
+
+AT SELECTION-SCREEN OUTPUT.
+  CLEAR value.
+  CLEAR value_e.
+  REFRESH list.
+  REFRESH list_e.
+  REFRESH ta_plant.
+  REFRESH ta_plantop.
+  REFRESH ta_master_f4.
+  SELECT dokar werks matnr doknr verid dokvr  FROM zpp_master_doc INTO TABLE ta_master_f4
+  WHERE matnr IN s_matnr AND dokvr IN s_dokvr AND verid IN s_verid AND werks IN s_plant
+    AND dokar = doc_type.
+
+  SELECT werks name1 FROM t001w INTO TABLE ta_plant
+  FOR ALL ENTRIES IN ta_master_f4
+  WHERE werks = ta_master_f4-werks.
+
+
+  name = 'P_SELSEC'.
+  value-key = '1'.
+  value-text = 'DESCRIPTION'.
+  APPEND value TO list.
+  value-key = '2'.
+  value-text = 'LABELCLAIM'.
+  APPEND value TO list.
+  value-key = '3'.
+  value-text = 'CATEGORY'.
+  APPEND value TO list.
+  value-key = '4'.
+  value-text = 'SHELFLIFE'.
+  APPEND value TO list.
+  value-key = '5'.
+  value-text = 'MARKETING AUTH. NUM.'.
+  APPEND value TO list.
+  value-key = '6'.
+  value-text = 'CUSTOMER BATCH NUM'.
+  APPEND value TO list.
+  value-key = '7'.
+  value-text = 'CUSTOMER FG CODE'.
+  APPEND value TO list.
+  value-key = '8'.
+  value-text = 'COUNTRY'.
+  APPEND value TO list.
+  value-key = '9'.
+  value-text = 'PACK BEFORE'.
+  APPEND value TO list.
+*  value-key = '10'.
+*  value-text = 'NONE'.
+*  APPEND value TO list.
+
+  CALL FUNCTION 'VRM_SET_VALUES'
+    EXPORTING
+      id     = name
+      values = list.
+  name = 's_exptyp'.
+  value_e-key = '1'.
+  value_e-text = 'Expiry'.
+  APPEND value_e TO list_e.
+  value_e-key = '2'.
+  value_e-text = 'Provisional Expiry'.
+  APPEND value_e TO list_e.
+
+  CALL FUNCTION 'VRM_SET_VALUES'
+    EXPORTING
+      id     = name
+      values = list_e.
+*---------------------------------------------------------------------*
+* S T A R T - O F - S E L E C T I O N                                 *
+*---------------------------------------------------------------------*
+START-OF-SELECTION.
+  IF sy-subrc = 0.
+    IF s_matnr IS INITIAL AND s_plant IS INITIAL AND s_verid IS INITIAL
+  AND s_dokvr IS INITIAL AND s_status IS INITIAL AND s_date IS INITIAL
+  AND s_exptyp IS INITIAL AND s_dtfrmt IS INITIAL AND p_selsec IS INITIAL.
+      "AND doc_type IS INITIAL. " passsing it from main program
+      MESSAGE text-003 TYPE 'S'.
+      RETURN.
+    ELSE.
+      PERFORM retrive_data.
+    ENDIF.
+    IF ta_alv IS NOT INITIAL.
+      PERFORM fieldcatlog.
+      PERFORM sub_build_layout.
+      PERFORM alv_grid.
+    ELSE.
+
+      MESSAGE text-004 TYPE 'S'.
+      RETURN.
+    ENDIF.
+  ENDIF.
+
+*&---------------------------------------------------------------------*
+*&      Form  FIELDCATLOG
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM fieldcatlog .
+  PERFORM fill_field USING 'SRNO' '' '' '' 'SrNo' '7'.
+  PERFORM fill_field USING 'DOKAR' 'DOKAR' 'ZPP_MASTER_DOC' '' 'Type' '7'.
+  PERFORM fill_field USING 'WERKS' 'WERKS' 'ZPP_MASTER_DOC' '' 'Plant' '7'.
+  PERFORM fill_field USING 'NAME1' 'NAME1' 'T001W' '' 'Plant Description' '20'.
+  PERFORM fill_field USING 'MATNR' 'MATNR' 'ZPP_MASTER_DOC' '' 'Material' '13'.
+  PERFORM fill_field USING 'MAKTX' 'MAKTX' 'ZPP_MASTER_DOC' '' 'Material Description' '40'.
+  PERFORM fill_field USING 'STLNR' 'STLNR' 'MAST' '' 'Bill_OF_Mat' '25'.
+  PERFORM fill_field USING 'PLNNR' 'PLNNR' 'MKAL' '' 'Recipe Num' '25'.
+  PERFORM fill_field USING 'VERID' 'VERID' 'ZPP_MASTER_DOC' '' 'Production Version' '25'.
+  PERFORM fill_field USING 'DOKVR' 'DOKVR' 'ZPP_MASTER_DOC' '' 'Document Version' '25'.
+  PERFORM fill_field USING 'BSIZE' 'BSIZE' 'stko' '' 'Qty To be Packed' '30'.
+  PERFORM fill_field USING 'STATUS' 'STATUS' 'IT_Master_doc' '' 'Status' '6'.
+  PERFORM fill_field USING 'DDTEXT' 'DDTEXT' 'IT_DATEFORMAT' '' 'Date Format' '15'.
+  PERFORM fill_field USING 'EX_type' 'EX_type' 'IT_DATEFORMAT' '' 'Expiry Type' '20'.
+  PERFORM fill_field USING 'SEL_SEC' 'SEL_SEC' 'IT_DATEFORMAT' '' 'Select Section' '20'.
+  PERFORM fill_field USING 'A_DATUM' 'DATUM' 'drap' '' 'Status Date' '8'.
+*  PERFORM fill_field USING 'r_datum' 'datum' 'drap' '' 'Released Date' '8'.
+ENDFORM.                    " FIELDCATLOG
+
+*&---------------------------------------------------------------------*
+*&      Form  TOP-OF-PAGE
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM top-of-page .
+*ALV Header declarations
+  DATA:   t_header      TYPE slis_t_listheader,
+          wa_header     TYPE slis_listheader,
+          t_line        LIKE wa_header-info,
+          ld_lines      TYPE i,
+          ld_linesc(10) TYPE c.
+
+* Title
+  wa_header-typ = 'H1'.
+  wa_header-info = 'Master Document Listing'.
+  APPEND wa_header TO t_header.
+
+  CLEAR wa_header.
+* Date
+  wa_header-typ = 'S'.
+  wa_header-key = 'Date: '.
+*  CONCATENATE sy-datum+6(2) '.'
+*   sy-datum+4(2) '.'
+*  sy-datum(4) INTO wa_header-info. "todays date
+  CONCATENATE sy-datlo+6(2) '.'    sy-datlo+4(2) '.'   sy-datlo(4) INTO wa_header-info. ""timezone changes for 8000003697 by payal on 14.11.2017
+  APPEND wa_header TO t_header.
+  CLEAR: wa_header.
+
+* Total No. of Records Selected
+  DESCRIBE TABLE ta_alv LINES ld_lines.
+  ld_linesc = ld_lines.
+  CONCATENATE 'Total No. of Records Selected: ' ld_linesc
+  INTO t_line SEPARATED BY space.
+  wa_header-typ = 'A'.
+  wa_header-info = t_line.
+  APPEND wa_header TO t_header.
+  CLEAR: wa_header, t_line.
+
+  CALL FUNCTION 'REUSE_ALV_COMMENTARY_WRITE'
+    EXPORTING
+      it_list_commentary = t_header.
+ENDFORM. " TOP-OF-PAGE
+
+*&---------------------------------------------------------------------*
+*&      Form  FILL_FIELD
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_0071   text
+*      -->P_0072   text
+*      -->P_0073   text
+*      -->P_0074   text
+*      -->P_0075   text
+*      -->P_0076   text
+*----------------------------------------------------------------------*
+FORM fill_field  USING pv_tab_field_name TYPE any ##PERF_NO_TYPE
+                         pv_ref_field_name TYPE any
+                         pv_ref_field_table TYPE any
+                         pv_key_field_flag TYPE any
+                         pv_short_text1 TYPE any
+                         pv_outputlen TYPE any.
+
+  DATA: lwa_fieldcat TYPE slis_fieldcat_alv.
+
+  CLEAR lwa_fieldcat.
+  g_pos = g_pos + 1.
+  lwa_fieldcat-col_pos       =  g_pos.
+  lwa_fieldcat-fieldname     = pv_tab_field_name.
+  lwa_fieldcat-ref_fieldname = pv_ref_field_name.
+  lwa_fieldcat-ref_tabname   = pv_ref_field_table.
+  lwa_fieldcat-seltext_s     = pv_short_text1.
+  lwa_fieldcat-seltext_m     = pv_short_text1.
+  lwa_fieldcat-seltext_l     = pv_short_text1.
+  lwa_fieldcat-reptext_ddic  = pv_short_text1.
+  lwa_fieldcat-key           = pv_key_field_flag.
+  lwa_fieldcat-outputlen  = pv_outputlen.
+  APPEND lwa_fieldcat TO  ta_fieldcat.
+
+ENDFORM.                     " FILL_FIELD
+*&---------------------------------------------------------------------*
+*&      Form  SUB_BUILD_LAYOUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM sub_build_layout .
+  CLEAR g_layout.
+  g_layout-no_input          = 'X'.
+  g_layout-zebra = 'X'.
+  g_layout-totals_text       = 'Totals'(201).
+  g_layout-box_fieldname =     'FLAG' .
+ENDFORM.                    " SUB_BUILD_LAYOUT
+*&---------------------------------------------------------------------*
+*&      Form  ALV_GRID
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM alv_grid .
+  g_repid = sy-repid.
+  CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+    EXPORTING
+      i_callback_program     = g_repid
+      i_callback_top_of_page = 'TOP-OF-PAGE'
+      it_fieldcat            = ta_fieldcat
+    TABLES
+      t_outtab               = ta_alv
+    EXCEPTIONS
+      program_error          = 1
+      OTHERS                 = 2.
+  IF sy-subrc <> 0.
+* Implement suitable error handling here
+  ENDIF.
+ENDFORM.                    " ALV_GRID
+*&---------------------------------------------------------------------*
+*&      Form  RETRIVE_DATA
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM retrive_data .
+  CLEAR : ta_zpp_master_doc[] , wa_zpp_master_doc.
+  REFRESH : ta_zpp_master_doc.
+  TYPES : BEGIN OF ty_extyp,
+            extyp TYPE char1,
+          END OF ty_extyp,
+          lta_exptyp TYPE STANDARD TABLE OF ty_extyp,
+          lwa_exptyp TYPE  ty_extyp.
+  DATA : l_section(100) TYPE c.
+  DATA : l_exptyp(26) TYPE c.
+  DATA : lv_stlnr TYPE mast-stlnr.
+  DATA: lta_bsize   TYPE STANDARD TABLE OF ty_bsize,
+        lwa_bsize   TYPE ty_bsize,l_bsize(20) TYPE c.
+  DATA : lv_dateformat TYPE zpp_format, lv_ddtext TYPE rn1datum-format.
+*        lta_mdoc_header TYPE STANDARD TABLE OF ty_mdoc_header,lwa_mdoc_header TYPE ty_mdoc_header.
+  DATA :lta_dateformat TYPE STANDARD TABLE OF ty_dateformat,
+        lwa_dateformat TYPE  ty_dateformat.
+  DATA: lta_recipe TYPE STANDARD TABLE OF ty_recipe,
+        lwa_recipe TYPE ty_recipe.
+  DATA: lta_bom TYPE STANDARD TABLE OF ty_bom,
+        lwa_bom TYPE ty_bom.
+*
+*  DATA: lta_plant TYPE STANDARD TABLE OF ty_plant,
+*        lwa_plant TYPE ty_plant.
+
+  DATA : lta_makt TYPE STANDARD TABLE OF ty_makt,
+         lwa_makt TYPE ty_makt.
+
+  DATA: l_range(20)   TYPE c,
+        l_printed(20) TYPE c.
+* dATE CONVERSION
+  DATA : l_date    TYPE nlei-ibgdt,
+         l_outdate TYPE rn1datum-datex,
+         l_format  TYPE rn1datum-format VALUE 'DD.MM.YYYY'.
+*
+  IF s_exptyp IS INITIAL.
+    s_exptyp = 99.
+  ENDIF   .
+  CASE s_exptyp.
+    WHEN 99.
+      CONCATENATE 'MATNR NE''' 'fixedvalue' '''' INTO l_exptyp.
+    WHEN 1.
+      CONCATENATE 'expiry_ind eq''' 'X' '''' INTO l_exptyp.
+    WHEN 2.
+      CONCATENATE 'expiry_ind eq''' ' ' '''' INTO l_exptyp.
+  ENDCASE.
+
+  IF p_selsec IS INITIAL.
+    p_selsec = 99.
+  ENDIF   .
+
+  CASE p_selsec.
+    WHEN 99.
+      CONCATENATE  'MATNR NE''' 'fixedvalue' '''' INTO l_section.
+      CONCATENATE l_exptyp  ' and ' l_section INTO l_section SEPARATED BY space.
+      PERFORM get_main_data USING l_section .
+    WHEN 1.
+      CONCATENATE    'DESCRIPTION EQ ''' 'X' '''' INTO l_section .
+      CONCATENATE l_exptyp  ' and ' l_section INTO l_section SEPARATED BY space.
+      PERFORM get_main_data USING l_section .
+    WHEN 2.
+      CONCATENATE   'LABELCLIAM EQ ''' 'X' '''' INTO l_section .
+      CONCATENATE l_exptyp  ' and ' l_section INTO l_section SEPARATED BY space.
+      PERFORM get_main_data USING l_section .
+    WHEN 3.
+      CONCATENATE   'CATEGORY EQ ''' 'X' '''' INTO l_section .
+      CONCATENATE l_exptyp  ' and ' l_section INTO l_section SEPARATED BY space.
+      PERFORM get_main_data USING l_section .
+    WHEN 4.
+      CONCATENATE   'SHELF_LIFE EQ ''' 'X' '''' INTO l_section .
+      CONCATENATE l_exptyp  ' and ' l_section INTO l_section SEPARATED BY space.
+      PERFORM get_main_data USING l_section .
+    WHEN 5.
+      CONCATENATE   'MARKT_AUTH_NO EQ ''' 'X' '''' INTO l_section .
+      CONCATENATE l_exptyp  ' and ' l_section INTO l_section SEPARATED BY space.
+      PERFORM get_main_data USING l_section .
+    WHEN 6.
+      CONCATENATE  'CUST_BATCH EQ ''' 'X' '''' INTO l_section .
+      CONCATENATE l_exptyp  ' and ' l_section INTO l_section SEPARATED BY space.
+      PERFORM get_main_data USING l_section .
+    WHEN 7.
+      CONCATENATE   'CUST_FGCODE EQ ''' 'X' '''' INTO l_section .
+      CONCATENATE l_exptyp  ' and ' l_section INTO l_section SEPARATED BY space.
+      PERFORM get_main_data USING l_section .
+    WHEN 8.
+      CONCATENATE  'COUNTRY EQ ''' 'X' '''' INTO l_section .
+      CONCATENATE l_exptyp  ' and ' l_section INTO l_section SEPARATED BY space.
+      PERFORM get_main_data USING l_section .
+    WHEN 9.
+      CONCATENATE  'PACKBEFORE EQ ''' 'X' '''' INTO l_section .
+      CONCATENATE l_exptyp  ' and ' l_section INTO l_section SEPARATED BY space.
+      PERFORM get_main_data USING l_section .
+    WHEN 10.
+      CONCATENATE 'REGULER EQ ''' 'X' '''' INTO l_section .
+      CONCATENATE l_exptyp  ' and ' l_section INTO l_section SEPARATED BY space.
+      PERFORM get_main_data USING l_section .
+  ENDCASE.
+
+* DATEFORMAT
+  SELECT valpos ddtext FROM dd07t INTO CORRESPONDING FIELDS OF TABLE lta_dateformat
+*    FOR ALL ENTRIES IN ta_zpp_master_doc
+    WHERE  domname EQ 'ZPP_FORMAT'      .
+* Recipe
+  SELECT plnnr matnr werks verid stlal FROM mkal INTO TABLE lta_recipe
+  FOR ALL ENTRIES IN ta_zpp_master_doc
+  WHERE werks = ta_zpp_master_doc-werks
+  AND matnr = ta_zpp_master_doc-matnr
+  AND verid = ta_zpp_master_doc-verid .
+
+* Bom
+  SELECT stlnr matnr werks stlal FROM mast INTO TABLE lta_bom
+  FOR ALL ENTRIES IN ta_zpp_master_doc
+  WHERE werks = ta_zpp_master_doc-werks
+  AND matnr = ta_zpp_master_doc-matnr .
+*batch size
+  LOOP AT lta_recipe INTO lwa_recipe.
+    READ TABLE lta_bom  INTO lv_stlnr WITH KEY werks = lwa_recipe-werks  matnr = lwa_recipe-matnr stlal = lwa_recipe-stlal.
+    SELECT SINGLE bmeng bmein  FROM stko INTO lwa_bsize
+*        for all ENTRIES IN it_bom
+    WHERE stlnr = lv_stlnr AND stlal = lwa_recipe-stlal.
+    lwa_bsize-werks = lwa_recipe-werks.
+    lwa_bsize-matnr = lwa_recipe-matnr.
+    lwa_bsize-verid = lwa_recipe-verid.
+    APPEND lwa_bsize  TO lta_bsize.
+  ENDLOOP.
+
+* Plant
+*  SELECT werks name1 FROM t001w INTO TABLE lta_plant
+*  FOR ALL ENTRIES IN ta_zpp_master_doc
+*  WHERE werks = ta_zpp_master_doc-werks.
+
+*Material Descrition
+  SELECT matnr maktx FROM  makt INTO TABLE lta_makt
+  FOR ALL ENTRIES IN ta_zpp_master_doc
+  WHERE matnr = ta_zpp_master_doc-matnr.
+
+  IF ta_zpp_master_doc IS NOT INITIAL.
+    SORT ta_zpp_master_doc BY matnr werks verid dokvr.
+    LOOP AT ta_zpp_master_doc INTO wa_zpp_master_doc.
+
+      wa_alv-dokar = wa_zpp_master_doc-dokar.
+      wa_alv-werks =  wa_zpp_master_doc-werks.
+      wa_alv-matnr = wa_zpp_master_doc-matnr.
+      wa_alv-verid = wa_zpp_master_doc-verid.
+      wa_alv-dokvr = wa_zpp_master_doc-dokvr.
+
+
+      CLEAR l_printed.
+
+      READ TABLE ta_plant INTO wa_plant WITH KEY werks = wa_zpp_master_doc-werks.
+      IF sy-subrc = 0.
+        wa_alv-name1 = wa_plant-name1.
+      ENDIF.
+      CLEAR lwa_bom.
+      READ TABLE lta_bom INTO lwa_bom WITH KEY werks = wa_zpp_master_doc-werks matnr = wa_zpp_master_doc-matnr.
+      IF sy-subrc = 0.
+        wa_alv-stlnr = lwa_bom-stlnr.
+      ENDIF.
+      CLEAR lwa_recipe.
+      READ TABLE lta_recipe INTO lwa_recipe WITH KEY werks = wa_zpp_master_doc-werks
+      matnr = wa_zpp_master_doc-matnr
+      verid = wa_zpp_master_doc-verid.
+      IF sy-subrc = 0.
+        wa_alv-plnnr = lwa_recipe-plnnr.
+      ENDIF.
+      READ TABLE lta_makt INTO lwa_makt WITH KEY matnr = wa_zpp_master_doc-matnr.
+      IF sy-subrc = 0.
+        wa_alv-maktx = lwa_makt-maktx.
+      ENDIF.
+      CLEAR lwa_dateformat.
+      READ TABLE lta_dateformat INTO lwa_dateformat  WITH KEY valpos = wa_zpp_master_doc-dateformat.
+
+      IF sy-subrc = 0.
+        wa_alv-ddtext = lwa_dateformat-ddtext.
+      ENDIF.
+      IF wa_zpp_master_doc-expiry_ind IS INITIAL.
+        wa_alv-ex_type = 'Provisional Expiry'.
+      ELSE.
+        wa_alv-ex_type = 'Expiry'.
+      ENDIF.
+
+*Status information
+*      CLEAR p_stat.
+*      CALL FUNCTION 'BAPI_DOCUMENT_GETSTATUS'
+*        EXPORTING
+*          documenttype      = wa_zpp_master_doc-dokar
+*          documentnumber    = wa_zpp_master_doc-doknr
+*          documentpart      = '000'
+*          documentversion   = wa_zpp_master_doc-dokvr
+*        IMPORTING
+*          statusextern      = p_stat
+*          statusintern      = g_old_status_int
+*          statusdescription = p_stat_desc
+*          return            = gs_dms_return.
+*      wa_alv-status = p_stat.
+      wa_alv-status = wa_zpp_master_doc-dokst.
+* Apprved Released Date
+*      READ TABLE lta_statusdate INTO lwa_statusdate WITH KEY doknr = wa_zpp_master_doc-doknr
+*      dokvr = wa_zpp_master_doc-dokvr
+*       dokst = p_stat ."'AV'.
+*      IF sy-subrc = 0.
+*        IF sy-tabix IS NOT INITIAL.
+      "Commented below FM for S4 prog conversion
+*      CALL FUNCTION 'FORMAT_DATE_4_OUTPUT'
+*        EXPORTING
+**         datin  = lwa_statusdate-datum
+*          datin  = wa_zpp_master_doc-datum
+*          format = l_format
+*        IMPORTING
+*          datex  = l_outdate.
+      "Added below FM for S4 prog conversion
+      IF wa_zpp_master_doc-datum IS NOT INITIAL.
+      CALL FUNCTION 'ZFORMAT_DATE_4_OUTPUT'
+        EXPORTING
+*         datin  = lwa_statusdate-datum
+          datin  = wa_zpp_master_doc-datum
+          format = l_format
+        IMPORTING
+          datex  = l_outdate.
+      ENDIF.
+      wa_alv-a_datum =  l_outdate.
+      CLEAR l_outdate.
+*        ENDIF.
+*      ENDIF.
+      CLEAR lwa_statusdate.
+*bsize
+      READ TABLE lta_bsize INTO lwa_bsize WITH KEY werks = wa_zpp_master_doc-werks
+          matnr = wa_zpp_master_doc-matnr
+          verid = wa_zpp_master_doc-verid.
+      IF sy-subrc = 0.
+        CLEAR l_bsize.
+        l_bsize = lwa_bsize-bmeng.
+        CONDENSE l_bsize.
+        CONCATENATE l_bsize lwa_bsize-bmein INTO wa_alv-bsize SEPARATED BY space.
+        CONDENSE wa_alv-bsize.
+      ENDIF.
+*ENDCASE.
+      IF wa_zpp_master_doc-description IS INITIAL AND
+         wa_zpp_master_doc-category IS INITIAL AND
+        wa_zpp_master_doc-labelclaim  IS INITIAL AND
+        wa_zpp_master_doc-shelf_life  IS INITIAL AND
+        wa_zpp_master_doc-markt_auth_no  IS INITIAL AND
+        wa_zpp_master_doc-country  IS INITIAL AND
+        wa_zpp_master_doc-cust_fgcode  IS INITIAL AND
+        wa_zpp_master_doc-cust_batch  IS INITIAL AND
+        wa_zpp_master_doc-packbefore  IS INITIAL AND
+        wa_zpp_master_doc-regular  IS INITIAL .
+        wa_alv-sel_sec = ''.
+        wa_alv-sel_sec = ''.
+      ENDIF.
+      IF wa_zpp_master_doc-description IS NOT INITIAL.
+        CONCATENATE wa_alv-sel_sec  'Description' INTO wa_alv-sel_sec SEPARATED BY '|'.
+      ENDIF.
+      IF wa_zpp_master_doc-category IS NOT INITIAL.
+        CONCATENATE wa_alv-sel_sec  'Category' INTO wa_alv-sel_sec SEPARATED BY '|'.
+      ENDIF.
+      IF wa_zpp_master_doc-labelclaim IS NOT INITIAL.
+        CONCATENATE wa_alv-sel_sec  'Labelclaim' INTO wa_alv-sel_sec SEPARATED BY '|'.
+      ENDIF.
+      IF wa_zpp_master_doc-shelf_life IS NOT INITIAL.
+        CONCATENATE wa_alv-sel_sec  'Shelf Life' INTO wa_alv-sel_sec SEPARATED BY '|'.
+      ENDIF.
+      IF wa_zpp_master_doc-markt_auth_no IS NOT INITIAL.
+        CONCATENATE wa_alv-sel_sec  'MA Number' INTO wa_alv-sel_sec SEPARATED BY '|'.
+      ENDIF.
+      IF wa_zpp_master_doc-country IS NOT INITIAL.
+        CONCATENATE wa_alv-sel_sec  'Country' INTO wa_alv-sel_sec SEPARATED BY '|'.
+      ENDIF.
+      IF wa_zpp_master_doc-cust_fgcode IS NOT INITIAL.
+        CONCATENATE wa_alv-sel_sec  'Cust Fgcode' INTO wa_alv-sel_sec SEPARATED BY '|'.
+      ENDIF.
+      IF wa_zpp_master_doc-cust_batch IS NOT INITIAL.
+        CONCATENATE wa_alv-sel_sec  'Cust Batch' INTO wa_alv-sel_sec SEPARATED BY '|'.
+      ENDIF.
+      IF wa_zpp_master_doc-packbefore IS NOT INITIAL.
+        CONCATENATE wa_alv-sel_sec  'Pack Before' INTO wa_alv-sel_sec SEPARATED BY '|'.
+      ENDIF.
+      IF wa_zpp_master_doc-regular IS NOT INITIAL.
+        CONCATENATE wa_alv-sel_sec  'Reguler' INTO wa_alv-sel_sec SEPARATED BY '|'.
+      ENDIF.
+      g_count = g_count + 1.
+      wa_alv-srno = g_count.
+      APPEND wa_alv TO ta_alv.
+
+      CLEAR wa_alv.
+
+    ENDLOOP.
+  ENDIF.
+ENDFORM.                    " RETRIVE_DATA
+*&---------------------------------------------------------------------*
+*&      Form  F4_STATUS
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM f4_status .
+
+  TYPES : BEGIN OF ty_status,
+*    doknr TYPE doknr,
+            dokst TYPE dokst,
+          END OF ty_status.
+
+  DATA : ta_status   TYPE STANDARD TABLE OF ty_status,
+         ta_statusop LIKE ddshretval OCCURS 0 WITH HEADER LINE.
+  REFRESH ta_status.
+  REFRESH ta_statusop.
+  SELECT DISTINCT dokst FROM draw INTO TABLE ta_status
+  FOR ALL ENTRIES IN  ta_master_f4
+  WHERE doknr = ta_master_f4-doknr  "( SELECT doknr FROM zpp_master_doc WHERE matnr IN s_matnr ).
+  AND dokvr = ta_master_f4-dokvr AND dokar = ta_master_f4-dokar.
+  DELETE ADJACENT DUPLICATES FROM ta_status COMPARING dokst.
+
+  CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+    EXPORTING
+      retfield        = 'DOKST'
+*     dynpprog        = sy-repid
+*     dynpnr          = '1000'
+*     dynprofield     = 'P_CHSTAT'
+      value_org       = 'S'
+    TABLES
+      value_tab       = ta_status
+      return_tab      = ta_statusop
+    EXCEPTIONS
+      parameter_error = 1
+      no_values_found = 2
+      OTHERS          = 3.
+  s_status-high = ta_statusop-fieldval.
+  s_status-low = ta_statusop-fieldval.
+ENDFORM.                    " F4_STATUS
+*&---------------------------------------------------------------------*
+*&      Form  F4_DTFRMT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM f4_dtfrmt .
+  TYPES : BEGIN OF ty_dtfrmt,
+            ddtext TYPE ddtext,
+            valpos TYPE valpos,
+          END OF ty_dtfrmt.
+
+  DATA : ta_dtfrmt   TYPE STANDARD TABLE OF ty_dtfrmt,
+         wa_dtfrmt   TYPE ty_dtfrmt,
+         ta_dtfrmtop LIKE ddshretval OCCURS 0 WITH HEADER LINE.
+
+  TYPES : BEGIN OF ty_dtfrmt1,
+            ddtext     TYPE ddtext,
+            dateformat TYPE zpp_format,
+          END OF ty_dtfrmt1.
+
+  DATA : ta_dtfrmt1 TYPE STANDARD TABLE OF ty_dtfrmt1,wa_dtfrmt1 TYPE ty_dtfrmt1.
+
+  DATA : l_dtformat TYPE zpp_format.
+  REFRESH ta_dtfrmt.
+  REFRESH ta_dtfrmt1.
+  REFRESH ta_dtfrmtop.
+  SELECT ddtext valpos FROM dd07t INTO TABLE ta_dtfrmt
+  WHERE domname = 'ZPP_FORMAT'.
+
+  DELETE ADJACENT DUPLICATES FROM ta_dtfrmt COMPARING ALL FIELDS.
+
+  LOOP AT ta_dtfrmt INTO  wa_dtfrmt.
+
+    CALL FUNCTION 'CONVERSION_EXIT_ALPHA_OUTPUT'
+      EXPORTING
+        input  = wa_dtfrmt-valpos
+      IMPORTING
+        output = l_dtformat.
+
+    wa_dtfrmt1-dateformat = l_dtformat.
+    wa_dtfrmt1-ddtext = wa_dtfrmt-ddtext.
+    APPEND wa_dtfrmt1 TO ta_dtfrmt1.
+
+  ENDLOOP.
+
+  CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+    EXPORTING
+      retfield        = 'VALPOS'
+*     dynpprog        = sy-repid
+*     dynpnr          = '1000'
+*     dynprofield     = 'P_CHSTAT'
+      value_org       = 'S'
+    TABLES
+      value_tab       = ta_dtfrmt1
+      return_tab      = ta_dtfrmtop
+    EXCEPTIONS
+      parameter_error = 1
+      no_values_found = 2
+      OTHERS          = 3.
+  s_dtfrmt-high = ta_dtfrmtop-fieldval.
+  s_dtfrmt-low = ta_dtfrmtop-fieldval.
+ENDFORM.                    " F4_DTFRMT
+
+*&---------------------------------------------------------------------*
+*&      Form  GET_MAIN_DATA
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_SELECTION  text
+*----------------------------------------------------------------------*
+FORM get_main_data  USING p_selection.
+
+  DATA: cond(100) TYPE c,
+        it_cond   LIKE TABLE OF cond.
+  cond = p_selection.
+  APPEND cond TO it_cond.
+*  SELECT dokvr doknr dokst datum FROM drap INTO TABLE lta_statusdate "FOR ALL ENTRIES IN ta_zpp_master_doc
+*    WHERE dokst IN s_status
+*    AND dokvr IN s_dokvr
+*    AND datum IN s_date
+*    AND dokar EQ 'BPR' .
+*
+*  LOOP AT lta_statusdate INTO lwa_statusdate.
+*
+*    CLEAR p_stat.
+*    CALL FUNCTION 'BAPI_DOCUMENT_GETSTATUS'
+*      EXPORTING
+*        documenttype      = 'BPR'
+*        documentnumber    = lwa_statusdate-doknr
+*        documentpart      = '000'
+*        documentversion   = lwa_statusdate-dokvr
+*      IMPORTING
+*        statusextern      = p_stat
+*        statusintern      = g_old_status_int
+*        statusdescription = p_stat_desc
+*        return            = gs_dms_return.
+*    IF p_stat EQ lwa_statusdate-dokst.
+*      lwa_statusdate_c-dokvr = lwa_statusdate-dokvr .
+*      lwa_statusdate_c-doknr = lwa_statusdate-doknr .
+*      lwa_statusdate_c-dokst = lwa_statusdate-dokst .
+*      lwa_statusdate_c-datum = lwa_statusdate-datum .
+*      APPEND lwa_statusdate_c TO lta_statusdate_c.
+*    ENDIF.
+*  ENDLOOP.
+*
+*  SELECT m~dokar m~werks m~matnr m~doknr m~verid m~dokvr
+*      h~dateformat h~expiry_ind h~description h~category h~labelclaim
+*      h~shelf_life h~markt_auth_no h~country h~cust_fgcode h~cust_batch
+*      h~packbefore h~regular
+*      FROM zpp_master_doc AS m
+*      INNER JOIN zpp_mdoc_header AS h  ON h~doknr EQ m~doknr AND h~dokvr EQ m~dokvr
+**    inner JOIN DD07T AS D ON  D~valpos  eq h~dateformat AND domname EQ 'ZPP_FORMAT'
+*      INTO CORRESPONDING FIELDS OF TABLE ta_zpp_master_doc FOR ALL ENTRIES IN
+*      lta_statusdate_c WHERE m~doknr EQ lta_statusdate_c-doknr
+*            AND m~dokvr EQ lta_statusdate_c-dokvr
+*            AND matnr IN s_matnr
+*    AND werks IN s_plant
+*    AND verid IN s_verid
+**          AND m~dokvr IN s_dokvr
+*    AND dateformat IN s_dtfrmt
+**    AND expiry_ind IN s_exptyp
+*   AND  (it_cond).
+
+
+  SELECT m~dokar m~werks m~matnr m~doknr m~verid m~dokvr
+      h~dateformat h~expiry_ind h~description h~category h~labelclaim
+      h~shelf_life h~markt_auth_no h~country h~cust_fgcode h~cust_batch
+      h~packbefore h~regular d~dokst d~datum
+      FROM zpp_master_doc AS m
+      INNER JOIN zpp_mdoc_header AS h  ON h~doknr EQ m~doknr AND h~dokvr EQ m~dokvr
+*    inner JOIN DD07T AS D ON  D~valpos  eq h~dateformat AND domname EQ 'ZPP_FORMAT'
+      INNER JOIN draw AS w ON w~doknr EQ m~doknr AND w~dokvr EQ m~dokvr
+      INNER JOIN drap AS d ON d~doknr EQ m~doknr AND d~dokvr EQ m~dokvr
+      AND d~dokst EQ w~dokst AND w~doktl EQ d~doktl AND w~dokar EQ d~dokar
+      INTO CORRESPONDING FIELDS OF TABLE ta_zpp_master_doc
+    WHERE
+          m~dokvr IN s_dokvr
+            AND matnr IN s_matnr
+    AND werks IN s_plant
+    AND verid IN s_verid
+    AND w~dokst IN s_status
+    AND d~datum IN s_date
+    "AND m~dokar EQ 'BPR'
+    AND m~dokar EQ doc_type
+
+*          AND m~dokvr IN s_dokvr
+    AND dateformat IN s_dtfrmt
+*    AND expiry_ind IN s_exptyp
+   AND  (it_cond).
+
+ENDFORM.                    " GET_MAIN_DATA
+*&---------------------------------------------------------------------*
+*&      Form  F4_WERKS
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM f4_werks .
+  CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+    EXPORTING
+      retfield        = 'werks'
+*     dynpprog        = sy-repid
+*     dynpnr          = '1000'
+*     dynprofield     = 'P_CHSTAT'
+      value_org       = 'S'
+    TABLES
+      value_tab       = ta_plant
+      return_tab      = ta_plantop
+    EXCEPTIONS
+      parameter_error = 1
+      no_values_found = 2
+      OTHERS          = 3.
+  s_plant-high = ta_plantop-fieldval.
+  s_plant-low = ta_plantop-fieldval.
+ENDFORM.                    " F4_WERKS
+*&---------------------------------------------------------------------*
+*&      Form  F4_VERID
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM f4_verid .
+  TYPES : BEGIN OF ty_verid,
+            verid TYPE verid,
+          END OF ty_verid.
+  DATA : lta_verid   TYPE STANDARD TABLE OF ty_verid,
+         lwa_verid   TYPE ty_verid,
+         lta_veridop LIKE ddshretval OCCURS 0 WITH HEADER LINE.
+
+  REFRESH lta_verid.
+  REFRESH lta_veridop.
+* READ TABLE ta_master_f4 into CORRESPONDING lta_verid.
+  MOVE-CORRESPONDING ta_master_f4 TO lta_verid.
+  SORT lta_verid BY verid.
+  DELETE ADJACENT DUPLICATES FROM lta_verid COMPARING ALL FIELDS.
+  CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+    EXPORTING
+      retfield        = 'verid'
+*     dynpprog        = sy-repid
+*     dynpnr          = '1000'
+*     dynprofield     = 'P_CHSTAT'
+      value_org       = 'S'
+    TABLES
+*     value_tab       = ta_verid
+      value_tab       = lta_verid
+      return_tab      = lta_veridop
+    EXCEPTIONS
+      parameter_error = 1
+      no_values_found = 2
+      OTHERS          = 3.
+  s_verid-high = lta_veridop-fieldval.
+  s_verid-low = lta_veridop-fieldval.
+ENDFORM.                    " F4_VERID
+*&---------------------------------------------------------------------*
+*&      Form  F4_DOKVR
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM f4_dokvr .
+  TYPES : BEGIN OF ty_dokvr,
+            dokvr TYPE dokvr,
+          END OF ty_dokvr.
+  DATA : lta_dokvr   TYPE STANDARD TABLE OF ty_dokvr,
+         lwa_dokvr   TYPE ty_dokvr,
+         lta_dokvrop LIKE ddshretval OCCURS 0 WITH HEADER LINE.
+
+  REFRESH lta_dokvr.
+  REFRESH lta_dokvrop.
+* READ TABLE ta_master_f4 into CORRESPONDING lta_verid.
+  MOVE-CORRESPONDING ta_master_f4 TO lta_dokvr.
+  SORT lta_dokvr BY dokvr.
+  DELETE ADJACENT DUPLICATES FROM lta_dokvr COMPARING ALL FIELDS.
+  CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+    EXPORTING
+      retfield        = 'dokvr'
+*     dynpprog        = sy-repid
+*     dynpnr          = '1000'
+*     dynprofield     = 'P_CHSTAT'
+      value_org       = 'S'
+    TABLES
+*     value_tab       = ta_verid
+      value_tab       = lta_dokvr
+      return_tab      = lta_dokvrop
+    EXCEPTIONS
+      parameter_error = 1
+      no_values_found = 2
+      OTHERS          = 3.
+  s_dokvr-high = lta_dokvrop-fieldval.
+  s_dokvr-low = lta_dokvrop-fieldval.
+ENDFORM.                    " F4_DOKVR

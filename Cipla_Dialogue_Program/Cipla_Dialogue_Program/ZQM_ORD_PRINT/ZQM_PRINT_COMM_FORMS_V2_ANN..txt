@@ -1,0 +1,1101 @@
+*----------------------------------------------------------------------*
+***INCLUDE ZPPR_BPRINT_COMMON_FORMS_V2.
+*----------------------------------------------------------------------*
+* Program         : Issuance of Annexture
+* Title           : Annexture Development
+* Author          : Sushil Pandey
+* Program Type    : Module Pool
+* Creation Date   : 18.12.2020
+* Transaction     : ZQM_ANNEXTURE
+* Functional design: QM_155
+* Technical design:
+* Change request :  <8000006529>
+* Transport number: <transport number>
+* Description     : Issuance of Annexture
+*----------------------------------------------------------------------*
+* Modification Information
+* Date            :
+* Author          :
+* Transport number:
+* Description     :
+*	*----------------------------------------------------------------------*
+
+*&---------------------------------------------------------------------*
+*&      Form  FILL_BPRINT_SCREEN_FIELDS
+*&---------------------------------------------------------------------*
+
+FORM fill_bprint_screen_fields .
+  DATA: l_text TYPE string,
+        lv_mat TYPE matnr.
+  DATA: lv_flag.
+
+*  IF prev_order <> p_order OR prev_batch <> p_batch.   "commented on 08.11.2014
+
+**start commented in 21.11.2014
+*  "2.0 Batch
+*  p_batch = gs_afpo-charg.
+*  PERFORM check_batch_date.
+**end commented in 21.11.2014
+
+  "3.0 Plant
+  p_plant = gs_afpo-werks.
+***    soc  on 23.09.2014 as req from vimal for logic chaange in formulation ll plants
+  SELECT SINGLE name1 FROM t001w INTO p_wdesc WHERE werks = gs_afpo-werks.
+  PERFORM fetch_plantname USING gs_afpo-werks CHANGING p_wdesc.
+***    eoc  on 23.09.2014 as req from vimal for logic chaange in formulation ll plants
+
+  PERFORM check_auth_plant_cv2 USING gs_afpo-werks.      "added on 08.06.2015 by payal
+
+  "4.0 Material
+  p_mat = gs_afpo-matnr.
+
+  SELECT SINGLE maktx
+    FROM makt
+    INTO l_text
+    WHERE matnr = p_mat
+    AND spras = sy-langu.
+  PERFORM idnrk_conversion_input USING p_mat CHANGING lv_mat.
+
+  PERFORM fetch_comp_text USING lv_mat l_text CHANGING p_mdesc.
+
+**addeded in 21.11.2014
+  "2.0 Batch
+  p_batch = gs_afpo-charg.
+  PERFORM check_batch_date.
+**addeded in 21.11.2014
+
+  "5.0 Production Version
+  p_prd_vn = gs_afpo-verid.
+
+  "6.0 Document Version
+  SELECT * FROM zqm_ann_data INTO TABLE gt_mdoc
+    WHERE werks = p_plant
+    AND ann_no  = ann_no
+    AND dokar = doc_type.
+  IF sy-subrc <> 0.
+    MESSAGE s061(zppr_formu).
+    RETURN.
+  ENDIF.
+  SORT gt_mdoc BY dokvr DESCENDING.
+  LOOP AT gt_mdoc INTO gs_mdoc.
+    CALL FUNCTION 'BAPI_DOCUMENT_GETSTATUS' "Read Document Status
+      EXPORTING
+        documenttype      = gs_mdoc-dokar
+        documentnumber    = gs_mdoc-dms_doc
+        documentpart      = gs_mdoc-doktl
+        documentversion   = gs_mdoc-dokvr
+      IMPORTING
+        statusextern      = p_stat
+        statusintern      = g_old_status_int
+        statusdescription = p_stat_desc
+        return            = gs_dms_return.
+    IF p_stat = 'AV'.
+      lv_flag = 'X'.
+      EXIT. "Latest Approved Version found. Exit out of loop
+    ENDIF.
+  ENDLOOP.
+  IF lv_flag IS INITIAL.
+    MESSAGE e049(zppr_formu).
+    CLEAR: p_stat, p_stat_desc, g_old_status_int, gs_dms_return.
+  ENDIF.
+*  ENDIF.
+
+  CLEAR gs_print_log.
+  SELECT SINGLE *
+    FROM zqm_ann_printlog
+    INTO gs_print_log
+    WHERE charg = p_batch
+    AND aufnr = p_order
+    AND printtype = 'BP'.
+  IF sy-subrc IS INITIAL.
+    gs_mdoc-dokvr = gs_print_log-dokvr.
+  ENDIF.
+
+  p_dms = gs_mdoc-dokvr.
+
+
+ENDFORM.                    " FILL_BPRINT_SCREEN_FIELDS
+*&---------------------------------------------------------------------*
+*&      Form  CHECK_REQ_FIELDS_BPRINT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM check_req_fields_bprint .
+  IF p_reprint = 'X' AND p_reason IS INITIAL.
+    MESSAGE e317(zqm).
+  ENDIF.
+
+ENDFORM.                    " CHECK_REQ_FIELDS_BPRINT
+*&---------------------------------------------------------------------*
+*&      Form  BPRINT_VALIDATION
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM bprint_validation .
+
+  DATA : ta_print_n TYPE TABLE OF zppt_printlog1,
+         wa_print_n TYPE zppt_printlog1.
+
+  DATA: lt_print_count1 TYPE TABLE OF zppt_printlog,
+        ls_print_count1 TYPE zppt_printlog.
+
+  DATA: lv_string TYPE string.
+
+  CONSTANTS : co_e(1)     TYPE c VALUE 'E',
+              co_i(1)     TYPE c VALUE 'I',
+              co_msg1(50) TYPE c VALUE 'Entry is Open for Material No ',
+              co_msgp(10) TYPE c VALUE 'Plant ',
+              co_msgb(10) TYPE c VALUE 'Batch ',
+              co_msgo(10) TYPE c VALUE 'Order ',
+              co_av       TYPE zppt_printlog-status VALUE 'AV'.
+
+
+  IF p_order IS INITIAL.
+    MESSAGE e306(zqm).
+  ELSE.
+*    CLEAR gs_print_log.
+*    SELECT SINGLE * FROM zqm_ann_printlog INTO gs_print_log
+*      WHERE aufnr = p_order AND printtype = 'OP'.
+*    IF gs_print_log IS NOT INITIAL AND p_bprint = 'X'.
+*      MESSAGE e307(zqm).
+*    ENDIF.
+*    IF gs_print_log IS INITIAL AND p_reprint EQ 'X'.
+*      MESSAGE e308(zqm).
+*    ENDIF.
+
+
+  ENDIF.
+ENDFORM.                    " BPRINT_VALIDATION
+*&---------------------------------------------------------------------*
+*&      Form  CHECK_ORDER_STATUS
+*&---------------------------------------------------------------------*
+FORM check_order_status.
+  DATA: l_objnr       TYPE j_objnr,
+        l_stat        TYPE j_status,
+        l_status(100) TYPE c.
+** check process order status: batch print should not be allowed
+  SELECT SINGLE objnr
+    INTO l_objnr
+    FROM aufk CLIENT SPECIFIED
+    WHERE mandt = sy-mandt
+    AND aufnr = p_order.
+  IF l_objnr IS NOT INITIAL.
+    SELECT SINGLE stat
+      FROM jest CLIENT SPECIFIED
+      INTO l_stat
+      WHERE mandt = sy-mandt
+      AND objnr = l_objnr
+      AND stat = 'I0002'.  "Released
+    IF sy-subrc IS NOT INITIAL.
+*      CLEAR prev_order.    "commented  on 08.11.2014
+      MESSAGE e038(zppr_formu) WITH 'Not Yet Released'.
+    ELSE.
+      SELECT SINGLE stat
+        FROM jest CLIENT SPECIFIED
+        INTO l_stat
+        WHERE mandt = sy-mandt
+        AND objnr = l_objnr
+        AND inact = space.   " Active
+      IF sy-subrc IS NOT INITIAL.
+*        CLEAR prev_order.    "commented  on 08.11.2014
+        MESSAGE e038(zppr_formu) WITH 'Inactive'.
+      ELSE.
+        SELECT SINGLE stat
+          FROM jest CLIENT SPECIFIED
+          INTO l_stat
+          WHERE mandt = sy-mandt
+          AND objnr = l_objnr
+          AND inact = space     "added on 06.01.2015
+          AND ( stat = 'I0045' "TECO
+          OR stat = 'I0046' "Closed
+          OR stat = 'I0076' )."Deletion Flag
+        IF sy-subrc IS INITIAL.
+*          CLEAR prev_order.        "commented  on 08.11.2014
+          SELECT SINGLE txt30
+            FROM tj02t
+            INTO l_status
+            WHERE istat = l_stat
+            AND spras = sy-langu.
+          MESSAGE e038(zppr_formu) WITH l_status.
+        ENDIF.
+      ENDIF.
+    ENDIF.
+  ENDIF.
+ENDFORM.                    " CHECK_ORDER_STATUS
+*&---------------------------------------------------------------------*
+*&      Form  SET_BATCH_PRINTTYPE
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      <--P_PRINTTYPE  text
+*----------------------------------------------------------------------*
+FORM set_batch_printtype  CHANGING p_printtype.
+  IF p_bprint EQ 'X'.
+    p_printtype = 'BP'.
+  ELSEIF p_reprint EQ 'X'.
+    p_printtype = 'BR'.
+  ENDIF.
+ENDFORM.                    " SET_BATCH_PRINTTYPE
+*&---------------------------------------------------------------------*
+*&      Form  UPDATE_BATCH_DOCUMENT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM update_batch_document .
+
+  PERFORM create_obj_word USING gv_file_path.
+  PERFORM get_total_no_of_pages CHANGING g_mast_pages.
+  PERFORM master_creation_detail.
+
+  DATA: ta_bmr_logodt TYPE TABLE OF zpp_bmr_logodt,
+        wa_bmr_logodt TYPE zpp_bmr_logodt.
+
+  PERFORM fill_footer.
+  PERFORM set_actview USING '9'. "Header(9) or Main(0)
+  PERFORM set_bold USING '1'.
+  PERFORM update_batch_header.
+  PERFORM set_bold USING '0'.
+  PERFORM set_actview USING '0'.
+  PERFORM update_batch_mainview.
+ENDFORM.                    " UPDATE_BATCH_DOCUMENT
+*&---------------------------------------------------------------------*
+*&      Form  CHECK_BATCH_DATE
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM check_batch_date.
+  DATA: lv_maxlz  TYPE maxlz,
+        lv_days   TYPE hsdat,
+        lv_months TYPE t5a4a-dlymo.
+
+  CLEAR: gv_exp_date, gv_mfg_date.    "added on 08.11.2014
+
+  SELECT SINGLE hsdat vfdat
+    FROM mch1
+    INTO (gv_mfg_date, gv_exp_date)
+    WHERE matnr = p_mat             "added on 21.11.2014
+    AND charg = p_batch.
+
+  " begin of changes #8000005794 26 may
+
+  SELECT SINGLE bwkey bukrs
+FROM t001k
+INTO (gv_bwkey,gv_bukrs_sa)
+WHERE bwkey EQ p_plant.
+  IF sy-subrc = 0.
+
+    SELECT SINGLE * FROM zparam_table
+      INTO gv_param_sa
+      WHERE ( id_name EQ co_bmr_id OR id_name = co_bpr_id )
+      AND param_name = gv_bukrs_sa.
+    IF sy-subrc NE 0.
+      CLEAR gv_bukrs_sa.
+    ELSE.
+
+    ENDIF.
+  ENDIF.
+  IF gv_bukrs_sa IS NOT INITIAL.
+  ELSE.
+    " end of changes #8000005794
+    IF ( gv_mfg_date IS INITIAL OR gv_exp_date IS INITIAL OR gv_mfg_date EQ '00000000' OR gv_exp_date EQ '00000000' ).
+      PERFORM clear_batch_data.
+      MESSAGE e011(zppr_formu).
+    ENDIF.
+  ENDIF. " changes #8000005794
+  CLEAR: lv_maxlz, lv_months, lv_days, gv_pack_before.
+  SELECT SINGLE maxlz
+    INTO lv_maxlz
+    FROM marc CLIENT SPECIFIED
+    WHERE mandt = sy-mandt
+      AND matnr = gs_afpo-matnr
+      AND werks = gs_afpo-werks.
+
+  lv_months = lv_maxlz.
+
+  CALL FUNCTION 'RP_CALC_DATE_IN_INTERVAL'
+    EXPORTING
+      date      = gv_mfg_date
+      days      = '00'
+      months    = lv_months
+      signum    = '+'
+      years     = '00'
+    IMPORTING
+      calc_date = lv_days.
+
+  CALL FUNCTION 'RP_CALC_DATE_IN_INTERVAL'
+    EXPORTING
+      date      = lv_days
+      days      = '01'
+      months    = '00'
+      signum    = '-'
+      years     = '00'
+    IMPORTING
+      calc_date = gv_pack_before.
+ENDFORM.                    " CHECK_BATCH_DATE
+*&---------------------------------------------------------------------*
+*&      Form  UPDATE_BATCH_HEADER
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM update_batch_header .
+
+  PERFORM fetch_customer_name.
+
+  PERFORM word_find USING c_cust_name
+                      '0' '1' '1' '0' '0' 'True' '1' '0'
+                      gv_hd_cust '2'.
+
+  IF p_mat IS NOT INITIAL.
+    DATA: lv_atinn TYPE atinn, lv_atwrt TYPE atwrt.
+    SELECT SINGLE atinn FROM cabn INTO lv_atinn WHERE atinn LIKE '%' AND adzhl LIKE '%' AND atnam = 'ZCUSTOMER'.
+    IF sy-subrc = 0.
+      SELECT SINGLE atwrt FROM ausp INTO lv_atwrt WHERE objek = p_mat AND atinn = lv_atinn.
+      IF sy-subrc = 0.
+        SELECT SINGLE name1 FROM kna1 INTO gv_hd_cust WHERE kunnr = lv_atwrt.
+      ENDIF.
+    ENDIF.
+
+  ENDIF.
+  IF p_preview = 'X'.
+    gv_hd_printtype = 'PREVIEW'.
+  ELSEIF p_reprint = 'X'.
+    gv_hd_printtype = 'REPRINT'.
+  ELSE.
+    CLEAR gv_hd_printtype.
+  ENDIF.
+
+  PERFORM word_find USING c_hd_printtype
+                      '0' '1' '1' '0' '0' 'True' '1' '0'
+                      gv_hd_printtype '2'.
+
+  CALL FUNCTION 'CONVERSION_EXIT_ALPHA_OUTPUT'
+    EXPORTING
+      input  = p_order
+    IMPORTING
+      output = gv_hd_po.
+
+  PERFORM word_find USING c_hd_plant                    " Plant code
+                    '0' '1' '1' '0' '0' 'True' '1' '0'
+                    p_plant '2'.
+  IF p_wdesc IS INITIAL.
+    PERFORM fetch_plantname USING p_plant CHANGING p_wdesc.
+  ENDIF.
+
+  PERFORM word_find USING c_hd_pdesc                    " Plant Name
+                    '0' '1' '1' '0' '0' 'True' '1' '0'
+                    p_wdesc '2'.
+
+  PERFORM fetch_department.
+
+  PERFORM word_find USING c_hd_dept
+                    '0' '1' '1' '0' '0' 'True' '1' '0'
+                    gv_hd_dept '2'.
+
+
+  gv_hd_batch = gs_afpo-charg. "p_batch.
+  IF gv_hd_batch IS INITIAL.
+    gv_hd_batch = lwa_zqm_ann_addprint-charg.
+  ENDIF.
+  PERFORM word_find USING c_hd_batch
+                    '0' '1' '1' '0' '0' 'True' '1' '0'
+                    gv_hd_batch '2'.
+  IF p_mdesc IS INITIAL.
+    lv_mat_co = |{ gs_afpo-matnr ALPHA = IN }|.
+    IF lv_mat_co IS INITIAL.
+      lv_mat_co = |{ lwa_zqm_ann_addprint-matnr ALPHA = IN }|.
+    ENDIF.
+    SELECT SINGLE maktx FROM makt INTO p_mdesc WHERE matnr = lv_mat_co AND spras = 'E'.
+  ENDIF.
+  PERFORM word_find USING c_hd_prod
+                   '0' '1' '1' '0' '0' 'True' '1' '0'
+                   p_mdesc '2'.
+
+  PERFORM word_find USING c_hd_po
+                '0' '1' '1' '0' '0' 'True' '1' '0'
+                gv_hd_po '2'.
+
+  gv_hd_sfg = |{ p_mat ALPHA = OUT }|.
+  PERFORM word_find USING c_hd_code
+*  PERFORM word_find USING c_hd_sfg
+   '0' '1' '1' '0' '0' 'True' '1' '0'
+   gv_hd_sfg '2'.
+
+
+  "Production Version
+  PERFORM word_find USING c_hd_prd_vn
+            '0' '1' '1' '0' '0' 'True' '1' '0'
+            p_prd_vn '2'.
+
+  IF p_dms IS INITIAL.
+    p_dms = gs_afpo-dokvr.
+  ENDIF.
+  PERFORM word_find USING c_hd_dmsver
+                      '0' '1' '1' '0' '0' 'True' '1' '0'
+                      p_dms '2'. "gs_mdoc-dokvr '2'.
+
+  IF NOT gv_ann_no IS INITIAL AND p_plant IS NOT INITIAL.
+    SELECT SINGLE ann_desc FROM zqm_master_annex INTO @DATA(lv_ann_des) WHERE werks = @p_plant AND ann_no = @gv_ann_no.
+    IF sy-subrc = 0.
+      "Do nothing
+    ENDIF.
+  ENDIF.
+
+
+  PERFORM word_find USING c_ann_desc
+                      '0' '1' '1' '0' '0' 'True' '1' '0'
+                      lv_ann_des '2'.
+
+
+ENDFORM.                    " UPDATE_BATCH_HEADER
+*&---------------------------------------------------------------------*
+*&      Form  UPDATE_BATCH_MAINVIEW
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM update_batch_mainview .
+  DATA: l_dateformat   TYPE zpp_format,
+        l_ddtext(11)   TYPE c, "rn1datum-format,
+        l_date_ph      TYPE string,
+        l_act_date(11) TYPE c, "rn1datum-datex,
+        l_flag         TYPE c, "l_flag = 'X' for Regular and ' ' for Injectables
+        l_gamng        TYPE kmpmg, l_gmein TYPE meins,
+        l_expo         TYPE char40,
+        l_kdpos        TYPE kdpos,
+        l_stlal        TYPE stlal,
+        l_stlnr        TYPE stnum,
+        l_bmeng        TYPE menge13,
+        l_bmein        TYPE meins,
+        l_matnr        TYPE matnr,
+        lwa_mseg       TYPE mseg,
+        lwa_caufv      TYPE caufv,
+        lwa_afpo       TYPE afpo,
+        lwa_stko       TYPE stko.
+  .
+
+  PERFORM replace_batch_size.   "added on 11.04.2014 for batch size placeholder
+
+*  PERFORM fetch_material_type.
+
+  "Date format
+  SELECT SINGLE dateformat
+    FROM zpp_mdoc_header
+    INTO l_dateformat
+    WHERE dokar = gs_mdoc-dokar
+      AND doknr = gs_mdoc-dms_doc
+      AND dokvr = gs_mdoc-dokvr.
+
+  SELECT SINGLE ddtext
+    FROM dd07t
+    INTO l_ddtext
+    WHERE domname = 'ZPP_FORMAT'
+      AND ddlanguage = sy-langu
+      AND valpos = l_dateformat.
+
+  "Maf date
+  PERFORM date_format_conversion USING gv_mfg_date l_ddtext CHANGING l_act_date.
+
+  CONCATENATE '&' l_ddtext ' &' INTO l_date_ph.
+
+  PERFORM word_find USING l_date_ph
+                  '0' '1' '1' '0' '0' 'True' '1' '0'
+                  l_act_date '2'.
+
+  "exp date
+  CLEAR: l_date_ph, l_act_date.
+
+  PERFORM date_format_conversion USING gv_exp_date l_ddtext CHANGING l_act_date.
+
+  CONCATENATE '&' l_ddtext '&' INTO l_date_ph.
+  PERFORM word_find USING l_date_ph
+                  '0' '1' '1' '0' '0' 'True' '1' '0'
+                  l_act_date '2'.
+
+  IF doc_type = 'ZAN'.
+    SELECT SINGLE regular
+      FROM zpp_mdoc_header
+      INTO l_flag
+      WHERE dokar = gs_mdoc-dokar AND doknr = gs_mdoc-dms_doc AND dokvr = gs_mdoc-dokvr.
+  ELSEIF doc_type = 'BPR'.
+    DATA: ls_afpo TYPE afpo.
+    "Mother Batch Size
+    LOOP AT gt_resb INTO gs_resb.
+****** SOA by Vrushali on 04.09.2015 to print mother batch size for material type ZNVL and ZBFG.
+      LOOP AT gt_mtart WHERE matnr = gs_resb-matnr AND ( mtart = c_mtart OR mtart = c_mtart_znvl ) AND matkl(3) EQ c_matkl.
+*      ENDLOOP.
+****** EOA by Vrushali on 04.09.2015.
+****** SOC by Vrushali on 04.09.2015 replace by above loop gt_mtart.
+*      READ TABLE gt_mtart WITH KEY matnr = gs_resb-matnr mtart = c_mtart.
+*      IF sy-subrc = 0.
+***** EOC by Vrushali on 04.09.2015.
+        CLEAR ls_afpo.
+        SELECT SINGLE * FROM  afpo CLIENT SPECIFIED
+          INTO ls_afpo
+               WHERE  mandt  = sy-mandt
+               AND    charg  = gs_resb-charg
+               AND    matnr = gs_resb-matnr.      "added on 23.03.2015
+
+        CLEAR: l_bmeng , l_bmein.
+        SELECT SINGLE gamng gmein plnbez FROM  afko CLIENT SPECIFIED
+          INTO (l_bmeng,l_bmein, l_matnr)
+               WHERE  mandt  = sy-mandt
+               AND    aufnr  = ls_afpo-aufnr.
+
+*        SELECT SINGLE bmeng bmein FROM stko INTO (l_bmeng,l_bmein) WHERE stlnr = gs_resb-stlnr AND stlal = gs_resb-stlal.
+
+*        gv_mother_qty = l_bmeng.
+*        WRITE l_bmeng TO gv_mother_qty DECIMALS 0 ROUND 0.
+
+
+***soa on 09.01.2016
+        DATA: l_bfgverid TYPE afpo-verid.
+        SELECT SINGLE verid FROM  afpo
+                  INTO l_bfgverid
+                       WHERE  matnr  = gs_resb-matnr
+                       AND    pwerk  = gs_resb-werks
+                       AND    charg  = gs_resb-charg.
+***eoa on 09.01.2016
+
+***soa on 30.06.2015 solman 8000000876
+        IF l_bmeng IS INITIAL.
+          SELECT  SINGLE * FROM  mseg CLIENT SPECIFIED
+            INTO lwa_mseg
+                 WHERE  mandt  = sy-mandt
+                 AND    bwart  = '309'
+                 AND    ummat  = gs_resb-matnr
+                 AND    umwrk  = gs_resb-werks
+                 AND    umcha  = gs_resb-charg.
+
+          SELECT SINGLE * FROM  afpo
+            INTO lwa_afpo
+                 WHERE  matnr  = lwa_mseg-matnr
+                 AND    pwerk  = lwa_mseg-werks
+                 AND    charg  = lwa_mseg-charg.
+
+          SELECT SINGLE * FROM  caufv CLIENT SPECIFIED
+            INTO lwa_caufv
+                 WHERE  mandt  = sy-mandt
+                 AND    aufnr  = lwa_afpo-aufnr.
+
+          SELECT SINGLE       * FROM  stko CLIENT SPECIFIED
+            INTO lwa_stko
+                 WHERE  mandt  = sy-mandt
+                 AND    stlty  = 'M'
+                 AND    stlnr  = lwa_caufv-stlnr
+                 AND    stlal  = lwa_caufv-stlal.
+
+          l_bmeng = lwa_stko-bmeng.
+          l_bmein = lwa_stko-bmein.
+        ENDIF.
+***eoa on 30.06.2015 solman 8000000876
+
+        PERFORM convert_qty USING l_bmeng l_bmein CHANGING gv_mother_qty. "added on 27.06.2014
+        CONDENSE gv_mother_qty NO-GAPS.
+
+***soa on 30.11.2015
+        PERFORM output_unit USING l_bmein.
+***eoa on 30.11.2015
+
+        CONCATENATE gv_mother_qty l_bmein INTO gv_mother_qty SEPARATED BY space.
+
+        IF l_bmein = 'EA' OR l_bmein = 'NOS' OR l_bmein = 'NO'.
+          PERFORM calculate_alt_qty USING l_bmeng l_matnr l_bfgverid
+                                    CHANGING gv_mother_qty.
+        ENDIF.
+
+        PERFORM word_find USING c_mview_motherbatch
+                      '0' '1' '1' '0' '0' 'True' '1' '0'
+                      gv_mother_qty '2'.
+        EXIT. "exit out of loop once fetched
+***** SOC by Vrushali on 04.09.2015 replace by endloop
+*      ENDIF.
+      ENDLOOP.
+***** EOC by Vrushali on 04.09.2015
+    ENDLOOP.
+
+    "Pack Qty.
+***soc on 27.06.2014 for EA & NOS qty
+*    WRITE gs_afpo-psmng TO gv_mview_packqty ROUND 0 DECIMALS 0.
+*    PERFORM convert_qty USING gs_afpo-psmng gs_afpo-amein CHANGING gv_mview_packqty.
+***eoc on 27.06.2014 for EA & NOS qty
+    CONDENSE gv_mview_packqty.
+
+***soa on 30.11.2015
+**    PERFORM output_unit USING gs_afpo-meins.
+***eoa on 30.11.2015
+*    CONCATENATE gv_mview_packqty gs_afpo-meins INTO gv_mview_packqty SEPARATED BY space.
+*    CONDENSE gv_mview_packqty.
+
+    PERFORM word_find USING c_mview_packqty
+                      '0' '1' '1' '0' '0' 'True' '1' '0'
+                      gv_mview_packqty '2'.
+
+    "Export Order No.
+    CLEAR gv_mview_expo.  "added on 01.02.2017 by payal
+***    IF gs_afpo-kdauf IS NOT INITIAL.
+***
+***      CALL FUNCTION 'CONVERSION_EXIT_ALPHA_OUTPUT'
+***        EXPORTING
+***          input  = gs_afpo-kdauf
+***        IMPORTING
+***          output = l_expo.
+***
+***      SELECT SINGLE kdpos
+***        FROM caufv
+***        INTO l_kdpos
+***        WHERE aufnr = gs_afpo-aufnr.
+***
+***      SHIFT l_kdpos LEFT DELETING LEADING '0'.
+***      CONCATENATE l_expo '/' l_kdpos INTO gv_mview_expo.
+***
+***    ENDIF.
+
+****soa on 08.01.2015
+    DATA: lwa_tcor1   TYPE zpp_tcor1,
+          l_comma(2)  TYPE c VALUE ',$',
+          l_comma1(2) TYPE c VALUE ',$'.
+    CLEAR lwa_tcor1.
+***    IF gs_afpo-kdauf IS NOT INITIAL.
+***      CLEAR lwa_tcor1.
+***      SELECT SINGLE * FROM  zpp_tcor1
+***        INTO lwa_tcor1
+***             WHERE  aufnr  = p_order.
+***
+***      IF lwa_tcor1-so1 IS NOT INITIAL OR lwa_tcor1-posnr1 IS NOT INITIAL
+***      OR lwa_tcor1-so2 IS NOT INITIAL OR lwa_tcor1-posnr2 IS NOT INITIAL
+***      OR lwa_tcor1-so3 IS NOT INITIAL OR lwa_tcor1-posnr3 IS NOT INITIAL
+***      OR lwa_tcor1-so4 IS NOT INITIAL OR lwa_tcor1-posnr4 IS NOT INITIAL
+***      OR lwa_tcor1-so5 IS NOT INITIAL OR lwa_tcor1-posnr5 IS NOT INITIAL.
+***
+***        SHIFT lwa_tcor1-so1 LEFT DELETING LEADING '0'.
+***        SHIFT lwa_tcor1-so2 LEFT DELETING LEADING '0'.
+***        SHIFT lwa_tcor1-so3 LEFT DELETING LEADING '0'.
+***        SHIFT lwa_tcor1-so4 LEFT DELETING LEADING '0'.
+***        SHIFT lwa_tcor1-so5 LEFT DELETING LEADING '0'.
+***
+***        SHIFT lwa_tcor1-posnr1 LEFT DELETING LEADING '0'.
+***        SHIFT lwa_tcor1-posnr2 LEFT DELETING LEADING '0'.
+***        SHIFT lwa_tcor1-posnr3 LEFT DELETING LEADING '0'.
+***        SHIFT lwa_tcor1-posnr4 LEFT DELETING LEADING '0'.
+***        SHIFT lwa_tcor1-posnr5 LEFT DELETING LEADING '0'.
+***
+***        IF lwa_tcor1-so1 IS NOT INITIAL.
+***          IF gv_mview_expo IS INITIAL.
+***            l_comma = space.
+***          ELSE.
+***            l_comma = l_comma1.
+***          ENDIF.
+***          CONCATENATE gv_mview_expo l_comma lwa_tcor1-so1 '/' lwa_tcor1-posnr1 INTO gv_mview_expo.
+***        ENDIF.
+***        IF lwa_tcor1-so2 IS NOT INITIAL.
+***          IF gv_mview_expo IS INITIAL.
+***            l_comma = space.
+***          ELSE.
+***            l_comma = l_comma1.
+***          ENDIF.
+***          CONCATENATE gv_mview_expo l_comma lwa_tcor1-so2 '/' lwa_tcor1-posnr2 INTO gv_mview_expo.
+***        ENDIF.
+***        IF lwa_tcor1-so3 IS NOT INITIAL.
+***          IF gv_mview_expo IS INITIAL.
+***            l_comma = space.
+***          ELSE.
+***            l_comma = l_comma1.
+***          ENDIF.
+***          CONCATENATE gv_mview_expo l_comma lwa_tcor1-so3 '/' lwa_tcor1-posnr3 INTO gv_mview_expo.
+***        ENDIF.
+***        IF lwa_tcor1-so4 IS NOT INITIAL.
+***          IF gv_mview_expo IS INITIAL.
+***            l_comma = space.
+***          ELSE.
+***            l_comma = l_comma1.
+***          ENDIF.
+***          CONCATENATE gv_mview_expo l_comma lwa_tcor1-so4 '/' lwa_tcor1-posnr4 INTO gv_mview_expo.
+***        ENDIF.
+***        IF lwa_tcor1-so5 IS NOT INITIAL.
+***          IF gv_mview_expo IS INITIAL.
+***            l_comma = space.
+***          ELSE.
+***            l_comma = l_comma1.
+***          ENDIF.
+***          CONCATENATE gv_mview_expo l_comma lwa_tcor1-so5 '/' lwa_tcor1-posnr5 INTO gv_mview_expo.
+***        ENDIF.
+***      ENDIF.
+***    ENDIF.
+
+    IF gv_mview_expo IS INITIAL.
+      gv_mview_expo = 'NA'. " Changes done by Sushil as on 18.01.2016 for the ticket no.    - 8000001414
+
+    ELSE.
+      l_comma = space.
+*      REPLACE ALL OCCURRENCES OF '$' IN gv_mview_expo WITH l_comma .
+      TRANSLATE gv_mview_expo USING '$ '.
+    ENDIF.
+****eoa on 08.01.2015
+
+    PERFORM word_find USING c_mview_expo
+                      '0' '1' '1' '0' '0' 'True' '1' '0'
+                      gv_mview_expo '2'.
+    CLEAR gv_mview_expo.
+
+    "Customer Batch No.
+    CALL FUNCTION 'VB_BATCH_GET_DETAIL'
+      EXPORTING
+        matnr              = p_mat
+        charg              = p_batch
+*       WERKS              =
+        get_classification = 'X'
+*       EXISTENCE_CHECK    =
+*       READ_FROM_BUFFER   =
+*       NO_CLASS_INIT      = ' '
+*       LOCK_BATCH         = ' '
+* IMPORTING
+*       YMCHA              =
+*       CLASSNAME          =
+      TABLES
+        char_of_batch      = gt_char_batch
+      EXCEPTIONS
+        no_material        = 1
+        no_batch           = 2
+        no_plant           = 3
+        material_not_found = 4
+        plant_not_found    = 5
+        no_authority       = 6
+        batch_not_exist    = 7
+        lock_on_batch      = 8
+        OTHERS             = 9.
+    IF sy-subrc <> 0.
+* Implement suitable error handling here
+    ENDIF.
+
+    CLEAR : gv_mview_custb.
+    READ TABLE gt_char_batch INTO gs_char_batch WITH KEY atnam = 'ZCUSTOMER_BATCH_NUMBER'.
+    IF sy-subrc EQ 0.
+      gv_mview_custb = gs_char_batch-atwtb.
+    ENDIF.
+
+    PERFORM word_find USING c_mview_custb
+                        '0' '1' '1' '0' '0' 'True' '1' '0'
+                        gv_mview_custb '2'.
+
+
+
+    "Pack Before
+    CLEAR: l_act_date.
+    PERFORM date_format_conversion USING gv_pack_before l_ddtext CHANGING l_act_date.
+    PERFORM word_find USING c_mview_pack
+                            '0' '1' '1' '0' '0' 'True' '1' '0'
+                            l_act_date '2'.
+
+  ENDIF.
+
+  LOOP AT gt_resb INTO gs_resb.
+    PERFORM find_comp_placeholder USING gs_resb-posnr gs_resb-matnr CHANGING gv_mview_qty gv_mview_batch.
+    IF l_flag IS INITIAL. "It will be 'X' in case of Regular, no need to replace quantities from process order
+
+***      soc on 27.06.2014 for convert qty with uom EA NOS NO to roundoff
+*      PERFORM convert_qty USING gs_resb-bdmng CHANGING gv_po_qty.
+      PERFORM convert_qty_abs USING gs_resb-erfmg CHANGING gv_po_qty.
+      PERFORM convert_qty USING gv_po_qty gs_resb-erfme CHANGING gv_po_qty.
+***      eoc on 27.06.2014 for convert qty with uom EA NOS NO to roundoff
+
+      PERFORM word_find USING gv_mview_qty
+                              '0' '1' '1' '0' '0' 'True' '1' '0'
+                              gv_po_qty '2'.
+    ENDIF.
+    IF doc_type = 'BPR'. "Only for ZBFG components.
+      READ TABLE gt_mtart WITH KEY matnr = gs_resb-matnr
+                                   mtart = c_mtart.
+      IF sy-subrc <> 0.
+        gs_resb-charg = ' '.
+      ENDIF.
+    ENDIF.
+    PERFORM word_find USING gv_mview_batch
+                            '0' '1' '1' '0' '0' 'True' '1' '0'
+                            gs_resb-charg '2'.
+  ENDLOOP.
+ENDFORM.                    " UPDATE_BATCH_MAINVIEW
+*&---------------------------------------------------------------------*
+*&      Form  FETCH_PO_COMPONENTS
+*&---------------------------------------------------------------------*
+FORM fetch_po_components .
+  DATA l_rsnum TYPE rsnum.
+
+  SELECT SINGLE rsnum FROM afko
+    INTO l_rsnum
+    WHERE aufnr = p_order.
+  IF doc_type = 'BPR'.
+    SELECT posnr matnr bdmng meins alpgr alprf charg potx1 erskz stlnr stlal erfmg erfme werks
+     FROM resb INTO CORRESPONDING FIELDS OF TABLE gt_resb
+     WHERE rsnum = l_rsnum
+     AND aufnr = p_order
+     AND bdmng <> 0
+     AND stlal IS NOT NULL.
+  ELSE.
+    SELECT posnr matnr bdmng meins alpgr alprf charg potx1 erskz stlnr stlal erfmg erfme
+      FROM resb INTO CORRESPONDING FIELDS OF TABLE gt_resb
+      WHERE rsnum = l_rsnum
+      AND aufnr = p_order
+      AND bdmng <> 0
+      AND stlal IS NOT NULL. "stlal condition added to avoid EMCM components
+  ENDIF.
+  IF sy-subrc <> 0.
+    MESSAGE e061(zppr_formu).
+*   Master Document data not found
+  ENDIF.
+  SELECT matnr maktx
+    FROM makt CLIENT SPECIFIED
+    INTO TABLE gt_makt
+    FOR ALL ENTRIES IN gt_resb
+    WHERE mandt = sy-mandt
+    AND matnr = gt_resb-matnr
+    AND spras = sy-langu.
+ENDFORM.                    " FETCH_PO_COMPONENTS
+*&---------------------------------------------------------------------*
+*&      Form  FETCH_MATERIAL_TYPE
+*&---------------------------------------------------------------------*
+FORM fetch_material_type.
+  SELECT matnr mtart matkl
+    FROM mara CLIENT SPECIFIED
+    INTO CORRESPONDING FIELDS OF TABLE gt_mtart
+    FOR ALL ENTRIES IN gt_resb
+    WHERE mandt = sy-mandt
+     AND matnr  = gt_resb-matnr.
+ENDFORM.                    " FETCH_MATERIAL_TYPE
+*&---------------------------------------------------------------------*
+*&      Form  FIND_RESB_BATCH_PLACEHOLDER
+*&---------------------------------------------------------------------*
+*      -->P_POSNR  text
+*      -->P_MATNR  text
+*      <--P_MVIEW_BATCH  text
+*----------------------------------------------------------------------*
+FORM find_resb_batch_placeholder USING p_posnr p_matnr
+                                 CHANGING p_mview_batch.
+
+  DATA: l_matnr TYPE matnr.
+  CALL FUNCTION 'CONVERSION_EXIT_MATN1_OUTPUT'
+    EXPORTING
+      input  = p_matnr
+    IMPORTING
+      output = l_matnr.
+*    EXCEPTIONS
+*      length_error = 1
+*      OTHERS       = 2.
+  CONCATENATE '&' p_posnr '_' l_matnr 'B' '&' INTO p_mview_batch.
+ENDFORM.                    " FIND_RESB_BATCH_PLACEHOLDER
+*&---------------------------------------------------------------------*
+*&      Form  DATE_FORMAT_CONVERSION
+*&---------------------------------------------------------------------*
+*  <--  P_DATE_OUTPUT        text
+*----------------------------------------------------------------------*
+FORM date_format_conversion USING p_date p_format CHANGING p_date_output.
+* Local variables declaration
+  DATA: l_y1         TYPE numc1,
+        l_y2         TYPE numc1,
+        l_y3         TYPE numc1,
+        l_y4         TYPE numc1,
+        l_m1         TYPE numc1,
+        l_m2         TYPE numc1,
+        l_d1         TYPE numc1,
+        l_d2         TYPE numc1,
+        l_len        TYPE int1,
+        l_ctr        TYPE int1,
+        l_ktx        TYPE t247-ktx,
+        l_flag_m1    TYPE char1,
+        l_flag_init  TYPE char1,
+        l_flag_d     TYPE char1,
+        l_flag_y     TYPE char1,
+        l_format     TYPE char15,
+        l_final_date TYPE char15.
+
+* Local constants declaration
+  CONSTANTS: c_d    TYPE char1 VALUE 'D',
+             c_m    TYPE char1 VALUE 'M',
+             c_y    TYPE char1 VALUE 'Y',
+             c_mmm  TYPE char3 VALUE 'MMM',
+             c_yyyy TYPE char4 VALUE 'YYYY'.
+
+* Processing Logic of the routine
+  l_y1 = p_date+0(1).
+  l_y2 = p_date+1(1).
+  l_y3 = p_date+2(1).
+  l_y4 = p_date+3(1).
+  l_m1 = p_date+4(1).
+  l_m2 = p_date+5(1).
+  l_d1 = p_date+6(1).
+  l_d2 = p_date+7(1).
+  l_len = strlen( p_format ).
+  CLEAR : l_flag_m1, l_flag_init, l_flag_d,l_flag_y.
+  WHILE l_ctr < l_len.
+    IF p_format+l_ctr(1) = c_m.
+      IF NOT p_format CS c_mmm.
+        l_final_date+l_ctr(1) = l_m1.
+        l_ctr = l_ctr + 1.
+        l_flag_m1 = l_flag_m1 + 1.
+        l_final_date+l_ctr(1) = l_m2.
+        l_ctr = l_ctr + 1.
+        l_flag_m1 = l_flag_m1 + 1.
+      ELSE.
+        SELECT SINGLE ktx FROM t247 INTO l_ktx
+           WHERE spras = sy-langu
+             AND  mnr  = p_date+4(2).
+        IF sy-subrc EQ 0.
+          l_final_date+l_ctr(3) = l_ktx.
+          l_ctr = l_ctr + 3.
+        ENDIF.
+      ENDIF.
+    ELSEIF p_format+l_ctr(1) = c_y.
+      IF p_format CS c_yyyy.
+        l_final_date+l_ctr(1) = l_y1.
+        l_ctr = l_ctr + 1.
+        l_final_date+l_ctr(1) = l_y2.
+        l_ctr = l_ctr + 1.
+        l_final_date+l_ctr(1) = l_y3.
+        l_ctr = l_ctr + 1.
+        l_final_date+l_ctr(1) = l_y4.
+        l_ctr = l_ctr + 1.
+      ELSE.
+        l_final_date+l_ctr(1) = l_y3.
+        l_ctr = l_ctr + 1.
+        l_flag_y = l_flag_y + 1.
+        l_final_date+l_ctr(1) = l_y4.
+        l_ctr = l_ctr + 1.
+        l_flag_y = l_flag_y + 1.
+      ENDIF.
+    ELSEIF p_format+l_ctr(1) = c_d.
+      l_final_date+l_ctr(1) = l_d1.
+      l_ctr = l_ctr + 1.
+      l_flag_d = l_flag_d + 1.
+      l_final_date+l_ctr(1) = l_d2.
+      l_ctr = l_ctr + 1.
+      l_flag_d = l_flag_d + 1.
+    ELSE.
+      l_final_date+l_ctr(1) = p_format+l_ctr(1).
+      l_ctr = l_ctr + 1.
+    ENDIF.
+    IF NOT l_final_date IS INITIAL.
+      p_date_output = l_final_date.
+    ENDIF.
+  ENDWHILE.
+ENDFORM.                    " DATE_FORMAT_CONVERSION
+*&---------------------------------------------------------------------*
+*&      Form  REPLACE_BATCH_SIZE
+*&---------------------------------------------------------------------*
+FORM replace_batch_size .     "replace batch size of main material
+  DATA: l_batchsize_paceholder TYPE string,
+        l_afko                 TYPE afko,
+        l_gamng(30)            TYPE c.
+
+  CONCATENATE '&' '0000' p_mat 'Q' '&' INTO l_batchsize_paceholder.
+  IF p_order IS NOT INITIAL.
+    SELECT SINGLE * FROM afko
+      INTO l_afko WHERE aufnr  = p_order.
+*    l_gamng = l_afko-gamng.
+
+***soc on 27.06.2014
+*    WRITE l_afko-gamng TO l_gamng DECIMALS 0 ROUND 0.
+    PERFORM convert_qty USING l_afko-gamng l_afko-gmein CHANGING l_gamng.
+***soc on 27.06.2014
+    CONDENSE l_gamng NO-GAPS.
+
+    CONCATENATE l_gamng l_afko-gmein INTO gv_batchsize SEPARATED BY space.
+    IF l_afko-gmein = 'EA' OR l_afko-gmein = 'NOS' OR l_afko-gmein = 'NO'.
+      PERFORM calculate_alt_qty USING l_afko-gamng p_mat p_prd_vn
+                                CHANGING gv_batchsize  .
+    ENDIF.
+  ELSE.
+    PERFORM fetch_batchsize.
+  ENDIF.
+
+  CONDENSE gv_batchsize.
+  PERFORM word_find USING l_batchsize_paceholder
+                    '0' '1' '1' '0' '0' 'True' '1' '0'
+                     gv_batchsize '2'.
+ENDFORM.                    " REPLACE_BATCH_SIZE
+*&---------------------------------------------------------------------*
+*&      Form  FETCH_PLANTNAME
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_GS_AFPO_DWERK  text
+*      <--P_P_WDESC  text
+*----------------------------------------------------------------------*
+FORM fetch_plantname  USING    p_werks
+                      CHANGING p_name.
+  DATA: l_name1  TYPE t001w-name1,
+        l_adrnr  TYPE t001w-adrnr,
+        ls_ll_no TYPE zpp_ll_no.
+  IF p_werks IS NOT INITIAL AND ann_no IS NOT INITIAL.
+**    SELECT SINGLE MAX( dokvr ) FROM zqm_ann_data INTO @DATA(lv_dokvr_upd)
+**            WHERE werks   = @p_werks AND
+**                  ann_no  = @ann_no.
+
+    SELECT dokvr,
+           stabk
+              FROM zqm_ann_data
+              INTO TABLE @DATA(lta_qm_ann_data)
+              WHERE werks   = @p_werks AND
+                    ann_no  = @ann_no.
+    IF sy-subrc IS INITIAL.
+**            p_dms = lv_dokvr_upd.
+      SORT lta_qm_ann_data DESCENDING BY dokvr.
+      READ TABLE lta_qm_ann_data INTO DATA(lwa_qm_ann_data) INDEX 1.
+      IF sy-subrc = 0.
+        p_dms = lwa_qm_ann_data-dokvr.
+        p_stat_desc =  lwa_qm_ann_data-stabk.
+      ENDIF.
+    ENDIF.
+  ENDIF.
+  SELECT SINGLE name1 adrnr FROM t001w CLIENT SPECIFIED
+        INTO (l_name1 , l_adrnr)
+        WHERE mandt = sy-mandt
+          AND werks = p_werks.
+  IF sy-subrc = 0.
+    p_name = l_name1.
+    SELECT SINGLE name1 FROM  adrc CLIENT SPECIFIED
+      INTO p_name
+           WHERE  client      = sy-mandt
+           AND    addrnumber  = l_adrnr.
+  ENDIF.
+ENDFORM.                    " FETCH_PLANTNAME
+*&---------------------------------------------------------------------*
+*&      Form  OUTPUT_UNIT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_GS_AFPO_MEINS  text
+*----------------------------------------------------------------------*
+FORM output_unit  USING    p_meins.
+  IF  p_meins = 'CS'.
+    CALL FUNCTION 'CONVERSION_EXIT_CUNIT_OUTPUT'
+      EXPORTING
+        input          = p_meins
+        language       = sy-langu
+      IMPORTING
+*       LONG_TEXT      =
+        output         = p_meins
+*       SHORT_TEXT     =
+      EXCEPTIONS
+        unit_not_found = 1
+        OTHERS         = 2.
+    IF sy-subrc <> 0.
+* Implement suitable error handling here
+    ENDIF.
+  ENDIF.
+ENDFORM.                    " OUTPUT_UNIT

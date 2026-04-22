@@ -1,0 +1,996 @@
+*&---------------------------------------------------------------------*
+*& Report  ZSD_INVOICE_REVERSE_MMS
+*&
+*&---------------------------------------------------------------------*
+* Title             : ZSD_INVOICE_REVERSE_MMS
+* Author            : Rajnarayan Rai
+* Program Type      : Executable
+* Creation Date     : 22.08.2019
+* Transaction       : ZSD_MMS
+* Functional design : Austin
+* Technical design  : Rajnarayan Rai
+* Change request    : 8000005305
+* Transport request : CRDK963800
+* Description       : Reverse Process report for Field agent in MMS
+*&---------------------------------------------------------------------*
+REPORT zsd_invoice_reverse_mms.
+
+DATA : gta_zsd_mms_lr TYPE TABLE OF zsd_mms_lr,
+       gwa_zsd_mms_lr TYPE zsd_mms_lr.
+
+TYPES: BEGIN OF gty_vbfa,
+         vbelv     TYPE vbfa-vbelv,
+         vbeln     TYPE vbfa-vbeln,
+         vbtyp_n   TYPE vbfa-vbtyp_n,
+         pgi_stat  TYPE flag,
+         delv_stat TYPE flag,
+       END OF gty_vbfa.
+DATA : gta_vbfa TYPE TABLE OF gty_vbfa,
+       gwa_vbfa TYPE gty_vbfa.
+
+TYPES: BEGIN OF gty_vbrk,
+         vbeln TYPE vbrk-vbeln,
+         fkart TYPE vbrk-fkart,
+         vkorg TYPE vbrk-vkorg,
+         vtweg TYPE vbrk-vtweg,
+         kunag TYPE vbrk-kunag,
+         spart TYPE vbrk-spart,
+       END OF gty_vbrk.
+
+DATA : gta_vbrk TYPE TABLE OF gty_vbrk,
+       gwa_vbrk TYPE gty_vbrk.
+
+TYPES: BEGIN OF gty_mms_lr,
+         sales_ord TYPE zsd_mms_lr-sales_ord,
+         plant     TYPE zsd_mms_lr-plant,
+         inv_no    TYPE zsd_mms_lr-inv_no,
+         vendor    TYPE zsd_mms_lr-vendor,
+         lr_no     TYPE zsd_mms_lr-lr_no,
+         rev_stat  TYPE zsd_mms_lr-rev_stat,
+         pgi_stat  TYPE zsd_mms_lr-pgi_stat,
+         delv_stat TYPE zsd_mms_lr-delv_stat,
+       END OF gty_mms_lr.
+
+DATA : gta_mms_lr TYPE TABLE OF gty_mms_lr,
+       gwa_mms_lr TYPE gty_mms_lr.
+
+DATA:   BEGIN OF xmesg OCCURS 0.
+        INCLUDE STRUCTURE mesg.
+DATA:   END OF xmesg.
+
+TYPES: BEGIN OF gty_vend,
+         vendor TYPE zsd_mms_lr-vendor,
+       END OF gty_vend.
+
+DATA : gta_vend TYPE TABLE OF gty_vend,
+       gwa_vend TYPE gty_vend.
+
+DATA : gta_return  TYPE TABLE OF bapireturn1,
+       gta_return2 TYPE TABLE OF bapiret2,
+       gwa_return  TYPE bapireturn1,
+       gwa_return2 TYPE bapiret2.
+
+TYPES: BEGIN OF ty_err_st,
+         icon      TYPE c,
+         vbeln_m   TYPE vbeln,
+         mess(150),
+       END OF ty_err_st.
+
+TYPES : BEGIN OF ty_param,
+          id_name    TYPE zparam_table-id_name,
+          id_number  TYPE zparam_table-id_number,
+          param_name TYPE zparam_table-param_name,
+        END OF ty_param.
+DATA :  ta_param TYPE TABLE OF ty_param,
+        wa_param TYPE ty_param.
+
+DATA:  gv_success  LIKE bapivbrksuccess OCCURS 0.
+
+DATA : gta_err TYPE TABLE OF ty_err_st,
+       gwa_err TYPE ty_err_st.
+
+DATA : gv_pickup TYPE zsd_mms_lr-pickup_date,
+       gv_vbeln  TYPE vbrk-vbeln,
+       gv_inv_dt TYPE vbrk-fkdat,
+       gv_delay  TYPE zparam_table-param_name.
+
+DATA : gwa_fcat TYPE slis_fieldcat_alv,
+       gta_fcat TYPE TABLE OF slis_fieldcat_alv.
+
+*-----------------------------------------------------------------------
+*Constant
+*-----------------------------------------------------------------------
+CONSTANTS : co_param TYPE zparam_table-id_name VALUE 'ZMMS_BD_WB',
+            co_e     TYPE c VALUE 'E',
+            co_a     TYPE c VALUE 'A',
+            co_j     TYPE c VALUE 'J',
+            co_vf    TYPE char2 VALUE 'VF',
+            co_128   TYPE bapireturn1-number VALUE '128',
+            co_id    TYPE zparam_table-param_name VALUE 'ZMMS_PLNT',
+            co_dl    TYPE zparam_table-param_name VALUE 'ZSD_MMS_DL',
+            co_n     TYPE vbak-zser_tagging VALUE 'N'.
+
+*----------------------------------------------------------------------------------
+*Selection Screen
+*----------------------------------------------------------------------------------
+SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE text-005.
+PARAMETERS : p_werks TYPE werks_d OBLIGATORY.
+SELECT-OPTIONS: s_inv FOR gv_vbeln OBLIGATORY,
+                s_invdt FOR gv_inv_dt OBLIGATORY,
+                s_pkupd FOR gv_pickup.
+SELECTION-SCREEN END OF BLOCK b1.
+
+*----------------------------------------------------------------------------------
+* At Selection Screen
+*----------------------------------------------------------------------------------
+AT SELECTION-SCREEN.
+
+  "Plant Authority check
+  AUTHORITY-CHECK OBJECT 'ZSD_WERKS'
+         ID 'WERKS' FIELD p_werks.
+  IF sy-subrc <> 0.
+    MESSAGE e084(zsd) WITH p_werks.
+  ELSE.
+
+    "fetch plant to allow access for certain plants only
+    REFRESH : ta_param.
+    SELECT id_name
+           id_number
+           param_name
+                   FROM zparam_table
+                   INTO TABLE ta_param
+                   WHERE id_name = co_id.
+    IF sy-subrc = 0.
+      CLEAR wa_param.
+      READ TABLE ta_param INTO wa_param WITH KEY param_name = p_werks.
+      IF sy-subrc <> 0.
+        MESSAGE text-e05 TYPE co_e.
+        LEAVE LIST-PROCESSING.
+      ENDIF.
+    ELSE.
+      MESSAGE text-e06 TYPE co_e.
+      LEAVE LIST-PROCESSING.
+    ENDIF.
+  ENDIF.
+
+*----------------------------------------------------------------------------------
+*Start Of Selection
+*----------------------------------------------------------------------------------
+START-OF-SELECTION.
+
+  PERFORM get_data.
+  PERFORM data_validation.
+
+  IF gta_err[] IS NOT INITIAL.
+    PERFORM fielcat.
+    PERFORM disp_alv.
+  ELSE.
+    PERFORM bapi_post.
+    PERFORM fielcat.
+    PERFORM disp_alv.
+  ENDIF.
+
+*&---------------------------------------------------------------------*
+*&      Form  GET_DATA
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM get_data .
+
+  CLEAR : gta_vend[],gta_zsd_mms_lr[].
+
+  "param fetch for vendor code
+  SELECT * FROM zparam_table
+            INTO TABLE @DATA(gta_param)
+  WHERE id_name EQ @co_param.
+
+  LOOP AT gta_param INTO DATA(gwa_param).
+
+    gwa_vend-vendor =  gwa_param-param_name.
+    CALL FUNCTION 'CONVERSION_EXIT_ALPHA_INPUT'
+      EXPORTING
+        input  = gwa_vend-vendor
+      IMPORTING
+        output = gwa_vend-vendor.
+
+    APPEND gwa_vend TO gta_vend.
+    CLEAR : gwa_vend,gwa_param.
+  ENDLOOP.
+
+  IF gta_vend[] IS NOT INITIAL.
+
+    "Select star is used since we will need to update custom table ZSD_MMS_LR using
+    "the same internal table
+
+    SELECT * FROM zsd_mms_lr
+             INTO TABLE gta_zsd_mms_lr
+             FOR ALL ENTRIES IN gta_vend
+             WHERE inv_no      IN s_inv
+               AND inv_date    IN s_invdt
+               AND pickup_date IN s_pkupd
+               AND vendor      EQ gta_vend-vendor
+               AND lr_no       EQ ' '
+               AND rev_stat    EQ ' '.
+
+    IF sy-subrc = 0.
+      DELETE gta_zsd_mms_lr WHERE rev_stat EQ abap_true
+                              AND pgi_stat EQ abap_true
+                              AND delv_stat EQ abap_true.
+    ELSE.
+      MESSAGE text-e01 TYPE 'E'.
+    ENDIF.
+
+    IF gta_zsd_mms_lr[] IS NOT INITIAL.
+
+      SELECT sales_ord
+             plant
+             inv_no
+             vendor
+             lr_no
+             rev_stat
+             pgi_stat
+             delv_stat
+                     FROM zsd_mms_lr
+                     INTO TABLE gta_mms_lr
+                     FOR ALL ENTRIES IN gta_zsd_mms_lr
+                     WHERE sales_ord EQ gta_zsd_mms_lr-sales_ord
+                       AND vendor    EQ gta_zsd_mms_lr-vendor
+                       AND lr_no     EQ abap_false
+                       AND rev_stat  EQ abap_false
+                       AND pgi_stat  EQ abap_false
+                       AND delv_stat EQ abap_false.
+      IF sy-subrc = 0.
+        "do nothing
+      ENDIF.
+
+      SELECT vbelv
+             vbeln
+             vbtyp_n
+                    FROM vbfa
+                    INTO TABLE gta_vbfa
+                    FOR ALL ENTRIES IN gta_zsd_mms_lr
+                    WHERE vbelv EQ gta_zsd_mms_lr-sales_ord
+                      AND vbtyp_n EQ co_j.
+
+      IF sy-subrc = 0.
+        "do nothing
+      ENDIF.
+
+    ELSE.
+      MESSAGE text-e01 TYPE 'E'.
+    ENDIF.
+
+  ENDIF.
+
+  "param value for delay
+  CLEAR : gv_delay.
+  SELECT SINGLE param_name
+                INTO gv_delay
+                FROM zparam_table
+                WHERE id_name = co_dl.
+  IF sy-subrc = 0.
+    "do nothing
+  ENDIF.
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form  BAPI_POST
+*&---------------------------------------------------------------------*
+*       reversal posting
+*----------------------------------------------------------------------*
+FORM bapi_post .
+
+  REFRESH : gta_return,gta_return2,gv_success ,gta_err.
+
+  PERFORM reverse_process.
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form  FIELCAT
+*&---------------------------------------------------------------------*
+*       Field catalog
+*----------------------------------------------------------------------*
+FORM fielcat .
+
+  CLEAR gta_fcat[].
+
+  gwa_fcat-fieldname = text-009.   "'ICON'.
+  gwa_fcat-seltext_l = text-010.
+  gwa_fcat-outputlen = 5.
+  APPEND gwa_fcat TO  gta_fcat.
+  CLEAR gwa_fcat.
+
+  gwa_fcat-fieldname = text-001 .  "'VBELN_M'.
+  gwa_fcat-seltext_l = text-002 .  "'Invoice No/Ref No'.
+  gwa_fcat-outputlen = 20.
+  APPEND gwa_fcat TO  gta_fcat.
+  CLEAR gwa_fcat.
+
+  gwa_fcat-fieldname = text-003 .  "'MESS'.
+  gwa_fcat-seltext_l = text-004 .  "'Cancel status of Invoice'.
+  gwa_fcat-outputlen = 128.
+  APPEND gwa_fcat TO  gta_fcat.
+  CLEAR gwa_fcat.
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form  DISP_ALV
+*&---------------------------------------------------------------------*
+*       ALV Display
+*----------------------------------------------------------------------*
+FORM disp_alv .
+
+  DATA : lwa_layout TYPE slis_layout_alv.
+
+  CLEAR : lwa_layout.
+  lwa_layout-zebra = abap_true.
+  lwa_layout-colwidth_optimize = abap_true .
+  lwa_layout-lights_fieldname  = text-009.
+
+  IF gta_err[] IS NOT INITIAL.
+
+    CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+      EXPORTING
+        i_callback_program = sy-repid
+        is_layout          = lwa_layout
+        it_fieldcat        = gta_fcat
+        i_default          = 'X'
+        i_save             = 'A'
+      TABLES
+        t_outtab           = gta_err
+      EXCEPTIONS
+        program_error      = 1
+        OTHERS             = 2.
+    IF sy-subrc <> 0.
+* Implement suitable error handling here
+    ENDIF.
+
+  ELSE.
+    MESSAGE text-e01 TYPE 'E'.
+  ENDIF.
+
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form  REVERSE_PROCESS
+*&---------------------------------------------------------------------*
+*       Reverse Process
+*----------------------------------------------------------------------*
+FORM reverse_process .
+
+  DATA: lwa_headerdata    TYPE bapiobdlvhdrchg,
+        lwa_headercontrol TYPE bapiobdlvhdrctrlchg,
+        lv_delivery       TYPE bapiobdlvhdrchg-deliv_numb,
+        lv_tabix          TYPE sy-tabix,
+        lwa_ord_head      TYPE bapisdh1,
+        lwa_ord_headx     TYPE bapisdh1x,
+        lwa_bape_vbak     TYPE bape_vbak,
+        lwa_bape_vbakx    TYPE bape_vbakx,
+        lwa_extensionin   TYPE bapiparex,
+        lta_extensionin   TYPE STANDARD TABLE OF bapiparex,
+        lwa_extensioninx  TYPE bapiparex,
+        lta_extensionex   TYPE STANDARD TABLE OF bapiparex,
+        lta_return        TYPE STANDARD TABLE OF bapiret2,
+        lwa_return        TYPE bapiret2,
+        lwa_xmesg         TYPE mesg,
+        lta_bapiret2      TYPE TABLE OF bapiret2,
+        lwa_bapiret2      TYPE bapiret2,
+        lv_msgno          TYPE sy-msgno,
+        lv_msg            TYPE bapiret2-message.
+
+  CONSTANTS : co_x      TYPE c VALUE 'X',
+              co_n      TYPE c VALUE 'N',
+              co_updflg TYPE c VALUE 'U',
+              co_count  TYPE sy-msgno VALUE '001'.
+
+  FIELD-SYMBOLS : <fs_zsd_mms_lr> TYPE zsd_mms_lr,
+                  <fs_vbfa>       TYPE gty_vbfa.
+
+  UNASSIGN <fs_zsd_mms_lr>.
+  CLEAR : lwa_headerdata,lv_delivery,lwa_headercontrol.
+
+  SORT gta_vbfa BY vbelv.
+  SORT gta_zsd_mms_lr BY sales_ord.
+
+  LOOP AT gta_vbfa ASSIGNING <fs_vbfa>.
+
+    CLEAR : gwa_mms_lr.
+    READ TABLE gta_zsd_mms_lr INTO gwa_zsd_mms_lr WITH KEY sales_ord = <fs_vbfa>-vbelv
+                                                           BINARY SEARCH.
+    IF sy-subrc = 0.
+
+      CLEAR : lv_tabix.
+      lv_tabix = sy-tabix.
+
+      LOOP AT gta_zsd_mms_lr ASSIGNING <fs_zsd_mms_lr> FROM lv_tabix.
+
+        IF <fs_zsd_mms_lr>-sales_ord <> <fs_vbfa>-vbelv.
+          EXIT.
+        ELSE.
+
+          " fm to lock invoice number
+          DO.
+            CALL FUNCTION 'ENQUEUE_/IRM/EZ_IPVBRK'
+              EXPORTING
+                mode_vbrk      = 'E'
+                mandt          = sy-mandt
+                vbeln          = <fs_zsd_mms_lr>-inv_no
+              EXCEPTIONS
+                foreign_lock   = 1
+                system_failure = 2
+                OTHERS         = 3.
+            IF sy-subrc <> 0.
+              "do nothing
+            ELSE.
+              EXIT.
+            ENDIF.
+          ENDDO.
+
+          "BAPI for invoice cancellation
+          "if sales ord contain 2 invoice then both the invoice should be reversed
+          "before PGI cancellation
+
+          CLEAR : gv_success,gta_return[].
+
+          "BAPI for Invoice cancellation
+          CALL FUNCTION 'BAPI_BILLINGDOC_CANCEL1'
+            EXPORTING
+              billingdocument = <fs_zsd_mms_lr>-inv_no
+              billingdate     = <fs_zsd_mms_lr>-inv_date
+            TABLES
+              return          = gta_return
+              success         = gv_success.
+
+          "delay statement
+          WAIT UP TO gv_delay SECONDS.
+
+          " fm to unlock invoice number
+          DO.
+            CALL FUNCTION 'DEQUEUE_/IRM/EZ_IPVBRK'
+              EXPORTING
+                mode_vbrk = 'E'
+                mandt     = sy-mandt
+                vbeln     = <fs_zsd_mms_lr>-inv_no.
+            IF sy-subrc = 0.
+              EXIT.
+            ENDIF.
+          ENDDO.
+
+          CLEAR : gwa_return.
+          READ TABLE gta_return INTO gwa_return WITH KEY type = co_e .
+          IF sy-subrc NE 0.
+            CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
+              EXPORTING
+                wait = 'X'.
+
+            LOOP AT gta_return INTO gwa_return WHERE type NE co_e OR type NE co_a.
+              gwa_err-icon    = 3.
+              gwa_err-mess    = gwa_return-message.
+              gwa_err-vbeln_m = gwa_return-message_v1.
+              APPEND gwa_err TO gta_err.
+              CLEAR : gwa_err,gwa_return.
+            ENDLOOP.
+
+            <fs_zsd_mms_lr>-rev_stat = abap_true.
+
+          ELSE.
+
+            IF gwa_return-id = co_vf AND gwa_return-number = co_128.
+
+              gwa_err-icon  = 2.
+              gwa_err-mess  = gwa_return-message.
+              gwa_err-vbeln_m = <fs_zsd_mms_lr>-inv_no.
+              APPEND gwa_err TO gta_err.
+              CLEAR gwa_err.
+
+              <fs_zsd_mms_lr>-rev_stat = abap_true.
+
+            ELSE.
+
+              CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK' .
+
+              <fs_zsd_mms_lr>-rev_stat = abap_false.
+
+              LOOP AT gta_return INTO gwa_return WHERE type EQ co_e OR type EQ co_a.
+                gwa_err-icon  = 1.
+                gwa_err-mess  = gwa_return-message.
+                gwa_err-vbeln_m = <fs_zsd_mms_lr>-inv_no.
+                APPEND gwa_err TO gta_err.
+                CLEAR gwa_err.
+              ENDLOOP.
+
+            ENDIF.
+
+          ENDIF.
+        ENDIF.
+      ENDLOOP.
+
+      "fm to lock delivery number
+      DO.
+        CALL FUNCTION 'ENQUEUE_EVVBLKE'
+          EXPORTING
+            mode_likp      = 'E'
+            mandt          = sy-mandt
+            vbeln          = <fs_vbfa>-vbeln
+            _wait          = '1'
+          EXCEPTIONS
+            foreign_lock   = 1
+            system_failure = 2
+            OTHERS         = 3.
+        IF sy-subrc <> 0.
+          "* Implement suitable error handling here
+        ELSE.
+          EXIT.
+        ENDIF.
+      ENDDO.
+
+      "PGI cancellation
+      "FM for PGI Reversal
+      CALL FUNCTION 'WS_REVERSE_GOODS_ISSUE'
+        EXPORTING
+          i_vbeln                   = <fs_vbfa>-vbeln
+          i_budat                   = sy-datum
+          i_tcode                   = 'VL09'
+          i_vbtyp                   = <fs_vbfa>-vbtyp_n
+        TABLES
+          t_mesg                    = xmesg
+        EXCEPTIONS
+          error_reverse_goods_issue = 1
+          OTHERS                    = 2.
+
+      IF sy-subrc EQ 0 .
+
+        CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
+          EXPORTING
+            wait = 'X'.
+
+        gwa_err-icon  = 3.
+
+        CLEAR : lv_msg.
+        CONCATENATE text-040
+                    <fs_vbfa>-vbeln
+                    text-041
+                    INTO lv_msg
+                    SEPARATED BY space.
+
+        gwa_err-mess    = lv_msg.     "'PGI Reversal Done'.
+        gwa_err-vbeln_m = <fs_vbfa>-vbeln.
+        APPEND gwa_err TO gta_err.
+        CLEAR: gwa_err,lv_msg.
+
+        <fs_vbfa>-pgi_stat = abap_true.
+
+      ELSE.
+
+        CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK' .
+
+        IF xmesg[] IS NOT INITIAL.
+
+          LOOP AT xmesg INTO lwa_xmesg.
+
+            CLEAR : lv_msgno,lwa_bapiret2.
+
+            lv_msgno = lwa_xmesg-txtnr.
+            CALL FUNCTION 'BALW_BAPIRETURN_GET2'
+              EXPORTING
+                type   = lwa_xmesg-msgty
+                cl     = lwa_xmesg-arbgb
+                number = lv_msgno
+                par1   = lwa_xmesg-msgv1
+                par2   = lwa_xmesg-msgv2
+                par3   = lwa_xmesg-msgv3
+                par4   = lwa_xmesg-msgv4
+              IMPORTING
+                return = lwa_bapiret2.
+
+            CLEAR  : lv_msg.
+            CALL FUNCTION 'FORMAT_MESSAGE'
+              EXPORTING
+                id        = lwa_bapiret2-id
+                lang      = sy-langu
+                no        = lwa_bapiret2-number
+                v1        = lwa_bapiret2-message_v1
+                v2        = lwa_bapiret2-message_v3
+                v3        = lwa_bapiret2-message_v3
+                v4        = lwa_bapiret2-message_v4
+              IMPORTING
+                msg       = lv_msg
+              EXCEPTIONS
+                not_found = 1
+                OTHERS    = 2.
+            IF sy-subrc <> 0.
+* Implement suitable error handling here
+            ENDIF.
+
+
+            gwa_err-icon  = 1.
+            gwa_err-mess  = lv_msg.       "'PGI Reversal failed'.
+            gwa_err-vbeln_m = <fs_vbfa>-vbeln.
+            APPEND gwa_err TO gta_err.
+            CLEAR: gwa_err,lv_msg.
+
+            CLEAR : lwa_xmesg.
+          ENDLOOP.
+
+        ELSE.
+
+          CLEAR : lv_msg.
+          CALL FUNCTION 'FORMAT_MESSAGE'
+            EXPORTING
+              id        = sy-msgid
+              lang      = sy-langu
+              no        = sy-msgno
+              v1        = sy-msgv1
+              v2        = sy-msgv2
+              v3        = sy-msgv3
+              v4        = sy-msgv4
+            IMPORTING
+              msg       = lv_msg
+            EXCEPTIONS
+              not_found = 1
+              OTHERS    = 2.
+          IF sy-subrc <> 0.
+* Implement suitable error handling here
+          ENDIF.
+
+          gwa_err-icon  = 1.
+          gwa_err-mess  = lv_msg.       "'PGI Reversal failed'.
+          gwa_err-vbeln_m = <fs_vbfa>-vbeln.
+          APPEND gwa_err TO gta_err.
+          CLEAR: gwa_err,lv_msg.
+
+        ENDIF.
+
+        <fs_vbfa>-pgi_stat = abap_false.
+
+      ENDIF.
+
+      "delay statement
+      WAIT UP TO gv_delay SECONDS.
+
+      "fm to unlock delivery doc
+      DO.
+        CALL FUNCTION 'DEQUEUE_EVVBLKE'
+          EXPORTING
+            mode_likp = 'E'
+            mandt     = sy-mandt
+            vbeln     = <fs_vbfa>-vbeln.
+        IF sy-subrc = 0.
+          EXIT.
+        ENDIF.
+      ENDDO.
+
+
+      "Delivery cancellation
+      CLEAR : lwa_headerdata,lwa_headercontrol,lv_delivery,gta_return2[].
+
+      lwa_headerdata-deliv_numb    = <fs_vbfa>-vbeln.
+      lwa_headercontrol-deliv_numb = <fs_vbfa>-vbeln.
+      lwa_headercontrol-dlv_del    = abap_true.
+      lv_delivery = <fs_vbfa>-vbeln.
+
+      "fm to lock delivery number
+      DO.
+        CALL FUNCTION 'ENQUEUE_EVVBLKE'
+          EXPORTING
+            mode_likp      = 'E'
+            mandt          = sy-mandt
+            vbeln          = <fs_vbfa>-vbeln
+            _wait          = '1'
+          EXCEPTIONS
+            foreign_lock   = 1
+            system_failure = 2
+            OTHERS         = 3.
+        IF sy-subrc <> 0.
+          "* Implement suitable error handling here
+        ELSE.
+          EXIT.
+        ENDIF.
+      ENDDO.
+
+      "change delivery
+      CALL FUNCTION 'BAPI_OUTB_DELIVERY_CHANGE'
+        EXPORTING
+          header_data    = lwa_headerdata
+          header_control = lwa_headercontrol
+          delivery       = lv_delivery
+        TABLES
+          return         = gta_return2.
+
+      "delay statement
+      WAIT UP TO gv_delay SECONDS.
+
+      "fm to unlock delivery doc
+      DO.
+        CALL FUNCTION 'DEQUEUE_EVVBLKE'
+          EXPORTING
+            mode_likp = 'E'
+            mandt     = sy-mandt
+            vbeln     = <fs_vbfa>-vbeln.
+        IF sy-subrc = 0.
+          EXIT.
+        ENDIF.
+      ENDDO.
+
+      IF gta_return2[] IS NOT INITIAL.
+        CLEAR : gwa_return.
+        READ TABLE gta_return2 INTO gwa_return2 WITH KEY type = co_e .
+        IF sy-subrc NE 0.
+
+          CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
+            EXPORTING
+              wait = 'X'.
+
+          <fs_vbfa>-delv_stat = abap_true.
+
+          "success scenario
+          LOOP AT gta_return2 INTO gwa_return2 WHERE type NE co_e OR type NE co_a.
+            gwa_err-icon  = 3.
+            gwa_err-mess  = gwa_return2-message.
+            gwa_err-vbeln_m = gwa_return2-message_v1.
+            APPEND gwa_err TO gta_err.
+            CLEAR gwa_err.
+          ENDLOOP.
+
+          "-------------------------------------------------------------------------
+          "if delivery cancellation is sccessfull, we have to change the service tag
+          "in sales order to 'N' (non servicable).
+          "fm to lock sales order
+          DO.
+            CALL FUNCTION 'ENQUEUE_/IRM/EZ_IPVBAK'
+              EXPORTING
+                mode_vbak      = 'E'
+                mandt          = sy-mandt
+                vbeln          = <fs_vbfa>-vbelv
+              EXCEPTIONS
+                foreign_lock   = 1
+                system_failure = 2
+                OTHERS         = 3.
+            IF sy-subrc <> 0.
+              "* Implement suitable error handling here
+            ELSE.
+              EXIT.
+            ENDIF.
+          ENDDO.
+
+          "delay statement
+          WAIT UP TO gv_delay SECONDS.
+
+          UPDATE vbak SET zser_tagging = co_n WHERE vbeln EQ <fs_vbfa>-vbelv.
+          IF sy-subrc = 0.
+            CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
+              EXPORTING
+                wait = abap_true.
+
+            CLEAR : gwa_err.
+            gwa_err-icon  = 3.
+            gwa_err-mess  = text-t01.
+            gwa_err-vbeln_m = <fs_vbfa>-vbelv.
+            APPEND gwa_err TO gta_err.
+            CLEAR gwa_err.
+
+          ELSE.
+
+            CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK' .
+            CLEAR : gwa_err.
+            gwa_err-icon  = 1.
+            gwa_err-mess  = text-t02.
+            gwa_err-vbeln_m = <fs_vbfa>-vbelv.
+            APPEND gwa_err TO gta_err.
+            CLEAR gwa_err.
+
+          ENDIF.
+
+          "fm to unlock sales order
+          DO.
+            CALL FUNCTION 'DEQUEUE_/IRM/EZ_IPVBAK'
+              EXPORTING
+                mode_vbak = 'E'
+                mandt     = sy-mandt
+                vbeln     = <fs_vbfa>-vbelv.
+            IF sy-subrc = 0.
+              EXIT.
+            ENDIF.
+          ENDDO.
+          "-------------------------------------------------------------------------
+
+        ELSE.
+          CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK' .
+
+          <fs_vbfa>-delv_stat = abap_false.
+
+          LOOP AT gta_return INTO gwa_return WHERE type EQ co_e OR type EQ co_a."'A'..
+            gwa_err-icon  = 1.
+            gwa_err-mess  = gwa_return-message.
+            gwa_err-vbeln_m = gwa_return2-message_v1  .
+            APPEND gwa_err TO gta_err.
+            CLEAR gwa_err.
+          ENDLOOP.
+
+        ENDIF.
+
+      ELSE.
+
+        CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
+          EXPORTING
+            wait = 'X'.
+
+        <fs_vbfa>-delv_stat = abap_true.
+
+        gwa_err-icon  = 3.
+        gwa_err-mess  = text-034.
+        gwa_err-vbeln_m = <fs_vbfa>-vbeln.
+        APPEND gwa_err TO gta_err.
+        CLEAR gwa_err.
+
+        "-------------------------------------------------------------------------
+        "if delivery cancellation is sccessfull, we have to change the service tag
+        "in sales order to 'N' (non servicable).
+
+        "fm to lock sales order
+        DO.
+          CALL FUNCTION 'ENQUEUE_/IRM/EZ_IPVBAK'
+            EXPORTING
+              mode_vbak      = 'E'
+              mandt          = sy-mandt
+              vbeln          = <fs_vbfa>-vbelv
+            EXCEPTIONS
+              foreign_lock   = 1
+              system_failure = 2
+              OTHERS         = 3.
+          IF sy-subrc <> 0.
+            "* Implement suitable error handling here
+          ELSE.
+            EXIT.
+          ENDIF.
+        ENDDO.
+
+        "delay statement
+        WAIT UP TO gv_delay SECONDS.
+
+        UPDATE vbak SET zser_tagging = co_n WHERE vbeln EQ <fs_vbfa>-vbelv.
+        IF sy-subrc = 0.
+          CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
+            EXPORTING
+              wait = abap_true.
+
+          CLEAR : gwa_err.
+          gwa_err-icon  = 3.
+          gwa_err-mess  = text-t01.
+          gwa_err-vbeln_m = <fs_vbfa>-vbelv.
+          APPEND gwa_err TO gta_err.
+          CLEAR gwa_err.
+
+        ELSE.
+
+          CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK' .
+          CLEAR : gwa_err.
+          gwa_err-icon  = 1.
+          gwa_err-mess  = text-t02.
+          gwa_err-vbeln_m = <fs_vbfa>-vbelv.
+          APPEND gwa_err TO gta_err.
+          CLEAR gwa_err.
+
+        ENDIF.
+
+        "fm to unlock sales order
+        DO.
+          CALL FUNCTION 'DEQUEUE_/IRM/EZ_IPVBAK'
+            EXPORTING
+              mode_vbak = 'E'
+              mandt     = sy-mandt
+              vbeln     = <fs_vbfa>-vbelv.
+          IF sy-subrc = 0.
+            EXIT.
+          ENDIF.
+        ENDDO.
+        "-------------------------------------------------------------------------
+
+      ENDIF.
+
+    ENDIF.
+
+  ENDLOOP.
+
+  DELETE gta_err WHERE vbeln_m IS INITIAL.
+
+  "table updation
+  SORT gta_vbfa BY vbelv.
+  UNASSIGN <fs_zsd_mms_lr>.
+  LOOP AT gta_zsd_mms_lr ASSIGNING  <fs_zsd_mms_lr>.
+
+    CLEAR : gwa_vbfa.
+    READ TABLE gta_vbfa INTO gwa_vbfa WITH KEY vbelv = <fs_zsd_mms_lr>-sales_ord
+                                               BINARY SEARCH.
+    IF sy-subrc = 0.
+      <fs_zsd_mms_lr>-pgi_stat = gwa_vbfa-pgi_stat.
+      <fs_zsd_mms_lr>-delv_stat = gwa_vbfa-delv_stat.
+    ENDIF.
+  ENDLOOP.
+
+  "ZSD_MMS_LR table update
+  IF gta_zsd_mms_lr[] IS NOT INITIAL.
+
+*** Lock the table ***
+    CALL FUNCTION 'ENQUEUE_E_TABLE'
+      EXPORTING
+        mode_rstable   = 'E'
+        tabname        = 'ZSD_MMS_LR'
+      EXCEPTIONS
+        foreign_lock   = 1
+        system_failure = 2
+        OTHERS         = 3.
+
+    IF sy-subrc = 0.
+
+      MODIFY zsd_mms_lr FROM TABLE gta_zsd_mms_lr.
+      IF sy-subrc = 0.
+*** Unlock the table ***
+        CALL FUNCTION 'DEQUEUE_E_TABLE'
+          EXPORTING
+            mode_rstable = 'E'
+            tabname      = 'ZSD_MMS_LR'.
+
+        COMMIT WORK.
+      ELSE.
+        ROLLBACK WORK.
+      ENDIF.
+    ENDIF.
+  ENDIF.
+
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form  DATA_VALIDATION
+*&---------------------------------------------------------------------*
+*       Data Validation
+*----------------------------------------------------------------------*
+FORM data_validation .
+
+  DATA : lta_zsd_mms_lr TYPE TABLE OF zsd_mms_lr,
+         lwa_zsd_mms_lr TYPE zsd_mms_lr.
+
+  CLEAR : lta_zsd_mms_lr[],lwa_zsd_mms_lr.
+
+  lta_zsd_mms_lr[] = gta_zsd_mms_lr[].
+
+
+  SORT gta_zsd_mms_lr BY inv_no.
+  SORT lta_zsd_mms_lr BY sales_ord.
+
+  LOOP AT gta_mms_lr INTO gwa_mms_lr.
+    CLEAR : gwa_zsd_mms_lr.
+    READ TABLE gta_zsd_mms_lr INTO gwa_zsd_mms_lr WITH KEY inv_no = gwa_mms_lr-inv_no
+                                                           BINARY SEARCH.
+    IF sy-subrc = 0.
+      "do nothing
+    ELSE.
+
+      CLEAR : lwa_zsd_mms_lr.
+      READ TABLE lta_zsd_mms_lr INTO lwa_zsd_mms_lr WITH KEY sales_ord = gwa_mms_lr-sales_ord
+                                                             BINARY SEARCH.
+      IF sy-subrc = 0.
+        gwa_err-vbeln_m = lwa_zsd_mms_lr-inv_no.
+      ENDIF.
+
+      gwa_err-icon  = 1.
+      gwa_err-mess  = text-e04.
+      APPEND gwa_err TO gta_err.
+      CLEAR: gwa_err.
+    ENDIF.
+
+    CLEAR : gwa_err.
+  ENDLOOP.
+
+  CLEAR : lta_zsd_mms_lr[],lwa_zsd_mms_lr.
+
+
+ENDFORM.

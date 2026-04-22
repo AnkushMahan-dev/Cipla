@@ -1,0 +1,11 @@
+*&---------------------------------------------------------------------*
+*&  Include           EAML_SEL_GLOBAL_DATA
+*&---------------------------------------------------------------------*
+**--- LAM: Selektion über Linear Feature Extension -
+DATA lfe_fields TYPE eaml_s_lfe_fields_sel.
+DATA gr_start   LIKE RANGE OF lfe_fields-start_point.
+DATA gr_end     LIKE RANGE OF lfe_fields-end_point.
+DATA gr_len     LIKE RANGE OF lfe_fields-linear_length.
+DATA gv_uom     LIKE lfe_fields-linear_unit.
+DATA gr_lrpid   LIKE RANGE OF lfe_fields-lrpid.
+DATA gv_graph   TYPE abap_bool.

@@ -1,0 +1,1504 @@
+*&---------------------------------------------------------------------*
+*& Report  ZSD_MMS_BD_WAYBILL_UPD_RPT
+*&
+*&---------------------------------------------------------------------*
+* Title             : ZSD_MMS_BD_WAYBILL_UPD_RPT
+* Author            : Prashant Shetty
+* Program Type      : Executable
+* Creation Date     : 20.11.2019
+* Transaction       : ZSD_BLU_WAYBILL
+* Functional design : Amit Dabholkar
+* Technical design  : Prashant Shetty
+* Change request    : 8000005658
+* Transport request : CRDK965522
+* Description       : Bluedart WayBill Update Report
+**                    Update Table - ZSD_MMS_LR
+*&---------------------------------------------------------------------*
+*----------------------------------------------------------------------*
+* Modification Information
+* Date            : 26.11.2020
+* Author          : Vinit Sawant
+* Change request  : 8000006749
+* Transport number: CRDK974735
+* Description     : Change in logic of Depo Address mapping for BLD service
+*	*----------------------------------------------------------------------*
+*----------------------------------------------------------------------*
+* Modification Information
+* Date            : 10.04.2024
+* Author          : fatima Zia
+* Change request  : 8000003565
+* Transport number: CRDK990364,CRDK990651.
+* Description     : Change in logic of Blue dart service.
+*	*----------------------------------------------------------------------*
+REPORT zsd_mms_bd_waybill_upd_rpt.
+
+*----------------------------------------------------------------------*
+* Types
+*----------------------------------------------------------------------*
+TYPES : BEGIN OF gty_mms_lr,
+          sales_ord     TYPE zsd_mms_lr-sales_ord,
+          plant         TYPE zsd_mms_lr-plant,
+          inv_no        TYPE zsd_mms_lr-inv_no,
+          pickup_date   TYPE zsd_mms_lr-pickup_date,
+          customer      TYPE zsd_mms_lr-customer,
+          service_tag   TYPE zsd_mms_lr-service_tag,
+          descr1        TYPE zsd_mms_lr-descr1,
+          shipment_no1  TYPE zsd_mms_lr-shipment_no1,
+          descr2        TYPE zsd_mms_lr-descr2,
+          shipment_no2  TYPE zsd_mms_lr-shipment_no2,
+          descr3        TYPE zsd_mms_lr-descr3,
+          shipment_no3  TYPE zsd_mms_lr-shipment_no3,
+          descr4        TYPE zsd_mms_lr-descr4,
+          shipment_no4  TYPE zsd_mms_lr-shipment_no4,
+          descr5        TYPE zsd_mms_lr-descr5,
+          shipment_no5  TYPE zsd_mms_lr-shipment_no5,
+          descr6        TYPE zsd_mms_lr-descr6,
+          shipment_no6  TYPE zsd_mms_lr-shipment_no6,
+          descr7        TYPE zsd_mms_lr-descr7,
+          shipment_no7  TYPE zsd_mms_lr-shipment_no7,
+          descr8        TYPE zsd_mms_lr-descr8,
+          shipment_no8  TYPE zsd_mms_lr-shipment_no8,
+          descr9        TYPE zsd_mms_lr-descr9,
+          shipment_no9  TYPE zsd_mms_lr-shipment_no9,
+          descr10       TYPE zsd_mms_lr-descr10,
+          shipment_no10 TYPE zsd_mms_lr-shipment_no10,
+          descr11       TYPE zsd_mms_lr-descr11,
+          shipment_no11 TYPE zsd_mms_lr-shipment_no11,
+          descr12       TYPE zsd_mms_lr-descr12,
+          shipment_no12 TYPE zsd_mms_lr-shipment_no12,
+          descr13       TYPE zsd_mms_lr-descr13,
+          shipment_no13 TYPE zsd_mms_lr-shipment_no13,
+          descr14       TYPE zsd_mms_lr-descr14,
+          shipment_no14 TYPE zsd_mms_lr-shipment_no14,
+          descr15       TYPE zsd_mms_lr-descr15,
+          shipment_no15 TYPE zsd_mms_lr-shipment_no15,
+          descr16       TYPE zsd_mms_lr-descr16,
+          shipment_no16 TYPE zsd_mms_lr-shipment_no16,
+          descr17       TYPE zsd_mms_lr-descr17,
+          shipment_no17 TYPE zsd_mms_lr-shipment_no17,
+          descr18       TYPE zsd_mms_lr-descr18,
+          shipment_no18 TYPE zsd_mms_lr-shipment_no18,
+          descr19       TYPE zsd_mms_lr-descr19,
+          shipment_no19 TYPE zsd_mms_lr-shipment_no19,
+          descr20       TYPE zsd_mms_lr-descr20,
+          shipment_no20 TYPE zsd_mms_lr-shipment_no20,
+          descr21       TYPE zsd_mms_lr-descr21,
+          shipment_no21 TYPE zsd_mms_lr-shipment_no21,
+          descr22       TYPE zsd_mms_lr-descr22,
+          shipment_no22 TYPE zsd_mms_lr-shipment_no22,
+          descr23       TYPE zsd_mms_lr-descr23,
+          shipment_no23 TYPE zsd_mms_lr-shipment_no23,
+          descr24       TYPE zsd_mms_lr-descr24,
+          shipment_no24 TYPE zsd_mms_lr-shipment_no24,
+          descr25       TYPE zsd_mms_lr-descr25,
+          shipment_no25 TYPE zsd_mms_lr-shipment_no25,
+          total_volume  TYPE zsd_mms_lr-total_volume,
+        END OF gty_mms_lr,
+
+        BEGIN OF gty_kna1,
+          kunnr TYPE kna1-kunnr,
+          name1 TYPE kna1-name1,        "added by fatima
+          adrnr TYPE kna1-adrnr,
+          aufsd TYPE kna1-aufsd,
+        END OF gty_kna1,
+
+        BEGIN OF gty_kna1_n,
+          kunnr TYPE kna1-kunnr,
+          adrnr TYPE kna1-adrnr,
+          ort01 TYPE kna1-ort01,
+        END OF gty_kna1_n,
+
+        BEGIN OF ty_param,
+          id_name    TYPE zparam_table-id_name,
+          id_number  TYPE zparam_table-id_number,
+          param_name TYPE zparam_table-param_name,
+        END OF ty_param,
+
+        BEGIN OF gty_adrc,
+          addrnumber TYPE adrc-addrnumber,
+          name1      TYPE adrc-name1,
+          post_code1 TYPE adrc-post_code1,
+          street     TYPE adrc-street,
+          str_suppl1 TYPE adrc-str_suppl1,
+          str_suppl2 TYPE adrc-str_suppl2,
+          str_suppl3 TYPE adrc-str_suppl3,
+          city2      TYPE adrc-city2,
+          location   TYPE adrc-location,                    "CRDK966717
+          tel_number TYPE adrc-tel_number,
+        END OF gty_adrc,
+
+        BEGIN OF gty_mini_reg,
+          werks       TYPE zsd_mms_mini_reg-werks,
+          act_plant   TYPE zsd_mms_mini_reg-act_plant,
+          depo_manger TYPE zsd_mms_mini_reg-depo_manger,
+          mob_number  TYPE zsd_mms_mini_reg-mob_number,
+          tel_number  TYPE zsd_mms_mini_reg-tel_number,
+          email_adr   TYPE zsd_mms_mini_reg-email_adr,
+        END OF gty_mini_reg,
+
+        BEGIN OF gty_knvv,
+          kunnr TYPE knvv-kunnr,
+          vwerk TYPE knvv-vwerk,
+        END OF gty_knvv,
+
+        BEGIN OF gty_t001w,
+          werks TYPE t001w-werks,
+          adrnr TYPE t001w-adrnr,
+        END OF gty_t001w,
+
+        BEGIN OF ty_vend,
+          vendor TYPE zsd_mms_lr-vendor,
+        END OF ty_vend,
+
+        BEGIN OF ty_alv,
+          icon                TYPE icon-id,
+          unique_id           TYPE zsd_mms_lr-unique_id,
+          special_instruction TYPE zsddt_req_gen_way_bill_prxy_se-special_instruction,
+          lr_no               TYPE zsd_mms_lr-lr_no,
+          mesg                TYPE bapiret2-message,
+        END OF ty_alv,
+
+        BEGIN OF gty_knvp,
+          kunnr TYPE knvp-kunnr,
+          parvw TYPE knvp-parvw,
+          kunn2 TYPE knvp-kunn2,
+        END OF gty_knvp,
+
+        BEGIN OF ty_dim,
+          code    TYPE zsd_mms_lr-code1,
+          breadth TYPE string,
+          count   TYPE string,
+          height  TYPE string,
+          length  TYPE string,
+        END OF ty_dim,
+
+        BEGIN OF ty_plant,
+          kunnr TYPE kna1-kunnr,
+        END OF ty_plant,
+
+        BEGIN OF ty_vbrk,
+          vbeln TYPE vbrk-vbeln,
+          erzet TYPE vbrk-erzet,
+          erdat TYPE vbrk-erdat,
+        END OF ty_vbrk,
+
+        BEGIN OF ty_adr6,
+          addrnumber TYPE adr6-addrnumber,
+          smtp_addr  TYPE adr6-smtp_addr,
+        END OF ty_adr6.
+
+
+*----------------------------------------------------------------------*
+* TABLE & WORK AREA DECLARATION
+*----------------------------------------------------------------------*
+DATA : ta_bd_prf TYPE TABLE OF zsd_bd_profile,
+       wa_bd_prf TYPE zsd_bd_profile,
+       ta_final  TYPE TABLE OF zsd_mms_pin_mst,
+       wa_final  TYPE zsd_mms_pin_mst.
+
+DATA : go_outbound TYPE REF TO zsdco_si_blue_dart_gen_way_bil,
+       wa_output   TYPE zsdmt_req_gen_way_bill_prxy,
+       wa_input    TYPE zsdmt_res_gen_way_bill_prxy.
+
+DATA : ta_profile TYPE TABLE OF zsddt_req_gen_way_bill_prxy_pr, "zsddt_req_get_pin_code_mst_prx,
+       wa_profile TYPE zsddt_req_gen_way_bill_prxy_pr, "zsddt_req_get_pin_code_mst_prx,
+       ta_item    TYPE TABLE OF zsddt_req_gen_way_bill_prxy_i4,
+       wa_item    TYPE zsddt_req_gen_way_bill_prxy_i4.
+
+DATA : wa_consignee  TYPE zsddt_req_gen_way_bill_prxy_co,
+       wa_returnadds TYPE zsddt_req_gen_way_bill_prxy_re,
+       wa_services   TYPE zsddt_req_gen_way_bill_prxy_se,
+       wa_shipper    TYPE zsddt_req_gen_way_bill_prxy_sh,
+       ta_dimension  TYPE STANDARD TABLE OF zsddt_req_gen_way_bill_prxy_di,
+       wa_dimension  TYPE zsddt_req_gen_way_bill_prxy_di,
+       ta_status     TYPE STANDARD TABLE OF zsddt_res_gen_way_bill_prxy_st,
+       wa_status     TYPE zsddt_res_gen_way_bill_prx_tab, "zsddt_res_gen_way_bill_prxy_st, Debasmita
+       ta_dim        TYPE STANDARD TABLE OF ty_dim,
+       wa_dim        TYPE ty_dim,
+       ta_dim_1      TYPE STANDARD TABLE OF ty_dim,
+       wa_dim_1      TYPE ty_dim,
+*       ta_commodity  TYPE STANDARD TABLE OF zsddt_req_gen_way_bill_prxy_c1,
+       ta_vbrk       TYPE STANDARD TABLE OF ty_vbrk,
+       wa_vbrk       TYPE ty_vbrk,
+       wa_commodity  TYPE  zsddt_req_gen_way_bill_prxy_c1,                   "added by fatima for bluedart changes.
+       ta_itemdtl    TYPE STANDARD TABLE OF zsddt_req_gen_way_bill_prxy_it,  "added by fatima for bluedart changes.
+       wa_itemdtl    TYPE  zsddt_req_gen_way_bill_prxy_it.  "added by fatima for bluedart changes.
+
+DATA : ta_mms_lr     TYPE STANDARD TABLE OF zsd_mms_lr,
+       wa_mms_lr     TYPE zsd_mms_lr,
+       ta_param_bd   TYPE TABLE OF ty_param,
+       ta_param_plnt TYPE TABLE OF ty_param,
+       wa_param      TYPE ty_param,
+       ta_kna1       TYPE STANDARD TABLE OF gty_kna1,
+       wa_kna1       TYPE gty_kna1,
+       ta_knvp       TYPE STANDARD TABLE OF gty_knvp,
+       wa_knvp       TYPE gty_knvp,
+       ta_adrc_shp   TYPE STANDARD TABLE OF gty_adrc,
+       ta_adrc_rtn   TYPE STANDARD TABLE OF gty_adrc,
+       ta_mini_reg   TYPE STANDARD TABLE OF gty_mini_reg,
+       wa_mini_reg   TYPE gty_mini_reg,
+       wa_adrc       TYPE gty_adrc,
+       ta_knvv       TYPE TABLE OF gty_knvv,
+       wa_knvv       TYPE gty_knvv,
+       ta_t001w      TYPE TABLE OF gty_t001w,
+       wa_t001w      TYPE gty_t001w,
+       ta_plant      TYPE TABLE OF ty_plant,
+       wa_plant      TYPE ty_plant,
+       ta_kna1_1     TYPE STANDARD TABLE OF gty_kna1,
+       wa_kna1_1     TYPE gty_kna1,
+       ta_kna1_n     TYPE STANDARD TABLE OF gty_kna1_n, "added by fatima for blue dart changes
+       wa_kna1_n     TYPE gty_kna1_n,
+       ta_adr6       TYPE STANDARD TABLE OF ty_adr6,
+       wa_adr6       TYPE  ty_adr6,
+       ta_mms_lr_1   TYPE STANDARD TABLE OF zsd_mms_lr,
+       wa_mms_lr_1   TYPE zsd_mms_lr,
+       ta_api_status TYPE TABLE OF zsd_mms_api_stat,
+       wa_api_status TYPE zsd_mms_api_stat,
+       ta_vend       TYPE TABLE OF ty_vend,
+       wa_vend       TYPE ty_vend.
+
+DATA : ta_fcat TYPE TABLE OF slis_fieldcat_alv,
+       wa_fcat TYPE slis_fieldcat_alv,
+       ta_alv  TYPE TABLE OF ty_alv,
+       wa_alv  TYPE ty_alv.
+
+DATA : gv_date     TYPE sy-datum,
+       gv_pin_cd   TYPE pstlz,
+       gv_prd_cd   TYPE matnr,
+       gv_dim      TYPE zde_des_mms,
+       gv_ip_date  TYPE sy-datum,
+       gv_op_date  TYPE string,
+       gv_op_time  TYPE string, "added by fatima for blue dart changes
+       wa_dc_given TYPE string, "added by fatima for blue dart changes
+       gv_iv_date  TYPE string,
+       gv_iv_time  TYPE string, "added by fatima for blue dart changes
+       gv_dd       TYPE char2,
+       gv_mm       TYPE char2,
+       gv_yy       TYPE char4,
+       gv_count    TYPE string,
+       gv_count1   TYPE string,
+       gv_msg      TYPE string,
+       gv_msg1     TYPE string,
+       gv_len      TYPE i,
+       gv_len1     TYPE i,
+       gv_len2     TYPE i,
+       gv_len3     TYPE i,
+       gv_time     TYPE i,
+       gv_kunnr    TYPE kna1-kunnr.
+
+
+*----------------------------------------------------------------------*
+* RANGES
+*----------------------------------------------------------------------*
+RANGES : r_plant FOR marc-werks.
+
+*----------------------------------------------------------------------*
+* CONSTANTS
+*----------------------------------------------------------------------*
+CONSTANTS : co_sys        TYPE char3 VALUE 'DEV',
+            co_we         TYPE char2 VALUE 'WE',
+            co_x          TYPE c VALUE 'C',
+            co_plt(3)     TYPE c VALUE 'PLT',
+            co_e          TYPE c VALUE 'E',
+            co_aufsd      TYPE aufsd_v VALUE '08',
+            co_product(9) TYPE c VALUE 'Dutiables',
+            co_error(11)  TYPE c VALUE 'sFaultError',
+            c_green       TYPE icon-id VALUE '@08@',
+            c_yellow      TYPE icon-id VALUE '@09@',
+            c_red         TYPE icon-id VALUE '@0A@',
+            co_s          TYPE c       VALUE 'S',
+            co_id1        TYPE zparam_table-param_name VALUE 'ZMMS_BD_WB',
+            co_id2        TYPE zparam_table-param_name VALUE 'ZMMS_PLNT'.
+
+*---------------------------------------------------------------------*
+* SELECTION-SCREEN                               *
+*---------------------------------------------------------------------*
+SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE text-t01.
+PARAMETERS : p_date TYPE zsd_pkdt OBLIGATORY.
+SELECTION-SCREEN END OF BLOCK b1.
+
+
+*----------------------------------------------------------------------*
+* INITIALIZATION
+*----------------------------------------------------------------------*
+INITIALIZATION.
+
+  REFRESH : ta_bd_prf,ta_final,ta_profile,ta_item,ta_param_bd,ta_param_plnt,
+            ta_mms_lr,ta_knvp,ta_kna1,ta_adrc_shp,ta_knvv,
+            ta_adrc_rtn,ta_mini_reg,ta_status,ta_fcat,ta_vend.
+
+  CLEAR   : wa_bd_prf,wa_final,wa_profile,wa_item,
+            wa_consignee,wa_returnadds,wa_services,wa_shipper,
+            wa_mms_lr,wa_knvp,wa_kna1,wa_adrc,wa_knvv,wa_mini_reg,
+            wa_status,wa_fcat.
+
+
+  "show default date in selection screen
+  p_date = sy-datum.
+
+AT SELECTION-SCREEN ON p_date.
+  IF p_date LT sy-datum.
+    MESSAGE text-001 TYPE co_e.
+  ENDIF.
+
+*----------------------------------------------------------------------*
+* START-OF-SELECTION
+*----------------------------------------------------------------------*
+START-OF-SELECTION.
+
+  PERFORM populate_data.
+  PERFORM consume_service.
+
+  "display Error Report
+  IF ta_alv[] IS NOT INITIAL.
+    PERFORM create_fcat.
+    PERFORM alv_display.
+  ENDIF.
+
+
+*&---------------------------------------------------------------------*
+*&      Form  POPULATE_DATA
+*&---------------------------------------------------------------------*
+*       Fetch Data from profile table to be further passed to Service
+*----------------------------------------------------------------------*
+FORM populate_data .
+
+  "fetch data from the profile table maintained in ECC system
+  CLEAR wa_bd_prf.
+  SELECT SINGLE * FROM zsd_bd_profile
+                  INTO  wa_bd_prf
+                  WHERE bd_sys = sy-sysid."co_sys.
+  IF sy-subrc = 0.
+    "fill profile table
+    wa_profile-api_type     = wa_bd_prf-api_type.
+    wa_profile-licence_key  = wa_bd_prf-license_key."Added by Debasmita
+    wa_profile-area         = wa_bd_prf-area.
+    wa_profile-customercode = wa_bd_prf-customer_code.
+    wa_profile-is_admin     = wa_bd_prf-is_admin.
+    wa_profile-login_id     = wa_bd_prf-login_id.
+    wa_profile-password     = wa_bd_prf-password..
+    wa_profile-version      = wa_bd_prf-version.
+  ENDIF.
+
+  "Fetch Bluedart Vendor
+  SELECT id_name
+         id_number
+         param_name
+                 FROM zparam_table
+                 INTO TABLE ta_param_bd
+                 WHERE id_name = co_id1.
+  IF sy-subrc = 0.
+
+    CLEAR wa_param.
+    LOOP AT ta_param_bd INTO wa_param.
+
+      wa_vend-vendor =  wa_param-param_name.
+      CALL FUNCTION 'CONVERSION_EXIT_ALPHA_INPUT'
+        EXPORTING
+          input  = wa_vend-vendor
+        IMPORTING
+          output = wa_vend-vendor.
+
+      APPEND wa_vend TO ta_vend.
+      CLEAR : wa_vend,wa_param.
+    ENDLOOP.
+  ENDIF.
+
+  "fetch plant
+  SELECT id_name
+         id_number
+         param_name
+                 FROM zparam_table
+                 INTO TABLE ta_param_plnt
+                 WHERE id_name = co_id2.
+  IF sy-subrc = 0.
+    CLEAR wa_param.
+    LOOP AT ta_param_plnt INTO wa_param.
+      r_plant-sign = 'I'.
+      r_plant-option = 'EQ'.
+      r_plant-low = wa_param-param_name.
+      APPEND r_plant.
+      CLEAR : wa_param,r_plant.
+    ENDLOOP.
+  ENDIF.
+
+  IF ta_vend[] IS NOT INITIAL."ta_vend
+
+    SELECT * FROM zsd_mms_lr
+                          INTO TABLE ta_mms_lr
+                          FOR ALL ENTRIES IN ta_vend
+                          WHERE plant IN r_plant
+                          AND  pickup_date = p_date
+                          AND lr_no = ' '
+                          AND vendor EQ ta_vend-vendor
+                          AND service_tag EQ co_s.
+
+    IF sy-subrc = 0."ta_mms_lr
+
+      CLEAR wa_mms_lr.
+      LOOP AT ta_mms_lr INTO wa_mms_lr.
+        CONCATENATE co_plt wa_mms_lr-plant INTO wa_plant-kunnr .
+        APPEND wa_plant TO ta_plant.
+        CLEAR : wa_plant,wa_mms_lr.
+      ENDLOOP.
+
+      "soc by fatima for blue dart.
+      SELECT vbeln erzet erdat FROM vbrk INTO TABLE ta_vbrk FOR ALL ENTRIES IN ta_mms_lr WHERE vbeln = ta_mms_lr-inv_no.
+
+      IF ta_plant IS NOT INITIAL.
+        SELECT kunnr
+               adrnr
+               ort01
+               FROM kna1
+               INTO TABLE ta_kna1_n
+               FOR ALL ENTRIES IN ta_plant
+               WHERE kunnr  = ta_plant-kunnr.
+      ENDIF.
+
+      "eoc by fatima for blue dart.
+
+
+      CLEAR wa_mms_lr.
+      LOOP AT ta_mms_lr INTO wa_mms_lr.
+        CONCATENATE co_plt wa_mms_lr-cust_plant INTO wa_plant-kunnr .
+        APPEND wa_plant TO ta_plant.
+        CLEAR : wa_plant,wa_mms_lr.
+      ENDLOOP.
+
+      SORT ta_plant BY kunnr.
+      DELETE ADJACENT DUPLICATES FROM ta_plant COMPARING ALL FIELDS.
+
+      "fetch ship to customer
+      SELECT kunnr
+             parvw
+             kunn2
+                  FROM knvp
+                  INTO TABLE ta_knvp
+                  FOR ALL ENTRIES IN ta_mms_lr
+                      WHERE kunnr = ta_mms_lr-ship_to"customer
+                      AND   vkorg = ta_mms_lr-vkorg"'1000'
+                      AND   vtweg = ta_mms_lr-vtweg"'10'
+                      AND   spart = ta_mms_lr-spart"'11'
+      AND   parvw = co_we.
+      IF sy-subrc  = 0."ta_knvp
+
+        "fetch adress number of customer
+        SELECT kunnr
+               name1 "added by fatima
+               adrnr
+               aufsd
+                    FROM kna1
+                    INTO TABLE ta_kna1
+                    FOR ALL ENTRIES IN ta_knvp
+        WHERE kunnr  = ta_knvp-kunn2.
+        IF sy-subrc = 0."ta_kna1
+
+          "fetch address details of ship to party
+          SELECT addrnumber
+                 name1
+                 post_code1
+                 street
+                 str_suppl1
+                 str_suppl2
+                 str_suppl3
+                 city2
+                 location
+                 tel_number
+                           FROM adrc
+                           INTO TABLE ta_adrc_shp
+                           FOR ALL ENTRIES IN ta_kna1
+          WHERE addrnumber = ta_kna1-adrnr.
+          IF sy-subrc = 0."ta_adrc
+            "Update CONSIGNEE Data
+          ENDIF."ta_adrc
+
+        ENDIF."ta_kna1
+
+      ENDIF."ta_knvp
+
+      SELECT kunnr
+             name1   "added by fatima
+             adrnr
+             aufsd
+                FROM kna1
+                INTO CORRESPONDING FIELDS OF TABLE ta_kna1_1
+                FOR ALL ENTRIES IN ta_plant
+                    WHERE kunnr  = ta_plant-kunnr.
+      IF sy-subrc = 0."ta_t001w
+
+        "fetch address details of customer plant
+        SELECT addrnumber
+               name1
+               post_code1
+               street
+               str_suppl1
+               str_suppl2
+               str_suppl3
+               city2
+               location
+               tel_number
+                         FROM adrc
+                         INTO TABLE ta_adrc_rtn
+                         FOR ALL ENTRIES IN ta_kna1_1
+                             WHERE addrnumber = ta_kna1_1-adrnr.
+        IF sy-subrc = 0."ta_adrc
+
+          "added by fatima for blue dart on 08.04.2024.
+          SELECT addrnumber smtp_addr FROM adr6 INTO TABLE ta_adr6 FOR ALL ENTRIES IN ta_kna1_1 WHERE addrnumber = ta_kna1_1-adrnr.
+
+          "Update Return Adds Data
+          SELECT werks
+                 act_plant
+                 depo_manger
+                 mob_number
+                 tel_number
+                 email_adr
+                           FROM zsd_mms_mini_reg
+                           INTO TABLE ta_mini_reg
+                           FOR ALL ENTRIES IN ta_mms_lr
+                               WHERE werks = ta_mms_lr-cust_plant.
+          IF sy-subrc = 0."ta_mini_reg
+
+            "Update Returnadd Data
+
+          ENDIF."ta_mini_reg
+
+        ENDIF."ta_adrc
+
+      ENDIF."ta_t001w
+
+    ENDIF."ta_mms_lr
+
+  ELSE.
+
+    MESSAGE text-e01 TYPE co_s DISPLAY LIKE co_e."'E'.
+    LEAVE LIST-PROCESSING.
+
+  ENDIF."ta_vend
+
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form  CONSUME_SERVICE
+*&---------------------------------------------------------------------*
+*       Pass Data to Object to consume the service
+*----------------------------------------------------------------------*
+FORM consume_service .
+
+  CLEAR : gv_pin_cd,gv_prd_cd.
+  DATA : lv_addr TYPE string.
+  DATA: lv_len      TYPE i,                                 "CRDK966765
+        lv_val(30)  TYPE c,
+        lv_val1(30) TYPE c,
+        lv_val2(30) TYPE c.
+
+  IF ta_mms_lr[] IS NOT INITIAL."ta_mms_lr
+
+    CLEAR wa_mms_lr.
+    LOOP AT ta_mms_lr INTO wa_mms_lr.
+
+      CLEAR wa_knvp.
+      READ TABLE ta_knvp INTO wa_knvp WITH KEY kunnr = wa_mms_lr-ship_to."customer.
+      IF sy-subrc  = 0."ta_knvp
+
+        CLEAR wa_kna1.
+        READ TABLE ta_kna1 INTO wa_kna1 WITH KEY kunnr = wa_knvp-kunn2.
+        IF sy-subrc = 0."ta_kna1
+**          IF wa_kna1-aufsd = co_x.
+          IF wa_kna1-aufsd = co_aufsd.
+            wa_mms_lr-cust_stat = co_x.
+          ENDIF.
+        ENDIF.""ta_kna1
+      ENDIF.
+
+      MODIFY ta_mms_lr FROM wa_mms_lr TRANSPORTING cust_stat.
+
+      CLEAR : wa_mms_lr,wa_kna1.
+    ENDLOOP.
+
+    ta_mms_lr_1[] = ta_mms_lr[].
+
+    SORT ta_mms_lr_1 BY unique_id.
+    SORT ta_mms_lr BY unique_id.
+
+    DELETE ADJACENT DUPLICATES FROM ta_mms_lr COMPARING unique_id.
+
+    CLEAR : wa_consignee,wa_returnadds,wa_services,wa_dim.
+
+    CLEAR wa_mms_lr.
+    LOOP AT ta_mms_lr INTO wa_mms_lr.
+
+      IF wa_mms_lr-cust_stat = co_x."'X'.
+        CONTINUE.
+      ENDIF.
+
+      "Pass Profile Data
+      wa_item-profile        = wa_profile.
+
+      "Consignee Details
+      CLEAR wa_knvp.
+      READ TABLE ta_knvp INTO wa_knvp WITH KEY kunnr = wa_mms_lr-ship_to."customer.
+      IF sy-subrc  = 0."ta_knvp
+
+        CLEAR wa_kna1.
+        READ TABLE ta_kna1 INTO wa_kna1 WITH KEY kunnr = wa_knvp-kunn2.
+        IF sy-subrc = 0."ta_kna1
+
+          CLEAR wa_adrc.
+          READ TABLE  ta_adrc_shp INTO wa_adrc WITH KEY addrnumber = wa_kna1-adrnr.
+          IF sy-subrc = 0."ta_adrc_shp
+            CONCATENATE wa_adrc-street wa_adrc-str_suppl1 wa_adrc-str_suppl2 wa_adrc-str_suppl3 wa_adrc-location INTO lv_addr.
+            CONDENSE lv_addr.
+            lv_len = strlen( lv_addr ).                     "CRDK966765
+
+*** S.O.D by VSAWANT for 8000006749 TR#CRDK974735 on 26.11.2020 ***
+*            IF lv_len GE 30.                                "CRDK966765
+*              wa_consignee-consignee_address1 = lv_addr+0(30)."wa_adrc-str_suppl1.
+*            ELSE.
+*              wa_consignee-consignee_address1 = lv_addr.
+*            ENDIF.
+*            IF lv_len GE 30 AND lv_len GE 60.               "CRDK966765
+*              wa_consignee-consignee_address2 = lv_addr+30(30)."wa_adrc-str_suppl2.
+*            ELSEIF lv_len GE 30 AND lv_len LE 60.
+*              wa_consignee-consignee_address2 = lv_addr+30."wa_adrc-str_suppl2.
+*            ENDIF.
+*            IF lv_len GE 60 AND lv_len GE 90.               "CRDK966765
+*              wa_consignee-consignee_address3 = lv_addr+60(30)."wa_adrc-street.
+*            ELSEIF lv_len GE 60 AND lv_len LE 90.
+*              wa_consignee-consignee_address3 = lv_addr+60."wa_adrc-street.
+*
+*            ENDIF.
+*** E.O.D by VSAWANT for 8000006749 TR#CRDK974735 on 26.11.2020 ***
+
+*** S.O.A by VSAWANT for 8000006749 TR#CRDK974735 on 26.11.2020 ***
+            IF lv_len GE 25.
+              wa_consignee-consignee_address1 = lv_addr+0(25).
+            ELSE.
+              wa_consignee-consignee_address1 = lv_addr.
+            ENDIF.
+            IF lv_len GE 25 AND lv_len GE 50.
+              wa_consignee-consignee_address2 = lv_addr+25(25).
+            ELSEIF lv_len GE 25 AND lv_len LE 50.
+              wa_consignee-consignee_address2 = lv_addr+25.
+            ENDIF.
+            IF lv_len GE 50 AND lv_len GE 75.
+              wa_consignee-consignee_address3 = lv_addr+50(25).
+            ELSEIF lv_len GE 50 AND lv_len LE 75.
+              wa_consignee-consignee_address3 = lv_addr+50.
+            ENDIF.
+*** E.O.A by VSAWANT for 8000006749 TR#CRDK974735 on 26.11.2020 ***
+
+            "SOC BY FATIMA FOR CR#8000003412 BLUEDART API CHANGES ON 03.04.2024
+
+            wa_consignee-available_days = 'NULL'.
+            wa_consignee-available_timing = 'NULL'.
+            wa_consignee-consignee_address_type = 'NULL'.
+            wa_consignee-consignee_addressinfo = 'NULL'.
+            wa_consignee-consignee_attention = 'NULL'.
+            wa_consignee-consignee_email_id  = 'NULL'.
+            wa_consignee-consignee_full_address  = 'NULL'.
+            wa_consignee-consignee_gstnumber  = 'NULL'.
+            wa_consignee-consignee_latitude  = 'NULL'.
+            wa_consignee-consignee_longitude  = 'NULL'.
+            wa_consignee-consignee_masked_contact_numbe = 'NULL'.
+            wa_consignee-consignee_telephone  = 'NULL'.
+
+            "EOC BY FATIMA FOR CR#8000003412 BLUEDART API CHANGES ON 03.04.2024
+            wa_consignee-consignee_mobile   = wa_adrc-tel_number.
+            wa_consignee-consignee_name     = wa_adrc-name1.
+            wa_consignee-consignee_pincode  = wa_adrc-post_code1. "'440023'.
+
+          ENDIF."ta_adrc_shp
+
+        ENDIF."ta_kna1
+
+      ENDIF."ta_knvp
+
+
+      CLEAR : gv_kunnr,lv_addr.
+      CONCATENATE co_plt wa_mms_lr-cust_plant INTO gv_kunnr.
+
+      CLEAR wa_kna1_1.
+      READ TABLE ta_kna1_1 INTO wa_kna1_1 WITH KEY kunnr = gv_kunnr.
+      IF sy-subrc = 0."ta_t001w
+
+        CLEAR : wa_adrc,lv_val,lv_val1,lv_val2.
+        READ TABLE ta_adrc_rtn INTO wa_adrc WITH KEY addrnumber = wa_kna1_1-adrnr.
+        IF sy-subrc = 0."ta_adrc_rtn
+          lv_val = wa_adrc-street.                          "CRDK966765
+          lv_val1 = wa_adrc-str_suppl3.                     "CRDK966765
+          lv_val2 = wa_adrc-city2.                          "CRDK966765
+          wa_returnadds-return_address1 = lv_val."wa_adrc-street+0(30).
+          wa_returnadds-return_address2 = lv_val1."wa_adrc-str_suppl3+0(30)."str_suppl1.
+          wa_returnadds-return_address3 = lv_val2."wa_adrc-city2+0(30)."str_suppl2.
+
+*"SOC BY FATIMA FOR CR#8000003412 BLUEDART API CHANGES ON 03.04.2024
+
+          wa_returnadds-return_pincode  = wa_adrc-post_code1. "'421302'.
+          wa_returnadds-return_mobile = wa_adrc-tel_number.
+
+          READ TABLE ta_adr6 INTO wa_adr6 WITH KEY addrnumber = wa_kna1_1-adrnr.
+          wa_returnadds-return_email_id = wa_adr6-smtp_addr.
+
+*          CLEAR wa_mini_reg.
+*          READ TABLE ta_mini_reg INTO wa_mini_reg WITH KEY werks = wa_mms_lr-cust_plant.
+*          IF  sy-subrc = 0."ta_mini_reg
+*
+*            wa_returnadds-return_mobile = wa_mini_reg-mob_number.
+*            wa_returnadds-return_telephone = wa_mini_reg-tel_number.
+*            wa_returnadds-return_email_id = wa_mini_reg-email_adr.
+*
+*          ENDIF."ta_mini_reg
+
+        ENDIF."ta_adrc_rtn
+
+      ENDIF."ta_knvv
+
+      wa_returnadds-manifest_number = 'NULL'.
+      wa_returnadds-return_addressinfo = 'NULL'.
+      wa_returnadds-return_contact = wa_kna1_1-name1.
+*      wa_returnadds-return_email_id = 'NULL'.
+      wa_returnadds-return_latitude = 'NULL'.
+      wa_returnadds-return_longitude = 'NULL'.
+      wa_returnadds-return_masked_contact_number = 'NULL'.
+      wa_returnadds-return_telephone = 'NULL'.
+
+
+      "Services Data
+      wa_services-awbno = 'NULL'.
+      wa_services-collectable_amount = '0'.
+      wa_services-credit_reference_no2 = 'NULL'.
+      wa_services-credit_reference_no3 = 'NULL'.
+      wa_services-currency_code = 'NULL'.
+
+      "commodity details.
+      wa_commodity-commodity_detail1 = 'NULL'.
+      wa_commodity-commodity_detail2 = 'NULL'.
+      wa_commodity-commodity_detail3 = 'NULL'.
+
+      wa_services-commodity =  wa_commodity.
+
+      CLEAR: wa_commodity.
+
+      wa_services-delivery_time_slot = 'NULL'.
+
+      "EOC BY FATIMA FOR CR#8000003412 BLUEDART API CHANGES ON 03.04.2024
+
+      wa_services-credit_reference_no =  wa_mms_lr-unique_id."'0194'. "Unique ID from LR Table
+**      wa_services-declared_value      = wa_mms_lr-inv_amt_val."'8087'. "Invocie Value from Table after tax
+
+      CLEAR wa_mms_lr_1.
+      LOOP AT ta_mms_lr_1 INTO wa_mms_lr_1 WHERE unique_id = wa_mms_lr-unique_id.
+
+*        wa_services-actual_weight  = wa_services-actual_weight + wa_mms_lr_1-total_volume.
+        wa_services-actual_weight  = wa_services-actual_weight + wa_mms_lr_1-total_gross.
+
+        "Invocie Value from Table after tax
+*        wa_services-declared_value = wa_services-declared_value + wa_mms_lr-inv_amt_val.
+        wa_services-declared_value = wa_services-declared_value + wa_mms_lr_1-inv_amt_val.
+
+        "Dimensions
+        IF wa_mms_lr_1-descr1 IS NOT INITIAL
+                       AND wa_mms_lr_1-code1 IS NOT INITIAL.
+
+          PERFORM upd_dim USING wa_mms_lr_1-code1
+                                wa_mms_lr_1-descr1
+                                wa_mms_lr_1-shipment_no1.
+        ENDIF.
+
+        "Dimensions
+        IF wa_mms_lr_1-descr2 IS NOT INITIAL
+                       AND wa_mms_lr_1-code2 IS NOT INITIAL.
+
+          PERFORM upd_dim USING wa_mms_lr_1-code2
+                                wa_mms_lr_1-descr2
+                                wa_mms_lr_1-shipment_no2.
+        ENDIF.
+
+        "Dimensions
+        IF wa_mms_lr_1-descr3 IS NOT INITIAL
+                       AND wa_mms_lr_1-code3 IS NOT INITIAL.
+
+          PERFORM upd_dim USING wa_mms_lr_1-code3
+                                wa_mms_lr_1-descr3
+                                wa_mms_lr_1-shipment_no3.
+        ENDIF.
+
+        "Dimensions
+        IF wa_mms_lr_1-descr4 IS NOT INITIAL
+                       AND wa_mms_lr_1-code4 IS NOT INITIAL.
+
+          PERFORM upd_dim USING wa_mms_lr_1-code4
+                                wa_mms_lr_1-descr4
+                                wa_mms_lr_1-shipment_no4.
+        ENDIF.
+
+        "Dimensions
+        IF wa_mms_lr_1-descr5 IS NOT INITIAL
+                       AND wa_mms_lr_1-code5 IS NOT INITIAL.
+
+          PERFORM upd_dim USING wa_mms_lr_1-code5
+                                wa_mms_lr_1-descr5
+                                wa_mms_lr_1-shipment_no5.
+        ENDIF.
+
+        "Dimensions
+        IF wa_mms_lr_1-descr6 IS NOT INITIAL
+                       AND wa_mms_lr_1-code6 IS NOT INITIAL.
+
+          PERFORM upd_dim USING wa_mms_lr_1-code6
+                                wa_mms_lr_1-descr6
+                                wa_mms_lr_1-shipment_no6.
+        ENDIF.
+
+        "Dimensions
+        IF wa_mms_lr_1-descr7 IS NOT INITIAL
+                       AND wa_mms_lr_1-code7 IS NOT INITIAL.
+
+          PERFORM upd_dim USING wa_mms_lr_1-code7
+                                wa_mms_lr_1-descr7
+                                wa_mms_lr_1-shipment_no7.
+        ENDIF.
+
+        "Dimensions
+        IF wa_mms_lr_1-descr8 IS NOT INITIAL
+                       AND wa_mms_lr_1-code8 IS NOT INITIAL.
+
+          PERFORM upd_dim USING wa_mms_lr_1-code8
+                                wa_mms_lr_1-descr8
+                                wa_mms_lr_1-shipment_no8.
+        ENDIF.
+
+        "Dimensions
+        IF wa_mms_lr_1-descr9 IS NOT INITIAL
+                       AND wa_mms_lr_1-code9 IS NOT INITIAL.
+
+          PERFORM upd_dim USING wa_mms_lr_1-code9
+                                wa_mms_lr_1-descr9
+                                wa_mms_lr_1-shipment_no9.
+        ENDIF.
+
+        "Dimensions
+        IF wa_mms_lr_1-descr10 IS NOT INITIAL
+                       AND wa_mms_lr_1-code10 IS NOT INITIAL.
+
+          PERFORM upd_dim USING wa_mms_lr_1-code10
+                                wa_mms_lr_1-descr10
+                                wa_mms_lr_1-shipment_no10.
+        ENDIF.
+
+        "Dimensions
+        IF wa_mms_lr_1-descr11 IS NOT INITIAL
+                       AND wa_mms_lr_1-code11 IS NOT INITIAL.
+
+          PERFORM upd_dim USING wa_mms_lr_1-code11
+                                wa_mms_lr_1-descr11
+                                wa_mms_lr_1-shipment_no11.
+        ENDIF.
+
+        "Dimensions
+        IF wa_mms_lr_1-descr12 IS NOT INITIAL
+                       AND wa_mms_lr_1-code12 IS NOT INITIAL.
+
+          PERFORM upd_dim USING wa_mms_lr_1-code12
+                                wa_mms_lr_1-descr12
+                                wa_mms_lr_1-shipment_no12.
+        ENDIF.
+
+        "Dimensions
+        IF wa_mms_lr_1-descr13 IS NOT INITIAL
+                       AND wa_mms_lr_1-code13 IS NOT INITIAL.
+
+          PERFORM upd_dim USING wa_mms_lr_1-code13
+                                wa_mms_lr_1-descr13
+                                wa_mms_lr_1-shipment_no13.
+        ENDIF.
+
+        "Dimensions
+        IF wa_mms_lr_1-descr14 IS NOT INITIAL
+                       AND wa_mms_lr_1-code14 IS NOT INITIAL.
+
+          PERFORM upd_dim USING wa_mms_lr_1-code14
+                                wa_mms_lr_1-descr14
+                                wa_mms_lr_1-shipment_no14.
+        ENDIF.
+
+        "Dimensions
+        IF wa_mms_lr_1-descr15 IS NOT INITIAL
+                       AND wa_mms_lr_1-code15 IS NOT INITIAL.
+
+          PERFORM upd_dim USING wa_mms_lr_1-code15
+                                wa_mms_lr_1-descr15
+                                wa_mms_lr_1-shipment_no15.
+        ENDIF.
+
+        "Dimensions
+        IF wa_mms_lr_1-descr16 IS NOT INITIAL
+                       AND wa_mms_lr_1-code16 IS NOT INITIAL.
+
+          PERFORM upd_dim USING wa_mms_lr_1-code16
+                                wa_mms_lr_1-descr16
+                                wa_mms_lr_1-shipment_no16.
+        ENDIF.
+
+        "Dimensions
+        IF wa_mms_lr_1-descr17 IS NOT INITIAL
+                       AND wa_mms_lr_1-code17 IS NOT INITIAL.
+
+          PERFORM upd_dim USING wa_mms_lr_1-code17
+                                wa_mms_lr_1-descr17
+                                wa_mms_lr_1-shipment_no17.
+        ENDIF.
+
+        "Dimensions
+        IF wa_mms_lr_1-descr18 IS NOT INITIAL
+                       AND wa_mms_lr_1-code18 IS NOT INITIAL.
+
+          PERFORM upd_dim USING wa_mms_lr_1-code18
+                                wa_mms_lr_1-descr18
+                                wa_mms_lr_1-shipment_no18.
+        ENDIF.
+
+        "Dimensions
+        IF wa_mms_lr_1-descr19 IS NOT INITIAL
+                       AND wa_mms_lr_1-code19 IS NOT INITIAL.
+
+          PERFORM upd_dim USING wa_mms_lr_1-code19
+                                wa_mms_lr_1-descr19
+                                wa_mms_lr_1-shipment_no19.
+        ENDIF.
+
+        "Dimensions
+        IF wa_mms_lr_1-descr20 IS NOT INITIAL
+                       AND wa_mms_lr_1-code20 IS NOT INITIAL.
+
+          PERFORM upd_dim USING wa_mms_lr_1-code20
+                                wa_mms_lr_1-descr20
+                                wa_mms_lr_1-shipment_no20.
+        ENDIF.
+
+        "Dimensions
+        IF wa_mms_lr_1-descr21 IS NOT INITIAL
+                       AND wa_mms_lr_1-code21 IS NOT INITIAL.
+
+          PERFORM upd_dim USING wa_mms_lr_1-code21
+                                wa_mms_lr_1-descr21
+                                wa_mms_lr_1-shipment_no21.
+        ENDIF.
+
+        "Dimensions
+        IF wa_mms_lr_1-descr22 IS NOT INITIAL
+                       AND wa_mms_lr_1-code22 IS NOT INITIAL.
+
+          PERFORM upd_dim USING wa_mms_lr_1-code22
+                                wa_mms_lr_1-descr22
+                                wa_mms_lr_1-shipment_no22.
+        ENDIF.
+
+        "Dimensions
+        IF wa_mms_lr_1-descr23 IS NOT INITIAL
+                       AND wa_mms_lr_1-code23 IS NOT INITIAL.
+
+          PERFORM upd_dim USING wa_mms_lr_1-code23
+                                wa_mms_lr_1-descr23
+                                wa_mms_lr_1-shipment_no23.
+        ENDIF.
+
+        "Dimensions
+        IF wa_mms_lr_1-descr24 IS NOT INITIAL
+                       AND wa_mms_lr_1-code24 IS NOT INITIAL.
+
+          PERFORM upd_dim USING wa_mms_lr_1-code24
+                                wa_mms_lr_1-descr24
+                                wa_mms_lr_1-shipment_no24.
+        ENDIF.
+
+        "Dimensions
+        IF wa_mms_lr_1-descr25 IS NOT INITIAL
+                       AND wa_mms_lr_1-code25 IS NOT INITIAL.
+
+          PERFORM upd_dim USING wa_mms_lr_1-code25
+                                wa_mms_lr_1-descr25
+                                wa_mms_lr_1-shipment_no25.
+        ENDIF.
+
+**        wa_services-declared_value      = wa_mms_lr-inv_amt_val."'8087'. "Invocie Value from Table after tax
+
+
+        CONCATENATE  wa_mms_lr_1-inv_no '/' wa_services-special_instruction   INTO wa_services-special_instruction . "Special Instructions
+
+        CLEAR wa_mms_lr_1.
+      ENDLOOP.
+
+
+      SORT ta_dim BY code.
+      ta_dim_1[] = ta_dim[].
+
+      DELETE ADJACENT DUPLICATES FROM ta_dim_1 COMPARING code.
+
+      CLEAR wa_dim_1.
+      LOOP AT ta_dim_1 INTO wa_dim_1.
+
+        CLEAR  wa_dim_1-count.
+        LOOP AT ta_dim INTO wa_dim WHERE code = wa_dim_1-code .
+          wa_dim_1-count = wa_dim_1-count + wa_dim-count.
+          CLEAR wa_dim.
+        ENDLOOP.
+
+        gv_count = gv_count + wa_dim_1-count.
+
+        MODIFY ta_dim_1 FROM wa_dim_1 TRANSPORTING count.
+
+        CLEAR : wa_dim_1.
+      ENDLOOP.
+
+      MOVE-CORRESPONDING ta_dim_1[] TO ta_dimension[].
+
+*      wa_services-dimensions[] = ta_dimension[].
+      wa_services-dimensions[] = ta_dimension[].
+
+      "Update Services
+
+      "SOC BY FATIMA FOR CR#8000003412 BLUEDART API CHANGES ON 03.04.2024
+      wa_services-favouring_name = 'NULL'.
+      wa_services-forward_awbno = 'NULL'.
+      wa_services-forward_logistic_comp_name = 'NULL'.
+*      wa_services-incoterm_code = 'NULL'.
+      wa_services-insurance_paid_by = 'NULL'.
+      wa_services-invoice_no = 'NULL'.
+      wa_services-is_cheque_dd = 'NULL'.
+      wa_services-is_dedicated_delivery_network = 'FALSE'.
+      wa_services-is_force_pickup = 'FALSE'.
+      wa_services-is_partial_pickup = 'FALSE'.
+      wa_services-is_reverse_pickup = 'FALSE'.
+      wa_services-item_count = '1'.
+      wa_services-otpbased_delivery = '0'.
+      wa_services-otpcode = 'NULL'.
+      wa_services-officecutofftime = 'NULL'.
+      wa_services-pdfoutput_not_required = 'FALSE'.
+      wa_services-pack_type = 'NULL'.
+      wa_services-parcel_shop_code = 'NULL'.
+      wa_services-payable_at = 'NULL'.
+
+      CLEAR gv_ip_date.
+      gv_ip_date = wa_mms_lr-pickup_date.
+      gv_mm = gv_ip_date+4(2).
+      gv_dd = gv_ip_date+6(2).
+      gv_yy = gv_ip_date(4).
+
+      CLEAR gv_ip_date.
+      CONCATENATE gv_yy '-' gv_mm '-' gv_dd INTO gv_op_date.
+      CONDENSE gv_op_date NO-GAPS.
+
+      "addition by fatima for bluedart on 03.04.2024.
+      CONCATENATE wa_mms_lr-pickup_time '000' INTO gv_op_time.
+      CONDENSE gv_op_time NO-GAPS.
+
+      CONCATENATE gv_op_date gv_op_time INTO gv_op_date.
+
+      wa_services-pickup_date  = gv_op_date.
+      wa_services-pickup_time  = wa_mms_lr-pickup_time+0(4)."'0000'."From LR table hh/mm
+      wa_services-piece_count  = gv_count."'1'."From LR Table
+      wa_services-product_code = co_e."'E'.
+*      wa_services-product_type = co_product."'Dutiables'.
+
+      wa_services-pickup_mode = 'NULL'.
+      wa_services-pickup_type = 'NULL'.
+      wa_services-preferred_pickup_time_slot = 'NULL'.
+      wa_services-product_feature = 'NULL'.
+      wa_services-product_type = '1'.
+      wa_services-register_pickup = 'FALSE'.
+*      wa_services-special_instruction = 'NULL'.                          "commented by fatima for bluedart on 17.04.2023.
+      wa_services-sub_product_code = 'NULL'.
+      wa_services-total_cash_payto_customer = 'NULL'.
+***      wa_services-special_instruction = 'sra/099/099/2018/INNF/412233'. "Special Instructions     "commented by fatima for bluedart on 12.06.2024
+
+      "UPDATE ITEMDTL                 "new structure added for blue dart changes.
+      wa_itemdtl-cgstamount = '0'.
+      wa_itemdtl-igstamount = 'NULL'.
+      wa_itemdtl-igstrate = '0'.
+      wa_itemdtl-hscode = 'NULL'.
+      wa_itemdtl-instruction = 'NULL'.
+
+      READ TABLE ta_vbrk INTO wa_vbrk WITH KEY vbeln = wa_mms_lr-inv_no.
+      IF sy-subrc = 0.
+
+        CLEAR: gv_iv_date,gv_mm,gv_dd,gv_yy.
+        gv_iv_date = wa_vbrk-erdat.
+        gv_mm = gv_iv_date+4(2).
+        gv_dd = gv_iv_date+6(2).
+        gv_yy = gv_iv_date(4).
+
+        CLEAR gv_iv_date.
+        CONCATENATE gv_yy '-' gv_mm '-' gv_dd INTO gv_iv_date.
+        CONDENSE gv_iv_date NO-GAPS.
+
+        CONCATENATE wa_vbrk-erzet '000' INTO gv_iv_time.
+        CONDENSE gv_iv_time NO-GAPS.
+
+        CONCATENATE gv_iv_date gv_iv_time INTO gv_iv_date.
+
+        wa_itemdtl-invoice_date = gv_iv_date.
+      ENDIF.
+      wa_itemdtl-invoice_number = 'NULL'.
+      wa_itemdtl-item_id = 'ITEM ID'.
+      wa_itemdtl-item_name = 'ITEM'.
+      wa_itemdtl-item_value = 'NULL'.
+      wa_itemdtl-itemquantity = '1'.
+
+      CLEAR wa_plant-kunnr.
+      CONCATENATE co_plt wa_mms_lr-plant INTO wa_plant-kunnr .
+      READ TABLE ta_kna1_n INTO wa_kna1_n WITH KEY kunnr = wa_plant-kunnr.
+
+      wa_itemdtl-placeof_supply = wa_kna1_n-ort01.
+      wa_itemdtl-product_desc1 = 'PRODUCT'.
+      wa_itemdtl-product_desc2 = 'PRODUCT'.
+      wa_itemdtl-return_reason = 'NULL'.
+      wa_itemdtl-sgstamount = '0'.
+      wa_itemdtl-skunumber = 'NULL'.
+      wa_itemdtl-seller_gstnnumber = 'NULL'.
+      wa_itemdtl-seller_name = 'NULL'.
+      wa_itemdtl-taxable_amount = '0'.
+      wa_itemdtl-total_value = 'NULL'.
+      wa_itemdtl-cess_amount = '0'.
+      wa_itemdtl-country_of_origin ='IN'.
+      wa_itemdtl-doc_type = 'INV'.
+      wa_itemdtl-sub_supply_type = '1'.
+      wa_itemdtl-supply_type = '0'.
+
+      APPEND wa_itemdtl TO ta_itemdtl.
+      wa_services-itemdtl[] = ta_itemdtl[].
+
+
+      "UPDATE NOOFDCGIVEN.                 "new field added by fatima for blue dart changes.
+      wa_dc_given = '0'.
+      wa_services-no_of_dcgiven = wa_dc_given.
+      "EOC BY FATIMA FOR CR#8000003412 BLUEDART API CHANGES ON 03.04.2024
+
+
+      "Update Shipper
+      CLEAR : gv_kunnr.
+      CONCATENATE co_plt wa_mms_lr-plant INTO gv_kunnr.
+
+      CLEAR wa_kna1_1.
+      READ TABLE ta_kna1_1 INTO wa_kna1_1 WITH KEY kunnr = gv_kunnr.
+      IF sy-subrc = 0."ta_t001w
+
+        CLEAR :wa_adrc,lv_val,lv_val1,lv_val2..
+        READ TABLE ta_adrc_rtn INTO wa_adrc WITH KEY addrnumber = wa_kna1_1-adrnr.
+        IF sy-subrc = 0."ta_adrc_rtn
+          lv_val =  wa_adrc-street.                         "CRDK966765
+          lv_val1 = wa_adrc-str_suppl3.                     "CRDK966765
+          lv_val2 = wa_adrc-city2.                          "CRDK966765
+          wa_shipper-customer_address1 = lv_val." wa_adrc-street+0(30). "'Test'."From LR Table get the deatisl of Plant
+          wa_shipper-customer_address2 = lv_val1."wa_adrc-str_suppl3+0(30). "'Test2'.
+          wa_shipper-customer_address3 = lv_val2."wa_adrc-city2+0(30)." 'Test3'.
+
+          "get the data from BD Profile
+          SHIFT wa_bd_prf-cust_shp_code LEFT DELETING LEADING '0'.
+*
+          wa_shipper-customer_code = wa_bd_prf-cust_shp_code. "'332043'.
+          wa_shipper-customer_name = wa_bd_prf-cust_name. "'Name'.
+          wa_shipper-customer_pincode = wa_adrc-post_code1. "'400058'.
+          wa_shipper-origin_area      = wa_bd_prf-origin_area."'BOM'.
+        ENDIF.
+
+        "SOC BY FATIMA FOR CR#8000003412 BLUEDART API CHANGES ON 03.04.2024
+        wa_shipper-customer_addressinfo = 'NULL'.
+        wa_shipper-customer_email_id  = 'NULL'.
+        wa_shipper-customer_gstnumber  = 'NULL'.
+        wa_shipper-customer_latitude  = 'NULL'.
+        wa_shipper-customer_longitude  = 'NULL'.
+        wa_shipper-customer_masked_contact_number  = 'NULL'.
+        wa_shipper-customer_mobile = wa_adrc-tel_number.
+        wa_shipper-customer_telephone = 'NULL'.
+        wa_shipper-is_to_pay_customer = 'FALSE'.
+        wa_shipper-sender = 'NULL'.
+        wa_shipper-vendor_code = 'NULL'.
+        "SOC BY FATIMA FOR CR#8000003412 BLUEDART API CHANGES ON 03.04.2024
+
+      ENDIF.
+
+      "Update Records in Item
+      wa_item-consignee  = wa_consignee.
+      wa_item-returnadds = wa_returnadds.
+      wa_item-services   = wa_services.
+      wa_item-shipper    = wa_shipper.
+      wa_item-profile    = wa_profile.
+*      wa_item-no_of_dcgiven = wa_dc_given.        "added by fatima for blue dart changes.
+
+
+      "Update Item
+      APPEND wa_item TO ta_item.
+      CLEAR  wa_item.
+
+      "Update the Data
+      wa_output-mt_req_gen_way_bill_prxy-item = ta_item.
+
+      "Call Proxy
+      IF wa_bd_prf IS NOT INITIAL.
+
+        TRY.
+            CREATE OBJECT go_outbound.
+          CATCH cx_ai_system_fault .
+        ENDTRY.
+
+
+        TRY.
+            CALL METHOD go_outbound->si_blue_dart_gen_way_bill_so
+              EXPORTING
+                output = wa_output
+              IMPORTING
+                input  = wa_input.
+
+            IF wa_input-mt_res_gen_way_bill_prxy-generate_way_bill_result-awbno IS INITIAL.
+
+
+              wa_status = wa_input-mt_res_gen_way_bill_prxy-generate_way_bill_result-status.
+
+
+*              LOOP AT wa_status-way_bill_generation_status INTO DATA(wa_way_bill)."Commented by Debasmita
+              LOOP AT wa_status INTO DATA(wa_way_bill)."Added by Debasmita
+
+                wa_alv-icon = c_red.
+                wa_alv-unique_id = wa_mms_lr-unique_id."wa_way_bill-STATUS_CODE.
+                wa_alv-special_instruction = wa_services-special_instruction."wa_way_bill-STATUS_CODE.
+
+*                wa_alv-mesg = wa_way_bill-status_information.
+                IF wa_way_bill-status_code = co_error."'sFaultError'.
+                  gv_msg = wa_way_bill-status_information.
+                  gv_len = strlen( gv_msg ).
+                  gv_len1 = gv_len - 220.
+                  IF gv_len1 GE 0.
+                    gv_time = 1.
+                  ENDIF.
+
+                  IF gv_len1 > 220.
+                    gv_len2 = gv_len1 - 220.
+                    gv_time = gv_time + 1 .
+                    IF gv_len2 > 220.
+                      gv_len3 = gv_len2 - 220.
+                      gv_time = gv_time + 1 .
+                    ENDIF.
+                  ENDIF.
+
+                  wa_alv-mesg = gv_msg+0(220).
+
+                ELSE.
+                  wa_alv-mesg = wa_way_bill-status_information.
+                ENDIF.
+
+                APPEND wa_alv TO ta_alv.
+                CLEAR wa_alv.
+
+                IF gv_time = '1'.
+                  wa_alv-mesg = gv_msg+220.
+                  APPEND wa_alv TO ta_alv.
+                  CLEAR wa_alv.
+                ELSEIF gv_time = '2'.
+                  wa_alv-mesg = gv_msg+220(220).
+                  APPEND wa_alv TO ta_alv.
+                  CLEAR wa_alv.
+                  wa_alv-mesg = gv_msg+440.
+                  APPEND wa_alv TO ta_alv.
+                  CLEAR wa_alv.
+                ELSEIF gv_time = '3'.
+                  wa_alv-mesg = gv_msg+220(220).
+                  APPEND wa_alv TO ta_alv.
+                  CLEAR wa_alv.
+                  wa_alv-mesg = gv_msg+440(220).
+                  APPEND wa_alv TO ta_alv.
+                  CLEAR wa_alv.
+                  wa_alv-mesg = gv_msg+660.
+                  APPEND wa_alv TO ta_alv.
+                  CLEAR wa_alv.
+                ENDIF.
+
+              ENDLOOP.
+
+            ELSE.
+
+              wa_status = wa_input-mt_res_gen_way_bill_prxy-generate_way_bill_result-status.
+              wa_alv-icon = c_green.
+              wa_alv-unique_id = wa_mms_lr-unique_id."wa_way_bill-STATUS_CODE.
+              wa_alv-special_instruction = wa_services-special_instruction."wa_way_bill-STATUS_CODE.
+              wa_alv-lr_no = wa_input-mt_res_gen_way_bill_prxy-generate_way_bill_result-awbno.
+              wa_mms_lr-lr_no = wa_input-mt_res_gen_way_bill_prxy-generate_way_bill_result-awbno.
+              wa_mms_lr-lr_date = sy-datum.
+*              wa_alv-mesg = wa_way_bill-status_information.
+
+*              READ TABLE wa_status-way_bill_generation_status INTO DATA(wa_way_bill1) INDEX 1. "Commented by Debasmita
+              READ TABLE wa_status INTO DATA(wa_way_bill1) INDEX 1."Added by Debasmita
+              IF sy-subrc EQ 0.
+                wa_alv-mesg = wa_way_bill1-status_information.
+              ENDIF.
+
+              APPEND wa_alv TO ta_alv.
+              CLEAR : wa_way_bill1,wa_alv.
+
+            ENDIF.
+
+          CATCH cx_ai_system_fault .
+
+        ENDTRY.
+
+      ENDIF.
+
+      MODIFY ta_mms_lr FROM wa_mms_lr TRANSPORTING lr_no lr_date.
+
+      CLEAR: wa_mms_lr,wa_output,wa_input,gv_count,
+             wa_services,gv_time,wa_alv,wa_status,wa_way_bill.
+
+      REFRESH : ta_dim_1,ta_dim,ta_item,ta_dimension,ta_itemdtl.   "ADDED ta_itemdtl BY FATIMA ON 12.06.2024.
+
+    ENDLOOP.
+
+    LOOP AT ta_mms_lr_1 INTO wa_mms_lr_1.
+
+      CLEAR wa_mms_lr.
+      READ TABLE ta_mms_lr INTO wa_mms_lr WITH KEY unique_id = wa_mms_lr_1-unique_id.
+      IF sy-subrc EQ 0.
+
+        wa_mms_lr_1-lr_no = wa_mms_lr-lr_no.
+        wa_mms_lr_1-lr_date = wa_mms_lr-lr_date.
+
+        IF  wa_mms_lr-lr_no IS NOT INITIAL.
+          wa_api_status-inv_ref = wa_mms_lr_1-unique_id.
+          wa_api_status-lr_no =  wa_mms_lr-lr_no.
+          wa_api_status-inv_no =  wa_mms_lr_1-inv_no.
+          APPEND wa_api_status TO ta_api_status.
+        ENDIF.
+
+      ENDIF.
+
+      MODIFY ta_mms_lr_1 FROM wa_mms_lr_1 TRANSPORTING lr_no lr_date.
+
+      CLEAR :wa_api_status,wa_services,wa_mms_lr_1.
+
+    ENDLOOP.
+
+    MODIFY zsd_mms_lr FROM TABLE ta_mms_lr_1.
+
+    IF ta_api_status IS NOT INITIAL.
+      MODIFY zsd_mms_api_stat FROM TABLE ta_api_status.
+    ENDIF.
+
+  ELSE.
+    MESSAGE text-e01 TYPE co_e."'E'.
+  ENDIF."ta_mms_lr
+
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form  UPD_DIM
+*&---------------------------------------------------------------------*
+*       Update Dimensions
+*----------------------------------------------------------------------*
+FORM upd_dim  USING u_wa_mms_lr_code
+                    u_wa_mms_lr_descr
+                    u_wa_mms_lr_shpt.
+
+  DATA : lv_breadth TYPE char3,
+         lv_height  TYPE char3,
+         lv_length  TYPE char3.
+
+
+  CLEAR : gv_dim,lv_breadth,lv_height,lv_length.
+  gv_dim  = u_wa_mms_lr_descr.
+
+  SPLIT gv_dim AT '*' INTO lv_length lv_breadth lv_height.
+
+  wa_dim-breadth = lv_breadth.
+  wa_dim-count   = u_wa_mms_lr_shpt."need to convert to integer
+  REPLACE '.000' IN wa_dim-count WITH ''.
+  CONDENSE wa_dim-count.
+
+*  wa_dimension-count   = '1'.
+  wa_dim-height  = lv_height.
+  wa_dim-length  = lv_length.
+  wa_dim-code = u_wa_mms_lr_code.
+
+  APPEND wa_dim TO ta_dim.
+  CLEAR:  wa_dimension,wa_dim.
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form  CREATE_FCAT
+*&---------------------------------------------------------------------*
+*       Create Fieldcatalog
+*----------------------------------------------------------------------*
+
+FORM create_fcat .
+
+  CLEAR : wa_fcat.
+
+  wa_fcat-fieldname = text-t10.   "'ICON'.
+  wa_fcat-seltext_l = text-t11.
+  wa_fcat-icon = 'X'.
+  wa_fcat-outputlen = 15.
+  APPEND wa_fcat TO ta_fcat.
+  CLEAR wa_fcat.
+
+  wa_fcat-fieldname = text-t02.   "'ICON'.
+  wa_fcat-seltext_l = text-t03.
+  wa_fcat-outputlen = 15.
+  APPEND wa_fcat TO ta_fcat.
+  CLEAR wa_fcat.
+
+  wa_fcat-fieldname = text-t06.
+  wa_fcat-seltext_l = text-t07.
+*  wa_fcat-outputlen = 150.
+  APPEND wa_fcat TO ta_fcat.
+  CLEAR wa_fcat.
+
+  wa_fcat-fieldname = text-t08.
+  wa_fcat-seltext_l = text-t09.
+*  wa_fcat-outputlen = 150.
+  APPEND wa_fcat TO ta_fcat.
+  CLEAR wa_fcat.
+
+  wa_fcat-fieldname = text-t04.   "'MESG'.
+  wa_fcat-seltext_l = text-t05.
+  wa_fcat-outputlen = 150.
+  APPEND wa_fcat TO ta_fcat.
+  CLEAR wa_fcat.
+
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form  ALV_DISPLAY
+*&---------------------------------------------------------------------*
+*       ALV Display
+*----------------------------------------------------------------------*
+FORM alv_display .
+
+  DATA : lwa_layout TYPE slis_layout_alv.
+
+  CLEAR : lwa_layout.
+  lwa_layout-zebra = abap_true.
+  lwa_layout-colwidth_optimize = abap_true .
+*  lwa_layout-lights_fieldname  = text-t11.
+
+  "FM for ALV display
+  CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+    EXPORTING
+      i_callback_program = sy-repid
+      is_layout          = lwa_layout
+      it_fieldcat        = ta_fcat
+      i_default          = 'X'
+      i_save             = 'A'
+    TABLES
+      t_outtab           = ta_alv[]
+    EXCEPTIONS
+      program_error      = 1
+      OTHERS             = 2.
+  IF sy-subrc <> 0.
+* Implement suitable error handling here
+  ENDIF.
+
+
+ENDFORM.

@@ -1,0 +1,406 @@
+*&---------------------------------------------------------------------*
+*&  Include           ZQM_STAT_COMM_MODULES_V2_ANN
+*&---------------------------------------------------------------------*
+* Program         : Issuance of Annexture
+* Title           : Annexture Development
+* Author          : Sushil Pandey
+* Program Type    : Module Pool
+* Creation Date   : 18.12.2020
+* Transaction     : ZQM_ANNEXTURE
+* Functional design: QM_155
+* Technical design:
+* Change request :  <8000006529>
+* Transport number: <transport number>
+* Description     : Issuance of Annexture
+*----------------------------------------------------------------------*
+* Modification Information
+* Date            :
+* Author          :
+* Transport number:
+* Description     :
+*	*----------------------------------------------------------------------*
+
+*&---------------------------------------------------------------------*
+*&      Module  STATUS_2000  OUTPUT
+*&---------------------------------------------------------------------*
+MODULE status_2000 OUTPUT.
+  doc_type = 'ZAN'.
+  SET PF-STATUS 'S2000'.
+  SET TITLEBAR 'T2000'.
+ENDMODULE.                 " STATUS_2000  OUTPUT
+*&---------------------------------------------------------------------*
+*&      Module  STATUS_2001  OUTPUT
+*&---------------------------------------------------------------------*
+MODULE status_2001 OUTPUT.
+  doc_type = 'BPR'.
+  SET PF-STATUS 'S2000'.
+  SET TITLEBAR 'T2000'.
+ENDMODULE.                 " STATUS_2001  OUTPUT
+*&---------------------------------------------------------------------*
+*&      Module  SCREEN2000_MODIFY  OUTPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE screen2000_modify OUTPUT.
+
+* "Added by Smita Dated : 08-04-14 "Set cursor position to prod version of material and plant is not initial.
+  IF p_plant IS NOT INITIAL AND p_plant IS NOT INITIAL .
+    SET CURSOR FIELD 'ANN_NO' .
+  ENDIF.
+
+  IF ann_no IS NOT INITIAL ."AND p_plant IS NOT INITIAL .
+    SET CURSOR FIELD 'P_NEW_STAT' .
+  ENDIF.
+
+  LOOP AT SCREEN.
+    IF screen-name = 'P_NEW_STAT' AND ( p_stat = c_lock ).   " OR p_stat = c_discard ).
+      screen-active = 1. screen-input = 0.
+      MODIFY SCREEN.
+    ELSEIF screen-name = 'P_STAT_DESC' OR screen-name = 'P_STAT'.
+      IF p_stat = 'OB'.
+        screen-intensified = '1'.
+        MODIFY SCREEN.
+      ENDIF.
+    ELSEIF screen-name = 'P_NEW_STAT_DESC' OR screen-name = 'P_NEW_STAT'.
+      IF p_stat = 'OB'.
+        screen-intensified = '1'.
+*        screen-active = 1.
+*        screen-input = 0.
+        MODIFY SCREEN.
+      ENDIF.
+    ENDIF.
+  ENDLOOP.
+ENDMODULE.                 " SCREEN2000_MODIFY  OUTPUT
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_2000  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE user_command_2000 INPUT.
+
+  CASE fcode.
+
+*    WHEN 'UNLOCK'.
+*      DATA: ls_tdws_new TYPE tdws.
+*      "Read Previous status
+*      SELECT * FROM drap INTO TABLE gt_status_log WHERE dokar = 'PDS' AND doknr = gs_mdoc-doknr AND dokvr = gs_mdoc-dokvr AND doktl = gs_mdoc-docpart.
+*      SORT gt_status_log BY stzae DESCENDING.
+*      READ TABLE gt_status_log INTO gs_status_log INDEX 2. "To read status just before Lock
+*      g_new_status_int = gs_status_log-dokst.
+*      CALL FUNCTION 'CV200_DB_TDWS_SELECT'
+*        EXPORTING
+*          pf_dokar        = gs_mdoc-dokar
+*          pf_dokst        = g_new_status_int
+*        IMPORTING
+*          pfx_description = p_new_stat_desc
+*          pfx_stabk       = p_new_stat
+*          psx_tdws        = ls_tdws_new
+*        EXCEPTIONS
+*          not_found       = 1
+*          OTHERS          = 2.
+
+    WHEN 'SAVE' OR 'EXECUTE'.
+
+*      IF p_stat <> 'OB'.
+***      soa on 16.03.2015
+      IF p_new_stat EQ 'RL'.
+        PERFORM get_dmsdoc_details_status USING p_dms.
+      ENDIF.
+***      eoa on 16.03.2015
+
+      PERFORM validation_printlog.
+      IF p_new_stat EQ 'AV'.
+        PERFORM make_prev_version_obsolete.
+        PERFORM overwrite_static_template.
+      ENDIF.
+      "SOA by Debasmita - 01.12.2025
+      IF gv_auth_obj IS INITIAL.
+        AUTHORITY-CHECK OBJECT 'ZQM_ANUSER'
+          ID 'UNAME' FIELD sy-uname.
+        IF sy-subrc EQ 0.
+          gv_auth_obj = 'ZQM_USER1'.
+        ENDIF.
+      ENDIF.
+
+      IF gv_auth_obj IS INITIAL.
+        AUTHORITY-CHECK OBJECT 'ZQM_AUSER2'
+          ID 'UNAME' FIELD sy-uname.
+        IF sy-subrc EQ 0.
+          gv_auth_obj = 'ZQM_USER2'.
+        ENDIF.
+      ENDIF.
+
+      SELECT COUNT(*) FROM zqm_ann_status WHERE zuser = gv_auth_obj
+        AND old_status = g_old_status_int
+        AND new_status =  p_new_stat .
+      IF sy-subrc NE 0.
+        MESSAGE e068(zppr_api) WITH p_new_stat.
+      ENDIF.
+      "EOA by Deabsmita - 01.12.2025
+
+      IF p_stat = p_new_stat OR p_new_stat IS INITIAL.
+        PERFORM unlock_mdoc.
+        MESSAGE s047(zppr_formu).
+      ELSE.
+        CLEAR gv_popup_ans.
+        IF p_new_stat = 'OB'.
+          PERFORM popup_confim.
+        ELSE.
+          gv_popup_ans = '1'.
+        ENDIF.
+        IF gv_popup_ans = '1'.
+          CALL FUNCTION 'BAPI_DOCUMENT_SETSTATUS' "Set Document Status
+            EXPORTING
+              documenttype    = gs_mdoc-dokar
+              documentnumber  = gs_mdoc-dms_doc
+              documentpart    = gs_mdoc-doktl
+              documentversion = p_dms         "gs_mdoc-dokvr
+              statusextern    = p_new_stat        " bapi_doc_draw-statusextern  External Status
+              statusintern    = g_new_status_int       " bapi_doc_draw-statusintern  Internal Status
+*             statuslog       = SPACE           " bapi_doc_draw-statuslog  Status Log Entry
+            IMPORTING
+              return          = gs_dms_return.
+          IF gs_dms_return-type CA 'EA'.
+            ROLLBACK WORK.
+            PERFORM unlock_mdoc.
+            MESSAGE ID '26' TYPE 'E' NUMBER '000'
+              WITH gs_dms_return-message.
+          ELSE.
+            CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'.
+            IF sy-subrc <> 0.
+              ROLLBACK WORK.
+
+              PERFORM unlock_mdoc.
+*              CLEAR: p_mat, p_mdesc, p_plant, p_wdesc, p_prd_vn, p_dms, p_stat, p_stat_desc, p_new_stat, p_new_stat_desc.
+              MESSAGE e046(zppr_api).
+            ELSE.
+              p_stat_desc = p_new_stat_desc.
+              p_stat = p_new_stat.
+              g_old_status_int = g_new_status_int.
+
+
+
+**              SELECT werks_ass,
+**                     werks_main
+**                               FROM zpp_form_plant
+**                               INTO TABLE @DATA(lta_zpp_form_plant1)
+**                               WHERE werks_main = @p_plant.
+**              IF sy-subrc = 0.
+**                SORT lta_zpp_form_plant1 BY werks_main.
+**              ENDIF.
+
+
+              CLEAR lwa_zqm_ann_data_ch.
+              READ TABLE lta_ann_dt_ch INTO lwa_zqm_ann_data_ch WITH KEY werks  = p_plant
+                                                                         ann_no = ann_no
+                                                                         dokvr  = p_dms.
+**                                                                         dokvr  = lwa_zqm_ann_data_ch-dokvr.
+              IF sy-subrc = 0.
+                lwa_zqm_ann_data_ch-stabk  = p_new_stat.
+                lwa_zqm_ann_data_ch-e_user = sy-uname.
+                lwa_zqm_ann_data_ch-e_date = sy-datlo.
+                lwa_zqm_ann_data_ch-e_time = sy-timlo.
+                lwa_zqm_ann_data_ch-stabk  = p_stat.
+
+**                APPEND lwa_zqm_ann_data_ch TO lta_ann_dt_up.
+**                LOOP AT lta_zpp_form_plant1 INTO DATA(lwa_zpp_form_plant).
+**                  lwa_zqm_ann_data_ch-werks = lwa_zpp_form_plant-werks_ass.
+**                  APPEND lwa_zqm_ann_data_ch TO lta_ann_dt_up.
+**                  CLEAR lwa_zpp_form_plant.
+**                ENDLOOP.
+
+              ENDIF.
+
+
+**              MODIFY zqm_ann_data FROM TABLE lta_ann_dt_up.
+              MODIFY zqm_ann_data FROM lwa_zqm_ann_data_ch.
+              IF sy-subrc = 0.
+                COMMIT WORK.
+              ENDIF.
+
+
+**              UPDATE zqm_ann_data SET stabk  = p_new_stat
+**                                      e_user = sy-uname
+**                                      e_date = sy-datlo
+**                                      e_time = sy-timlo
+**                                      WHERE werks = p_plant AND
+**                                            ann_no = ann_no AND
+**                                            dokvr = lwa_zqm_ann_data_ch-dokvr.
+**              IF sy-subrc EQ 0.
+**                COMMIT WORK.
+**              ENDIF.
+
+
+              CLEAR: p_new_stat, p_new_stat_desc, g_new_status_int.
+              PERFORM unlock_mdoc.
+              CLEAR: p_mat, p_mdesc, p_plant, p_wdesc, p_prd_vn, p_dms, p_stat, p_stat_desc, p_new_stat, p_new_stat_desc.
+              MESSAGE i043(zppr_api).
+              CALL SCREEN 7000.
+            ENDIF.
+
+          ENDIF.
+        ENDIF.
+      ENDIF.
+
+*      ENDIF.
+      CLEAR fcode.
+
+    WHEN 'F2CHOOSE'.
+      CLEAR gv_field.
+      GET CURSOR FIELD gv_field.
+      IF gv_field = 'P_MAT' AND p_mat IS NOT INITIAL.
+        PERFORM call_mm03 USING p_mat.
+      ENDIF.
+
+    WHEN 'BACK' OR 'CANCEL' OR 'EXIT'.
+      LEAVE PROGRAM.
+
+  ENDCASE.
+ENDMODULE.                 " USER_COMMAND_2000  INPUT
+*&---------------------------------------------------------------------*
+*&      Module  F4_NEW_STATUS  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE f4_new_status INPUT.
+  TYPES: BEGIN OF ty_status_f4,
+           stabk TYPE stabk,
+           dostx TYPE dostx,
+         END OF ty_status_f4.
+  DATA: lt_tdws  LIKE tdws  OCCURS 0 WITH HEADER LINE,
+        lt_tdwst LIKE tdwst OCCURS 0 WITH HEADER LINE.
+  DATA: lt_status_f4 TYPE TABLE OF ty_status_f4 WITH HEADER LINE .
+
+  CLEAR: gt_return[], gt_return.
+
+  REFRESH: lt_status_f4[], lt_tdwst[] , lt_tdws[].
+  CALL FUNCTION 'CV118_STATUS_GET_LIST'
+    EXPORTING
+      pf_transaction = 'CV02'
+      pf_dokar       = doc_type
+      pf_dokst       = g_old_status_int
+    TABLES
+      ptx_tdws       = lt_tdws
+      ptx_tdwst      = lt_tdwst
+    EXCEPTIONS
+      error          = 1
+      OTHERS         = 2.
+  IF sy-subrc <> 0.
+  ENDIF.
+  IF lt_tdwst[] IS INITIAL.
+  ENDIF.
+
+  LOOP AT lt_tdwst.
+    IF lt_tdwst-stabk <> p_stat.
+      lt_status_f4-stabk = lt_tdwst-stabk.
+      lt_status_f4-dostx = lt_tdwst-dostx.
+      APPEND lt_status_f4.
+    ENDIF.
+  ENDLOOP.
+
+  CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+    EXPORTING
+      retfield        = 'STABK'
+      value_org       = 'S'
+    TABLES
+      value_tab       = lt_status_f4
+      return_tab      = gt_return
+    EXCEPTIONS
+      parameter_error = 1
+      no_values_found = 2
+      OTHERS          = 3.
+  IF sy-subrc = 0 AND gt_return IS NOT INITIAL.
+    p_new_stat = gt_return-fieldval.
+  ENDIF.
+ENDMODULE.                 " F4_NEW_STATUS  INPUT
+*&---------------------------------------------------------------------*
+*&      Module  STATUS_VALIDATION  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE status_validation INPUT.
+  DATA: ls_tdws TYPE tdws, return TYPE c.
+  IF p_new_stat IS NOT INITIAL.
+    CALL FUNCTION 'CV118_STATUS_GET_INTERNAL'
+      EXPORTING
+        pf_dokar   = gs_mdoc-dokar
+        pf_stabk   = p_new_stat
+      IMPORTING
+        pfx_status = g_new_status_int
+      EXCEPTIONS
+        not_found  = 1
+        OTHERS     = 2.
+    IF sy-subrc <> 0.
+      MESSAGE e044(zppr_formu).
+    ELSE.
+      CALL FUNCTION 'CV200_DB_TDWS_SELECT'
+        EXPORTING
+          pf_dokar        = gs_mdoc-dokar
+          pf_dokst        = g_new_status_int
+        IMPORTING
+          pfx_description = p_new_stat_desc
+          pfx_stabk       = p_new_stat
+          psx_tdws        = ls_tdws
+        EXCEPTIONS
+          not_found       = 1
+          OTHERS          = 2.
+      IF sy-subrc = 0.
+        CALL FUNCTION 'CV118_STATUS_CHECK_NEXT'
+          EXPORTING
+            pf_transaction = 'CV02'
+            pf_dokar       = gs_mdoc-dokar
+            pf_dokst_old   = g_old_status_int
+            pf_dokst_new   = g_new_status_int
+          IMPORTING
+            pfx_no_change  = return
+          EXCEPTIONS
+            not_valid      = 1
+            OTHERS         = 2.
+        IF sy-subrc <> 0.
+          CLEAR p_new_stat_desc.
+          MESSAGE e045(zppr_api) WITH p_new_stat p_stat.
+        ENDIF.
+      ENDIF.
+    ENDIF.
+  ENDIF.
+ENDMODULE.                 " STATUS_VALIDATION  INPUT
+*&---------------------------------------------------------------------*
+*&      Form  GET_DMSDOC_DETAILS_STATUS
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_P_DMS  text
+*----------------------------------------------------------------------*
+FORM get_dmsdoc_details_status  USING    p_version.
+
+  DATA: lv_no_stat_files TYPE i,
+        ls_dms_return    TYPE bapiret2,
+        ls_documentdata  TYPE bapi_doc_draw2,
+        lt_files         TYPE STANDARD TABLE OF bapi_doc_files2,
+        ls_file          TYPE bapi_doc_files2.
+
+  CLEAR: gs_documentdata, gs_files, gt_files.
+  CALL FUNCTION 'BAPI_DOCUMENT_GETDETAIL2'
+    EXPORTING
+      documenttype    = gs_mdoc-dokar
+      documentnumber  = gs_mdoc-dms_doc
+      documentpart    = gs_mdoc-doktl
+      documentversion = p_version
+    IMPORTING
+      documentdata    = ls_documentdata
+      return          = ls_dms_return
+    TABLES
+*     objectlinks     =               " bapi_doc_drad  Object Links
+*     documentdescriptions =      " bapi_doc_drat  Language-Dependent Short Texts
+*     longtexts       =                 " bapi_doc_text  Long Texts
+*     statuslog       =                 " bapi_doc_drap  Status Logs
+      documentfiles   = lt_files.    " bapi_doc_files2  Originals
+
+  READ TABLE lt_files INTO ls_file INDEX 1.
+  IF sy-subrc = 0.
+
+  ELSE.
+    MESSAGE e083(zppr_formu).
+*   Status can not be changed. Please re-generate file again and check.
+  ENDIF.
+ENDFORM.                    " GET_DMSDOC_DETAILS_STATUS

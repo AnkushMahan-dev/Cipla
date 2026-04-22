@@ -1,0 +1,693 @@
+*----------------------------------------------------------------------*
+***INCLUDE ZQM_COMMON_OLE_FORMS_V2_ANN
+*----------------------------------------------------------------------*
+* Program         : Issuance of Annexture
+* Title           : Annexture Development
+* Author          : Sushil Pandey
+* Program Type    : Module Pool
+* Creation Date   : 18.12.2020
+* Transaction     : ZQM_ANNEXTURE
+* Functional design: QM_155
+* Technical design:
+* Change request :  <8000006529>
+* Transport number: <transport number>
+* Description     : Issuance of Annexture
+*----------------------------------------------------------------------*
+* Modification Information
+* Date            :
+* Author          :
+* Transport number:
+* Description     :
+*	*----------------------------------------------------------------------*
+
+*&---------------------------------------------------------------------*
+*&      Form  CREATE_OBJ_WORD
+*&---------------------------------------------------------------------*
+*      -->P_FILE_PATH  text
+*----------------------------------------------------------------------*
+FORM create_obj_word USING  p_file_path.
+  DATA: lv_visible TYPE i VALUE 0.
+  CREATE OBJECT g_word 'WORD.APPLICATION'. "Create word object
+  IF sy-uname = 'ABAP4'.
+    lv_visible = 1.
+  ENDIF.
+  SET PROPERTY OF g_word 'Visible' = lv_visible. "Setting object's visibility property
+  CALL METHOD OF g_word 'Documents' = g_documents. "Opening a new document
+  "open file with given path
+  CALL METHOD OF g_documents 'Open' = g_document EXPORTING #1 = p_file_path #2 = 0.
+  CALL METHOD OF g_document 'Activate'. "Activating the document
+  GET PROPERTY OF g_word 'ActiveDocument' = g_actdoc.  "Getting active document handle
+  GET PROPERTY OF g_actdoc 'Application' = g_application.  "Getting applications handle
+  GET PROPERTY OF g_application 'Selection' = g_selection. "Getting handle for the selection which is here the character at the cursor position
+  GET PROPERTY OF g_selection 'Font' = g_font.
+  GET PROPERTY OF g_selection 'ParagraphFormat' = g_parformat.
+  CALL METHOD OF g_word 'ActiveWindow' = g_actwin.
+  CALL METHOD OF g_actwin 'ActivePane' = g_actpane.
+  CALL METHOD OF g_actpane 'View' = g_actview.
+ENDFORM.                    " CREATE_OBJ_WORD
+*&---------------------------------------------------------------------*
+*&      Form  CREATE_VISIBLE_OBJ_WORD
+*&---------------------------------------------------------------------*
+*      -->P_FILE_PATH  text
+*----------------------------------------------------------------------*
+FORM create_visible_obj_word  USING  p_file_path.
+  CREATE OBJECT g_word 'WORD.APPLICATION'. "Create word object
+  SET PROPERTY OF g_word 'Visible' = 1. "Setting object's visibility property
+  CALL METHOD OF g_word 'Documents' = g_documents. "Opening a new document
+  "open file with given path
+  CALL METHOD OF g_documents 'Open' = g_document EXPORTING #1 = p_file_path #2 = 0.
+  CALL METHOD OF g_document 'Activate'. "Activating the document
+  GET PROPERTY OF g_word 'ActiveDocument' = g_actdoc.  "Getting active document handle
+  GET PROPERTY OF g_actdoc 'Application' = g_application.  "Getting applications handle
+  GET PROPERTY OF g_application 'Selection' = g_selection. "Getting handle for the selection which is here the character at the cursor position
+  GET PROPERTY OF g_selection 'Font' = g_font.
+  GET PROPERTY OF g_selection 'ParagraphFormat' = g_parformat.
+  CALL METHOD OF g_word 'ActiveWindow' = g_actwin.
+  CALL METHOD OF g_actwin 'ActivePane' = g_actpane.
+  CALL METHOD OF g_actpane 'View' = g_actview.
+ENDFORM.                    " CREATE_VISIBLE_OBJ_WORD
+*&---------------------------------------------------------------------*
+*&      Form  CLOSE_WORD_INSTANCE
+*&---------------------------------------------------------------------*
+FORM close_word_instance .
+  CALL METHOD OF g_word 'Quit' EXPORTING #1 = '0'.
+  WAIT UP TO 1 SECONDS.
+  FREE OBJECT: g_word, g_documents, g_document, g_actdoc, g_application, g_selection, g_font, g_parformat.
+ENDFORM.                    " CLOSE_WORD_INSTANCE
+*&---------------------------------------------------------------------*
+*&      Form  WORD_FIND
+*&---------------------------------------------------------------------*
+*      -->P_FIND_TEXT  text
+*      -->P_2   text
+*      -->P_3   text
+*      -->P_4   text
+*      -->P_5   text
+*      -->P_6   text
+*      -->P_7   text
+*      -->P_8   text
+*      -->P_9   text
+*      -->P_PRINT_TEXT  text
+*      -->P_11   text
+*----------------------------------------------------------------------*
+FORM word_find  USING   p_find_text
+                        p_2 p_3 p_4 p_5 p_6 p_7 p_8 p_9
+                        p_print_text
+                        p_11.
+  CALL METHOD OF g_selection 'Find' = g_find.
+  CALL METHOD OF
+    g_find
+    'Execute2007'
+*'EDITREPLACE'
+    EXPORTING
+      #1  = p_find_text
+      #2  = p_2
+      #3  = p_3
+      #4  = p_4
+      #5  = p_5
+      #6  = p_6
+      #7  = p_7
+      #8  = p_8
+      #9  = p_9
+      #10 = p_print_text
+      #11 = p_11.
+
+*    #01 = p_find_text
+*    #02 = p_print_text
+*    #03 = 0
+*    #04 = 0
+*    #05 = 0
+*    #06 = 0
+*    #07 = 0
+*    #08 = 0
+*    #09 = 0
+*    #10 = 1
+*    #11 = 0
+*    #12 = 1.
+
+  FREE OBJECT g_find.
+
+
+
+
+
+ENDFORM.                    " WORD_FIND
+*&---------------------------------------------------------------------*
+*&      Form  SET_ACTVIEW
+*&---------------------------------------------------------------------*
+*      -->P_ACTVIEW      text
+*----------------------------------------------------------------------*
+FORM set_actview  USING  p_actview. "Header(9) or Main(0)
+  SET PROPERTY OF g_actview 'SeekView' = p_actview.
+ENDFORM.                    " SET_ACTVIEW
+*&---------------------------------------------------------------------*
+*&      Form  SET_FONT
+*&---------------------------------------------------------------------*
+FORM set_font .
+  SET PROPERTY OF g_font 'Name' = 'Arial'.
+  SET PROPERTY OF g_font 'Size' = '9'.
+ENDFORM.                    " SET_FONT
+
+*&---------------------------------------------------------------------*
+*&      Form  SET_BOLD
+*&---------------------------------------------------------------------*
+*      -->P_BOLD   text
+*----------------------------------------------------------------------*
+FORM set_bold  USING  p_bold.
+  SET PROPERTY OF g_font 'Bold' = p_bold.
+ENDFORM.                    " SET_BOLD
+*&---------------------------------------------------------------------*
+*&      Form  GET_TOTAL_NO_OF_PAGES
+*&---------------------------------------------------------------------*
+*      <--P_PAGES  text
+*----------------------------------------------------------------------*
+FORM get_total_no_of_pages CHANGING p_pages.
+
+*
+****  soa on 09.02.2016 for tmp
+*
+*  GET PROPERTY OF g_actdoc 'BuiltinDocumentProperties' = gs_docproperty .
+*  GET PROPERTY OF gs_docproperty 'wdPropertyPages' = p_pages.
+***  eoa on 09.02.2016 for tmp
+
+***  socomment on 09.02.2016 for tmp
+
+  CALL METHOD OF g_selection 'Information' = p_pages  "g_pages
+  EXPORTING
+    #1 = 4.   "total number of pages
+***  eocomment on 09.02.2016 for tmp
+ENDFORM.                    " GET_TOTAL_NO_OF_PAGES
+*&---------------------------------------------------------------------*
+*&      Form  PRINT_WORD_DOC
+*&---------------------------------------------------------------------*
+*      -->P_1    text
+*      -->P_2    text
+*      -->P_3    text
+*      -->P_4    text
+*      -->P_FROM text
+*      -->P_TO   text
+*----------------------------------------------------------------------*
+FORM print_word_doc USING p_1 p_2 p_3 p_4 p_from p_to.
+
+  DATA: l_count             TYPE i VALUE 1,
+        l_copies            TYPE n LENGTH 3,
+        lwa_zqm_ann_mprintl TYPE zqm_ann_mprintl,
+        lta_zqm_ann_mprintl TYPE zqm_ann_mprintl.
+
+  IF lwa_zqm_ann_prepare-no_copy IS NOT INITIAL.
+    l_copies = lwa_zqm_ann_prepare-no_copy.
+  ENDIF.
+  IF lwa_zqm_ann_addprint-no_copy IS NOT INITIAL.
+    l_copies = lwa_zqm_ann_addprint-no_copy.
+  ENDIF.
+
+  IF ( p_master = abap_true OR p_reprint = abap_true ) AND ann_no IS NOT INITIAL.
+
+    lwa_zqm_ann_mprintl-werks = p_plant.
+    lwa_zqm_ann_mprintl-ann_no = ann_no.
+    lwa_zqm_ann_mprintl-dokvr = p_dms.
+    lwa_zqm_ann_mprintl-doknr = gs_mdoc-dms_doc.
+    lwa_zqm_ann_mprintl-stabk = p_stat.
+    lwa_zqm_ann_mprintl-print_stat = abap_true.
+    MODIFY zqm_ann_mprintl FROM lwa_zqm_ann_mprintl.
+
+    CALL METHOD OF g_actdoc 'PrintOut'
+      EXPORTING
+        #1 = p_1
+        #2 = p_2
+        #3 = p_3
+        #4 = p_4
+        #5 = p_from
+        #6 = p_to.
+
+  ELSE.
+
+    IF p_draft = abap_true.
+      CALL METHOD OF g_actdoc 'PrintOut'
+        EXPORTING
+          #1 = p_1
+          #2 = p_2
+          #3 = p_3
+          #4 = p_4
+          #5 = p_from
+          #6 = p_to.
+    ELSE.
+      DO  l_copies TIMES.
+        CALL METHOD OF g_actdoc 'PrintOut'
+          EXPORTING
+            #1 = p_1
+            #2 = p_2
+            #3 = p_3
+            #4 = p_4
+            #5 = p_from
+            #6 = p_to.
+      ENDDO.
+    ENDIF.
+
+
+
+*  CALL METHOD OF g_actdoc 'PrintOut'
+*      EXPORTING
+*        #1 = p_1
+*        #2 = p_2
+*        #3 = p_3
+*        #4 = p_4
+*        #5 = p_from
+*        #6 = p_to.
+*        #8 = l_copies.
+  ENDIF.
+  CLEAR gv_curr_printer.
+
+  l_count = 1.
+  DO 20 TIMES.
+
+    CALL METHOD OF g_application 'activeprinter' = gv_curr_printer.
+    IF gv_curr_printer IS INITIAL.
+      l_count = l_count + 1.
+    ELSE.
+
+      EXIT.
+    ENDIF.
+
+    IF l_count GE 20.
+
+      EXIT.
+    ENDIF.
+  ENDDO.
+  WAIT UP TO 10 SECONDS.
+
+  IF gv_curr_printer IS INITIAL.
+    gv_curr_printer = text-100.
+  ENDIF.
+  TRANSLATE gv_curr_printer TO UPPER CASE.
+
+ENDFORM.                    " PRINT_WORD_DOC
+*&---------------------------------------------------------------------*
+*&      Form  EXPORT_FILE
+*&---------------------------------------------------------------------*
+*  -->  P_DOC_TYPE        text
+*----------------------------------------------------------------------*
+FORM export_file USING p_doc_type.
+  CLEAR: gv_dir, gv_bol.
+
+  gv_dir = 'C:\DMS\'.
+
+
+  CALL METHOD cl_gui_frontend_services=>directory_exist
+    EXPORTING
+      directory            = gv_dir
+    RECEIVING
+      result               = gv_bol
+    EXCEPTIONS
+      cntl_error           = 1
+      error_no_gui         = 2
+      wrong_parameter      = 3
+      not_supported_by_gui = 4
+      OTHERS               = 5.
+  IF NOT gv_bol IS INITIAL.
+  ELSE.
+    CALL FUNCTION 'TMP_GUI_CREATE_DIRECTORY'
+      EXPORTING
+        dirname  = 'C:\DMS'
+        no_flush = ' '
+      EXCEPTIONS
+        failed   = 1
+        OTHERS   = 2.
+  ENDIF.
+  CONCATENATE gv_dir p_doc_type 'PRV_' p_plant p_mat '.PDF' INTO gv_prv_path.  "temp comt
+
+  CALL METHOD OF g_actdoc 'ExportAsFixedFormat'
+    EXPORTING
+      #1 = gv_prv_path
+      #2 = '17'. "PDF " temp comt
+
+ENDFORM.                    " EXPORT_FILE
+*&---------------------------------------------------------------------*
+*&      Form  DIVIDE_SECTION
+*&---------------------------------------------------------------------*
+FORM divide_section.
+  PERFORM set_actview USING '0'.
+  PERFORM set_font.
+  CALL METHOD OF g_selection 'InsertBreak' EXPORTING #1 = 2.
+  PERFORM set_actview USING '9'.
+  GET PROPERTY OF g_selection 'HeaderFooter' = g_header.
+  SET PROPERTY OF g_header 'LinkToPrevious' = 'False'.
+  GET PROPERTY OF g_header 'PageNumbers' = g_pageno.
+  SET PROPERTY OF g_pageno 'RestartNumberingAtSection' = 0.
+  PERFORM set_actview USING '0'.
+  CALL METHOD OF g_selection 'MoveLeft'.
+  PERFORM set_actview USING '9'.
+ENDFORM.                    " DIVIDE_SECTION
+*&---------------------------------------------------------------------*
+*&      Form  WRITE_TEXT
+*&---------------------------------------------------------------------*
+*      -->P_text  text
+*----------------------------------------------------------------------*
+FORM write_text USING p_text.
+  CALL METHOD OF g_selection 'TypeText' EXPORTING #1 = p_text.
+ENDFORM.                    " WRITE_TEXT
+*&---------------------------------------------------------------------*
+*&      Form  SET_TEXT_ALIGNMENT
+*&---------------------------------------------------------------------*
+*      -->P_ALIGN  text
+*----------------------------------------------------------------------*
+FORM set_text_alignment USING p_align. "0=Left 1=Centered 2=Right
+  SET PROPERTY OF g_parformat 'Alignment' = p_align.
+ENDFORM.                    " SET_TEXT_ALIGNMENT
+*&---------------------------------------------------------------------*
+*&      Form  CREATE_TABLE
+*&---------------------------------------------------------------------*
+*      -->P_ROW      text
+*      -->P_COL      text
+*----------------------------------------------------------------------*
+FORM create_table USING p_row p_col.
+  GET PROPERTY OF g_actdoc 'Tables' = g_tables.
+  GET PROPERTY OF g_selection 'Range' = g_range.
+  CALL METHOD OF
+      g_tables
+      'Add'    = g_table
+    EXPORTING
+      #1       = g_range
+      #2       = p_row
+      #3       = p_col.
+ENDFORM.                    " CREATE_TABLE
+*&---------------------------------------------------------------------*
+*&      Form  CREATE_TABLE_1
+*&---------------------------------------------------------------------*
+*      -->P_ROW      text
+*      -->P_COL      text
+*----------------------------------------------------------------------*
+FORM create_table_1 USING p_row p_col.
+  GET PROPERTY OF g_actdoc 'Tables' = g_tables.
+  GET PROPERTY OF g_selection 'Range' = g_range.
+  CALL METHOD OF
+      g_tables
+      'Add'    = g_table1
+    EXPORTING
+      #1       = g_range
+      #2       = p_row
+      #3       = p_col.
+ENDFORM.                    " CREATE_TABLE_1
+*&---------------------------------------------------------------------*
+*&      Form  SET_TABLE_BORDER
+*&---------------------------------------------------------------------*
+*      -->P_BORDER     text
+*----------------------------------------------------------------------*
+FORM set_table_border USING p_border.
+  GET PROPERTY OF g_table 'Borders' = g_border.
+  SET PROPERTY OF g_border 'Enable' = p_border.
+ENDFORM.                    " SET_TABLE_BORDER
+*&---------------------------------------------------------------------*
+*&      Form  NO_VERTICAL_BORDER
+*&---------------------------------------------------------------------*
+FORM no_vertical_border.
+  CALL METHOD OF g_table 'Borders' = g_border
+    EXPORTING #1 = '-6'.
+  SET PROPERTY OF g_border 'Linestyle' = 0.
+ENDFORM.                    " SET_TABLE_BORDER
+*&---------------------------------------------------------------------*
+*&      Form  SET_ROW HEIGHT
+*&---------------------------------------------------------------------*
+*      -->P_HEIGHT     text
+*----------------------------------------------------------------------*
+FORM set_row_height  USING  p_height.
+  GET PROPERTY OF g_table 'Rows' = g_rows.
+  SET PROPERTY OF g_rows 'Height' = p_height.
+ENDFORM.                    " SET_ROW_HEIGHT
+*&---------------------------------------------------------------------*
+*&      Form  SET_COLUMN_WIDTH
+*&---------------------------------------------------------------------*
+*      -->P_COL      text
+*      -->P_WIDTH    text
+*----------------------------------------------------------------------*
+FORM set_column_width USING p_col p_width.
+  CALL METHOD OF g_table 'Columns' = g_column
+  EXPORTING  #1 = p_col.
+  SET PROPERTY OF g_column 'Width' = p_width.
+ENDFORM.                    " SET_COLUMN_WIDTH
+*&---------------------------------------------------------------------*
+*&      Form  SET_CELL_WIDTH
+*&---------------------------------------------------------------------*
+*      -->P_ROW     text
+*      -->P_COL     text
+*      -->P_WIDTH     text
+*----------------------------------------------------------------------*
+FORM set_cell_width  USING  p_row p_col p_width.
+  CALL METHOD OF g_table 'Cell' = g_cell
+     EXPORTING
+       #1      = p_row
+       #2      = p_col.
+  SET PROPERTY OF g_cell 'Width' = p_width.
+  FREE OBJECT: g_cell.
+ENDFORM.                    " SET_CELL_WIDTH
+*&---------------------------------------------------------------------*
+*&      Form  WRITE_CELL_TEXT
+*&---------------------------------------------------------------------*
+*      -->P_ROW      text
+*      -->P_COL      text
+*      -->P_TEXT     text
+*      -->P_VALIGN   text
+*      -->P_HALIGN   text
+*----------------------------------------------------------------------*
+FORM write_cell_text  USING  p_row p_col p_text p_valign p_halign.
+  CALL METHOD OF g_table 'Cell' = g_cell
+     EXPORTING
+       #1      = p_row
+       #2      = p_col.
+  SET PROPERTY OF g_cell 'VerticalAlignment' = p_valign.
+  GET PROPERTY OF g_cell 'Range' = g_range.
+  GET PROPERTY OF g_range 'ParagraphFormat' = g_parformat.
+  GET PROPERTY OF g_range 'Font' = g_font.
+  PERFORM set_font.
+  SET PROPERTY OF g_parformat 'Alignment' = p_halign.
+
+**  soa on 11.11.2014 for formating issue mail subj (Draft issue of Ciplox 250 mg)
+  SET PROPERTY OF g_parformat 'LeftIndent' = 0.
+  SET PROPERTY OF g_parformat 'RightIndent' = 0.
+**  eoa on 11.11.2014 for formating issue mail subj (Draft issue of Ciplox 250 mg)
+
+  SET PROPERTY OF g_range 'Text' = p_text.
+  FREE OBJECT: g_parformat, g_range, g_cell.
+ENDFORM.                    " WRITE_CELL_TEXT
+*&---------------------------------------------------------------------*
+*&      Form  SET_CELL_RIGHT_BORDER
+*&---------------------------------------------------------------------*
+*      -->P_ROW           text
+*      -->P_COL           text
+*      -->P_RIGHTBORDER   text
+*----------------------------------------------------------------------*
+FORM set_cell_right_border  USING  p_row p_col p_rightborder.
+  CALL METHOD OF g_table 'Cell' = g_cell
+     EXPORTING
+       #1      = p_row
+       #2      = p_col.
+  CALL METHOD OF g_cell 'Borders' = g_border
+    EXPORTING #1 = '-4'.
+  SET PROPERTY OF g_border 'Linestyle' = p_rightborder.
+  FREE OBJECT: g_border, g_cell.
+ENDFORM.                    " SET_CELL_RIGHT_BORDER
+*&---------------------------------------------------------------------*
+*&      Form  WRITE_SUPERSCRIPT_CELL_TEXT
+*&---------------------------------------------------------------------*
+*      -->P_ROW      text
+*      -->P_COL      text
+*      -->P_TEXT     text
+*      -->P_VALIGN   text
+*      -->P_HALIGN   text
+*----------------------------------------------------------------------*
+FORM write_superscript_cell_text  USING  p_row p_col p_text p_valign p_halign.
+  CALL METHOD OF g_table 'Cell' = g_cell
+     EXPORTING
+       #1      = p_row
+       #2      = p_col.
+  SET PROPERTY OF g_cell 'VerticalAlignment' = p_valign.
+  GET PROPERTY OF g_cell 'Range' = g_range.
+  GET PROPERTY OF g_range 'ParagraphFormat' = g_parformat.
+  GET PROPERTY OF g_range 'Font' = g_font.
+  PERFORM set_font.
+  SET PROPERTY OF g_parformat 'Alignment' = p_halign.
+  PERFORM set_superscript_font USING 1.
+  PERFORM write_text USING '1'.
+  CALL METHOD OF g_range 'Selection' = g_selection.
+  PERFORM initialize_font.
+  PERFORM set_font.
+  PERFORM set_superscript_font USING 0.
+  PERFORM write_text USING p_text.
+  FREE OBJECT: g_parformat, g_range, g_cell.
+ENDFORM.                    " WRITE_SUPERSCRIPT_CELL_TEXT
+*&---------------------------------------------------------------------*
+*&      Form  FREE_TABLE
+*&---------------------------------------------------------------------*
+FORM free_table .
+  GET PROPERTY OF g_table 'Range' = g_range.
+  CALL METHOD OF g_range 'Select'.
+  PERFORM initialize_font.
+  PERFORM set_font.
+  GET PROPERTY OF g_range 'End' = g_pos.
+  SET PROPERTY OF g_range 'Start' = g_pos.
+  CALL METHOD OF g_range 'Select'.
+  FREE OBJECT: g_range, g_table, g_tables.
+ENDFORM.                    " FREE_TABLE
+*&---------------------------------------------------------------------*
+*&      Form  FREE_TABLE_1
+*&---------------------------------------------------------------------*
+FORM free_table_1.
+  GET PROPERTY OF g_table1 'Range' = g_range.
+  GET PROPERTY OF g_range 'End' = g_pos.
+  SET PROPERTY OF g_range 'Start' = g_pos.
+  CALL METHOD OF g_range 'Select'.
+  FREE OBJECT: g_range, g_table1, g_tables.
+ENDFORM.                    " FREE_TABLE_1
+*&---------------------------------------------------------------------*
+*&      Form  NEW_LINE
+*&---------------------------------------------------------------------*
+FORM new_line.
+  CALL METHOD OF g_selection 'TypeParagraph'.
+ENDFORM.                    " NEW_LINE
+*&---------------------------------------------------------------------*
+*&      Form  PAGE_BREAK
+*&---------------------------------------------------------------------*
+FORM page_break.
+  CALL METHOD OF g_selection 'InsertBreak'.
+ENDFORM.                    " PAGE_BREAK
+*&---------------------------------------------------------------------*
+*&      Form  BACKSPACE
+*&---------------------------------------------------------------------*
+FORM backspace .
+  CALL METHOD OF g_selection 'TypeBackSpace'.
+ENDFORM.                    " BACKSPACE
+*&---------------------------------------------------------------------*
+*&      Form  SET_SPECIFIC_BORDER
+*&---------------------------------------------------------------------*
+*      -->P_TOP      text
+*      -->P_LEFT     text
+*      -->P_BOTTOM   text
+*      -->P_RIGHT    text
+*----------------------------------------------------------------------*
+FORM set_specific_border  USING p_top p_left p_bottom p_right.
+  IF p_top = 1.
+    CALL METHOD OF g_table 'Borders' = g_border
+       EXPORTING  #1 = '1'. "Top = 1
+    SET PROPERTY OF g_border 'Linestyle' = '1'.
+  ENDIF.
+  IF p_left = 1.
+    CALL METHOD OF g_table 'Borders' = g_border
+       EXPORTING  #1 = '2'. "Left = 2
+    SET PROPERTY OF g_border 'Linestyle' = '1'.
+  ENDIF.
+  IF p_bottom = 1.
+    CALL METHOD OF g_table 'Borders' = g_border
+       EXPORTING  #1 = '3'. "Bottom = 1
+    SET PROPERTY OF g_border 'Linestyle' = '1'.
+  ENDIF.
+  IF p_right = 1.
+    CALL METHOD OF g_table 'Borders' = g_border
+       EXPORTING  #1 = '4'. "Right = 1
+    SET PROPERTY OF g_border 'Linestyle' = '1'.
+  ENDIF.
+ENDFORM.                    " SET_SPECIFIC_BORDER
+*&---------------------------------------------------------------------*
+*&      Form  SET_ROW_AS_HEADER
+*&---------------------------------------------------------------------*
+FORM set_row_as_header .
+  GET PROPERTY OF g_selection 'Rows' = g_rows.
+  SET PROPERTY OF g_rows 'HeadingFormat' = 9999998.
+ENDFORM.                    " SET_ROW_AS_HEADER
+*&---------------------------------------------------------------------*
+*&      Form  SET_ROW_BREAK
+*&---------------------------------------------------------------------*
+FORM set_row_break USING p_allow.
+  GET PROPERTY OF g_selection 'Rows' = g_rows.
+  SET PROPERTY OF g_rows 'AllowBreakAcrossPages' = p_allow.
+ENDFORM.                    " SET_ROW_AS_HEADER
+*&---------------------------------------------------------------------*
+*&      Form  GET_CURRENT_PAGE_NO
+*&---------------------------------------------------------------------*
+*      <--P_PG  text
+*----------------------------------------------------------------------*
+FORM get_current_page_no  CHANGING p_pg.
+  CALL METHOD OF g_selection 'Information' = p_pg
+      EXPORTING
+      #1 = 3. " get current page number
+ENDFORM.                    " GET_CURRENT_PAGE_NO
+*&---------------------------------------------------------------------*
+*&      Form  SET_SUPERSCRIPT_FONT
+*&---------------------------------------------------------------------*
+*      -->P_VALUE      text
+*----------------------------------------------------------------------*
+FORM set_superscript_font  USING p_value.
+  SET PROPERTY OF g_font 'SuperScript' = p_value.
+ENDFORM.                    " SET_SUPERSCRIPT_FONT
+*&---------------------------------------------------------------------*
+*&      Form  INITIALIZE_FONT
+*&---------------------------------------------------------------------*
+FORM initialize_font .
+  GET PROPERTY OF g_selection 'Font' = g_font.
+ENDFORM.                    " INITIALIZE_FONT
+*&---------------------------------------------------------------------*
+*&      Form  TABLE_AUTO_FIT
+*&---------------------------------------------------------------------*
+FORM table_auto_fit.
+* CALL METHOD OF g_selection 'MoveUp'.
+* "GET PROPERTY OF g_selection 'Range' = g_range.
+* "GET PROPERTY OF g_range 'Tables' = g_table.
+* CALL METHOD OF g_selection 'Table' = g_table.
+* CALL METHOD OF g_table 'AutoFitBehavior' EXPORTING #1 = 2.
+* CALL METHOD OF g_selection 'MoveDown'.
+ENDFORM.                    " TABLE_AUTO_FIT
+*&---------------------------------------------------------------------*
+*&      Form  NEXT_HEADER
+*&---------------------------------------------------------------------*
+FORM next_header .
+*  WAIT UP TO 4 SECONDS.""increased from 2 sec to 4 sec by sneha dt 29.7.14 in req CRDK910772
+*  WAIT UP TO 5 SECONDS.""increased from 4 sec to 5 sec dt 13.8.14 in req CRDK911289
+  WAIT UP TO 6 SECONDS.""increased from 5 sec to 6 sec dt 13.8.14 in req CRDK911289
+  CALL METHOD OF g_actview 'NextHeaderFooter'.
+ENDFORM.                    " NEXT_HEADER
+*&---------------------------------------------------------------------*
+*&      Form  EXPORT_FILE_SECLORE
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_DOC_TYPE  text
+*----------------------------------------------------------------------*
+FORM export_file_seclore  USING  p_doc_type.
+  DATA: l_path       LIKE  sapb-sappfad,
+        l_targetpath LIKE  sapb-sappfad,
+        wa_bmr_path  TYPE zpp_bmr_path.
+*  l_mat(18) TYPE c.
+
+  CLEAR wa_bmr_path.
+  READ TABLE ta_bmr_path INTO wa_bmr_path WITH KEY path_cat = 'D'.
+  IF wa_bmr_path-path IS NOT INITIAL.
+    l_path = gv_prv_path.
+    IF wa_bmr_path-path IS NOT INITIAL AND ( p_mat IS INITIAL OR p_prd_vn IS INITIAL ).
+
+      CONCATENATE wa_bmr_path-path '\' p_doc_type 'PRV_' p_plant '_' p_dms '.PDF' INTO l_targetpath.
+    ELSEIF  wa_bmr_path-path IS NOT INITIAL AND
+            p_mat            IS NOT INITIAL     AND
+            p_prd_vn         IS NOT INITIAL.
+      CONCATENATE wa_bmr_path-path '\' p_doc_type 'PRV_' p_plant '_' p_mat '_' p_prd_vn '_' p_dms '.PDF' INTO l_targetpath.
+    ENDIF.
+
+
+
+    CALL FUNCTION 'ARCHIVFILE_CLIENT_TO_SERVER'
+      EXPORTING
+        path             = l_path
+        targetpath       = l_targetpath
+      EXCEPTIONS
+        error_file       = 1
+        no_authorization = 2
+        OTHERS           = 3.
+    IF sy-subrc <> 0.
+      MESSAGE s084(zppr_formu).     "sucessful msg to cont furtr code exe
+*   Issue in generating file at preview path
+      CLEAR g_targetpath.
+    ELSE.
+      g_targetpath = l_targetpath.
+    ENDIF.
+  ELSE.
+    MESSAGE s085(zppr_formu)."sucessful msg to cont furtr code exe
+*   Preview path not maintained
+  ENDIF.
+ENDFORM.                    " EXPORT_FILE_SECLORE

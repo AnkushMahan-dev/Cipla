@@ -1,0 +1,488 @@
+*&---------------------------------------------------------------------*
+*&  Include           ZPPR_COMMON_TOP_V2
+*&---------------------------------------------------------------------*
+
+* Program         : Issuance of Annexture
+* Title           : Annexture Development
+* Author          : Sushil Pandey
+* Program Type    : Module Pool
+* Creation Date   : 18.12.2020
+* Transaction     : ZQM_ANNEXTURE
+* Functional design: QM_155
+* Technical design:
+* Change request :  <8000006529>
+* Transport number: <transport number>
+* Description     : Issuance of Annexture
+*----------------------------------------------------------------------*
+* Modification Information
+* Date            :
+* Author          :
+* Transport number:
+* Description     :
+*	*----------------------------------------------------------------------*
+TABLES: zpp_bmr_cust.
+
+CONSTANTS : co_bukrs TYPE zparam_table-id_name VALUE 'BMR_5200'.
+
+DATA: doc_type(3) TYPE c, "BMR or BPR
+      h_icon      TYPE syucomm_t,
+      gv_commit   TYPE c VALUE 'X',
+      gv_kdauf(1),
+      gv_bwkey    TYPE t001k-bwkey,
+      gv_bukrs    TYPE t001k-bukrs.
+
+CONSTANTS : co_bmr_id TYPE zparam_table-id_name VALUE 'BMR_SAGA',
+            co_bpr_id TYPE zparam_table-id_name VALUE 'BPR_SAGA'.
+DATA : gv_param_sa TYPE zparam_table,
+       gv_bukrs_sa TYPE t001k-bukrs.
+
+"Screen Parameters
+DATA: p_regu          TYPE c VALUE 'X',
+      p_inj           TYPE c,
+      p_mat           TYPE matnr,
+      p_mdesc         TYPE string,
+      p_plant         TYPE werks_d,
+      p_wdesc         TYPE adrc-name2,
+      p_prd_vn        TYPE verid,
+      p_static        TYPE string,
+      p_stat          TYPE stabk,
+      p_stat_desc     TYPE dostx,
+      p_new_stat      TYPE stabk,
+      p_new_stat_desc TYPE dostx,
+      p_dms           TYPE dokvr,
+      p_date          TYPE zpp_format,
+      p_format(11)    TYPE c,
+      p_expiry        TYPE c VALUE '1',
+      p_proexp        TYPE c,
+      "Section Check box parameters
+      p_desc          TYPE c,
+      p_shelf         TYPE c,
+      p_cust          TYPE c,
+      p_cat           TYPE c,
+      p_markt         TYPE c,
+      p_custb         TYPE c,
+      p_lab           TYPE c,
+      p_cntry         TYPE c,
+      p_pack          TYPE c,
+      "Caution Screen parameters
+      p_ds            TYPE zds_code,
+      p_new_page      TYPE c,
+      p_tab_format(5) TYPE c,
+      "Print parameters
+      p_order         TYPE afpo-aufnr,
+      p_batch         TYPE afpo-charg,
+
+*      prev_order LIKE p_order,
+*      prev_batch LIKE p_batch,
+*      process_order TYPE c VALUE 'X',
+*      batch_no TYPE c,
+      "end commented  on
+      p_preview       TYPE c VALUE 'X',
+      p_draft         TYPE c,
+      p_master        TYPE c,
+      p_bprint        TYPE c,
+      p_reprint       TYPE c,
+      p_reason        TYPE zpp_reason-reason,
+      p_all           TYPE c VALUE 'X',
+      p_page_range    TYPE c,
+      p_from(3)       TYPE c,
+      p_to(3)         TYPE c,
+      fcode           TYPE sy-ucomm,
+      p_ds_seq        TYPE i,
+      p_ann_no        TYPE zde_ann_no. "Added by Gajanan - 23.03.2025 - CR#8000003007
+
+"Screen Table Control for BOM Component Screen
+CONTROLS: tc_bom TYPE TABLEVIEW USING SCREEN 1001.
+"Screen Table Control for Caution & Lots
+CONTROLS: tc_caution TYPE TABLEVIEW USING SCREEN 1002,
+          tc_lots    TYPE TABLEVIEW USING SCREEN 1002.
+
+CONTROLS: tc_disp TYPE TABLEVIEW USING SCREEN 6003.
+
+
+"Screen Controls for Remarks Screen
+DATA: container1 TYPE REF TO cl_gui_custom_container,
+      container2 TYPE REF TO cl_gui_custom_container,
+      editor1    TYPE REF TO cl_gui_textedit,
+      editor2    TYPE REF TO cl_gui_textedit.
+"Screen Controls for Preview Screen
+DATA: bds_instance TYPE REF TO cl_bds_document_set,
+      my_container TYPE REF TO cl_gui_custom_container,
+      viewer       TYPE REF TO i_oi_document_viewer,
+      edurl(2048),
+      gv_dir       TYPE string,
+      gv_bol       TYPE abap_bool.
+
+CONSTANTS: c_editor_line_length TYPE i VALUE 100,
+           c_mtart              TYPE mtart VALUE 'ZBFG',
+           c_mtart_znvl         TYPE mtart VALUE 'ZNVL',          "on 06.10.2014
+           c_mtart_bpr          TYPE mtart VALUE 'ZFGS',
+           c_lock(2)            TYPE c VALUE 'LK',
+           c_discard(2)         TYPE c VALUE 'DX',
+           "Placeholders in document
+*           c_hd_heading_bpr TYPE string VALUE 'SECTION-1                                                              PACKING WORK ORDER',
+           c_hd_heading_bpr     TYPE string VALUE 'SECTION-1                                                       PACKING WORK ORDER',         "sacing reduced
+           c_hd_heading_bmr     TYPE string VALUE 'MANUFACTURING WORK ORDER',
+           c_hd_printtype       TYPE string VALUE '&draft/reprint&',
+           c_hd_plant           TYPE string VALUE '&Plant Code&',
+           c_hd_pdesc           TYPE string VALUE '&Plant Name&',
+           c_hd_dept            TYPE string VALUE '&Department&',
+           c_hd_prod            TYPE string VALUE '&Product Name&',
+           c_hd_brand           TYPE string VALUE '&Brand Name&',
+           c_hd_batch           TYPE string VALUE '&Batch No&',
+           c_hd_po              TYPE string VALUE '&Process Order&',
+           c_hd_cust            TYPE string VALUE '&Annexure Number&',
+           c_hd_fg              TYPE string VALUE '&Fg Code&',
+           c_hd_sfg             TYPE string VALUE '&Sfg Code&',
+           c_hd_code            TYPE string VALUE '&Code&',
+           c_hd_sfg_desc        TYPE string VALUE '&Product_Name_of_SFG&',
+           c_hd_pack            TYPE string VALUE '&Pack Size&',
+           c_hd_prd_vn          TYPE string VALUE '&Prod Ver No&',
+           c_hd_dmsver          TYPE string VALUE '&DMS Ver No&',
+           c_mview_batchsize    TYPE string VALUE '&batchsize&',
+           c_mview_motherbatch  TYPE string VALUE '&Mother Batch size&',
+           c_mview_packqty      TYPE string VALUE '&Qty. to be Packed&',
+           c_mview_expo         TYPE string VALUE '&Export Order No.&',
+           c_line               TYPE string VALUE '____________________',
+           c_mview_pack         TYPE string VALUE '&Pack Before&',
+           c_mview_custb        TYPE string VALUE '&Customer Batch No&',
+           c_ann_no             TYPE string VALUE '&Ann No&',
+           c_ann_desc           TYPE string VALUE '&Ann Desc&',
+           c_cust_name          TYPE string VALUE '&Customer Name&',
+*           c_split(1) TYPE c VALUE '/',
+           c_split(2)           TYPE c VALUE '##',
+
+
+           c_matkl              TYPE mara-matkl VALUE 'BFG'.
+
+
+"Actual Values for placeholders
+DATA: gv_hd_printtype      TYPE string,
+      gv_hd_dept           TYPE string,
+      gv_hd_batch          TYPE string,
+      gv_hd_po             TYPE string,
+      gv_hd_country        TYPE t005t-landx,   "string,
+      gv_hd_cust           TYPE string,
+      gv_hd_fg             TYPE string,
+      gv_hd_pack           TYPE string,
+      gv_hd_sfg            TYPE string,
+      gv_hd_sfg_desc       TYPE string,
+      gv_hd_dmsver         TYPE string,
+      "Document Values
+      gv_sfg_idnrk         TYPE idnrk,
+      gv_batchsize(70)     TYPE c, "changed from string to c for comma in qty value
+      gv_count             TYPE i, "This is to count no. of SFG components in case of BPR
+      gv_mother_qty(30)    TYPE c,   "string,
+      gv_mview_mauth       TYPE string,
+      gv_mview_cntry       TYPE string,
+      gv_mview_shelf       TYPE string,
+      gv_mview_mfg_desc    TYPE string,
+      gv_mview_packqty(30) TYPE c,      "changed from string to c for comma in qty value
+      gv_mview_expo        TYPE string,
+      gv_mview_cat         TYPE string,
+      gv_mview_label       TYPE string,
+      gv_mview_custfg      TYPE string,
+      gv_mview_custb       TYPE string,
+      gv_mview_stage       TYPE string,
+      gv_mview_process     TYPE string,
+      gv_mview_comp_text   TYPE string,
+      gv_mview_qty         TYPE string,
+      gv_mview_uom         TYPE string,
+      gv_mview_batch       TYPE string,
+      gv_mview_lines       TYPE i,
+      gv_mview_remark      TYPE string,
+      gv_superscript_flag  TYPE c,
+      gv_bom_qty           TYPE string,
+      gv_po_qty            TYPE string,
+      gt_char_batch        TYPE clbatch_t,
+      gs_char_batch        LIKE LINE OF gt_char_batch.
+
+TYPES: BEGIN OF ty_resb,
+         posnr TYPE aposn,
+         matnr TYPE matnr,
+         bdmng TYPE bdmng,
+         meins TYPE meins,
+         alpgr TYPE cs_alpgr,
+         alprf TYPE cs_alprf,
+         potx1 TYPE potx1,
+         charg TYPE resb-charg,
+         erskz TYPE erskz,
+         stlnr TYPE stnum,
+         stlal TYPE stalt,
+         erfmg TYPE resb-erfmg,
+         erfme TYPE resb-erfme,
+         werks TYPE resb-werks,  "added on 30.06.2015
+       END OF ty_resb.
+TYPES: BEGIN OF ty_makt,
+         matnr TYPE matnr,
+         maktx TYPE maktx,
+       END OF ty_makt.
+TYPES: BEGIN OF ty_mtart,
+         matnr TYPE matnr,
+         mtart TYPE mtart,
+         matkl TYPE matkl,
+       END OF ty_mtart.
+
+TYPES: BEGIN OF ty_bom,
+         posnr   TYPE sposn,
+         idnrk   TYPE idnrk,
+         ojtxp   TYPE ojtxp,
+         desc    TYPE string, "long text
+         alpgr   TYPE cs_alpgr,
+         alprf   TYPE cs_alprf,
+         sortf   TYPE sortp,
+         menge   TYPE kmpmg,
+         meins   TYPE kmpme,
+         erskz   TYPE erskz,
+         potx2   TYPE potx2,
+         lines   TYPE i,
+         ds_code TYPE zds_code,
+         ds_desc TYPE zds_desc,
+         ps_code TYPE zps_code,
+         lots    TYPE i,
+         ds_seq  TYPE i,
+         ps_seq  TYPE i,
+       END OF ty_bom.
+
+TYPES: BEGIN OF ty_bom_final, "Created this type so that I can use AT END OF command for ds_code
+         ds_code TYPE zds_code,
+         ds_seq  TYPE i,
+         ps_seq  TYPE i,
+         ps_code TYPE zps_code,
+         alpgr   TYPE cs_alpgr,
+         alprf   TYPE cs_alprf,
+         posnr   TYPE sposn,
+         idnrk   TYPE idnrk,
+         ojtxp   TYPE ojtxp,
+         desc    TYPE string, "long text
+         sortf   TYPE sortp,
+*        menge TYPE kmpmg,
+         mngko   TYPE kmpmg,
+         meins   TYPE kmpme,
+         mmein   TYPE meins,
+         erskz   TYPE erskz,
+         potx1   TYPE potx1,
+         potx2   TYPE potx2,
+         lines   TYPE i,
+         ds_desc TYPE zds_desc,
+         lots    TYPE i,
+
+         stlty   TYPE stpox-stlty,
+         stlnr   TYPE stpox-stlnr,
+         stlkn   TYPE stpox-stlkn,
+         stpoz   TYPE stpox-stpoz,
+
+         flag," flag for printed
+         mtart, "Label claim issue
+       END OF ty_bom_final.
+
+TYPES: BEGIN OF ty_lots,
+         ds_code TYPE zds_code,
+         ps_code TYPE zps_code,
+         ps_desc TYPE zps_desc,
+         lots    TYPE i,
+         ps_seq  TYPE i,
+       END OF ty_lots.
+
+TYPES: BEGIN OF ty_disp,
+         ds_code TYPE zds_code,
+         ds_desc TYPE zds_desc,
+         ds_seq  TYPE numc2,
+       END OF ty_disp.
+
+TYPES: BEGIN OF ty_caution,
+         select       TYPE c,
+         caution_code TYPE zcn_code,
+         caution_desc TYPE zcn_desc,
+       END OF ty_caution.
+TYPES: BEGIN OF ty_note,
+         line TYPE string,
+       END OF ty_note.
+TYPES: BEGIN OF ty_bmr_remarks,
+         type    TYPE i, "1 for one time remarks & 2 for others
+         id(20)  TYPE c,    "erskz, "Either id = erskz
+         qty(30) TYPE c,     "added on 25.09
+         meins   TYPE meins,   "added on 25.09
+         remark  TYPE string,
+*        remark(2000) TYPE c,
+       END OF ty_bmr_remarks.
+TYPES: BEGIN OF  ty_ds,
+         ds_code TYPE zds_code,
+         ds_seq  TYPE i,
+       END OF ty_ds.
+TYPES : BEGIN OF ty_ann_data,
+          werks   TYPE werks_d,
+          ann_no  TYPE zde_ann_no,
+          dokvr   TYPE dokvr,
+          dms_doc TYPE doknr,
+          doktl   TYPE doktl_d,
+          dokar   TYPE dokar,
+          stabk   TYPE stabk,
+          e_user  TYPE uname,
+          e_date  TYPE datum,
+          e_time  TYPE tims,
+        END OF ty_ann_data.
+
+"Variable for all F4's
+DATA: gt_return           LIKE ddshretval OCCURS 0 WITH HEADER LINE,
+      gv_rtn              TYPE i,
+      gv_select,
+      gv_field            TYPE string,
+      gv_no_static        TYPE c,
+      "Variable for DMS return
+      gv_storagecat       TYPE bapi_doc_files2-storagecategory VALUE 'Z_DMS_DEV', "'Z_DMS_QAS'
+      gs_dms_return       TYPE bapiret2,
+      gs_documentdata     TYPE bapi_doc_draw2,
+      gs_documentdatax    TYPE bapi_doc_drawx2,
+      gs_files            TYPE bapi_doc_files2,
+      gt_files            TYPE STANDARD TABLE OF bapi_doc_files2,
+      "Global Variables
+      gv_popup_ans        TYPE c,
+      gv_auth_obj         TYPE char10, "Added by Debasmita - 01.12.2025
+      gv_file_path        TYPE string,
+      gv_mdoc_path        TYPE string,
+      gv_prv_path(200)    TYPE c,
+      gv_printtype(2)     TYPE c,
+      gs_mkal             TYPE mkal,
+      gt_mdoc             TYPE TABLE OF zqm_ann_data, "zpp_master_doc,
+      gs_mdoc             TYPE zqm_ann_data, "zpp_master_doc,
+      gt_mprep            TYPE TABLE OF zqm_ann_prepare,
+      gs_mprep            TYPE zqm_ann_prepare,
+      gs_mdoc_header      TYPE zpp_mdoc_header,
+      gt_mdoc_item        TYPE TABLE OF zpp_mdoc_item,
+      gs_mdoc_item        TYPE zpp_mdoc_item,
+      g_old_status_int    TYPE dokst,
+      g_new_status_int    TYPE dokst,
+      gt_status_log       TYPE TABLE OF drap,
+      gs_status_log       TYPE drap,
+      gt_print_log        TYPE TABLE OF zqm_ann_printlog, "zppt_printlog,
+      gs_print_log        TYPE zqm_ann_printlog, "zppt_printlog,
+      gt_mprint_log       TYPE TABLE OF zqm_ann_mprntlog,
+      gs_mprint_log       TYPE zqm_ann_mprntlog,
+      gt_stb              TYPE STANDARD TABLE OF stpox,
+      gt_stb2             TYPE STANDARD TABLE OF stpox,
+      gs_stb              TYPE stpox,
+      gt_bom              TYPE TABLE OF ty_bom_final,    "ty_bom, "Containing components with priority 1 of each Alternative Group
+      gs_bom              TYPE ty_bom_final,     "ty_bom,
+      gs_final            TYPE ty_bom_final,
+      gt_final            TYPE TABLE OF ty_bom_final, "Containing all components irrespective of Alternative Group
+      gt_lots             TYPE TABLE OF ty_lots,
+      gs_lots             TYPE ty_lots,
+      gt_disp             TYPE TABLE OF ty_disp, "Added by smita : 07-04-14 for dispensing stage sequence.
+      gs_disp             TYPE ty_disp,
+      gt_ds               TYPE TABLE OF ty_ds,
+      gs_ds               TYPE ty_ds,
+      gt_mdoc_stages      TYPE TABLE OF zpp_mdoc_stages,
+      gs_mdoc_stages      TYPE zpp_mdoc_stages,
+      gt_mdoc_caution     TYPE TABLE OF zpp_mdoc_caution,
+      gs_mdoc_caution     TYPE zpp_mdoc_caution,
+      gs_caution          TYPE ty_caution,
+      gt_bmr_remarks      TYPE TABLE OF ty_bmr_remarks WITH HEADER LINE,
+      gs_afpo             TYPE zppt_printlog, "afpo,
+      gt_resb             TYPE STANDARD TABLE OF ty_resb,
+      gs_resb             TYPE ty_resb,
+      gt_mtart            TYPE TABLE OF ty_mtart WITH HEADER LINE,
+      gt_makt             TYPE STANDARD TABLE OF ty_makt,
+      lta_ann_dt_ch       TYPE TABLE OF zqm_ann_data,
+      lta_ann_dt_up       TYPE TABLE OF zqm_ann_data,
+      lwa_zqm_ann_data_ch TYPE zqm_ann_data,
+      gv_mfg_date         TYPE hsdat,
+      gv_exp_date         TYPE vfdat,
+      gv_pack_before      TYPE hsdat.
+
+"Customising Data
+DATA: gt_disp_stage      TYPE TABLE OF zpp_disp_stage WITH HEADER LINE,
+      gt_process         TYPE TABLE OF zpp_process WITH HEADER LINE,
+      gt_caution         TYPE TABLE OF ty_caution,
+      gt_sop             TYPE TABLE OF zpp_sop_plants WITH HEADER LINE,
+      gt_note            TYPE TABLE OF ty_note WITH HEADER LINE,
+      gt_sp_part_in_text TYPE TABLE OF t413t WITH HEADER LINE.
+
+DATA: mdoc_header_filled  TYPE c,
+      mdoc_item_filled    TYPE c,
+      mdoc_stages_filled  TYPE c,
+      mdoc_caution_filled TYPE c.
+
+"Ole Variables
+DATA : g_word          TYPE ole2_object,
+       g_documents     TYPE ole2_object,
+       g_document      TYPE ole2_object,
+       g_actdoc        TYPE ole2_object,
+       g_application   TYPE ole2_object,
+       g_selection     TYPE ole2_object,
+       g_font          TYPE ole2_object,
+       g_parformat     TYPE ole2_object,
+       g_actwin        TYPE ole2_object,
+       g_actpane       TYPE ole2_object,
+       g_actview       TYPE ole2_object,
+       g_find          TYPE ole2_object,
+       g_header        TYPE ole2_object,
+       g_pageno        TYPE ole2_object,
+       g_tables        TYPE ole2_object,
+       g_table         TYPE ole2_object,
+       g_table1        TYPE ole2_object,
+       g_border        TYPE ole2_object,
+       g_range         TYPE ole2_object,
+       g_rows          TYPE ole2_object,
+       g_row           TYPE ole2_object,
+       g_column        TYPE ole2_object,
+       g_cell          TYPE ole2_object,
+       g_pos           TYPE n,
+       g_row_count     TYPE i,
+       gv_curr_printer TYPE string.
+
+DATA: gv_country TYPE scustom-country,
+      gv_cust    TYPE kunnr.
+
+DATA: gv_dms_prev TYPE dokvr.
+
+DATA: gt_final_tmp TYPE TABLE OF ty_bom_final,
+      gs_final_tmp TYPE ty_bom_final.
+
+DATA: gv_lock.
+
+
+DATA: gv_flag     TYPE flag,                                "CRDK954755
+      gv_ref_grid TYPE REF TO cl_gui_alv_grid.
+
+
+DATA : gta_stb_tmp1 TYPE STANDARD TABLE OF stpox.
+
+
+DATA: wa_stko TYPE stko.
+
+DATA: ta_bmr_path TYPE TABLE OF zqm_ann_path,
+      wa_bmr_path TYPE zqm_ann_path,
+      g_logo_path TYPE rlgrap-filename.
+
+*DATA : ta_draw TYPE STANDARD TABLE OF draw,
+*       wa_draw TYPE draw.
+DATA : ta_drap TYPE STANDARD TABLE OF drap,
+       wa_drap TYPE drap.
+DATA: g_targetpath TYPE string.
+
+DATA: g_time TYPE syst-timlo.
+DATA: g_date TYPE syst-datlo.
+
+
+DATA:  gs_docproperty TYPE ole2_object.
+
+DATA: g_mast_pages  TYPE string,
+      g_print_pages TYPE string.
+
+DATA: g_draft TYPE c.
+
+DATA: ann_no TYPE zqm_master_annex-ann_no.
+
+DATA: lta_zqm_ann_prepare       TYPE TABLE OF zqm_ann_prepare.
+DATA: lta_zqm_ann_data_add      TYPE TABLE OF zqm_ann_data.
+DATA: lta_zqm_ann_addprint      TYPE TABLE OF zqm_ann_addprint.
+DATA: lwa_zqm_ann_prepare       TYPE zqm_ann_prepare.
+DATA: lwa_zqm_ann_data_add      TYPE zqm_ann_data.
+DATA: lwa_zqm_ann_addprint      TYPE zqm_ann_addprint.
+DATA: lwa_zqm_ann_add_printlog  TYPE zqm_ann_printlog.
+DATA: lta_fieldcat              TYPE slis_t_fieldcat_alv.
+DATA: lwa_fieldcat              TYPE slis_fieldcat_alv.
+DATA: lwa_layout                TYPE slis_layout_alv.
+DATA: lv_pos                    TYPE i.
+DATA: gv_ann_no TYPE zqm_ann_prepare-ann_no.

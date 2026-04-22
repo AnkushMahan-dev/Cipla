@@ -1,0 +1,1041 @@
+*----------------------------------------------------------------------*
+***INCLUDE ZPPR_BPRINT_COMMON_MODULES_V2.
+*----------------------------------------------------------------------*
+* Program         : Issuance of Annexture
+* Title           : Annexture Development
+* Author          : Sushil Pandey
+* Program Type    : Module Pool
+* Creation Date   : 18.12.2020
+* Transaction     : ZQM_ANNEXTURE
+* Functional design: QM_155
+* Technical design:
+* Change request :  <8000006529>
+* Transport number: <transport number>
+* Description     : Issuance of Annexture
+*----------------------------------------------------------------------*
+* Modification Information
+* Date            :
+* Author          :
+* Transport number:
+* Description     :
+*	*----------------------------------------------------------------------*
+
+*&---------------------------------------------------------------------*
+*&      Module  STATUS_4000  OUTPUT
+*&---------------------------------------------------------------------*
+MODULE status_4000 OUTPUT.
+  doc_type = 'ZAN'.
+  SET PF-STATUS 'S2000'.
+  SET TITLEBAR 'TANNP'.
+
+ENDMODULE.                 " STATUS_4000  OUTPUT
+
+MODULE status_4500 OUTPUT.
+  doc_type = 'ZAN'.
+  SET PF-STATUS 'S2000'.
+  SET TITLEBAR 'TANNP_AP'.
+
+ENDMODULE.                 " STATUS_4000  OUTPUT
+*&---------------------------------------------------------------------*
+*&      Module  STATUS_4001  OUTPUT
+*&---------------------------------------------------------------------*
+MODULE status_4001 OUTPUT.
+  doc_type = 'BPR'.
+*  process_order = 'X'.    "commented on 08.11.2014
+*  batch_no = 'X'.         "commented on 08.11.2014
+  SET PF-STATUS 'S2000'.
+
+  IF sy-tcode = 'ZPP_BPR04_PW' OR sy-tcode = 'ZPP_BMR04_PW'.
+    SET TITLEBAR 'T4000' WITH 'Print Preview'.
+  ELSEIF  sy-tcode = 'ZPP_BPR04_PR' OR sy-tcode =  'ZPP_BMR04_PR'.
+    SET TITLEBAR 'T4000' WITH 'Print Document'.
+  ELSE.
+    SET TITLEBAR 'T4000' WITH 'Print'.
+  ENDIF.
+ENDMODULE.                 " STATUS_4001  OUTPUT
+*&---------------------------------------------------------------------*
+*&      Module  SCREEN4000_MODIFY  OUTPUT
+*&---------------------------------------------------------------------*
+MODULE screen4000_modify OUTPUT.
+
+  CLEAR p_preview.
+  IF p_order IS NOT INITIAL.
+    SET CURSOR FIELD 'P_REASON' .
+  ENDIF.
+
+  LOOP AT SCREEN.
+    IF screen-name = 'P_REASON'.
+      IF p_reprint = 'X'.
+        screen-active = 1. screen-input = 1.
+      ELSE.
+        screen-active = 0. screen-input = 0.
+      ENDIF.
+      MODIFY SCREEN.
+    ENDIF.
+
+    IF p_bprint = 'X' OR p_reprint = 'X' OR  "Added by Gajanan - 07.11.2024 - CR#8000003007
+       ( p_bprint IS INITIAL AND p_reprint IS INITIAL ).
+      IF screen-group1 = 'RNG'.
+        screen-active = 0. screen-input = 0.
+        MODIFY SCREEN.
+      ENDIF.
+    ENDIF.
+
+  ENDLOOP.
+
+  LOOP AT SCREEN.
+    IF screen-name = 'P_ANN_NO'.
+      IF p_reprint = 'X'.
+        screen-active = 1. screen-input = 1.
+      ELSE.
+        screen-active = 0. screen-input = 0.
+      ENDIF.
+      MODIFY SCREEN.
+    ENDIF.
+  ENDLOOP.
+ENDMODULE.                 " SCREEN4000_MODIFY  OUTPUT
+*&---------------------------------------------------------------------*
+*&      Module  ORDER_VALIDATION  INPUT
+*&---------------------------------------------------------------------*
+MODULE order_validation INPUT.
+  DATA: lv_ud TYPE string.
+  RANGES: ra_art FOR qals-art.
+
+  CLEAR: gs_afpo.
+
+  IF p_order IS NOT INITIAL.
+    SELECT * FROM zppt_printlog INTO TABLE @DATA(lta_zppt_printlog)
+      WHERE aufnr = @p_order.
+    IF sy-subrc <> 0.
+      MESSAGE e305(zqm) WITH p_order.
+    ELSE.
+      SORT lta_zppt_printlog BY aufnr dokvr DESCENDING.
+      gs_afpo = lta_zppt_printlog[ 1 ].
+      CLEAR lwa_zqm_ann_prepare.
+**      DATA(lv_mat_co) = |{ gs_afpo-matnr ALPHA = OUT }|.
+      DATA(lv_mat_co) = |{ gs_afpo-matnr ALPHA = IN }|.
+
+      """ Begin - Logic for printing multiple document number against single material no. plant, production version and document version
+      SELECT * FROM zqm_ann_prepare INTO TABLE lta_zqm_ann_prepare
+      WHERE matnr = lv_mat_co AND "gs_afpo-matnr AND
+            werks = gs_afpo-werks AND
+            verid = gs_afpo-verid AND
+            app_st = 'A'. "Added by Gajanan - 06.03.2025 - CR#8000003007
+      IF sy-subrc IS NOT INITIAL.
+        MESSAGE 'No records found to print' TYPE 'S' DISPLAY LIKE 'E'.
+
+        """ End - Logic for printing multiple document number against single material no. plant, production version and document version
+      ELSE.
+        "SOA by Debasmita - CR#8000003007 - 16.10.2025
+        IF sy-tcode = 'ZQM_ORD_PRINT'.
+          SELECT SINGLE dwerk FROM afpo INTO @DATA(lv_werks) WHERE aufnr = @p_order.
+          AUTHORITY-CHECK OBJECT 'ZSD_WERKS' ID 'WERKS' FIELD lv_werks.
+          IF sy-subrc NE 0.
+            MESSAGE 'You are not authorised for Plant' TYPE 'S' DISPLAY LIKE 'E'.
+            LEAVE PROGRAM.
+            "EOA by Debasmita - CR#8000003007 - 16.10.2025
+          ENDIF.
+        ENDIF.
+        IF lta_zqm_ann_prepare[] IS NOT INITIAL.
+          SORT lta_zqm_ann_prepare BY doknr dokvr DESCENDING.
+          lwa_zqm_ann_prepare  = lta_zqm_ann_prepare[ 1 ].
+        ENDIF.
+        p_mat     = lwa_zqm_ann_prepare-matnr.
+        p_plant   = lwa_zqm_ann_prepare-werks.
+        p_prd_vn  = lwa_zqm_ann_prepare-verid.
+        p_dms     = gs_afpo-dokvr. "lwa_zqm_ann_prepare-dokvr.
+        """ Begin - Logic for printing multiple document number against single material no. plant, production version and document version
+        IF lta_zqm_ann_prepare[] IS NOT INITIAL.
+          SELECT  * FROM zqm_ann_data INTO TABLE gt_mdoc
+            FOR ALL ENTRIES IN lta_zqm_ann_prepare
+            WHERE werks   = lta_zqm_ann_prepare-werks AND
+                  ann_no  = lta_zqm_ann_prepare-ann_no.
+          SORT gt_mdoc BY dms_doc dokvr DESCENDING.
+          DELETE ADJACENT DUPLICATES FROM gt_mdoc COMPARING dms_doc.
+        ENDIF.
+        """ End - Logic for printing multiple document number against single material no. plant, production version and document version
+      ENDIF.
+    ENDIF.
+  ENDIF.
+
+  IF p_mat IS NOT INITIAL.
+    IF gs_afpo-matnr IS NOT INITIAL.
+      lv_mat_co = |{ gs_afpo-matnr ALPHA = IN }|.
+      SELECT SINGLE maktx FROM makt INTO p_mdesc WHERE matnr = lv_mat_co AND spras = 'E'.
+    ELSE.
+      SELECT SINGLE maktx FROM makt INTO p_mdesc WHERE matnr = p_mat AND spras = 'E'.
+    ENDIF.
+
+
+  ENDIF.
+
+  IF p_plant IS NOT INITIAL.
+    SELECT SINGLE name1 FROM t001w INTO p_wdesc WHERE werks = p_plant.
+  ENDIF.
+
+  IF p_order IS NOT INITIAL.
+    CLEAR: lv_ud.
+
+    SELECT * FROM zparam_table INTO TABLE @DATA(ta_param_aninsp)
+      WHERE id_name = 'ZQM_ANINSP'.
+
+    IF ta_param_aninsp IS NOT INITIAL.
+
+      LOOP AT ta_param_aninsp INTO DATA(wa_param_aninsp).
+        ra_art-sign = 'I'.
+        ra_art-option = 'EQ'.
+        ra_art-low = wa_param_aninsp-param_name.
+        APPEND ra_art.
+      ENDLOOP.
+
+      SELECT * FROM qals INTO TABLE @DATA(ta_ud)
+        WHERE aufnr = @p_order
+          AND art IN @ra_art
+          AND herkunft = '04'.
+
+      IF NOT ta_ud IS INITIAL.
+        SELECT COUNT(*) FROM qave
+          FOR ALL ENTRIES IN @ta_ud
+          WHERE prueflos = @ta_ud-prueflos.
+
+        IF sy-subrc = 0.
+
+          REFRESH:ta_ud[].
+          CONCATENATE 'UD already taken for order' p_order INTO lv_ud.
+          MESSAGE lv_ud TYPE 'S' DISPLAY LIKE 'E'.
+        ENDIF.
+      ENDIF.
+    ENDIF.
+  ENDIF.
+ENDMODULE.                 " ORDER_VALIDATION  INPUT
+*&---------------------------------------------------------------------*
+*&      Module  BATCH_VALIDATION  INPUT
+*&---------------------------------------------------------------------*
+MODULE batch_validation INPUT.      "socomment on 08.11.2014
+
+ENDMODULE.                 " BATCH_VALIDATION  INPUT
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_4000  INPUT
+*&---------------------------------------------------------------------*
+MODULE user_command_4000 INPUT.
+  CLEAR p_preview.
+
+  CASE fcode.
+
+    WHEN 'EXECUTE'.
+      break abap4.
+      "Check Print Authorisation
+      IF p_bprint IS NOT INITIAL.
+
+        AUTHORITY-CHECK OBJECT 'ZAN_PRNT' ID 'ZOPTION' FIELD 'RB1'.
+
+        IF sy-subrc <> 0.
+          MESSAGE 'You are not authorised for Printing' TYPE 'S' DISPLAY LIKE 'E'.
+          LEAVE PROGRAM.
+        ENDIF.
+
+      ELSEIF p_reprint IS NOT INITIAL.
+
+        AUTHORITY-CHECK OBJECT 'ZAN_PRNT' ID 'ZOPTION' FIELD 'RB2'.
+
+        IF sy-subrc <> 0.
+          MESSAGE 'You are not authorised for Re-Printing' TYPE 'S' DISPLAY LIKE 'E'.
+          LEAVE PROGRAM.
+        ENDIF.
+
+      ENDIF.
+      "SOA by Debasmita -  CR#8000003007 - 16.10.2025
+      SELECT SINGLE objnr FROM aufk INTO @DATA(lv_objnr) WHERE aufnr = @p_order.
+      IF sy-subrc EQ 0.
+        SELECT COUNT(*) FROM jest WHERE objnr = lv_objnr AND stat = 'I0045' AND inact = space.
+        IF sy-subrc EQ 0.
+          MESSAGE 'Process Order is in TECO status. Print/Reprint is not allowed' TYPE 'S' DISPLAY LIKE 'E'.
+          LEAVE TO SCREEN 4000.
+        ENDIF.
+      ENDIF.
+      "EOA by Debasmita -  CR#8000003007 - 16.10.2025
+
+      CLEAR gs_print_log.
+      SELECT SINGLE * FROM zqm_ann_printlog INTO gs_print_log
+        WHERE aufnr = p_order AND printtype = 'OP'.
+      IF gs_print_log IS NOT INITIAL AND p_bprint = 'X'.
+        MESSAGE e307(zqm).
+      ENDIF.
+      IF gs_print_log IS INITIAL AND p_reprint EQ 'X'.
+        MESSAGE e308(zqm).
+      ENDIF.
+
+      IF lta_zqm_ann_prepare IS NOT INITIAL.
+        IF p_ann_no IS NOT INITIAL.
+          READ TABLE lt_ann_nob INTO ls_ann_nob WITH KEY key = p_ann_no.
+          IF sy-subrc = 0.
+            DELETE lta_zqm_ann_prepare WHERE ann_no <> ls_ann_nob-text. "Added by Gajanan - 23.03.2025 - CR#8000003007
+            CLEAR: ls_ann_nob.
+          ENDIF.
+        ENDIF.
+
+        SELECT * FROM zqm_ann_printlog INTO TABLE @DATA(ta_prntlog)
+                 WHERE aufnr = @p_order.
+
+        IF NOT ta_prntlog IS INITIAL.
+          READ TABLE lt_ann_nob INTO ls_ann_nob WITH KEY key = p_ann_no.
+          IF sy-subrc = 0.
+            DELETE ta_prntlog WHERE ann_no <> ls_ann_nob-text. "Added by Gajanan - 23.03.2025 - CR#8000003007
+            CLEAR: ls_ann_nob.
+          ENDIF.
+
+          SORT ta_prntlog BY print_count DESCENDING.
+          DELETE ADJACENT DUPLICATES FROM ta_prntlog COMPARING aufnr.
+        ENDIF.
+
+        CLEAR lwa_zqm_ann_prepare.
+        LOOP AT lta_zqm_ann_prepare INTO lwa_zqm_ann_prepare.
+          DATA(lv_doknr_conv) = |{ lwa_zqm_ann_prepare-doknr ALPHA = IN }|.
+
+          CLEAR gs_mdoc.
+          IF line_exists( gt_mdoc[ werks = lwa_zqm_ann_prepare-werks dms_doc = lv_doknr_conv ] ).
+            gs_mdoc = gt_mdoc[ werks = lwa_zqm_ann_prepare-werks dms_doc = lv_doknr_conv ].
+
+            IF gs_mdoc-stabk <> 'OB'.
+
+              CLEAR: gv_ann_no.
+              gv_ann_no = lwa_zqm_ann_prepare-ann_no.
+
+              PERFORM check_req_fields_bprint.
+              PERFORM bprint_validation.
+              PERFORM checkout_dms_document.
+              PERFORM update_batch_document.
+
+              PERFORM set_print_mode.
+              IF p_preview = 'X'.
+                gv_printtype = 'PV'.
+                PERFORM set_batch_printtype CHANGING gv_printtype.
+                PERFORM update_print_log USING gv_printtype.
+                PERFORM delete_temp_file_from_disk USING gv_file_path.
+                PERFORM delete_logo_from_disk USING g_logo_path.
+**              PERFORM update_print_log USING gv_printtype.
+**              PERFORM delete_temp_file_from_disk USING gv_file_path.
+**              PERFORM delete_temp_file_from_disk USING gv_prv_path.
+              ELSE.
+                PERFORM set_batch_printtype CHANGING gv_printtype.
+                PERFORM update_print_log USING gv_printtype.
+                PERFORM delete_temp_file_from_disk USING gv_file_path.
+                PERFORM delete_logo_from_disk USING g_logo_path.
+                IF gv_commit = 'X'
+                  AND gv_curr_printer IS NOT INITIAL.
+                  COMMIT WORK.
+                  IF sy-subrc = 0.
+*                  MESSAGE i033(zppr_formu).
+                  ENDIF.
+                ENDIF.
+                gs_print_log = CORRESPONDING #( lwa_zqm_ann_prepare ).
+                gs_print_log-dokar = 'ZAN'.
+                gs_print_log-no_copy = lwa_zqm_ann_prepare-no_copy.
+                gs_print_log-created_on = sy-datlo.
+                gs_print_log-createtime = sy-timlo.
+                gs_print_log-createdby = sy-uname.
+                gs_print_log-printtype = 'OP'.
+                IF p_reprint = abap_true.
+                  gs_print_log-printtype = 'OR'.
+                ENDIF.
+
+                "Print count logic
+                SELECT MAX( print_count ) FROM zqm_ann_printlog
+                  INTO @DATA(lv_max)
+                  WHERE matnr = @lwa_zqm_ann_prepare-matnr
+                    AND werks = @lwa_zqm_ann_prepare-werks
+                    AND verid = @lwa_zqm_ann_prepare-verid
+                    AND doknr = @lwa_zqm_ann_prepare-doknr
+                    AND printtype = @gs_print_log-printtype.
+                IF sy-subrc <> 0.
+                  gs_print_log-print_count = 1.
+
+                ELSE.
+                  gs_print_log-print_count = lv_max + 1.
+
+                ENDIF.
+*                IF gs_print_log-printtype = 'OP'.
+*
+*
+*                ELSE.
+*
+*                  READ TABLE ta_prntlog INTO DATA(wa_prntlog) INDEX 1.
+*                  IF sy-subrc = 0.
+*                    gs_print_log-print_count = wa_prntlog-print_count + 1.
+*                  ENDIF.
+*
+*                ENDIF.
+
+                gs_print_log-aufnr = gs_afpo-aufnr.
+                gs_print_log-charg = gs_afpo-charg.
+*              gs_print_log-printtype = gs_afpo-printtype.
+                IF p_reprint = abap_true.
+                  READ TABLE lt_reason INTO DATA(lw_reason) WITH KEY key = p_reason.
+                  IF sy-subrc = 0.
+                    gs_print_log-reason = lw_reason-text.
+                    CLEAR:lw_reason.
+                  ENDIF.
+                ENDIF.
+
+*                gs_print_log-reason = gs_afpo-reason.
+                gs_print_log-printer = gv_curr_printer.
+
+
+                MODIFY zqm_ann_printlog FROM gs_print_log.
+
+                APPEND gs_print_log TO gt_print_log.
+                CLEAR :gs_print_log.
+              ENDIF.
+              PERFORM unlock_mdoc.
+              CLEAR:  p_batch, p_from, p_to, gv_curr_printer, g_print_pages, g_mast_pages.
+              CLEAR fcode.
+
+            ENDIF.
+          ENDIF.
+
+        ENDLOOP.
+        CLEAR: p_order, p_reason, p_mat, p_plant, p_prd_vn,  p_mdesc, p_dms, p_wdesc, gv_hd_printtype.
+
+        IF gt_print_log[] IS NOT INITIAL.
+*          MODIFY zqm_ann_printlog FROM TABLE gt_print_log.
+        ENDIF.
+
+        MESSAGE i033(zppr_formu).
+        LEAVE PROGRAM.
+*        CALL SCREEN 7000.
+      ENDIF.
+
+    WHEN 'EXIT' OR 'BACK' OR 'CANCEL'.
+      PERFORM unlock_mdoc.    "added on 31.03.2015
+      LEAVE PROGRAM.
+    WHEN 'F2CHOOSE'.
+      CLEAR gv_field.
+      GET CURSOR FIELD gv_field.
+      IF gv_field = 'P_ORDER' AND p_order IS NOT INITIAL.
+        PERFORM call_cor3 USING p_order.
+      ENDIF.
+      IF gv_field = 'P_BATCH' AND p_batch IS NOT INITIAL.
+        PERFORM call_msc3n USING p_batch.
+      ENDIF.
+  ENDCASE.
+ENDMODULE.                 " USER_COMMAND_4000  INPUT
+*&---------------------------------------------------------------------*
+*&      Form  BATCH_DATA
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM clear_batch_data .
+  CLEAR: p_order, p_batch, p_mat, p_mdesc, p_plant, p_wdesc, p_prd_vn, p_dms.
+  CLEAR: lv_mtart, gv_exp_date, gv_mfg_date, gv_pack_before..
+ENDFORM.                    " BATCH_DATA
+*&---------------------------------------------------------------------*
+*&      Module  STATUS_4100  OUTPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE status_4100 OUTPUT.
+  doc_type = 'ZAN'.
+
+  CLEAR h_icon.
+  h_icon = VALUE syucomm_t(
+  ( 'DEL' )
+  ( 'APPR' )
+  ).
+  SET PF-STATUS 'S5000' EXCLUDING h_icon.
+  SET TITLEBAR 'T4100'.
+
+*  SET PF-STATUS 'xxxxxxxx'.
+*  SET TITLEBAR 'xxx'.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  SCREEN4100_MODIFY  OUTPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE screen4100_modify OUTPUT.
+  IF p_mat IS NOT INITIAL ."AND p_plant IS NOT INITIAL .
+    SET CURSOR FIELD 'P_PLANT' .
+  ENDIF.
+
+  IF p_plant IS NOT INITIAL ."AND p_plant IS NOT INITIAL .
+    SET CURSOR FIELD 'P_PRD_VN' .
+  ENDIF.
+
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_4100  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE user_command_4100 INPUT.
+
+  PERFORM set_date_time.
+
+  CASE fcode.
+    WHEN 'EXECUTE'.
+      IF p_mat IS INITIAL OR p_plant IS INITIAL OR p_prd_vn IS INITIAL.
+        MESSAGE 'Input field cannot be left blank' TYPE 'S' DISPLAY LIKE 'E'.
+      ELSE.
+        PERFORM f_alv_display.
+      ENDIF.
+
+
+    WHEN 'EXIT' OR 'BACK' OR 'CANCEL'.
+*      PERFORM unlock_mdoc.    "added on 31.03.2015
+      LEAVE PROGRAM.
+
+  ENDCASE.
+
+  IF sy-ucomm = 'BACK'.
+    CLEAR: p_mat, p_plant, p_prd_vn, p_mdesc, p_wdesc, p_dms.
+  ENDIF.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  STATUS_4200  OUTPUT
+*&---------------------------------------------------------------------*
+MODULE status_4200 OUTPUT.
+  doc_type = 'ZAN'.
+
+  CLEAR h_icon.
+  h_icon = VALUE syucomm_t(
+  ( 'DEL' )
+  ( 'APPR' )
+  ).
+  SET PF-STATUS 'S5000' EXCLUDING h_icon.
+
+  SET TITLEBAR 'T4200'.
+ENDMODULE.
+
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_4200  INPUT
+*&---------------------------------------------------------------------*
+MODULE user_command_4200 INPUT.
+  CASE fcode.
+    WHEN 'EXECUTE'.
+      IF p_mat IS INITIAL OR p_plant IS INITIAL OR p_prd_vn IS INITIAL.
+        MESSAGE 'Input field cannot be left blank' TYPE 'S' DISPLAY LIKE 'E'.
+      ELSE.
+        PERFORM f_alv_vasnn.
+      ENDIF.
+
+
+    WHEN 'EXIT' OR 'BACK' OR 'CANCEL'.
+      PERFORM unlock_mdoc.    "added on 31.03.2015
+      LEAVE PROGRAM.
+
+  ENDCASE.
+
+  IF sy-ucomm = 'BACK'.
+    CLEAR: p_mat, p_plant, p_prd_vn, p_mdesc, p_wdesc, p_dms.
+  ENDIF.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  STATUS_4300  OUTPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE status_4300 OUTPUT.
+  doc_type = 'ZAN'.
+  CLEAR h_icon.
+  h_icon = VALUE syucomm_t(
+  ( 'DEL' )
+  ( 'APPR' )
+  ).
+  SET PF-STATUS 'S5000' EXCLUDING h_icon.
+
+  SET TITLEBAR 'TADD_ANN'.
+ENDMODULE.
+
+MODULE status_4400 OUTPUT.
+  doc_type = 'ZAN'.
+
+  CLEAR h_icon.
+  h_icon = VALUE syucomm_t(
+  ( 'DEL' )
+  ( 'APPR' )
+  ).
+
+  SET PF-STATUS 'S5000' EXCLUDING h_icon.
+  SET TITLEBAR 'TADD_ANNV'.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  SCREEN4300_MODIFY  OUTPUT
+*&---------------------------------------------------------------------*
+MODULE screen4500_modify OUTPUT.
+  CLEAR p_preview.
+  IF p_order IS NOT INITIAL.
+    SET CURSOR FIELD 'P_REASON' .
+  ENDIF.
+
+  LOOP AT SCREEN.
+    IF screen-name = 'P_REASON'.
+      IF p_reprint = 'X'.
+        screen-active = 1. screen-input = 1.
+      ELSE.
+        screen-active = 0. screen-input = 0.
+      ENDIF.
+      MODIFY SCREEN.
+    ENDIF.
+  ENDLOOP.
+
+  LOOP AT SCREEN.
+    IF screen-name = 'P_ANN_NO'.
+      IF p_reprint = 'X'.
+        screen-active = 1. screen-input = 1.
+      ELSE.
+        screen-active = 0. screen-input = 0.
+      ENDIF.
+      MODIFY SCREEN.
+    ENDIF.
+  ENDLOOP.
+
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_4300  INPUT
+*&---------------------------------------------------------------------*
+MODULE user_command_4300 INPUT.
+  CLEAR p_preview.
+
+  CASE fcode.
+
+    WHEN 'EXECUTE'.
+      "SOA by Debasmita -  CR#8000003007 - 16.10.2025
+      SELECT SINGLE objnr FROM aufk INTO @DATA(lv_objnr_n1) WHERE aufnr = @p_order.
+      IF sy-subrc EQ 0.
+        SELECT COUNT(*) FROM jest WHERE objnr = lv_objnr_n1 AND stat = 'I0045' AND inact = space.
+        IF sy-subrc EQ 0.
+          MESSAGE 'Process Order is in TECO status. Print/Reprint is not allowed' TYPE 'S' DISPLAY LIKE 'E'.
+          LEAVE TO SCREEN 4300.
+        ENDIF.
+      ENDIF.
+      "EOA by Debasmita -  CR#8000003007 - 16.10.2025
+      IF gt_mdoc[] IS NOT INITIAL.
+        LOOP AT gt_mdoc INTO gs_mdoc.
+
+          CLEAR gs_mprep.
+          READ TABLE gt_mprep INTO gs_mprep WITH KEY matnr = p_mat "Added by Gajanan - 22.01.2026 - CR#8000003007
+*                                                     werks = gs_mdoc-werks
+                                                     werks = p_plant "Added by Gajanan - 22.01.2026 - CR#8000003007
+                                                     verid = p_prd_vn "Added by Gajanan - 22.01.2026 - CR#8000003007
+                                                     doknr = gs_mdoc-dms_doc
+                                                     dokvr_b = p_dms "Added by Gajanan - 22.01.2026 - CR#8000003007
+                                                     approved = abap_true.
+          IF sy-subrc = 0.
+
+            lwa_zqm_ann_addprint = CORRESPONDING #( gs_mdoc ).
+            lwa_zqm_ann_addprint-doknr    = gs_mdoc-dms_doc.
+            lwa_zqm_ann_addprint-status   = gs_mdoc-stabk.
+            lwa_zqm_ann_addprint-matnr    = gs_afpo-matnr.
+            lwa_zqm_ann_addprint-verid    = gs_afpo-verid.
+            lwa_zqm_ann_addprint-dokvr    = gs_afpo-dokvr.
+            lwa_zqm_ann_addprint-aufnr    = gs_afpo-aufnr.
+            lwa_zqm_ann_addprint-charg    = gs_afpo-charg.
+
+            APPEND lwa_zqm_ann_addprint TO lta_zqm_ann_addprint.
+            CLEAR lwa_zqm_ann_addprint.
+          ENDIF.
+
+        ENDLOOP.
+
+        IF lta_zqm_ann_addprint[] IS NOT INITIAL.
+          PERFORM f_alv_display_add.
+        ENDIF.
+      ENDIF.
+
+    WHEN 'EXIT' OR 'BACK' OR 'CANCEL'.
+      PERFORM unlock_mdoc.    "added on 31.03.2015
+      LEAVE PROGRAM.
+
+  ENDCASE.
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  ORDER_VALID_ADD  INPUT
+*&---------------------------------------------------------------------*
+MODULE order_valid_add INPUT.
+  DATA: lv_message TYPE string.
+  IF sy-ucomm IS INITIAL.
+    CLEAR: gs_afpo, lta_zppt_printlog[].
+
+    IF p_order IS NOT INITIAL.
+
+      SELECT * FROM zppt_printlog INTO TABLE lta_zppt_printlog
+        WHERE aufnr = p_order.
+      IF sy-subrc <> 0.
+        MESSAGE e305(zqm) WITH p_order.
+      ELSE.
+        SORT lta_zppt_printlog BY aufnr dokvr DESCENDING.
+        gs_afpo = lta_zppt_printlog[ 1 ].
+        CLEAR lwa_zqm_ann_prepare.
+        lv_mat_co = |{ gs_afpo-matnr ALPHA = OUT }|.
+
+
+        SELECT * FROM zqm_ann_data INTO TABLE gt_mdoc
+        WHERE werks = gs_afpo-werks.
+        IF sy-subrc IS NOT INITIAL.
+          MESSAGE e314(zqm) WITH  gs_afpo-werks.
+        ELSE.
+          p_mat     = gs_afpo-matnr.
+          p_plant   = gs_afpo-werks.
+          p_prd_vn  = gs_afpo-verid.
+          p_dms     = gs_afpo-dokvr.
+
+          LOOP AT gt_mdoc ASSIGNING FIELD-SYMBOL(<fs_mdoc>).
+            <fs_mdoc>-dms_doc = |{ <fs_mdoc>-dms_doc ALPHA = OUT }|.
+          ENDLOOP.
+          UNASSIGN <fs_mdoc>.
+
+
+          SELECT * FROM zqm_ann_prepare INTO TABLE gt_mprep
+             FOR ALL ENTRIES IN gt_mdoc
+               WHERE werks EQ gt_mdoc-werks
+               AND   doknr EQ gt_mdoc-dms_doc.
+          IF sy-subrc = 0.
+            SORT gt_mdoc BY dms_doc DESCENDING.
+          ENDIF.
+
+          IF gt_mdoc[] IS NOT INITIAL.
+            SORT gt_mdoc BY dms_doc dokvr DESCENDING.
+            DELETE ADJACENT DUPLICATES FROM gt_mdoc COMPARING dms_doc.
+          ENDIF.
+        ENDIF.
+      ENDIF.
+    ENDIF.
+
+    IF p_mat IS NOT INITIAL.
+      IF gs_afpo-matnr IS NOT INITIAL.
+        lv_mat_co = |{ gs_afpo-matnr ALPHA = IN }|.
+        SELECT SINGLE maktx FROM makt INTO p_mdesc WHERE matnr = lv_mat_co AND spras = 'E'.
+      ELSE.
+        SELECT SINGLE maktx FROM makt INTO p_mdesc WHERE matnr = p_mat AND spras = 'E'.
+      ENDIF.
+
+
+    ENDIF.
+
+    IF p_plant IS NOT INITIAL.
+      SELECT SINGLE name1 FROM t001w INTO p_wdesc WHERE werks = p_plant.
+    ENDIF.
+  ENDIF.
+  IF sy-ucomm IS NOT INITIAL.
+    "SOA by Debasmita - CR#8000003007 - 16.10.2025
+    SELECT SINGLE dwerk FROM afpo INTO @lv_werks WHERE aufnr = @p_order.
+    AUTHORITY-CHECK OBJECT 'ZSD_WERKS' ID 'WERKS' FIELD lv_werks.
+    IF sy-subrc NE 0.
+      CLEAR lv_message.
+      CONCATENATE 'You are not authorised for Plant' lv_werks INTO lv_message SEPARATED BY space.
+      MESSAGE lv_message TYPE 'E' ."DISPLAY LIKE 'E'.
+*          LEAVE PROGRAM.
+    ENDIF.
+  ENDIF.
+  "EOA by Debasmita - CR#8000003007 - 16.10.2025
+ENDMODULE.
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_4400  INPUT
+*&---------------------------------------------------------------------*
+*       Verify Additional Print of Annexure
+*----------------------------------------------------------------------*
+MODULE user_command_4400 INPUT.
+
+  CASE fcode.
+    WHEN 'EXECUTE'.
+      IF p_order IS INITIAL.
+        MESSAGE 'Input field cannot be left blank' TYPE 'S' DISPLAY LIKE 'E'.
+      ELSE.
+        "SOA by Debasmita -  CR#8000003007 - 16.10.2025
+        SELECT SINGLE objnr FROM aufk INTO @DATA(lv_objnr_new) WHERE aufnr = @p_order.
+        IF sy-subrc EQ 0.
+          SELECT COUNT(*) FROM jest WHERE objnr = lv_objnr_new AND stat = 'I0045' AND inact = space.
+          IF sy-subrc NE 0.
+            PERFORM f_alv_add_ann.
+          ELSE.
+            MESSAGE 'Process Order is in TECO status. Print/Reprint is not allowed' TYPE 'S' DISPLAY LIKE 'E'.
+          ENDIF.
+        ENDIF.
+        "EOA by Debasmita -  CR#8000003007 - 16.10.2025
+      ENDIF.
+
+    WHEN 'EXIT' OR 'BACK' OR 'CANCEL'.
+      PERFORM unlock_mdoc.    "added on 31.03.2015
+      LEAVE PROGRAM.
+
+  ENDCASE.
+
+  IF sy-ucomm = 'BACK'.
+    CLEAR: p_mat, p_plant, p_prd_vn, p_mdesc, p_wdesc, p_dms.
+  ENDIF.
+ENDMODULE.
+
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_4500  INPUT
+*&---------------------------------------------------------------------*
+*       Print - Additional set of Annexure
+*----------------------------------------------------------------------*
+MODULE user_command_4500 INPUT.
+
+  CASE fcode.
+      CLEAR gt_mdoc[].
+    WHEN 'EXECUTE'.
+
+      "Check Print Authorisation
+      IF p_bprint IS NOT INITIAL.
+
+        AUTHORITY-CHECK OBJECT 'ZAN_PRNT' ID 'ZOPTION' FIELD 'RB1'.
+
+        IF sy-subrc <> 0.
+          MESSAGE 'You are not authorised for Printing' TYPE 'S' DISPLAY LIKE 'E'.
+          LEAVE PROGRAM.
+        ENDIF.
+
+      ELSEIF p_reprint IS NOT INITIAL.
+
+        AUTHORITY-CHECK OBJECT 'ZAN_PRNT' ID 'ZOPTION' FIELD 'RB2'.
+
+        IF sy-subrc <> 0.
+          MESSAGE 'You are not authorised for Re-Printing' TYPE 'S' DISPLAY LIKE 'E'.
+          LEAVE PROGRAM.
+        ENDIF.
+
+      ENDIF.
+
+      IF p_order IS INITIAL.
+        MESSAGE 'Input field cannot be left blank' TYPE 'S' DISPLAY LIKE 'E'.
+
+      ELSEIF lta_zqm_ann_addprint[] IS NOT INITIAL.
+        "SOA by Debasmita -  CR#8000003007 - 16.10.2025
+        SELECT SINGLE objnr FROM aufk INTO @DATA(lv_objnr_n) WHERE aufnr = @p_order.
+        IF sy-subrc EQ 0.
+          SELECT COUNT(*) FROM jest WHERE objnr = lv_objnr_n AND stat = 'I0045' AND inact = space.
+          IF sy-subrc EQ 0.
+            MESSAGE 'Process Order is in TECO status. Print/Reprint is not allowed' TYPE 'S' DISPLAY LIKE 'E'.
+            LEAVE TO SCREEN 4500.
+          ENDIF.
+        ENDIF.
+        "EOA by Debasmita -  CR#8000003007 - 16.10.2025
+        IF p_bprint = abap_true.
+          IF lta_zqm_ann_addprint[] IS NOT INITIAL.
+            DATA(lta_zqm_ann_addprint_stat) = lta_zqm_ann_addprint[].
+            DELETE lta_zqm_ann_addprint_stat WHERE app_st IS NOT INITIAL AND print_stat = 'X'.
+            IF lta_zqm_ann_addprint_stat[] IS INITIAL.
+              MESSAGE 'Print Already Taken' TYPE 'E'.
+            ENDIF.
+
+          ENDIF.
+        ENDIF.
+
+        SELECT * FROM zqm_ann_data INTO TABLE gt_mdoc
+          FOR ALL ENTRIES IN lta_zqm_ann_addprint
+          WHERE werks = lta_zqm_ann_addprint-werks AND
+                ann_no = lta_zqm_ann_addprint-ann_no.
+
+        IF sy-subrc IS INITIAL.
+          READ TABLE lt_ann_no INTO ls_ann_no WITH KEY key = p_ann_no.
+          IF sy-subrc = 0.
+            DELETE lta_zqm_ann_addprint WHERE ann_no <> ls_ann_no-text. "Added by Gajanan - 23.03.2025 - CR#8000003007
+          ENDIF.
+
+          SELECT * FROM zqm_ann_addprint INTO TABLE @DATA(ta_addprntlog)
+                           WHERE aufnr = @p_order.
+
+          IF NOT ta_addprntlog IS INITIAL.
+            READ TABLE lt_ann_no INTO ls_ann_no WITH KEY key = p_ann_no.
+            IF sy-subrc = 0.
+              DELETE ta_addprntlog WHERE ann_no <> ls_ann_no-text. "Added by Gajanan - 23.03.2025 - CR#8000003007
+              CLEAR: ls_ann_no.
+            ENDIF.
+
+            SORT ta_addprntlog BY ann_no print_count DESCENDING.
+            DELETE ADJACENT DUPLICATES FROM ta_addprntlog COMPARING ann_no.
+          ENDIF.
+
+          "Added by Gajanan - 22.01.2026 - CR#8000003007
+          IF p_bprint = abap_true.
+            IF lta_zqm_ann_addprint IS NOT INITIAL.
+              DELETE lta_zqm_ann_addprint WHERE print_stat = abap_true.
+            ENDIF.
+
+          ELSEIF p_reprint = abap_true.
+
+            SORT lta_zqm_ann_addprint BY ann_no print_count DESCENDING.
+            DELETE ADJACENT DUPLICATES FROM lta_zqm_ann_addprint COMPARING ann_no.
+
+          ENDIF.
+
+          LOOP AT lta_zqm_ann_addprint INTO lwa_zqm_ann_addprint.
+            CLEAR:  lv_doknr_conv, gs_mdoc.
+            IF line_exists( gt_mdoc[ werks = lwa_zqm_ann_addprint-werks
+                                     ann_no = lwa_zqm_ann_addprint-ann_no ] ).
+              gs_mdoc = gt_mdoc[ werks = lwa_zqm_ann_addprint-werks
+                                     ann_no = lwa_zqm_ann_addprint-ann_no ].
+
+              lv_doknr_conv = |{ gs_mdoc-dms_doc ALPHA = IN }|.
+
+              CLEAR: gv_ann_no.
+              gv_ann_no = lwa_zqm_ann_addprint-ann_no.
+              "SOA by Gajanan - 23.03.2025 - CR#8000003007
+              lwa_zqm_ann_addprint-print_stat = abap_true.
+              lwa_zqm_ann_addprint-print_by = sy-uname.
+              lwa_zqm_ann_addprint-print_on = sy-datum.
+              lwa_zqm_ann_addprint-print_time = sy-uzeit.
+              lwa_zqm_ann_addprint-printer = gv_curr_printer.
+
+              IF p_bprint = abap_true.
+                lwa_zqm_ann_addprint-printtype = 'AP'.
+*                lwa_zqm_ann_addprint-cr_by = sy-uname.
+*                lwa_zqm_ann_addprint-cr_on = sy-datum.
+*                lwa_zqm_ann_addprint-cr_time = sy-uzeit.
+              ENDIF.
+
+              IF p_reprint = abap_true.
+                lwa_zqm_ann_addprint-printtype = 'AR'.
+*                lwa_zqm_ann_addprint-cr_by = sy-uname.
+*                lwa_zqm_ann_addprint-cr_on = sy-datum.
+*                lwa_zqm_ann_addprint-cr_time = sy-uzeit.
+                READ TABLE lt_reason INTO lw_reason WITH KEY key = p_reason.
+                IF sy-subrc = 0.
+                  lwa_zqm_ann_addprint-reason = lw_reason-text.
+                  CLEAR:lw_reason.
+                ENDIF.
+
+                READ TABLE ta_addprntlog INTO DATA(wa_addprntlog) WITH KEY ann_no = lwa_zqm_ann_addprint-ann_no.
+                IF sy-subrc = 0.
+                  lwa_zqm_ann_addprint-print_count = wa_addprntlog-print_count + 1.
+                ENDIF.
+              ENDIF.
+
+*              READ TABLE ta_addprntlog INTO DATA(wa_addprntlog) INDEX 1.
+*              IF sy-subrc = 0.
+*                lwa_zqm_ann_addprint-print_count = wa_addprntlog-print_count + 1.
+*              ENDIF.
+
+              "EOA by Gajanan - 23.03.2025 - CR#8000003007
+
+              PERFORM check_req_fields_bprint.
+              PERFORM checkout_dms_document_add.
+              PERFORM update_batch_document.
+
+              PERFORM set_print_mode.
+              lwa_zqm_ann_addprint-printer = gv_curr_printer.
+
+              MODIFY lta_zqm_ann_addprint FROM lwa_zqm_ann_addprint
+              TRANSPORTING print_count printtype print_by print_on print_time print_stat printer reason.
+              MODIFY zqm_ann_addprint FROM TABLE lta_zqm_ann_addprint.
+
+              IF p_preview = 'X'.
+                gv_printtype = 'PV'.
+                PERFORM set_batch_printtype CHANGING gv_printtype.
+                PERFORM update_print_log USING gv_printtype.
+                PERFORM delete_temp_file_from_disk USING gv_file_path.
+                PERFORM delete_logo_from_disk USING g_logo_path.
+**              PERFORM update_print_log USING gv_printtype.
+**              PERFORM delete_temp_file_from_disk USING gv_file_path.
+**              PERFORM delete_temp_file_from_disk USING gv_prv_path.
+              ELSE.
+                PERFORM set_batch_printtype CHANGING gv_printtype.
+                PERFORM update_print_log USING gv_printtype.
+                PERFORM delete_temp_file_from_disk USING gv_file_path.
+                PERFORM delete_logo_from_disk USING g_logo_path.
+                IF gv_commit = 'X'
+                  AND gv_curr_printer IS NOT INITIAL.
+                  COMMIT WORK.
+                  IF sy-subrc = 0.
+*                  MESSAGE i033(zppr_formu).
+                  ENDIF.
+                ENDIF.
+                "Commented below code by Gajanan - 23.03.2025 - CR#8000003007
+*                lwa_zqm_ann_addprint-print_stat = abap_true.
+*                IF p_bprint = abap_true.
+*                  lwa_zqm_ann_addprint-printtype = 'AP'.
+*                ENDIF.
+*
+*                IF p_reprint = abap_true.
+*                  lwa_zqm_ann_addprint-printtype = 'AR'.
+*                ENDIF.
+              ENDIF.
+*              MODIFY lta_zqm_ann_addprint FROM lwa_zqm_ann_addprint
+*                TRANSPORTING printtype print_stat.
+
+*            PERFORM unlock_mdoc.
+              CLEAR:  p_batch, p_from, p_to, gv_curr_printer, g_print_pages, g_mast_pages.
+              CLEAR fcode.
+            ENDIF.
+          ENDLOOP.
+
+*          MODIFY zqm_ann_addprint FROM TABLE lta_zqm_ann_addprint. "Commented by Gajanan - 23.03.2025 - CR#8000003007
+          CLEAR: p_order, p_reason, p_mat, p_plant, p_prd_vn,  p_mdesc, p_dms, p_wdesc, gv_hd_printtype.
+
+          MESSAGE i033(zppr_formu).
+          LEAVE PROGRAM.
+        ENDIF.
+      ENDIF.
+
+    WHEN 'EXIT' OR 'BACK' OR 'CANCEL'.
+      PERFORM unlock_mdoc.    "added on 31.03.2015
+      LEAVE PROGRAM.
+
+  ENDCASE.
+
+  IF sy-ucomm = 'BACK'.
+    CLEAR: p_mat, p_plant, p_prd_vn, p_mdesc, p_wdesc, p_dms.
+  ENDIF.
+ENDMODULE.
+
+*&---------------------------------------------------------------------*
+*&      Module  ORDER_VALID_ADD  INPUT
+*&---------------------------------------------------------------------*
+MODULE order_valid_addp INPUT.
+  IF sy-ucomm IS INITIAL.
+    CLEAR: gs_afpo, lta_zqm_ann_addprint[].
+
+    IF p_order IS NOT INITIAL.
+
+      SELECT * FROM zqm_ann_addprint INTO TABLE lta_zqm_ann_addprint
+        WHERE aufnr = p_order AND
+              approved = abap_true.
+*              print_stat = abap_true. "Added by Gajanan - 19.03.2025 - CR#8000003007
+*              print_stat = ''.
+      IF sy-subrc <> 0.
+        MESSAGE e316(zqm) WITH p_order.
+      ELSE.
+        SORT lta_zqm_ann_addprint BY aufnr dokvr DESCENDING.
+        lwa_zqm_ann_addprint = lta_zqm_ann_addprint[ 1 ].
+
+        lv_mat_co = |{ lwa_zqm_ann_addprint-matnr ALPHA = OUT }|.
+
+        p_mat     = lwa_zqm_ann_addprint-matnr.
+        p_plant   = lwa_zqm_ann_addprint-werks.
+        p_prd_vn  = lwa_zqm_ann_addprint-verid.
+        p_dms     = lwa_zqm_ann_addprint-dokvr.
+
+        IF gt_mdoc[] IS NOT INITIAL.
+          SORT gt_mdoc BY dms_doc dokvr DESCENDING.
+          DELETE ADJACENT DUPLICATES FROM gt_mdoc COMPARING dms_doc.
+        ENDIF.
+      ENDIF.
+
+      IF p_mat IS NOT INITIAL.
+        lv_mat_co = |{ p_mat ALPHA = IN }|.
+        SELECT SINGLE maktx FROM makt INTO p_mdesc WHERE matnr = lv_mat_co AND spras = 'E'.
+      ENDIF.
+
+      IF p_plant IS NOT INITIAL.
+        SELECT SINGLE name1 FROM t001w INTO p_wdesc WHERE werks = p_plant.
+      ENDIF.
+    ENDIF.
+  ENDIF.
+
+  "SOA by Debasmita - CR#8000003007 - 16.10.2025
+  IF sy-ucomm IS NOT INITIAL.
+    SELECT SINGLE dwerk FROM afpo INTO @lv_werks WHERE aufnr = @p_order.
+    AUTHORITY-CHECK OBJECT 'ZSD_WERKS' ID 'WERKS' FIELD lv_werks.
+    IF sy-subrc NE 0.
+      CLEAR lv_message.
+      CONCATENATE 'You are not authorised for Plant' lv_werks INTO lv_message SEPARATED BY space.
+      MESSAGE lv_message TYPE 'E'." DISPLAY LIKE 'E'.
+*          LEAVE PROGRAM.
+    ENDIF.
+  ENDIF.
+  "EOA by Debasmita - CR#8000003007 - 16.10.2025
+ENDMODULE.

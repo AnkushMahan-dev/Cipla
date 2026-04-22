@@ -1,0 +1,134 @@
+*----------------------------------------------------------------------*
+***INCLUDE ZPPR_8000_MODULES_V2.
+*----------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*&      Module  STATUS_8000  OUTPUT
+*&---------------------------------------------------------------------*
+MODULE status_8000 OUTPUT.
+**  doc_type = 'BPR'.
+**  APPEND 'EXECUTE' TO lt_exclude.
+**  SET PF-STATUS 'S2000' EXCLUDING lt_exclude.
+**  SET TITLEBAR 'T8000'.
+ENDMODULE.                 " STATUS_8000  OUTPUT
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_8000  INPUT
+*&---------------------------------------------------------------------*
+MODULE user_command_8000 INPUT.
+  CASE fcode.
+    WHEN 'BACK' OR 'EXIT'.
+      LEAVE PROGRAM.
+
+    WHEN 'BASE_T'.
+      PERFORM chk_auth_tcode USING 'ZPP_BPR06' CHANGING gv_rtn.
+      IF sy-subrc = 1.
+        CALL TRANSACTION 'ZPP_BPR06'.
+      ELSE.
+        MESSAGE e065(zppr_formu).
+*   You are not authorized for this transaction.
+      ENDIF.
+
+    WHEN 'MASTER_T'.
+      PERFORM chk_auth_tcode USING 'ZPP_BPR05' CHANGING gv_rtn.
+      IF sy-subrc = 1.
+        CALL TRANSACTION 'ZPP_BPR05'.
+      ELSE.
+        MESSAGE e065(zppr_formu).
+*   You are not authorized for this transaction.
+      ENDIF.
+
+    WHEN 'CREATE'.
+      PERFORM chk_auth_tcode USING 'ZPP_BPR01' CHANGING gv_rtn.
+      IF sy-subrc = 1.
+        CALL TRANSACTION 'ZPP_BPR01'.
+      ELSE.
+        MESSAGE e065(zppr_formu).
+*   You are not authorized for this transaction.
+      ENDIF.
+    WHEN 'STATUS'.
+      PERFORM chk_auth_tcode USING 'ZPP_BPR02' CHANGING gv_rtn.
+      IF sy-subrc = 1.
+        CALL TRANSACTION 'ZPP_BPR02'.
+      ELSE.
+        MESSAGE e065(zppr_formu).
+*   You are not authorized for this transaction.
+      ENDIF.
+    WHEN 'MASTER_P'.
+      PERFORM chk_auth_tcode USING 'ZPP_BPR03' CHANGING gv_rtn.
+      IF sy-subrc = 1.
+        CALL TRANSACTION 'ZPP_BPR03'.
+      ELSE.
+***        soa on 29.09.2014
+        PERFORM chk_auth_tcode USING 'ZPP_BPR03_PR_RE' CHANGING gv_rtn.
+        IF sy-subrc = 1.
+          CALL TRANSACTION 'ZPP_BPR03_PR_RE'.
+        ELSE.
+***        eoa on 29.09.2014
+          PERFORM chk_auth_tcode USING 'ZPP_BPR03_PR' CHANGING gv_rtn.
+          IF sy-subrc = 1.
+            CALL TRANSACTION 'ZPP_BPR03_PR'.
+          ELSE.
+            PERFORM chk_auth_tcode USING 'ZPP_BPR03_DR_PW' CHANGING gv_rtn.
+            IF sy-subrc = 1.
+              CALL TRANSACTION 'ZPP_BPR03_DR_PW'.
+            ELSE.
+              PERFORM chk_auth_tcode USING 'ZPP_BPR03_PW' CHANGING gv_rtn.
+              IF sy-subrc = 1.
+                CALL TRANSACTION 'ZPP_BPR03_PW'.
+              ELSE.
+                MESSAGE e065(zppr_formu).
+              ENDIF.
+            ENDIF.
+          ENDIF.
+        ENDIF.
+      ENDIF.
+    WHEN 'BATCH_P'.
+      PERFORM chk_auth_tcode USING 'ZPP_BPR04' CHANGING gv_rtn.
+      IF sy-subrc = 1.
+        CALL TRANSACTION 'ZPP_BPR04'.
+      ELSE.
+        PERFORM chk_auth_tcode USING 'ZPP_BPR04_PR' CHANGING gv_rtn.
+        IF sy-subrc = 1.
+          CALL TRANSACTION 'ZPP_BPR04_PR'.
+        ELSE.
+          PERFORM chk_auth_tcode USING 'ZPP_BPR04_PW' CHANGING gv_rtn.
+          IF sy-subrc = 1.
+            CALL TRANSACTION 'ZPP_BPR04_PW'.
+          ELSE.
+            MESSAGE e065(zppr_formu).
+          ENDIF.
+        ENDIF.
+      ENDIF.
+    WHEN 'LIST'.
+      PERFORM chk_auth_tcode USING 'ZPP_BPRREPORT1' CHANGING gv_rtn.
+      IF sy-subrc = 1.
+*        CALL TRANSACTION 'ZPP_BPRREPORT1'. " commented Changes date : 05-06-14 by Smita (To call reports using parameters i.e BMR and BPR).
+        SUBMIT zpp_mdoclist  VIA SELECTION-SCREEN WITH doc_type  = doc_type AND RETURN.
+      ELSE.
+        MESSAGE e065(zppr_formu).
+*   You are not authorized for this transaction.
+      ENDIF.
+
+    WHEN 'MLOG'.
+      PERFORM chk_auth_tcode USING 'ZPP_BPRREPORT2' CHANGING gv_rtn.
+      IF sy-subrc = 1.
+*        CALL TRANSACTION 'ZPP_BPRREPORT2'. " commented Changes date : 05-06-14 by Smita (To call reports using parameters i.e BMR and BPR).
+        SUBMIT zpp_mprint_bpr  VIA SELECTION-SCREEN WITH doc_type  = doc_type AND RETURN.
+      ELSE.
+        MESSAGE e065(zppr_formu).
+*   You are not authorized for this transaction.
+      ENDIF.
+    WHEN 'BLOG'.
+      PERFORM chk_auth_tcode USING 'ZPP_BPRREPORT3' CHANGING gv_rtn.
+      IF sy-subrc = 1.
+*        CALL TRANSACTION 'ZPP_BPRREPORT3'. " commented Changes date : 05-06-14 by Smita (To call reports using parameters i.e BMR and BPR).
+        SUBMIT zpp_bprint_bpr  VIA SELECTION-SCREEN WITH doc_type  = doc_type AND RETURN.
+      ELSE.
+        MESSAGE e065(zppr_formu).
+*   You are not authorized for this transaction.
+      ENDIF.
+*SOC By nilesh 13.10.2020 8000006703
+    when 'BFLOG'.
+      call TRANSACTION 'ZPP_BPR_REASON'.
+*EOC By nilesh 13.10.2020 8000006703
+  ENDCASE.
+ENDMODULE.                 " USER_COMMAND_8000  INPUT

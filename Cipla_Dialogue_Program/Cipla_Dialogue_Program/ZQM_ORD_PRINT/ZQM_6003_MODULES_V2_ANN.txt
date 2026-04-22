@@ -1,0 +1,84 @@
+*&---------------------------------------------------------------------*
+*&  Include           ZQM_6003_MODULES_V2_ANN
+*&---------------------------------------------------------------------*
+* Program         : Issuance of Annexture
+* Title           : Annexture Development
+* Author          : Sushil Pandey
+* Program Type    : Module Pool
+* Creation Date   : 18.12.2020
+* Transaction     : ZQM_ANNEXTURE
+* Functional design: QM_155
+* Technical design:
+* Change request :  <8000006529>
+* Transport number: <transport number>
+* Description     : Issuance of Annexture
+*----------------------------------------------------------------------*
+* Modification Information
+* Date            :
+* Author          :
+* Transport number:
+* Description     :
+*	*----------------------------------------------------------------------*
+
+*&---------------------------------------------------------------------*
+*&      Module  TC_DISP_CHANGE_TC_ATTR  OUTPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE tc_disp_change_tc_attr OUTPUT.
+  DELETE gt_disp WHERE ds_code IS INITIAL OR ds_desc IS INITIAL.
+  DESCRIBE TABLE gt_disp LINES tc_disp-lines.
+ENDMODULE.                 " TC_DISP_CHANGE_TC_ATTR  OUTPUT
+*&---------------------------------------------------------------------*
+*&      Module  TC_DISP_MODIFY  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE tc_disp_modify INPUT.
+  MODIFY gt_disp
+    FROM gs_disp
+    INDEX tc_disp-current_line.
+ENDMODULE.                 " TC_DISP_MODIFY  INPUT
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_6003  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE user_command_6003 INPUT.
+  " Screen 6003 added by smita dated : 07-04-2014 (Dispensing stage sequence).
+  CASE fcode.
+    WHEN 'BOM'.
+      CALL SCREEN 6001.
+    WHEN 'BACK'.
+      CALL SCREEN 6000.
+    WHEN 'EXIT'.
+      LEAVE PROGRAM.
+    WHEN 'SAVE'.
+      IF gt_disp IS NOT INITIAL.
+        CLEAR gs_mdoc_stages.
+        LOOP AT gt_disp INTO gs_disp.
+          gs_mdoc_stages-dokar = gs_mdoc-dokar.
+          gs_mdoc_stages-doknr = gs_mdoc-DMS_DOC.
+          gs_mdoc_stages-dokvr = gs_mdoc-dokvr.
+          gs_mdoc_stages-ds_code = gs_disp-ds_code.
+          gs_mdoc_stages-ds_seq = gs_disp-ds_seq.
+          APPEND gs_mdoc_stages TO gt_mdoc_stages.
+        ENDLOOP.
+        MESSAGE s070(zppr_formu).
+*   Stage details saved.
+      ENDIF.
+  ENDCASE.
+ENDMODULE.                 " USER_COMMAND_6003  INPUT
+*&---------------------------------------------------------------------*
+*&      Module  STATUS_6003  OUTPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE status_6003 OUTPUT.
+**  REFRESH lt_exclude.
+**  APPEND 'DISP' TO lt_exclude.
+***  APPEND 'SAVE' TO lt_exclude.
+**  APPEND 'EXECUTE' TO lt_exclude.
+**  SET PF-STATUS 'S1000' EXCLUDING lt_exclude.
+**  SET TITLEBAR 'T1002'.
+ENDMODULE.                 " STATUS_6003  OUTPUT

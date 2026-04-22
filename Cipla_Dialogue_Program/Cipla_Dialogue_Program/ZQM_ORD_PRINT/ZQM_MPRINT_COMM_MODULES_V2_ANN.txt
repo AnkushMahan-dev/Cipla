@@ -1,0 +1,330 @@
+*----------------------------------------------------------------------*
+***INCLUDE ZQM_MPRINT_COMM_MODULES_V2_ANN
+*----------------------------------------------------------------------*
+* Program         : Issuance of Annexture
+* Title           : Annexture Development
+* Author          : Sushil Pandey
+* Program Type    : Module Pool
+* Creation Date   : 18.12.2020
+* Transaction     : ZQM_ANNEXTURE
+* Functional design: QM_155
+* Technical design:
+* Change request :  <8000006529>
+* Transport number: <transport number>
+* Description     : Issuance of Annexture
+*----------------------------------------------------------------------*
+* Modification Information
+* Date            :
+* Author          :
+* Transport number:
+* Description     :
+*	*----------------------------------------------------------------------*
+
+MODULE status_3000 OUTPUT.
+
+  doc_type = 'BMR'.
+  SET PF-STATUS 'S2000'.
+  SET TITLEBAR 'T3000'.
+
+  IF sy-tcode = 'ZPP_BMR03_DR_PW' OR sy-tcode = 'ZPP_BPR03_DR_PW'.
+    SET TITLEBAR 'T3000' WITH 'Draft Print & Print Preview'.
+  ELSEIF sy-tcode = 'ZPP_BMR03_PR' OR sy-tcode = 'ZPP_BPR03_PR'.
+    SET TITLEBAR 'T3000' WITH 'Master Print'.
+  ELSEIF sy-tcode = 'ZPP_BMR03_PW' OR sy-tcode = 'ZPP_BPR03_PW'.
+    SET TITLEBAR 'T3000' WITH 'Print Preview'.
+  ELSEIF sy-tcode = 'ZPP_BMR03_PW_DR_RE' OR sy-tcode = 'ZPP_BPR03_PW_DR_RE'.
+    SET TITLEBAR 'T3000' WITH 'Print Preview & Draft Print & Reprint '.
+***    soa on 29.09.2014
+  ELSEIF sy-tcode = 'ZPP_BMR03_PR_RE' .
+    SET TITLEBAR 'T3000' WITH 'Master Print & Reprint '.
+***    eoa on 29.09.2014
+  ELSE.
+    SET TITLEBAR 'T3000' WITH 'Print'.
+  ENDIF.
+ENDMODULE.                 " STATUS_3000  OUTPUT
+*&---------------------------------------------------------------------*
+*&      Module  STATUS_3001  OUTPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE status_3001 OUTPUT.
+  doc_type = 'BPR'.
+  SET PF-STATUS 'S2000'.
+
+  IF sy-tcode = 'ZPP_BMR03_DR_PW' OR sy-tcode = 'ZPP_BPR03_DR_PW'.
+    SET TITLEBAR 'T3000' WITH 'Draft Print & Print Preview'.
+  ELSEIF sy-tcode = 'ZPP_BMR03_PR' OR sy-tcode = 'ZPP_BPR03_PR'.
+    SET TITLEBAR 'T3000' WITH 'Master Print'.
+  ELSEIF sy-tcode = 'ZPP_BMR03_PW' OR sy-tcode = 'ZPP_BPR03_PW'.
+    SET TITLEBAR 'T3000' WITH 'Print Preview'.
+  ELSEIF sy-tcode = 'ZPP_BMR03_PW_DR_RE' OR sy-tcode = 'ZPP_BPR03_PW_DR_RE'.
+    SET TITLEBAR 'T3000' WITH 'Print Preview & Draft Print & Reprint '.
+  ELSEIF sy-tcode = 'ZPP_BPR03_PR_RE'.
+    SET TITLEBAR 'T3000' WITH 'Master Print & Reprint '.
+  ELSE.
+    SET TITLEBAR 'T3000' WITH 'Print'.
+  ENDIF.
+ENDMODULE.                 " STATUS_3001  OUTPUT
+*&---------------------------------------------------------------------*
+*&      Module  SCREEN3000_MODIFY  OUTPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE screen3000_modify OUTPUT.
+
+* "Added by Smita Dated : 08-04-14 "Set cursor position to prod version of material and plant is not initial.
+  IF p_plant IS NOT INITIAL .
+    SET CURSOR FIELD 'ANN_NO' .
+  ENDIF.
+
+  IF ann_no IS NOT INITIAL .
+    SET CURSOR FIELD 'P_NEW_STAT' .
+  ENDIF.
+
+  LOOP AT SCREEN.
+    IF screen-name = 'P_REASON'.
+      IF p_reprint = 'X'.
+        screen-active = 1. screen-input = 1.
+      ELSE.
+        screen-active = 0. screen-input = 0.
+      ENDIF.
+      MODIFY SCREEN.
+    ENDIF.
+    IF screen-name = 'P_FROM' OR screen-name = 'P_TO'.
+      IF p_page_range = 'X'.
+        screen-active = 1. screen-input = 1.
+      ELSE.
+        screen-active = 0. screen-input = 0.
+      ENDIF.
+      MODIFY SCREEN.
+    ENDIF.
+    IF p_preview = 'X' OR p_master = 'X' OR p_draft = 'X'.
+      IF screen-group1 = 'RNG'.
+        screen-active = 0. screen-input = 0.
+        MODIFY SCREEN.
+      ENDIF.
+    ELSE.
+      IF screen-name = 'RANGE'.
+        screen-active = 1. screen-input = 1.
+        MODIFY SCREEN.
+      ENDIF.
+      IF screen-name = 'P_FROM' OR screen-name = 'P_TO'.
+        IF p_page_range = 'X'.
+          screen-active = 1. screen-input = 1.
+        ELSE.
+          screen-active = 0. screen-input = 0.
+        ENDIF.
+        MODIFY SCREEN.
+      ENDIF.
+    ENDIF.
+  ENDLOOP.
+
+  IF p_mat IS NOT INITIAL AND p_plant IS NOT INITIAL AND p_prd_vn IS NOT INITIAL.
+    LOOP AT SCREEN.
+      IF screen-name = 'P_MAT' OR screen-name = 'P_PLANT' OR screen-name = 'P_PRD_VN'.
+        screen-input = 0.
+        MODIFY SCREEN.
+      ENDIF.
+    ENDLOOP.
+  ENDIF.
+
+
+  IF sy-tcode = 'ZPP_BMR03_DR_PW' OR sy-tcode = 'ZPP_BPR03_DR_PW'.
+*    p_preview = 'X'.
+    CLEAR: p_master, p_reprint.
+
+    LOOP AT SCREEN.
+      IF screen-name = 'P_REPRINT' OR screen-name = 'P_MASTER'.
+        screen-active = 0.
+        screen-invisible = 1.
+        MODIFY SCREEN.
+      ENDIF.
+    ENDLOOP.
+  ELSEIF sy-tcode = 'ZPP_BMR03_PR' OR sy-tcode = 'ZPP_BPR03_PR'.
+    p_master = 'X'.
+    CLEAR: p_draft, p_reprint, p_preview.
+
+    LOOP AT SCREEN.
+      IF screen-group2 = 'PRV'.
+        screen-active = 0.
+        screen-invisible = 1.
+        MODIFY SCREEN.
+      ENDIF.
+    ENDLOOP.
+
+  ELSEIF sy-tcode = 'ZPP_BMR03_PW_DR_RE' OR sy-tcode = 'ZPP_BPR03_PW_DR_RE'.
+*    p_preview = 'X'.
+    CLEAR: p_master.
+
+    LOOP AT SCREEN.
+      IF screen-name = 'P_MASTER'.
+        screen-active = 0.
+        screen-invisible = 1.
+        MODIFY SCREEN.
+      ENDIF.
+    ENDLOOP.
+  ELSEIF sy-tcode = 'ZPP_BMR03_PW' OR sy-tcode = 'ZPP_BPR03_PW'.
+    p_preview = 'X'.
+    CLEAR: p_draft, p_master , p_reprint.
+
+    LOOP AT SCREEN.
+      IF screen-group2 = 'PRV'.
+        screen-active = 0.
+        screen-invisible = 1.
+        MODIFY SCREEN.
+      ENDIF.
+    ENDLOOP.
+***    soa on 29.09.2014
+  ELSEIF sy-tcode = 'ZPP_BMR03_PR_RE' OR sy-tcode = 'ZPP_BPR03_PR_RE'.
+    CLEAR: p_preview , p_draft.
+
+    LOOP AT SCREEN.
+      IF screen-name = 'P_DRAFT' OR screen-name = 'P_PREVIEW' .
+        screen-active = 0.
+        screen-invisible = 1.
+        MODIFY SCREEN.
+      ENDIF.
+    ENDLOOP.
+***    eoa on 29.09.2014
+  ENDIF.
+ENDMODULE.                 " SCREEN3000_MODIFY  OUTPUT
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_3000  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE user_command_3000 INPUT.
+  PERFORM set_date_time.  "timezone changes for 8000003697 by payal on 14.11.2017
+
+  CASE fcode.
+
+    WHEN 'EXECUTE'.
+
+      "SOA by Gajanan - 24.11.2025 - CR#8000003007
+      "Authorisation check for QA and PP users
+
+      IF p_draft = 'X' OR p_preview = 'X'.
+
+        AUTHORITY-CHECK OBJECT 'ZQM_MPRNT' ID 'ZOPTION1' FIELD 'PP'.
+
+        IF sy-subrc <> 0.
+          MESSAGE 'You are not authorised for Draft Print or Preview' TYPE 'S' DISPLAY LIKE 'E'.
+          LEAVE PROGRAM.
+        ENDIF.
+
+      ELSEIF p_master = 'X' OR p_reprint = 'X'.
+
+        AUTHORITY-CHECK OBJECT 'ZQM_MPRNT' ID 'ZOPTION1' FIELD 'QA'.
+
+        IF sy-subrc <> 0.
+          MESSAGE 'You are not authorised for Master print or Reprint' TYPE 'S' DISPLAY LIKE 'E'.
+          LEAVE PROGRAM.
+        ENDIF.
+
+      ENDIF.
+
+      "EOA by Gajanan - 24.11.2025 - CR#8000003007
+***      soa on 21.08.2014 for removing bug of master print
+      IF p_master = 'X'.
+
+        IF p_master IS NOT INITIAL AND fcode = 'EXECUTE'.
+          SELECT SINGLE * FROM zqm_ann_mprintl INTO @DATA(lwa_zqm_ann_mprintl_chk)
+              WHERE doknr = @gs_mdoc-dms_doc AND
+                    stabk = @p_stat.
+          IF sy-subrc IS INITIAL.
+            MESSAGE e312(zqm) WITH ann_no gs_mdoc-dms_doc p_stat.
+          ENDIF.
+
+        ENDIF.
+        CLEAR: p_from, p_to, p_page_range.
+        p_all = 'X'.
+      ENDIF.
+***      eoa on 21.08.2014 for removing bug of master print
+      PERFORM check_req_fields_print.
+      IF p_preview <> 'X'."Preview required in all stages. Hence no validation if preview is selected
+        PERFORM mprint_validation.
+      ENDIF.
+      PERFORM checkout_dms_document.
+*      PERFORM lock_mdoc.
+      CLEAR: gv_ann_no.
+      gv_ann_no = ann_no.
+      PERFORM update_master_document.
+
+***COMMNTED ON 27.09.2016
+*      "soadd on 09.02.2016
+*      PERFORM get_total_no_of_pages CHANGING g_print_pages.
+*      IF g_print_pages NE g_mast_pages.
+*        IF p_preview NE 'X'.
+*          PERFORM set_master_printtype CHANGING gv_printtype.
+*          PERFORM save_zpp_bmr_error.
+*          PERFORM delete_temp_file_from_disk USING gv_file_path.
+*          PERFORM delete_logo_from_disk USING g_logo_path. "Added By Vrushali on 08.08.2016
+*          PERFORM unlock_mdoc.
+*          CLEAR: p_order, p_batch, p_plant, p_mat, p_prd_vn, p_dms, p_mdesc, p_wdesc, p_reason, p_from, p_to, gv_hd_printtype,
+*          gv_curr_printer, g_print_pages, g_mast_pages.  "added on 10.02.2016
+*          CLEAR fcode.    "added on 04.02.2015
+**          MESSAGE 'Please try again' TYPE 'E'.
+*          MESSAGE 'Print cannot be executed. Please try again' TYPE 'E'.
+*        ENDIF.
+*      ENDIF.
+*      "eoadd on 09.02.2016
+***END COMMNTED ON 27.09.2016
+
+      PERFORM set_print_mode.
+      IF p_preview = 'X'.
+
+        PERFORM delete_temp_file_from_disk USING gv_file_path.
+        PERFORM delete_temp_file_from_disk USING gv_prv_path.
+*        PERFORM unlock_mdoc.
+*         CALL SCREEN 7000.
+
+
+        DATA: l_targetpath1 TYPE string,
+              l_targetpath2 TYPE string,
+              l_len1        TYPE i.
+
+        CLEAR: l_targetpath1, l_targetpath2, l_len1.
+
+        l_len1 = strlen( g_targetpath ).
+        IF l_len1 LE 50.
+          MESSAGE i311(zqm) WITH g_targetpath.
+        ELSE.
+          l_targetpath1 = g_targetpath+0(50).
+          l_len1 = l_len1 - 50.
+          l_targetpath2 = g_targetpath+50(l_len1).
+
+          IF l_targetpath1 IS NOT INITIAL OR l_targetpath2 IS NOT INITIAL.
+            MESSAGE i311(zqm) WITH l_targetpath1 l_targetpath2.
+          ENDIF.
+        ENDIF.
+
+      ELSE.
+        PERFORM set_master_printtype CHANGING gv_printtype.
+        PERFORM update_print_log USING gv_printtype.
+        PERFORM delete_temp_file_from_disk USING gv_file_path.
+        PERFORM delete_logo_from_disk USING g_logo_path. "Added By Vrushali on 08.08.2016
+*        PERFORM unlock_mdoc.
+        IF gv_commit = 'X'.
+          COMMIT WORK.
+          IF sy-subrc = 0.
+            MESSAGE i033(zppr_formu).
+          ENDIF.
+        ENDIF.
+      ENDIF.
+
+      PERFORM unlock_mdoc.
+      CLEAR: p_mat, p_mdesc, p_plant, p_wdesc, p_prd_vn, p_dms, p_stat, p_stat_desc, p_reason, p_from, p_to,
+      gv_curr_printer, g_print_pages, g_mast_pages, ann_no.  "added on 10.02.2016
+      CLEAR fcode.
+
+    WHEN 'F2CHOOSE'.
+      CLEAR gv_field.
+      GET CURSOR FIELD gv_field.
+      IF gv_field = 'P_MAT' AND p_mat IS NOT INITIAL.
+        PERFORM call_mm03 USING p_mat.
+      ENDIF.
+
+    WHEN 'EXIT' OR 'BACK' OR 'CANCEL'.
+      LEAVE PROGRAM.
+  ENDCASE.
+ENDMODULE.                 " USER_COMMAND_3000  INPUT

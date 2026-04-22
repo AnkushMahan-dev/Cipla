@@ -1,0 +1,1916 @@
+*&---------------------------------------------------------------------*
+*&  Include           ZQM_COMMON_FORMS_V2_ANN
+*&---------------------------------------------------------------------*
+* Program         : Issuance of Annexture
+* Title           : Annexture Development
+* Author          : Sushil Pandey
+* Program Type    : Module Pool
+* Creation Date   : 18.12.2020
+* Transaction     : ZQM_ANNEXTURE
+* Functional design: QM_155
+* Technical design:
+* Change request :  <8000006529>
+* Transport number: <transport number>
+* Description     : Issuance of Annexture
+*----------------------------------------------------------------------*
+* Modification Information
+* Date            :
+* Author          :
+* Transport number:
+* Description     :
+*	*----------------------------------------------------------------------*
+
+FORM validate_bom USING p_stlal.
+  DATA: "lv_stlst TYPE stko-stlst,   commented on 10.12.2014
+        lv_stlnr TYPE mast-stlnr.
+
+  SELECT SINGLE stlnr FROM  mast INTO lv_stlnr
+    WHERE  matnr  = p_mat
+    AND werks  = p_plant
+    AND stlan  = '1'
+    AND stlal = p_stlal.
+  IF sy-subrc = 0.
+
+***    soc on 10.12.2014
+*    SELECT SINGLE stlst FROM stko INTO lv_stlst
+*      WHERE stlnr  = lv_stlnr
+*      AND    stlal  = p_stlal.
+*    IF lv_stlst = '02'. "Inactive
+*      MESSAGE e063(zppr_formu).
+**   BOM is Inactive.
+*    ENDIF.
+
+    SELECT SINGLE * FROM stko INTO wa_stko
+  WHERE  stlty = 'M' AND      "added  on 13.04.2015
+      stlnr  = lv_stlnr
+  AND    stlal  = p_stlal.
+    IF wa_stko-stlst = '02'. "Inactive
+*      MESSAGE e063(zppr_formu).  "commneted on 06.01.2016 8000002835
+*   BOM is Inactive.
+    ENDIF.
+***    eoc on 10.12.2014
+  ENDIF.
+ENDFORM.                    " VALIDATE_BOM
+*&---------------------------------------------------------------------*
+*&      Form  CHECK_REQUIRED_FIELDS
+*&---------------------------------------------------------------------*
+*       <--P_ERR_FLAG     text
+*----------------------------------------------------------------------*
+FORM check_required_fields CHANGING p_err_flag.
+  IF p_plant IS INITIAL OR ann_no IS INITIAL.
+    p_err_flag = 'X'.
+    MESSAGE s000(zppr_formu).
+    RETURN.
+  ENDIF.
+
+  IF p_static IS INITIAL.
+    IF p_dms IS INITIAL.
+      p_err_flag = 'X'.
+      MESSAGE s003(zppr_formu).
+      RETURN.
+    ELSE."Static template should be taken from latest approved template
+      PERFORM checkout_dms_document_template.
+      gv_no_static = 'X'.
+      p_static = gv_file_path.
+    ENDIF.
+    "so added for #8000003013 By Payal S on 06.09.2017 1.Same Template Name can be uploaded
+  ELSE.
+    gv_file_path = p_static.
+    PERFORM copy_file_template CHANGING gv_file_path.
+    "eo added for #8000003013 By Payal S on 06.09.2017
+  ENDIF.
+  IF p_date IS INITIAL.
+    p_err_flag = 'X'.
+    MESSAGE s001(zppr_formu).
+    RETURN.
+  ENDIF.
+  IF gt_stb IS NOT INITIAL AND gt_bom IS INITIAL.
+    p_err_flag = 'X'.
+    MESSAGE s012(zppr_formu).
+    RETURN.
+  ENDIF.
+  LOOP AT gt_bom INTO gs_bom.
+    PERFORM progress_bar USING 'Checking BOM Details ...'.
+    IF gs_bom-ds_code IS INITIAL OR gs_bom-lines IS INITIAL OR ( gs_bom-ps_code IS INITIAL AND doc_type = 'BMR' ).
+      p_err_flag = 'X'.
+      MESSAGE s012(zppr_formu).
+      RETURN.
+    ENDIF.
+    IF doc_type = 'BMR'.
+      READ TABLE gt_mdoc_stages INTO gs_mdoc_stages WITH KEY ds_code = gs_bom-ds_code.
+      IF sy-subrc <> 0.
+        MESSAGE e067(zppr_formu) WITH gs_bom-ds_desc.
+      ENDIF.
+    ENDIF.
+  ENDLOOP.
+  LOOP AT gt_mdoc_stages INTO gs_mdoc_stages.
+    PERFORM progress_bar USING 'Checking Tab Format ...'.
+    IF doc_type = 'BMR'. "Added by smita dated : 11-04-14 (Dispensing stage sequence)
+      IF gs_mdoc_stages-tabformat IS INITIAL.
+        p_err_flag = 'X'.
+        MESSAGE s013(zppr_formu) WITH gs_mdoc_stages-ds_code.
+        RETURN.
+      ENDIF.
+    ENDIF.
+  ENDLOOP.
+
+  LOOP AT gt_disp INTO gs_disp.  "Added by Smita for dispensing stage sequencing date : 7-04-14.
+    PERFORM progress_bar USING 'Checking Dispensing stage Sequence ...'.
+    IF gs_disp-ds_seq IS INITIAL ."OR gs_bom-lines IS INITIAL OR ( gs_bom-ps_code IS INITIAL AND doc_type = 'BMR' ).
+      p_err_flag = 'X'.
+      MESSAGE s059(zppr_formu).
+      RETURN.
+    ENDIF.
+  ENDLOOP.
+
+ENDFORM.                    " CHECK_REQUIRED_FIELDS
+*&---------------------------------------------------------------------*
+*&      Form  CHECK_DOCUMENT_STATUS
+*&---------------------------------------------------------------------*
+FORM check_document_status .
+  IF p_stat EQ 'IP' OR p_stat EQ 'RL' OR p_stat EQ 'DX'.
+    MESSAGE e019(zppr_formu) WITH p_stat_desc.
+  ENDIF.
+ENDFORM.                    " CHECK_DOCUMENT_STATUS
+*&---------------------------------------------------------------------*
+*&      Form  FETCH_COMP_TEXT
+*&---------------------------------------------------------------------*
+*      -->P_P_MAT  text
+*      -->P_L_TEXT  text
+*      <--P_P_MDESC  text
+*----------------------------------------------------------------------*
+FORM fetch_comp_text  USING  p_idnrk p_obtxp CHANGING text.
+  "Material long text
+  DATA: comp      TYPE tdobname,
+        lt_prodnm TYPE TABLE OF tline, ls_prodnm TYPE tline.
+
+  comp = p_idnrk.
+
+  CALL FUNCTION 'READ_TEXT'
+    EXPORTING
+*     CLIENT                  = SY-MANDT
+      id                      = 'GRUN'
+      language                = 'E'
+      name                    = comp
+      object                  = 'MATERIAL'
+    TABLES
+      lines                   = lt_prodnm
+    EXCEPTIONS
+      id                      = 1
+      language                = 2
+      name                    = 3
+      not_found               = 4
+      object                  = 5
+      reference_check         = 6
+      wrong_access_to_archive = 7
+      OTHERS                  = 8.
+  IF sy-subrc <> 0.
+* Implement suitable error handling here
+  ENDIF.
+
+  CLEAR text.
+  LOOP AT lt_prodnm INTO ls_prodnm.
+    CONCATENATE text ls_prodnm-tdline INTO text SEPARATED BY space.
+  ENDLOOP.
+
+****  so comment on 16.03.2015
+  "If the component description is not available in long text, display from field ojtxp
+*  IF text IS INITIAL.
+*    text = p_obtxp.
+*  ENDIF.
+****  eo comment on 16.03.2015
+ENDFORM.                    " FETCH_COMP_TEXT
+*&---------------------------------------------------------------------*
+*&      Form  FETCH_BOM_COMPONENTS
+*&---------------------------------------------------------------------*
+FORM fetch_bom_components.
+  DATA: lv_mat   TYPE matnr, lv_stlal TYPE stlal, lv_mehrs TYPE mehrs VALUE ' '.
+
+
+**SOC By nilesh 05.09.2019 8000005265
+  CONSTANTS : lc_x(1)    TYPE c VALUE 'X',
+              lc_1(1)    TYPE c VALUE '1',
+              lc_zpbm(5) TYPE c VALUE 'ZPBM'.
+
+  SELECT mandt,
+         matnr,
+         werks,
+         name1,
+         maktx,
+         loekz,
+         ernam,
+         erdat,
+         erzeit
+    FROM zpp_excl_poclub
+    INTO TABLE @DATA(ta_poclub)
+    WHERE matnr = @p_mat
+     AND werks = @p_plant.
+  IF sy-subrc  = 0.
+    SORT ta_poclub BY matnr werks.
+  ENDIF.
+**EOC By nilesh 05.09.2019 8000005265
+
+
+  IF doc_type = 'BPR'.
+    lv_mehrs = 'X'. "mehrs = 'X' for bom explosion
+  ENDIF.
+
+  SELECT SINGLE stlal INTO lv_stlal FROM mkal WHERE matnr = p_mat AND werks = p_plant AND verid = p_prd_vn.
+
+
+  PERFORM idnrk_conversion_input USING p_mat CHANGING lv_mat.
+
+  CALL FUNCTION 'CS_BOM_EXPL_MAT_V2'
+    EXPORTING
+      capid                 = 'PI01'      "'PP01'  "changed on 10.12.2014
+      mehrs                 = lv_mehrs
+      datuv                 = g_date "sy-datum  "timezone changes for 8000003697 by payal on 14.11.2017
+      mtnrv                 = lv_mat
+      werks                 = p_plant
+      emeng                 = wa_stko-bmeng                        "1  chnged on 10.12.2014v
+      stlan                 = '1'
+      stlal                 = lv_stlal       "commented on 10.12.2014  "activated on 08.01.2015
+      verid                 = p_prd_vn       "added on 10.12.2014
+    TABLES
+      stb                   = gt_stb
+    EXCEPTIONS
+      alt_not_found         = 1
+      call_invalid          = 2
+      material_not_found    = 3
+      missing_authorization = 4
+      no_bom_found          = 5
+      no_plant_data         = 6
+      no_suitable_bom_found = 7
+      OTHERS                = 8.
+
+  IF doc_type = 'BPR'.
+    DATA: lv_index  TYPE sy-index,
+          gs_stb_n  TYPE stpox,
+          gs_stb_n1 TYPE stpox.
+
+    REFRESH : gta_stb_tmp1."" added by sneha dated 05.8.14 for multi level.
+
+    DELETE gt_stb WHERE stufe GE 3.  "added on 30.11.2015
+
+    gta_stb_tmp1[] = gt_stb[]."" added by sneha dated 05.8.14 for multi level.
+    SORT gta_stb_tmp1 BY stufe wegxx."" added by sneha dated 05.8.14 for multi level.
+
+
+*    LOOP AT gt_stb INTO gs_stb WHERE fmeng = 'X'.
+    LOOP AT gta_stb_tmp1 INTO gs_stb WHERE fmeng = 'X'.
+      lv_index = sy-tabix.
+      CLEAR gs_stb_n.
+*      READ TABLE gt_stb INTO gs_stb_n INDEX lv_index - 1.
+*      IF gs_stb-idnrk = gs_stb_n-idnrk.
+**      IF sy-subrc = 0.
+*        gs_stb_n-menge = gs_stb_n-menge + gs_stb-menge.
+*        MODIFY TABLE gt_stb FROM gs_stb_n TRANSPORTING menge. " index lv_index - 1.
+*      ENDIF.
+
+*      READ TABLE gt_stb INTO gs_stb_n INDEX lv_index - 1.
+
+***    start of comment  on 13.08.2014 for changes in fixed & variable qty logic
+*       READ TABLE gta_stb_tmp1 INTO gs_stb_n INDEX lv_index - 1.
+*      IF sy-subrc = 0.
+*        IF gs_stb_n-fmeng = ''.
+*          IF gs_stb-idnrk = gs_stb_n-idnrk AND gs_stb_n-alpgr IS INITIAL.
+*            gs_stb_n-menge = gs_stb_n-menge + gs_stb-menge.
+**            MODIFY TABLE gt_stb FROM gs_stb_n TRANSPORTING menge. " index lv_index - 1.
+*            MODIFY TABLE gta_stb_tmp1 FROM gs_stb_n TRANSPORTING menge. " index lv_index - 1.
+*          ENDIF.
+*        ELSE.
+*          IF gs_stb_n-alpgr IS NOT INITIAL.
+**            LOOP AT gt_stb INTO gs_stb_n1 WHERE alpgr = gs_stb_n-alpgr.
+*            LOOP AT gta_stb_tmp1 INTO gs_stb_n1 WHERE alpgr = gs_stb_n-alpgr.
+*              gs_stb_n1-menge = gs_stb_n1-menge + gs_stb-menge.
+**              MODIFY TABLE gt_stb FROM gs_stb_n1 TRANSPORTING menge. " index lv_index - 1.
+*              MODIFY TABLE gta_stb_tmp1 FROM gs_stb_n1 TRANSPORTING menge. " index lv_index - 1.
+*            ENDLOOP.
+*          ENDIF.
+*        ENDIF.
+*      ENDIF.
+***    start of comment  on 13.08.2014 for changes in fixed & variable qty logic
+
+***SOC By nilesh 05.09.2019 8000005265
+      READ TABLE ta_poclub INTO DATA(wa_poclub) WITH KEY matnr = p_mat werks = p_plant loekz = ' '.
+      IF sy-subrc NE 0.
+***EOC By nilesh 05.09.2019 8000005265
+
+***    start of addition  on 13.08.2014 for changes in fixed & variable qty logic
+        READ TABLE gta_stb_tmp1 INTO gs_stb_n INDEX lv_index - 1.
+        IF sy-subrc = 0 AND gs_stb_n-fmeng = ''.
+          IF gs_stb-idnrk = gs_stb_n-idnrk AND gs_stb_n-alpgr IS INITIAL.
+**          soc on 10.12.2014
+*          gs_stb_n-menge = gs_stb_n-menge + gs_stb-menge.
+*          MODIFY TABLE gta_stb_tmp1 FROM gs_stb_n TRANSPORTING menge. " index lv_index - 1.
+            gs_stb_n-mngko = gs_stb_n-mngko + gs_stb-mngko.
+            MODIFY TABLE gta_stb_tmp1 FROM gs_stb_n TRANSPORTING mngko.
+**          eoc on 10.12.2014
+          ELSE.
+            IF gs_stb_n-alpgr IS NOT INITIAL.
+              LOOP AT gta_stb_tmp1 INTO gs_stb_n1 WHERE alpgr = gs_stb_n-alpgr.
+**          soc on 10.12.2014
+*              gs_stb_n1-menge = gs_stb_n1-menge + gs_stb-menge.
+*              MODIFY TABLE gta_stb_tmp1 FROM gs_stb_n1 TRANSPORTING menge. " index lv_index - 1.
+                gs_stb_n1-mngko = gs_stb_n1-mngko + gs_stb-mngko.
+                MODIFY TABLE gta_stb_tmp1 FROM gs_stb_n1 TRANSPORTING mngko.
+**          eoc on 10.12.2014
+                CLEAR gs_stb_n1.
+              ENDLOOP.
+            ENDIF.
+          ENDIF.
+        ENDIF.
+***    end of addition  on 13.08.2014 for changes in fixed & variable qty logic
+***SOC By nilesh 05.09.2019 8000005265
+      ENDIF.
+      "EOC By Nilesh  8000005265 05.09.2019
+    ENDLOOP.
+
+*    DELETE gt_stb WHERE fmeng = 'X'.commnented by Nilesh 05.09.2019
+
+* SOC By Nilesh 05.02.2020 8000006072
+    READ TABLE ta_poclub INTO DATA(wa_poclub1) WITH KEY matnr = p_mat werks = p_plant loekz = ' '.
+    IF sy-subrc NE 0.
+      DELETE gt_stb WHERE fmeng = lc_x.
+    ENDIF.
+*EOC By Nilesh 05.02.2020 8000006072
+
+    LOOP AT gt_stb INTO gs_stb WHERE fmeng = ''.
+
+      READ TABLE gta_stb_tmp1 INTO gs_stb_n1 WITH KEY idnrk = gs_stb-idnrk
+                                                       posnr = gs_stb-posnr
+                                                       fmeng = ''
+                                                       stlnr = gs_stb-stlnr.  "added on 06.07.2015
+      IF sy-subrc = 0.
+
+        MOVE-CORRESPONDING gs_stb_n1 TO gs_stb.
+
+        MODIFY gt_stb FROM gs_stb.
+
+      ENDIF.
+
+    ENDLOOP.
+  ENDIF.
+ENDFORM.                    " FETCH_BOM_COMPONENTS
+****S.O.C Rahul Nishankar #8000004096 CRDK955491 14/06/2018
+FORM f_get_comp_code.
+  SELECT SINGLE bwkey bukrs
+    FROM t001k
+    INTO (gv_bwkey,gv_bukrs)
+    WHERE bwkey EQ p_plant.
+  IF sy-subrc EQ 0.
+    SELECT SINGLE *
+      FROM zparam_table
+      INTO @DATA(lv_param)
+      WHERE id_name EQ @co_bukrs
+        AND param_name EQ @gv_bukrs.
+    IF sy-subrc NE 0.
+      CLEAR gv_bukrs.
+    ENDIF.
+    " begin of changes #8000005794 21.05.2020
+    CLEAR : gv_bwkey, gv_bukrs_sa.
+    SELECT SINGLE bwkey bukrs
+   FROM t001k
+   INTO (gv_bwkey,gv_bukrs_sa)
+   WHERE bwkey EQ p_plant.
+    IF sy-subrc = 0.
+
+      SELECT SINGLE * FROM zparam_table
+        INTO gv_param_sa
+        WHERE ( id_name EQ co_bmr_id OR id_name = co_bpr_id )
+        AND param_name = gv_bukrs_sa.
+      IF sy-subrc NE 0.
+        CLEAR gv_bukrs_sa.
+      ELSE.
+        CLEAR gv_bukrs.
+      ENDIF.
+    ENDIF.
+    " end of changes
+
+  ENDIF.
+ENDFORM.
+****E.O.C Rahul Nishankar #8000004096 CRDK955491 14/06/2018
+
+*&---------------------------------------------------------------------*
+*&      Form  IDNRK_CONVERSION_OUTPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_IDNRK  text
+*      <--P_OUTPUT  text
+*----------------------------------------------------------------------*
+FORM idnrk_conversion_output USING p_idnrk CHANGING p_output.
+  CALL FUNCTION 'CONVERSION_EXIT_MATN1_OUTPUT'
+    EXPORTING
+      input  = p_idnrk
+    IMPORTING
+      output = p_output.
+*    EXCEPTIONS
+*      length_error = 1
+*      OTHERS       = 2.
+ENDFORM.                    " IDNRK_CONVERSION_OUTPUT
+*&---------------------------------------------------------------------*
+*&      Form  IDNRK_CONVERSION_INPUT
+*&---------------------------------------------------------------------*
+*  -->  P_IDNRK       text
+*  -->  P_INPUT       text
+*----------------------------------------------------------------------*
+FORM idnrk_conversion_input USING p_idnrk CHANGING p_input.
+  CALL FUNCTION 'CONVERSION_EXIT_MATN1_INPUT'
+    EXPORTING
+      input        = p_idnrk
+    IMPORTING
+      output       = p_input
+    EXCEPTIONS
+      length_error = 1
+      OTHERS       = 2.
+ENDFORM.                    " IDNRK_CONVERSION_INPUT
+*&---------------------------------------------------------------------*
+*&      Form  FIND_COMP_PLACEHOLDER
+*&---------------------------------------------------------------------*
+*      -->P_POSNR  text
+*      -->P_IDNRK  text
+*      <--P_MAIN_QTY  text
+*----------------------------------------------------------------------*
+FORM find_comp_placeholder USING p_posnr p_idnrk
+                                    CHANGING p_mview_qty p_mview_batch.
+  DATA: lv_idnrk TYPE matnr.
+  CLEAR lv_idnrk.
+  PERFORM idnrk_conversion_output USING p_idnrk CHANGING lv_idnrk.
+  CONCATENATE '&' p_posnr lv_idnrk 'Q' '&' INTO p_mview_qty.
+  CONCATENATE '&' p_posnr lv_idnrk 'B' '&' INTO p_mview_batch.
+ENDFORM.                    " FIND_COMP_PLACEHOLDER
+*&---------------------------------------------------------------------*
+*&      Form  CONVERT_QTY
+*&---------------------------------------------------------------------*
+*      -->P_MENGE  text
+*      <--P_QTY  text
+*----------------------------------------------------------------------*
+FORM convert_qty USING VALUE(p_menge)
+                       VALUE(p_uom)
+                 CHANGING p_qty.
+**  commented on 27.06.2014 for decimal places nt coming
+*  DATA: lv_qty TYPE p DECIMALS 3.
+*  lv_qty = p_menge.
+*  IF lv_qty < 0.
+*    lv_qty = lv_qty  * ( -1 ).
+*  ENDIF.
+*  p_qty = lv_qty.
+*  IF p_qty CS '.000'.
+*      REPLACE '.000' IN p_qty WITH space.
+*    ENDIF.
+**  end commented on 27.06.2014 for decimal places nt coming
+  p_qty = p_menge.
+  IF p_uom = 'NOS' OR  p_uom = 'NO' OR  p_uom = 'EA'.
+    p_qty = ceil( p_menge ) .
+  ENDIF.
+
+  IF NOT p_menge GT -1 AND p_menge LT 1.""added by sneha dt 5.9.14 to correct the 0 wich was not cming in Qty.
+    SHIFT p_qty LEFT DELETING LEADING '0'.
+  ENDIF.""added by sneha dt 5.9.14
+  CONDENSE p_qty NO-GAPS.
+  IF p_menge GT -1 AND p_menge LT 1.
+*    CONCATENATE '0' p_qty INTO p_qty.""commented by sneha dt 5.9.14 for extra 0 coming in case of QTY between 0 and 1.
+  ENDIF.
+
+ENDFORM.                    " CONVERT_QTY
+*&---------------------------------------------------------------------*
+*&      Form  SELECT_MDOC_HEADER
+*&---------------------------------------------------------------------*
+FORM select_mdoc_header.
+  SELECT SINGLE * FROM zpp_mdoc_header INTO gs_mdoc_header WHERE dokar = gs_mdoc-dokar AND dokvr = gs_mdoc-dokvr AND doknr = gs_mdoc-dms_doc.
+  p_date = gs_mdoc_header-dateformat.
+  IF gs_mdoc_header-expiry_ind IS INITIAL.
+    CLEAR p_expiry.
+    p_proexp = 'X'.
+  ENDIF.
+  p_desc = gs_mdoc_header-description.
+  p_cat = gs_mdoc_header-category.
+  p_lab = gs_mdoc_header-labelclaim.
+  IF doc_type = 'BPR'.
+    p_shelf = gs_mdoc_header-shelf_life.
+    p_markt = gs_mdoc_header-markt_auth_no.
+    p_cntry = gs_mdoc_header-country.
+    p_cust = gs_mdoc_header-cust_fgcode.
+    p_custb = gs_mdoc_header-cust_batch.
+    p_pack = gs_mdoc_header-packbefore.
+  ENDIF.
+ENDFORM.                    " SELECT_MDOC_HEADER
+*&---------------------------------------------------------------------*
+*&      Form  SELECT_MDOC_ITEMS
+*&---------------------------------------------------------------------*
+FORM select_mdoc_items.
+  DATA: lt_bom   TYPE TABLE OF zpp_mdoc_item, lv_tabix TYPE sy-tabix.
+  FIELD-SYMBOLS: <ls_bom> LIKE LINE OF lt_bom.
+
+  SELECT * FROM zpp_mdoc_item INTO TABLE lt_bom WHERE dokar = doc_type AND doknr = gs_mdoc-dms_doc AND dokvr = gs_mdoc-dokvr.
+  LOOP AT lt_bom ASSIGNING <ls_bom>.
+    PERFORM idnrk_conversion_output USING <ls_bom>-idnrk CHANGING <ls_bom>-idnrk.
+    MODIFY lt_bom FROM <ls_bom>.
+  ENDLOOP.
+
+  LOOP AT gt_bom INTO gs_bom.
+    PERFORM progress_bar USING 'Fetching BOM data...'.
+    lv_tabix = sy-tabix.
+    UNASSIGN <ls_bom>.
+    READ TABLE lt_bom ASSIGNING <ls_bom> WITH KEY posnr = gs_bom-posnr idnrk = gs_bom-idnrk.
+    IF sy-subrc = 0.
+      gs_bom-ds_code = <ls_bom>-ds_code.
+      gs_bom-lines = <ls_bom>-lines.
+      IF doc_type = 'BMR'.
+        gs_bom-ps_code = <ls_bom>-ps_code. "Not required for BPR
+        gs_bom-lots = <ls_bom>-lots."Not required for BPR
+        gs_bom-ps_seq = <ls_bom>-ps_seq. "Not required for BPR
+      ENDIF.
+      MODIFY gt_bom INDEX lv_tabix FROM gs_bom.
+    ENDIF.
+  ENDLOOP.
+  mdoc_item_filled = 'X'.
+ENDFORM.                    " SELECT_MDOC_ITEMS
+*&---------------------------------------------------------------------*
+*&      Form  SELECT_MDOC_CAUTION
+*&---------------------------------------------------------------------*
+FORM select_mdoc_caution.
+  IF mdoc_caution_filled IS INITIAL.
+    SELECT * FROM zpp_mdoc_caution INTO CORRESPONDING FIELDS OF TABLE gt_mdoc_caution
+      WHERE dokar = gs_mdoc-dokar AND doknr = gs_mdoc-dms_doc AND dokvr = gs_mdoc-dokvr.
+    mdoc_caution_filled = 'X'.
+  ENDIF.
+ENDFORM.                    " SELECT_MDOC_CAUTION
+*&---------------------------------------------------------------------*
+*&      Form  SELECT_MDOC_STAGES
+*&---------------------------------------------------------------------*
+FORM select_mdoc_stages .
+  IF mdoc_stages_filled IS INITIAL.
+    SELECT * FROM zpp_mdoc_stages INTO TABLE gt_mdoc_stages
+      WHERE dokar = gs_mdoc-dokar AND doknr = gs_mdoc-dms_doc AND dokvr = gs_mdoc-dokvr.
+    mdoc_stages_filled = 'X'.
+  ENDIF.
+  SORT gt_mdoc_stages BY ds_code ASCENDING.
+ENDFORM.                    " SELECT_MDOC_STAGES
+*&---------------------------------------------------------------------*
+*&      Form  FETCH_DISP_STAGES
+*&---------------------------------------------------------------------*
+FORM fetch_disp_stages.
+*  SELECT * FROM zpp_disp_stage INTO TABLE gt_disp_stage WHERE dokar = doc_type. "Commenting for time being as master data is only maintained in old Z table->zpp_disp_desc
+  SELECT * FROM zpp_disp_desc INTO CORRESPONDING FIELDS OF TABLE gt_disp_stage WHERE type = doc_type.
+ENDFORM.                    " FETCH_DISP_STAGES
+*&---------------------------------------------------------------------*
+*&      Form  FETCH_PROCESSES
+*&---------------------------------------------------------------------*
+FORM fetch_processes .
+  SELECT * FROM zpp_process INTO TABLE gt_process.
+  SORT gt_process BY ps_code ASCENDING.
+ENDFORM.                    " FETCH_PROCESSES
+*&---------------------------------------------------------------------*
+*&      Form  FETCH_NOTES
+*&---------------------------------------------------------------------*
+FORM fetch_notes.
+  gt_note-line = 'ENSURE THAT ALL CURRENT SOP''S ARE FOLLOWED AT ALL STAGES OF DISPENSING AND'.
+  IF doc_type = 'BMR'.
+    CONCATENATE gt_note-line 'MANUFACTURING.' INTO gt_note-line SEPARATED BY space.
+  ELSEIF doc_type = 'BPR'.
+    CONCATENATE gt_note-line 'PACKING.' INTO gt_note-line SEPARATED BY space.
+  ENDIF.
+  APPEND gt_note.
+  gt_note-line = 'ENSURE THAT LINE CLEARANCE IS GIVEN AND RECORDED IN THE ATTACHED ANNEXURE'.
+  APPEND gt_note.
+ENDFORM.                    " FETCH_NOTES
+*&---------------------------------------------------------------------*
+*&      Form  FETCH_CAUTION
+*&---------------------------------------------------------------------*
+FORM fetch_caution.
+  SELECT caution_code caution_desc FROM zpp_caution INTO CORRESPONDING FIELDS OF TABLE gt_caution.
+ENDFORM.                    " FETCH_CAUTION
+*&---------------------------------------------------------------------*
+*&      Form  FETCH_SOP_DATA
+*&---------------------------------------------------------------------*
+FORM fetch_sop_data .
+  SELECT * FROM zpp_sop_plants INTO TABLE gt_sop WHERE werks = p_plant AND type = doc_type.
+ENDFORM.                    " FETCH_SOP_DATA
+*&---------------------------------------------------------------------*
+*&      Form  FETCH_SPAREPART_IND_TEXT
+*&---------------------------------------------------------------------*
+FORM fetch_sparepart_ind_text .
+  SELECT * FROM t413t
+    INTO TABLE gt_sp_part_in_text
+    WHERE spras = sy-langu.
+ENDFORM.                    " FETCH_SPAREPART_IND_TEXT
+*&---------------------------------------------------------------------*
+*&      Form  FETCH_DEPARTMENT
+*&---------------------------------------------------------------------*
+FORM fetch_department.
+  DATA(lv_mat_con) = |{ p_mat ALPHA = IN }|.
+  SELECT SINGLE matgr
+    FROM marc
+    INTO gv_hd_dept
+    WHERE matnr = lv_mat_con "p_mat
+    AND  werks = p_plant.
+ENDFORM.                    " FETCH_DEPARTMENT
+*&---------------------------------------------------------------------*
+*&      Form  FETCH_PACK_SIZE
+*&---------------------------------------------------------------------*
+FORM fetch_packsize_custfg.
+  SELECT SINGLE extwg normt
+    FROM mara
+    INTO (gv_hd_pack, gv_mview_custfg)
+    WHERE matnr = p_mat.
+ENDFORM.                    " FETCH_PACK_SIZE
+*&---------------------------------------------------------------------*
+*&      Form  FETCH_CATEGORY
+*&---------------------------------------------------------------------*
+*       -->P_MAT text
+*---------------------------------------------------------------------*
+FORM fetch_category USING p_mat.
+  DATA: lv_prdha TYPE prodh_d.
+  SELECT SINGLE prdha
+    FROM mara
+    INTO lv_prdha
+    WHERE matnr = p_mat.
+  SELECT SINGLE vtext
+    FROM t179t
+    INTO gv_mview_cat
+    WHERE spras = sy-langu
+    AND prodh = lv_prdha.
+ENDFORM.                    " FETCH_CATEGORY
+*&---------------------------------------------------------------------*
+*&      Form  FETCH_SFG_DESCRIPTION
+*&---------------------------------------------------------------------*
+FORM fetch_sfg_code_and_desc.
+  DATA: ls_stb LIKE gs_stb.
+
+  "SOC by Swati on 01.08.2014
+  "Issue details:
+*Label Claim issue - In BPR the system prints the label claim if the check mark is there on the selection screen.
+*The code in the prog is that if there is 1 BFG in the BOM then the label claim stored in the material master of that BFG gets printed.
+*If there is more than 1 BFG in the BOM then label claim is printed as NA. In a particular case in Production we observed that the FG material has multi-level BOM
+*hence for label claim logic the system is finding 2 BFG’s.
+*While in the BOM components table and printing of the BOM In dynamic part only 1 level is exploded and 1 BFG is printed.
+*The user wants only 1 level to be exploded of the BOM even for label claim printing logic.
+*Please can you let us know why this logic has been different . We have to change to reflect the same logic as the BOM components table logic.
+  "TR: CRDK910904
+*  LOOP AT gt_stb INTO ls_stb WHERE mtart = c_mtart.
+*    gv_count = gv_count + 1.
+*  ENDLOOP.
+  DATA: ls_final LIKE LINE OF gt_final.
+  LOOP AT gt_final INTO ls_final WHERE mtart = c_mtart.
+    gv_count = gv_count + 1.
+  ENDLOOP.
+  "EOC by Swati on 01.08.2014
+
+  READ TABLE gt_stb INTO ls_stb WITH KEY mtart = c_mtart stufe = 1.
+  gv_sfg_idnrk = ls_stb-idnrk.
+  PERFORM idnrk_conversion_output USING ls_stb-idnrk CHANGING gv_hd_sfg.
+  PERFORM fetch_comp_text USING ls_stb-idnrk ls_stb-ojtxp CHANGING gv_hd_sfg_desc.
+ENDFORM.                    " FETCH_SFG_DESCRIPTION
+*&---------------------------------------------------------------------*
+*&      Form  FETCH_CUSTOMER_NAME
+*&---------------------------------------------------------------------*
+FORM fetch_customer_name .
+  DATA: lv_atinn TYPE atinn, lv_atwrt TYPE atwrt.
+
+  SELECT SINGLE * FROM inob INTO @DATA(lwa_inob) WHERE klart = '001'
+                                                 AND obtab = 'MARA'
+                                                 AND objek = @p_mat.
+  IF sy-subrc = 0.
+    SELECT SINGLE atinn FROM cabn INTO lv_atinn WHERE atinn LIKE '%' AND adzhl LIKE '%' AND atnam = 'ZCUSTOMER'.
+    IF sy-subrc = 0.
+      SELECT SINGLE atwrt FROM ausp INTO lv_atwrt WHERE objek = lwa_inob-cuobj AND atinn = lv_atinn.
+      IF sy-subrc = 0.
+        SELECT SINGLE name1 FROM kna1 INTO gv_hd_cust WHERE kunnr = lv_atwrt.
+      ENDIF.
+    ENDIF.
+  ENDIF.
+
+ENDFORM.                    " FETCH_CUSTOMER_NAME
+*&---------------------------------------------------------------------*
+*&      Form  FETCH_COUNTRY_NAME
+*&---------------------------------------------------------------------*
+FORM fetch_country_name.
+  DATA: lv_atinn TYPE atinn,
+        lv_atwrt TYPE scustom-country.    "ausp-atwrt.
+  DATA: wa_inob TYPE inob.
+*  ---------------------------------------------------------------
+
+  SELECT SINGLE atinn
+    FROM cabn
+    INTO lv_atinn
+    WHERE atinn LIKE '%'
+    AND adzhl LIKE '%'
+    AND atnam = 'ZCOUNTRY'.
+  IF sy-subrc = 0.
+*    SELECT SINGLE atwrt FROM ausp INTO gv_hd_country WHERE objek = p_mat AND atinn = lv_atinn.
+
+***    sochange on 14.04.2016 as per discussion with prashant uttam
+*    SELECT SINGLE atwrt
+*      FROM ausp INTO lv_atwrt
+*      WHERE objek = p_mat
+*      AND atinn = lv_atinn.
+
+
+    CLEAR: wa_inob.
+    SELECT SINGLE * FROM inob INTO wa_inob WHERE klart = '001'
+                                                      AND obtab = 'MARA'
+                                                      AND objek = p_mat.
+
+    CLEAR lv_atwrt.
+    SELECT SINGLE atwrt
+      FROM ausp INTO lv_atwrt
+      WHERE objek = wa_inob-cuobj
+      AND atinn = lv_atinn.
+
+***    eochange on 14.04.2016 as per discussion with prashant uttam
+***      soa on 11.04.2014 for country description
+
+    CALL FUNCTION 'DR_GET_COUNTRY_NAME'
+      EXPORTING
+        country  = lv_atwrt
+        language = sy-langu
+      IMPORTING
+        name     = gv_hd_country.
+
+    IF gv_hd_country IS INITIAL.
+      gv_hd_country = lv_atwrt.
+    ENDIF.
+***      eoa on 11.04.2014  for country description
+  ENDIF.
+ENDFORM.                    " FETCH_COUNTRY_NAME
+*&---------------------------------------------------------------------*
+*&      Form  FETCH_COMP_COMMENT
+*&---------------------------------------------------------------------*
+*      -->P_ID  text
+*      -->P_IDNRK  text
+*      <--P_COMMENT  text
+*----------------------------------------------------------------------*
+FORM fetch_comp_comment USING p_id p_idnrk CHANGING p_comment.
+  DATA: lv_idnrk   TYPE tdobname, lt_comment TYPE TABLE OF tline WITH HEADER LINE.
+  lv_idnrk = p_idnrk.
+  CALL FUNCTION 'READ_TEXT'
+    EXPORTING
+      id                      = p_id
+      language                = 'E'
+      name                    = lv_idnrk
+      object                  = 'MATERIAL'
+    TABLES
+      lines                   = lt_comment
+    EXCEPTIONS
+      id                      = 1
+      language                = 2
+      name                    = 3
+      not_found               = 4
+      object                  = 5
+      reference_check         = 6
+      wrong_access_to_archive = 7
+      OTHERS                  = 8.
+  IF sy-subrc <> 0.
+* Implement suitable error handling here
+  ENDIF.
+*****commented by sneha dt 25.7.14
+*  READ TABLE lt_comment INDEX 1.
+*  p_comment = lt_comment-tdline.
+*  LOOP AT lt_comment FROM 2.
+*    CONCATENATE p_comment cl_abap_char_utilities=>newline lt_comment-tdline INTO p_comment.
+*  ENDLOOP.
+*****commented by sneha dt 25.7.14
+*****added by sneha for desc in continous line(internal comment).
+  LOOP AT lt_comment INTO lt_comment.
+    IF sy-tabix <> 1 AND ( lt_comment-tdformat = '*' OR lt_comment-tdformat = '/' ).
+*        CONCATENATE lv_mview_remark c_split INTO lv_mview_remark SEPARATED BY space.
+      ""commented by sneha dt 21.7.14
+***        soa by sneha dt 21.7.14
+      CONCATENATE p_comment cl_abap_char_utilities=>cr_lf INTO p_comment SEPARATED BY space.
+***        eoa by sneha dt 21.7.14
+    ENDIF.
+    CONCATENATE p_comment lt_comment-tdline INTO p_comment SEPARATED BY space.
+  ENDLOOP.
+
+  CONDENSE p_comment.
+*****added by sneha for desc in continous line(internal comment).
+ENDFORM.                    " FETCH_COMP_COMMENT
+*&---------------------------------------------------------------------*
+*&      Form  FETCH_MRKT_AUTH
+*&---------------------------------------------------------------------*
+FORM fetch_mrkt_auth .
+  SELECT SINGLE regno INTO gv_mview_mauth
+    FROM zmm_formulation
+    WHERE fgcd = p_mat
+    AND appsite = p_plant.    "added on 06.07.2015.
+ENDFORM.                    " FETCH_MRKT_AUTH
+*&---------------------------------------------------------------------*
+*&      Form  FETCH_MVIEW_COUNTRY
+*&---------------------------------------------------------------------*
+FORM fetch_mview_country.
+  DATA: lv_cocd TYPE z_coc.
+  TYPES: BEGIN OF ty_cocd,
+           cocd TYPE zmm_formulation-cocd,
+         END OF ty_cocd.
+  DATA: lt_cocd TYPE TABLE OF ty_cocd,
+        wa_cocd TYPE ty_cocd.
+
+  TYPES: BEGIN OF ty_t005t,
+           land1 TYPE t005t-land1,
+           landx TYPE t005t-landx,
+         END OF ty_t005t.
+
+  DATA: lta_t005t TYPE TABLE OF ty_t005t,
+        lwa_t005t TYPE ty_t005t.
+
+*  SELECT SINGLE cocd
+*    INTO lv_cocd
+*    FROM zmm_formulation
+*    WHERE fgcd = p_mat
+*    and APPSITE = p_plant.    "added on 29.06.2015 solman 8000000876
+
+*  SELECT SINGLE landx
+*    INTO gv_mview_cntry
+*    FROM t005t
+*    WHERE land1 = lv_cocd
+*    AND spras = sy-langu.
+
+  SELECT cocd INTO TABLE lt_cocd
+      FROM zmm_formulation
+      WHERE fgcd = p_mat
+      AND appsite = p_plant    "added on 29.06.2015 solman 8000000876
+      AND flag = 'A'.           "added on 01.09.2015 solman 8000001115
+
+  IF lt_cocd[] IS NOT INITIAL.  "added on 06.07.2015
+    SELECT land1 landx INTO TABLE lta_t005t
+      FROM t005t
+      FOR ALL ENTRIES IN lt_cocd
+      WHERE land1 = lt_cocd-cocd
+      AND spras = sy-langu.
+
+    CLEAR gv_mview_cntry.
+    LOOP AT lta_t005t INTO lwa_t005t.
+      IF gv_mview_cntry IS INITIAL.
+        gv_mview_cntry = lwa_t005t-landx.
+      ELSE.
+        CONCATENATE gv_mview_cntry ',' lwa_t005t-landx INTO gv_mview_cntry.
+      ENDIF.
+    ENDLOOP.
+  ENDIF.
+ENDFORM.                    " FETCH_MVIEW_COUNTRY
+*&---------------------------------------------------------------------*
+*&      Form  FETCH_SHELF_LIFE
+*&---------------------------------------------------------------------*
+FORM fetch_shelf_life .
+  SELECT SINGLE slstatement INTO gv_mview_shelf FROM zpp_shelflife WHERE matnr = p_mat.
+  CONDENSE gv_mview_shelf.
+ENDFORM.                    " FETCH_SHELF_LIFE
+*&---------------------------------------------------------------------*
+*&      Form  DELETE_FILE_IF_EXISTS
+*&---------------------------------------------------------------------*
+FORM delete_file_if_exists.
+  DATA: lv_file_name TYPE rlgrap-filename.
+  CONCATENATE  'C:\temp\' doc_type p_plant p_mat '.DOC' INTO lv_file_name .
+
+  CALL FUNCTION 'TMP_GUI_DELETE_FILE'
+    EXPORTING
+      file_name = lv_file_name
+    EXCEPTIONS
+      failed    = 1
+      OTHERS    = 2.
+  IF sy-subrc <> 0.
+** Implement suitable error handling here
+*    CREATE OBJECT g_word 'WORD.APPLICATION'. "Create word object
+*    CALL METHOD OF g_word 'Documents' = g_documents. "Opening a new document
+*    CALL METHOD OF g_documents 'Open' EXPORTING #1 = lv_file_name #7 = 'True'.
+*    CALL METHOD OF g_documents 'Close' EXPORTING #1 = 0.
+*    PERFORM close_word_instance.
+*    FREE OBJECT: g_documents, g_word.
+  ENDIF.
+
+ENDFORM.                    " DELETE_FILE_IF_EXISTS
+*&---------------------------------------------------------------------*
+*&      Form  DELETE_XPS_FILE_IF_EXISTS
+*&---------------------------------------------------------------------*
+FORM delete_xps_file_if_exists.
+  DATA: lv_file_name TYPE rlgrap-filename.
+  CONCATENATE  'C:\DMS\' doc_type 'PRV_' p_plant p_mat '.xps' INTO lv_file_name .
+
+  CALL FUNCTION 'TMP_GUI_DELETE_FILE'
+    EXPORTING
+      file_name = lv_file_name
+    EXCEPTIONS
+      failed    = 1
+      OTHERS    = 2.
+
+  IF gv_bol IS INITIAL.
+    CALL FUNCTION 'TMP_GUI_REMOVE_DIRECTORY'
+      EXPORTING
+        dirname = 'C:\DMS'
+      EXCEPTIONS
+        failed  = 1
+        OTHERS  = 2.
+  ENDIF.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  SAVE_TEMP_FILE
+*&---------------------------------------------------------------------*
+FORM save_temp_file .
+  DATA: lv_dir TYPE string.
+  DATA: lv_bol TYPE abap_bool.
+  DATA: lv_file_name TYPE rlgrap-filename.
+
+  "CREATE FOLDER C:\DMS\ IF DOES NOT EXISTS
+  lv_dir = 'C:\DMS\'.
+  CALL METHOD cl_gui_frontend_services=>directory_exist
+    EXPORTING
+      directory            = lv_dir
+    RECEIVING
+      result               = lv_bol
+    EXCEPTIONS
+      cntl_error           = 1
+      error_no_gui         = 2
+      wrong_parameter      = 3
+      not_supported_by_gui = 4
+      OTHERS               = 5.
+  IF NOT lv_bol IS INITIAL.
+    "DELETE FILE IF ALREDY EXISTS
+    CLEAR lv_file_name.
+    CONCATENATE  'C:\DMS\' doc_type p_plant p_mat '.DOC' INTO lv_file_name .
+    CALL FUNCTION 'TMP_GUI_DELETE_FILE'
+      EXPORTING
+        file_name = lv_file_name
+      EXCEPTIONS
+        failed    = 1
+        OTHERS    = 2.
+    IF sy-subrc <> 0.
+* Implement suitable error handling here
+    ENDIF.
+  ELSE.
+    CALL FUNCTION 'TMP_GUI_CREATE_DIRECTORY'
+      EXPORTING
+        dirname  = 'C:\DMS'
+        no_flush = ' '
+      EXCEPTIONS
+        failed   = 1
+        OTHERS   = 2.
+  ENDIF.
+
+  CONCATENATE  'C:\DMS\' doc_type p_plant p_mat '.DOC' INTO gv_mdoc_path.
+  CALL METHOD OF g_document 'SaveAs' EXPORTING #1 = gv_mdoc_path.
+ENDFORM.                    " SAVE_TEMP_FILE
+*&---------------------------------------------------------------------*
+*&      Form  DELETE_TEMP_FILE_FROM_DISK
+*&---------------------------------------------------------------------*
+FORM delete_temp_file_from_disk USING p_file_name.
+  DATA: lv_file_name TYPE string, lv_rc TYPE i.
+  lv_file_name = p_file_name.
+  PERFORM close_word_instance.
+
+  CALL METHOD cl_gui_frontend_services=>file_delete
+    EXPORTING
+      filename           = lv_file_name
+    CHANGING
+      rc                 = lv_rc
+    EXCEPTIONS
+      file_delete_failed = 1
+      cntl_error         = 2
+      error_no_gui       = 3
+      file_not_found     = 4
+      access_denied      = 5
+      unknown_error      = 6
+      OTHERS             = 7.
+
+  FREE OBJECT: g_parformat, g_font, g_selection, g_application, g_actdoc, g_document, g_documents, g_word.
+ENDFORM.                    " DELETE_TEMP_FILE_FROM_DISK
+*&---------------------------------------------------------------------*
+*&      Form  UPDATE_DMS
+*&---------------------------------------------------------------------*
+FORM update_dms.
+  PERFORM progress_bar USING 'Updating Document...'.
+  SELECT SINGLE dms_scat FROM zpp_dms_scat
+    INTO gv_storagecat
+    WHERE sysid = sy-sysid.
+  IF p_dms IS INITIAL."Create a new doknr
+    PERFORM create_dms_sdoc.
+**    PERFORM create_dms_mdoc.
+  ELSE.
+    PERFORM get_dmsdoc_details USING '00'. "Fill gs_documentdata structure passing gs_mdoc.
+    IF p_stat = 'DR'. "Implying a version exists already with status 'DR'.
+      "At a time, max 1 Approved and 1 Draft versions can exist. Hence, we will store max 2 static files for version '00'
+      "1st will be for latest approved version if one exists and 2nd will be for draft version.
+      "When the last draft version gets approved, 1st will be deleted and last will become 1st now.
+      PERFORM checkout_set. "Set checkout for file under version 00 so that it can be stored.
+      PERFORM delete_existing_sdoc.
+**      PERFORM delete_existing_mdoc.
+      PERFORM change_existing_sdoc.
+**      PERFORM change_existing_mdoc.
+    ELSEIF p_stat = 'AV' OR p_stat = 'OB'. "OB is added for in case of Obsolte new version shd get created
+      PERFORM change_existing_sdoc.
+      PERFORM create_dms_mdoc.
+    ENDIF.
+  ENDIF.
+ENDFORM.                    " UPDATE_DMS
+*&---------------------------------------------------------------------*
+*&      Form  UPDATE_PRINT_LOG
+*----------------------------------------------------------------------*
+**      -->P_PRINTTYPE  text
+*----------------------------------------------------------------------*
+FORM update_print_log  USING p_printtype.
+  break abap4.
+  IF gv_curr_printer IS NOT INITIAL.
+
+    "Lock Table
+    CALL FUNCTION 'ENQUEUE_E_TABLE'
+      EXPORTING
+        mode_rstable   = 'E'
+        tabname        = 'ZQM_ANN_MPRNTLOG'
+      EXCEPTIONS
+        foreign_lock   = 1
+        system_failure = 2
+        OTHERS         = 3.
+    IF sy-subrc EQ 0.
+
+      SELECT SINGLE MAX( print_count ) FROM zqm_ann_mprntlog
+        INTO @DATA(lv_count)
+        WHERE werks  = @gs_mdoc-werks
+        AND   doknr  = @gs_mdoc-dms_doc
+        AND   dokvr  = @gs_mdoc-dokvr
+        AND   dokar  = @gs_mdoc-dokar.
+      IF sy-subrc = 0.
+        lv_count = lv_count + 1.
+      ENDIF.
+
+      gs_mprint_log-werks        = gs_mdoc-werks.
+      gs_mprint_log-status       = p_stat.
+      gs_mprint_log-doknr        = gs_mdoc-dms_doc.
+      gs_mprint_log-dokvr        = gs_mdoc-dokvr.
+      gs_mprint_log-print_count  = lv_count.
+      gs_mprint_log-dokar        = gs_mdoc-dokar.
+      gs_mprint_log-printtype    = p_printtype.
+      gs_mprint_log-created_on   = g_date. "sy-datum
+      gs_mprint_log-createtime   = g_time. "sy-uzeit
+      gs_mprint_log-createdby    = sy-uname.
+
+      CASE gs_mprint_log-status.
+        WHEN 'DR'.
+          gs_mprint_log-status_desc = 'Draft'.
+        WHEN 'IP'.
+          gs_mprint_log-status_desc = 'In Process'.
+        WHEN 'RL'.
+          gs_mprint_log-status_desc = 'Released'.
+        WHEN 'AV'.
+          gs_mprint_log-status_desc = 'Approved'.
+      ENDCASE.
+
+      gs_mprint_log-reason       = p_reason.
+      gs_mprint_log-printer      = gv_curr_printer.
+      APPEND gs_mprint_log TO gt_mprint_log.
+      CLEAR  gs_mprint_log.
+
+      IF gt_mprint_log[] IS NOT INITIAL.
+        MODIFY zqm_ann_mprntlog FROM TABLE gt_mprint_log.
+
+        IF sy-subrc = 0.
+          "Unlock Table
+          CALL FUNCTION 'DEQUEUE_E_TABLE'
+            EXPORTING
+              mode_rstable = 'E'
+              tabname      = 'ZQM_ANN_MPRNTLOG'.
+        ENDIF.
+      ENDIF.
+    ELSE.
+      MESSAGE e105(zqm) WITH sy-uname.
+    ENDIF.
+
+  ENDIF.
+
+ENDFORM.                    " UPDATE_PRINT_LOG
+*&---------------------------------------------------------------------*
+*&      Form  CREATE_TEXT_EDITOR
+*&---------------------------------------------------------------------*
+FORM create_text_editor.
+  IF container1 IS INITIAL.
+    CREATE OBJECT container1
+      EXPORTING
+        container_name              = 'EDITOR1'
+      EXCEPTIONS
+        cntl_error                  = 1
+        cntl_system_error           = 2
+        create_error                = 3
+        lifetime_error              = 4
+        lifetime_dynpro_dynpro_link = 5.
+  ENDIF.
+  IF editor1 IS INITIAL.
+    CREATE OBJECT editor1
+      EXPORTING
+        parent            = container1
+*       wordwrap_mode     = cl_gui_textedit=>wordwrap_at_fixed_position  "commented to not allow line breaks on 12.06.2014
+        wordwrap_position = c_editor_line_length.
+*        wordwrap_to_linebreak_mode = cl_gui_textedit=>true.  "commented to not allow line breaks on 12.06.2014
+    CALL METHOD editor1->set_toolbar_mode
+      EXPORTING
+        toolbar_mode = cl_gui_textedit=>false.
+    CALL METHOD editor1->set_statusbar_mode
+      EXPORTING
+        statusbar_mode = cl_gui_textedit=>false.
+  ENDIF.
+  IF container2 IS INITIAL.
+    CREATE OBJECT container2
+      EXPORTING
+        container_name              = 'EDITOR2'
+      EXCEPTIONS
+        cntl_error                  = 1
+        cntl_system_error           = 2
+        create_error                = 3
+        lifetime_error              = 4
+        lifetime_dynpro_dynpro_link = 5.
+  ENDIF.
+  IF editor2 IS INITIAL.
+    CREATE OBJECT editor2
+      EXPORTING
+        parent            = container2
+*       wordwrap_mode     = cl_gui_textedit=>wordwrap_at_fixed_position   "commented to not allow line breaks on 12.06.2014
+        wordwrap_position = c_editor_line_length.
+*        wordwrap_to_linebreak_mode = cl_gui_textedit=>true.      "commented to not allow line breaks on 12.06.2014
+    CALL METHOD editor2->set_toolbar_mode
+      EXPORTING
+        toolbar_mode = cl_gui_textedit=>false.
+    CALL METHOD editor2->set_statusbar_mode
+      EXPORTING
+        statusbar_mode = cl_gui_textedit=>false.
+  ENDIF.
+*  CALL METHOD cl_gui_cfw=>flush
+*    EXCEPTIONS
+*      cntl_system_error = 1
+*      cntl_error        = 2
+*      OTHERS            = 3.
+ENDFORM.                    " CREATE_TEXT_EDITOR
+*&---------------------------------------------------------------------*
+*&      Form  FILL_TEXT_EDITOR
+*&---------------------------------------------------------------------*
+*      -->P_EDITOR  text
+*      -->P_REMARK  text
+*----------------------------------------------------------------------*
+FORM fill_text_editor USING p_editor TYPE REF TO cl_gui_textedit p_remark.
+  TYPES: BEGIN OF ty_remarktab,
+           lines(100) TYPE c,
+         END OF ty_remarktab.
+  DATA: lt_remarktab TYPE TABLE OF ty_remarktab.
+
+*  REFRESH lt_remarktab.
+*  SPLIT p_remark AT c_split INTO TABLE lt_remarktab.
+*  DELETE lt_remarktab WHERE lines IS INITIAL.
+*  CALL METHOD p_editor->set_text_as_r3table
+*    EXPORTING
+*      table = lt_remarktab.
+
+  CALL METHOD p_editor->set_textstream
+    EXPORTING
+      text                   = p_remark
+    EXCEPTIONS
+      error_cntl_call_method = 1
+      not_supported_by_gui   = 2
+      OTHERS                 = 3.
+  IF sy-subrc <> 0.
+*   Implement suitable error handling here
+  ENDIF.
+
+ENDFORM.                    " FILL_TEXT_EDITOR
+*&---------------------------------------------------------------------*
+*&      Form  GET_TOP_REMARK
+*&---------------------------------------------------------------------*
+*      <--P_TOP_REMARK    text
+*      <--P_BOTTOM_REMARK text
+*----------------------------------------------------------------------*
+FORM get_remark CHANGING p_top_remark TYPE string
+                         p_bottom_remark  TYPE string.
+*  TYPES: BEGIN OF ty_remarktab,
+*        lines(100) TYPE c,
+*       END OF ty_remarktab.
+*  DATA: lt_remarktab TYPE TABLE OF ty_remarktab,
+*        ls_remarktab TYPE ty_remarktab,
+*        lv_cnt TYPE i.
+*  CLEAR: lv_cnt. REFRESH lt_remarktab.
+
+  PERFORM get_editor_text USING editor1 CHANGING p_top_remark.
+  PERFORM get_editor_text USING editor2 CHANGING p_bottom_remark.
+
+*  CLEAR: lv_cnt, ls_remarktab. REFRESH lt_remarktab.
+*  CALL METHOD editor2->get_text_as_r3table
+*    IMPORTING
+*      table = lt_remarktab.
+*  DESCRIBE TABLE lt_remarktab LINES lv_cnt.
+*  DO lv_cnt TIMES.
+*    READ TABLE lt_remarktab INTO ls_remarktab INDEX lv_cnt.
+*    CONCATENATE ls_remarktab-lines c_split p_bottom_remark INTO p_bottom_remark.
+*    lv_cnt = lv_cnt - 1.
+*  ENDDO.
+
+  CALL METHOD cl_gui_cfw=>flush
+    EXCEPTIONS
+      cntl_system_error = 1
+      cntl_error        = 2
+      OTHERS            = 3.
+ENDFORM.                    " GET_REMARK
+*&---------------------------------------------------------------------*
+*&      Form  SAVE_ZTABLES
+*&---------------------------------------------------------------------*
+FORM save_ztables .
+*  PERFORM save_zpp_master_doc.
+*  PERFORM save_zpp_mdoc_header.
+*  PERFORM save_zpp_mdoc_item.
+  IF doc_type = 'ZAN'.
+*    PERFORM save_zpp_mdoc_stages.
+*    PERFORM save_zpp_mdoc_caution.
+*    PERFORM save_zpp_mbr_input. "This is for other MM developments
+  ELSEIF doc_type = 'BPR'.
+    PERFORM save_zpp_mdoc_stages.
+    PERFORM save_zpp_mbpr_input.
+  ENDIF.
+ENDFORM.                    " SAVE_ZTABLES
+*&---------------------------------------------------------------------*
+*&      Form  SAVE_ZPP_MASTER_DOC
+*&---------------------------------------------------------------------*
+FORM save_zpp_master_doc.
+  IF p_stat = 'DR'. "Do Nothing as version will remain the same
+    RETURN.
+  ELSE. "Either No entries exist already or Status is Approved in which case a new version will be Created
+
+    gs_mdoc-werks   = p_plant.
+    gs_mdoc-ann_no  = ann_no.
+    gs_mdoc-dms_doc = gs_documentdata-documentnumber.
+    gs_mdoc-doktl   = gs_documentdata-documentpart.
+    gs_mdoc-dokar   = doc_type.
+    gs_mdoc-dokvr   = gs_documentdata-documentversion.
+
+    IF p_stat IS INITIAL.
+      gs_mdoc-stabk   = 'DR'.
+    ELSE.
+      gs_mdoc-stabk   = p_stat.
+    ENDIF.
+
+    gs_mdoc-e_user  = sy-uname.
+    gs_mdoc-e_date  = sy-datlo.
+    gs_mdoc-e_time  = sy-timlo.
+
+    INSERT zqm_ann_data FROM gs_mdoc.
+    IF sy-subrc <> 0.
+      gv_commit = ' '.
+      ROLLBACK WORK.
+    ENDIF.
+  ENDIF.
+ENDFORM.                    " SAVE_ZPP_MASTER_DOC
+*&---------------------------------------------------------------------*
+*&      Form  SAVE_ZPP_MDOC_HEADER
+*&---------------------------------------------------------------------*
+FORM save_zpp_mdoc_header.
+  gs_mdoc_header-dokar = doc_type.
+  gs_mdoc_header-doknr = gs_documentdata-documentnumber.
+  gs_mdoc_header-dokvr = gs_documentdata-documentversion.
+  gs_mdoc_header-expiry_ind = p_expiry.  " 'X' for expiry &' ' for provisional
+  gs_mdoc_header-dateformat = p_date.
+  gs_mdoc_header-description = p_desc.
+  gs_mdoc_header-category = p_cat.
+  gs_mdoc_header-labelclaim = p_lab.
+  IF doc_type = 'BPR'.
+    gs_mdoc_header-shelf_life = p_shelf.
+    gs_mdoc_header-markt_auth_no = p_markt.
+    gs_mdoc_header-country = p_cntry.
+    gs_mdoc_header-cust_fgcode = p_cust.
+    gs_mdoc_header-cust_batch = p_custb.
+    gs_mdoc_header-packbefore = p_pack.
+  ELSE.
+    gs_mdoc_header-regular = p_regu.  " 'X' for regular & ' ' for injectables
+  ENDIF.
+  IF p_dms IS INITIAL OR p_stat = 'AV'. "New entry will be created
+    INSERT zpp_mdoc_header FROM gs_mdoc_header.
+  ELSE. "An entry exists with status Draft in which case data will be overwritten
+    MODIFY zpp_mdoc_header FROM gs_mdoc_header.
+  ENDIF.
+  IF sy-subrc <> 0.
+    gv_commit = ' '.
+    ROLLBACK WORK.
+  ENDIF.
+ENDFORM.                    " SAVE_ZPP_MDOC_HEADER
+*&---------------------------------------------------------------------*
+*&      Form  SAVE_ZPP_MDOC_ITEM
+*&---------------------------------------------------------------------*
+FORM save_zpp_mdoc_item.
+  DATA: lv_idnrk TYPE idnrk.
+
+*  DELETE from zpp_mdoc_item CLIENT SPECIFIED WHERE mandt = sy-mandt
+*      AND dokar = doc_type
+*      AND doknr = gs_documentdata-documentnumber
+*      AND dokvr = gs_documentdata-documentversion.
+
+  LOOP AT gt_final INTO gs_final.
+    gs_mdoc_item-dokar = doc_type.
+    gs_mdoc_item-doknr = gs_documentdata-documentnumber.
+    gs_mdoc_item-dokvr = gs_documentdata-documentversion.
+    gs_mdoc_item-posnr = gs_final-posnr.
+    PERFORM idnrk_conversion_input USING gs_final-idnrk CHANGING lv_idnrk.
+    gs_mdoc_item-idnrk = lv_idnrk. "idnrk has to be saved with leading 0's
+    gs_mdoc_item-ds_code = gs_final-ds_code.
+    IF doc_type = 'ZAN'.
+      gs_mdoc_item-ps_code = gs_final-ps_code. "Will be empty in case of BPR
+      gs_mdoc_item-ps_seq = gs_final-ps_seq. "added for sequencing
+      gs_mdoc_item-lots = gs_final-lots.  "Will be empty in case of BPR
+    ENDIF.
+    gs_mdoc_item-lines = gs_final-lines.
+    APPEND gs_mdoc_item TO gt_mdoc_item.
+    CLEAR gs_mdoc_item.
+  ENDLOOP.
+  MODIFY zpp_mdoc_item FROM TABLE gt_mdoc_item.
+  IF sy-subrc <> 0.
+    gv_commit = ' '.
+    ROLLBACK WORK.
+  ENDIF.
+ENDFORM.                    " SAVE_ZPP_MDOC_ITEM
+*&---------------------------------------------------------------------*
+*&      Form  SAVE_ZPP_MDOC_STAGES
+*&---------------------------------------------------------------------*
+FORM save_zpp_mdoc_stages.
+  LOOP AT gt_mdoc_stages INTO gs_mdoc_stages.
+    gs_mdoc_stages-dokar = doc_type.
+    gs_mdoc_stages-doknr = gs_documentdata-documentnumber.
+    gs_mdoc_stages-dokvr = gs_documentdata-documentversion.
+    MODIFY gt_mdoc_stages FROM gs_mdoc_stages INDEX sy-tabix.
+  ENDLOOP.
+  MODIFY zpp_mdoc_stages FROM TABLE gt_mdoc_stages.
+  IF sy-subrc <> 0.
+    gv_commit = ' '.
+    ROLLBACK WORK.
+  ENDIF.
+ENDFORM.                    "SAVE_ZPP_MDOC_STAGES
+*&---------------------------------------------------------------------*
+*&      Form  SAVE_ZPP_MDOC_CAUTION
+*&---------------------------------------------------------------------*
+FORM save_zpp_mdoc_caution.
+  LOOP AT gt_mdoc_caution INTO gs_mdoc_caution.
+    gs_mdoc_caution-dokar = doc_type.
+    gs_mdoc_caution-doknr = gs_documentdata-documentnumber.
+    gs_mdoc_caution-dokvr = gs_documentdata-documentversion.
+    MODIFY gt_mdoc_caution FROM gs_mdoc_caution INDEX sy-tabix.
+  ENDLOOP.
+****  soa on 16.03.2015
+  "delete previous data
+  DELETE FROM zpp_mdoc_caution WHERE dokar = doc_type
+    AND doknr = gs_documentdata-documentnumber
+    AND dokvr = gs_documentdata-documentversion.
+****  eoa on 16.03.2015
+  MODIFY zpp_mdoc_caution FROM TABLE gt_mdoc_caution.
+  IF sy-subrc <> 0.
+    gv_commit = ' '.
+    ROLLBACK WORK.
+  ENDIF.
+ENDFORM.                    "SAVE_ZPP_MDOC_CAUTION
+*&---------------------------------------------------------------------*
+*&      Form  SAVE_ZPP_MBR_INPUT
+*&---------------------------------------------------------------------*
+FORM save_zpp_mbr_input.
+  DATA: lt_bmr_input TYPE TABLE OF zpp_mbr_input,
+        ls_bmr_input TYPE zpp_mbr_input,
+        lv_idnrk     TYPE idnrk.
+
+  LOOP AT gt_final INTO gs_final.
+    ls_bmr_input-matnr = p_mat.
+    ls_bmr_input-werks = p_plant.
+    ls_bmr_input-verid = p_prd_vn.
+    ls_bmr_input-dokar = doc_type.
+    ls_bmr_input-ds_code = gs_final-ds_code.
+    ls_bmr_input-ps_code = gs_final-ps_code.
+    PERFORM idnrk_conversion_input USING gs_final-idnrk CHANGING lv_idnrk.
+    ls_bmr_input-bom_component = lv_idnrk. "idnrk has to be saved with leading 0's
+    ls_bmr_input-posnr = gs_final-posnr.
+    ls_bmr_input-lines = gs_final-lines.
+    ls_bmr_input-alpgr = gs_final-alpgr.
+    ls_bmr_input-lots = gs_final-lots.
+
+    ls_bmr_input-expiry_ind = gs_mdoc_header-expiry_ind.
+    ls_bmr_input-prov_ind = gs_mdoc_header-packbefore.
+    ls_bmr_input-description = gs_mdoc_header-description.
+    ls_bmr_input-category = gs_mdoc_header-category.
+    ls_bmr_input-labelclaim = gs_mdoc_header-labelclaim.
+    ls_bmr_input-dateformat = gs_mdoc_header-dateformat.
+
+    READ TABLE gt_mdoc_caution INTO gs_mdoc_caution WITH  KEY dokar = ls_bmr_input-dokar
+                                                           dokvr = gs_documentdata-documentversion
+                                                           doknr = gs_documentdata-documentnumber.
+    IF sy-subrc = 0.
+      ls_bmr_input-caution = gs_caution-caution_desc.
+      ls_bmr_input-caution_code =  gs_caution-caution_code.
+    ENDIF.
+
+    READ TABLE gt_mdoc_stages INTO gs_mdoc_stages WITH KEY dokar = ls_bmr_input-dokar
+                                                           dokvr = gs_documentdata-documentversion
+                                                           doknr = gs_documentdata-documentnumber
+                                                           ds_code = ls_bmr_input-ds_code.
+    IF sy-subrc = 0.
+      ls_bmr_input-nw_pg = gs_mdoc_stages-nw_pg.
+      ls_bmr_input-top_remark = gs_mdoc_stages-top_remark.
+      ls_bmr_input-bottom_remark = gs_mdoc_stages-bottom_remark.
+      ls_bmr_input-tabformat = gs_mdoc_stages-tabformat.
+    ENDIF.
+
+*    ls_bmr_input-inj_plchldr
+*    ls_bmr_input-batch_plchldr
+
+    APPEND ls_bmr_input TO lt_bmr_input.
+  ENDLOOP.
+
+  MODIFY zpp_mbr_input FROM TABLE lt_bmr_input.
+
+ENDFORM.                    " SAVE_ZPP_MBR_INPUT
+*&---------------------------------------------------------------------*
+*&      Form  SAVE_ZPP_MBPR_INPUT
+*&---------------------------------------------------------------------*
+FORM save_zpp_mbpr_input.
+  DATA: ls_mbpr_input TYPE zpp_mbpr_input,
+        lt_mbpr_input TYPE TABLE OF zpp_mbpr_input,
+        lv_idnrk      TYPE idnrk.
+  LOOP AT gt_final INTO gs_final.
+    ls_mbpr_input-matnr = p_mat.
+*    SHIFT ls_mbpr_input-matnr LEFT DELETING LEADING '0'. " Commented by smita dated : 08-07-14
+    ls_mbpr_input-werks = p_plant.
+    ls_mbpr_input-verid = p_prd_vn.
+    ls_mbpr_input-dokar = doc_type.
+    ls_mbpr_input-ds_code = gs_final-ds_code.
+    PERFORM idnrk_conversion_input USING gs_final-idnrk CHANGING lv_idnrk.
+    ls_mbpr_input-bom_component = lv_idnrk. "idnrk has to be saved with leading 0's
+    ls_mbpr_input-posnr = gs_final-posnr.
+    ls_mbpr_input-lines = gs_final-lines.
+    ls_mbpr_input-alpgr = gs_final-alpgr.
+
+**mdoc_header
+    ls_mbpr_input-expiry_ind = gs_mdoc_header-expiry_ind.
+    ls_mbpr_input-prov_ind = gs_mdoc_header-expiry_ind.
+    ls_mbpr_input-description = gs_mdoc_header-description.
+    ls_mbpr_input-category = gs_mdoc_header-category.
+    ls_mbpr_input-labelclaim = gs_mdoc_header-labelclaim.
+    ls_mbpr_input-dateformat = gs_mdoc_header-dateformat.
+    ls_mbpr_input-shelf_life = gs_mdoc_header-shelf_life.
+    ls_mbpr_input-markt_auth_no = gs_mdoc_header-markt_auth_no.
+    ls_mbpr_input-country = gs_mdoc_header-country.
+    ls_mbpr_input-cust_fgcode = gs_mdoc_header-cust_fgcode.
+    ls_mbpr_input-cust_batch = gs_mdoc_header-cust_batch.
+    ls_mbpr_input-packbefore = gs_mdoc_header-packbefore.
+
+    APPEND ls_mbpr_input TO lt_mbpr_input.
+  ENDLOOP.
+
+  MODIFY zpp_mbpr_input FROM TABLE lt_mbpr_input.
+
+ENDFORM.                    " SAVE_ZPP_MBPR_INPUT
+*&---------------------------------------------------------------------*
+*&      Form  SELECT_DISP_STAGES
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM select_disp_stages .
+  SELECT ds_code ds_seq FROM zpp_mdoc_stages INTO CORRESPONDING FIELDS OF TABLE gt_disp
+       WHERE dokar = gs_mdoc-dokar AND doknr = gs_mdoc-dms_doc AND dokvr = gs_mdoc-dokvr.
+ENDFORM.                    " SELECT_DISP_STAGES
+*&---------------------------------------------------------------------*
+*&      Form  CHK_AUTH_TCODE
+*&---------------------------------------------------------------------*
+*      -->P_TCODE   text
+*      <--P_RTN  text
+*----------------------------------------------------------------------*
+FORM chk_auth_tcode  USING    p_tcode
+                     CHANGING p_rtn.
+  CALL FUNCTION 'AUTHORITY_CHECK_TCODE'
+    EXPORTING
+      tcode  = p_tcode
+    EXCEPTIONS
+      ok     = 1
+      not_ok = 2
+      OTHERS = 3.
+  p_rtn = sy-subrc.
+ENDFORM.                    " CHK_AUTH_TCODE
+*&---------------------------------------------------------------------*
+*&      Form  CHECK_DMS_VERSION
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM check_dms_version .
+  doc_type = 'ZAN'.
+  SELECT * FROM zqm_ann_data INTO TABLE gt_mdoc
+          WHERE werks = p_plant AND ann_no = ann_no AND dokar = doc_type.
+  IF sy-subrc = 0.
+    SORT gt_mdoc BY dokvr DESCENDING.
+    READ TABLE gt_mdoc INTO gs_mdoc INDEX 1.
+    IF p_dms <> gs_mdoc-dokvr AND p_preview <> 'X'.
+      MESSAGE e071(zppr_formu).
+*   Print not possible for this DMS version.
+    ENDIF.
+  ENDIF.
+ENDFORM.                    " CHECK_DMS_VERSION
+*&---------------------------------------------------------------------*
+*&      Module  DMS_VER_EXISTING_VALIDATION  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE dms_ver_existing_validation INPUT.
+  IF p_dms IS NOT INITIAL.
+*    IF p_dms <> gv_dms_prev.
+*      p_preview = 'X'.
+*      CLEAR: p_draft , p_master, p_reprint.
+*    ENDIF.
+
+    PERFORM check_dms_version.
+    READ TABLE gt_mdoc INTO gs_mdoc WITH KEY dokvr = p_dms.
+    IF sy-subrc = 0.
+      CALL FUNCTION 'BAPI_DOCUMENT_GETSTATUS' "Read Document Status
+        EXPORTING
+          documenttype      = gs_mdoc-dokar
+          documentnumber    = gs_mdoc-dms_doc
+          documentpart      = gs_mdoc-doktl
+          documentversion   = p_dms "gs_mdoc-dokvr
+        IMPORTING
+          statusextern      = p_stat
+          statusintern      = g_old_status_int
+          statusdescription = p_stat_desc
+          return            = gs_dms_return.
+    ELSE.
+      MESSAGE e072(zppr_formu).
+*   Document version does not exists.
+    ENDIF.
+  ENDIF.
+ENDMODULE.                 " DMS_VER_EXISTING_VALIDATION  INPUT
+*&---------------------------------------------------------------------*
+*&      Module  F4_DMS_VER  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE f4_dms_ver INPUT.
+  TYPES: BEGIN OF ty_dms_ver,
+           dokvr TYPE dokvr,
+         END OF ty_dms_ver.
+  DATA: lt_dms_ver TYPE TABLE OF ty_dms_ver.
+
+  SELECT dokvr FROM  draw CLIENT SPECIFIED
+    INTO TABLE lt_dms_ver
+         WHERE  mandt  = sy-mandt
+         AND    dokar  = doc_type
+         AND    doknr  = gs_mdoc-dms_doc
+         AND    doktl  = '000'.
+
+  DELETE lt_dms_ver WHERE dokvr = '00'.
+
+  REFRESH gt_return[].
+  CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+    EXPORTING
+      retfield        = 'DOKVR'
+      value_org       = 'S'
+    TABLES
+      value_tab       = lt_dms_ver[]
+      return_tab      = gt_return
+    EXCEPTIONS
+      parameter_error = 1
+      no_values_found = 2
+      OTHERS          = 3.
+
+*  READ TABLE gt_return INTO gs_return INDEX 1.
+  p_dms = gt_return-fieldval.
+ENDMODULE.                 " F4_DMS_VER  INPUT
+*&---------------------------------------------------------------------*
+*&      Form  FETCH_COUNTRY_CUSTOMER
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM fetch_country_customer .
+*  data:         lv_atwrt TYPE SCUSTOM-COUNTRY.    "ausp-atwrt.
+  TYPES: BEGIN OF ty_cabn,
+           atnam TYPE cabn-atnam,
+           atinn TYPE cabn-atinn,
+         END OF ty_cabn.
+  DATA: lt_cabn TYPE TABLE OF ty_cabn,
+        ls_cabn TYPE ty_cabn.
+
+  TYPES: BEGIN OF ty_ausp,
+           atinn TYPE ausp-atinn,
+           atwrt TYPE ausp-atwrt,
+         END OF ty_ausp.
+  DATA: lt_ausp TYPE TABLE OF ty_ausp,
+        ls_ausp TYPE ty_ausp.
+
+  DATA: wa_inob TYPE inob.
+
+  SELECT atnam atinn
+    FROM cabn
+    INTO TABLE lt_cabn
+    WHERE atinn LIKE '%'
+    AND adzhl LIKE '%'
+    AND atnam IN ('ZCOUNTRY' , 'ZCUSTOMER').
+
+
+***    sochange on 14.04.2016 as per discussion with prashant uttam
+*  SELECT atinn atwrt
+*    FROM ausp
+*    INTO TABLE lt_ausp
+*    FOR ALL ENTRIES IN lt_cabn
+*    WHERE objek = p_mat
+*    AND atinn = lt_cabn-atinn.
+
+  CLEAR: wa_inob.
+  SELECT SINGLE * FROM inob INTO wa_inob WHERE klart = '001'
+                                                    AND obtab = 'MARA'
+                                                    AND objek = p_mat.
+
+  SELECT  atinn atwrt
+    FROM ausp INTO TABLE lt_ausp
+  FOR ALL ENTRIES IN lt_cabn
+  WHERE objek = wa_inob-cuobj
+  AND atinn = lt_cabn-atinn.
+***    eochange on 14.04.2016 as per discussion with prashant uttam
+
+
+
+  "'ZCOUNTRY'
+  CLEAR ls_cabn.
+  READ TABLE lt_cabn INTO ls_cabn WITH KEY atnam = 'ZCOUNTRY'.
+  IF sy-subrc = 0.
+    CLEAR ls_ausp.
+    READ TABLE lt_ausp INTO ls_ausp WITH KEY atinn = ls_cabn-atinn.
+    IF sy-subrc = 0.
+      CLEAR gv_hd_country.
+
+      gv_country = ls_ausp-atwrt.
+      CALL FUNCTION 'DR_GET_COUNTRY_NAME'
+        EXPORTING
+          country  = gv_country     "ls_ausp-atwrt
+          language = sy-langu
+        IMPORTING
+          name     = gv_hd_country.
+
+      IF gv_hd_country IS INITIAL.
+        gv_hd_country = ls_ausp-atwrt.
+      ENDIF.
+    ENDIF.
+  ENDIF.
+
+  "'ZCUSTOMER'
+  CLEAR ls_cabn.
+  READ TABLE lt_cabn INTO ls_cabn WITH KEY atnam = 'ZCUSTOMER'.
+  IF sy-subrc = 0.
+    CLEAR ls_ausp.
+    READ TABLE lt_ausp INTO ls_ausp WITH KEY atinn = ls_cabn-atinn.
+    IF sy-subrc = 0.
+      CLEAR gv_hd_cust.
+
+      gv_cust = ls_ausp-atwrt.
+      SELECT SINGLE name1 FROM kna1 INTO gv_hd_cust WHERE kunnr = ls_ausp-atwrt.
+      IF gv_hd_cust IS INITIAL.
+        gv_hd_cust = ls_ausp-atwrt.
+      ENDIF.
+    ENDIF.
+  ENDIF.
+ENDFORM.                    " FETCH_COUNTRY_CUSTOMER
+*&---------------------------------------------------------------------*
+*&      Form  GET_EDITOR_TEXT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_EDITOR1  text
+*      <--P_P_TOP_REMARK  text
+*----------------------------------------------------------------------*
+FORM get_editor_text  USING    pr_editor TYPE REF TO cl_gui_textedit
+                      CHANGING pr_editor_text TYPE string.
+
+  TYPES: BEGIN OF lty_remarktab,
+           lines(100) TYPE c,
+         END OF lty_remarktab.
+  DATA: lta_remarktab TYPE TABLE OF lty_remarktab,
+        lwa_remarktab TYPE lty_remarktab.
+*        lv_cnt TYPE i.
+
+*  CALL METHOD editor1->get_text_as_r3table
+*    IMPORTING
+*      table = lt_remarktab.
+
+  CALL METHOD pr_editor->get_text_as_stream
+*    EXPORTING
+*      only_when_modified     = FALSE
+    IMPORTING
+      text                   = lta_remarktab
+*     is_modified            =
+    EXCEPTIONS
+      error_dp               = 1
+      error_cntl_call_method = 2
+      OTHERS                 = 3.
+  IF sy-subrc <> 0.
+*   Implement suitable error handling here
+  ENDIF.
+
+
+*  DESCRIBE TABLE lt_remarktab LINES lv_cnt.
+*  DO lv_cnt TIMES.
+*    READ TABLE lt_remarktab INTO ls_remarktab INDEX lv_cnt.
+*    CONCATENATE ls_remarktab-lines c_split p_top_remark INTO p_top_remark.
+*    lv_cnt = lv_cnt - 1.
+*  ENDDO.
+  CLEAR pr_editor_text.
+  LOOP AT lta_remarktab INTO lwa_remarktab.
+    CONCATENATE pr_editor_text lwa_remarktab-lines INTO pr_editor_text.
+  ENDLOOP.
+ENDFORM.                    " GET_EDITOR_TEXT
+*&---------------------------------------------------------------------*
+*&      Module  PAGE_RANGE_VALIDATION  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE page_range_validation INPUT.
+  IF p_page_range IS NOT INITIAL AND p_from GT p_to.
+    MESSAGE e076(zppr_formu).
+*   Please fill valid from and to range.
+  ENDIF.
+ENDMODULE.                 " PAGE_RANGE_VALIDATION  INPUT
+*&---------------------------------------------------------------------*
+*&      Form  CONVERT_QTY_ABS
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_GS_STB_MENGE  text
+*      <--P_GV_BOM_QTY  text
+*----------------------------------------------------------------------*
+FORM convert_qty_abs  USING p_menge CHANGING p_qty.
+  DATA: lv_qty TYPE p DECIMALS 3.
+  lv_qty = p_menge.
+  IF lv_qty < 0.
+    lv_qty = lv_qty  * ( -1 ).
+  ENDIF.
+  p_qty = lv_qty.
+ENDFORM.                    " CONVERT_QTY_ABS
+*&---------------------------------------------------------------------*
+*&      Form  VALIDATE_LOT_SIZE
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_GS_MKAL_BSTMI  text
+*      -->P_GS_MKAL_BSTMA  text
+*----------------------------------------------------------------------*
+FORM validate_lot_size  USING    p_fromlot
+                                 p_tolot
+                                 p_qty.
+  IF p_qty NOT BETWEEN p_fromlot AND p_tolot.
+    MESSAGE e082(zppr_formu) WITH p_qty p_fromlot p_tolot.
+*   Required qty & is not in lot range & and &.
+  ENDIF.
+ENDFORM.                    " VALIDATE_LOT_SIZE
+*&---------------------------------------------------------------------*
+*&      Form  UNLOCK_PRINTLOG
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM unlock_printlog .
+  CALL FUNCTION 'DEQUEUE_EZPPT_PRINTLOG'
+    EXPORTING
+      mode_zppt_printlog = 'E'
+      mandt              = sy-mandt
+*     matnr              = gs_mdoc-matnr
+      werks              = gs_mdoc-werks
+*     verid              = gs_mdoc-verid
+*     STATUS             =
+      doknr              = gs_mdoc-dms_doc
+      dokvr              = gs_mdoc-dokvr
+*     PRINT_COUNT        =
+*     X_MATNR            = ' '
+*     X_WERKS            = ' '
+*     X_VERID            = ' '
+*     X_STATUS           = ' '
+*     X_DOKNR            = ' '
+*     X_DOKVR            = ' '
+*     X_PRINT_COUNT      = ' '
+*     _SCOPE             = '3'
+*     _SYNCHRON          = ' '
+*     _COLLECT           = ' '
+    .
+
+ENDFORM.                    " UNLOCK_PRINTLOG
+*&---------------------------------------------------------------------*
+*&      Form  LOCK_PRINTLOG
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM lock_printlog .
+
+  CALL FUNCTION 'ENQUEUE_EZPPT_PRINTLOG'
+    EXPORTING
+      mode_zppt_printlog = 'E'
+      mandt              = sy-mandt
+*     matnr              = gs_mdoc-matnr
+      werks              = gs_mdoc-werks
+*     verid              = gs_mdoc-verid
+*     STATUS             =
+      doknr              = gs_mdoc-dms_doc
+      dokvr              = gs_mdoc-dokvr
+*     PRINT_COUNT        =
+*     X_MATNR            = ' '
+*     X_WERKS            = ' '
+*     X_VERID            = ' '
+*     X_STATUS           = ' '
+*     X_DOKNR            = ' '
+*     X_DOKVR            = ' '
+*     X_PRINT_COUNT      = ' '
+*     _SCOPE             = '2'
+*     _WAIT              = ' '
+*     _COLLECT           = ' '
+    EXCEPTIONS
+      foreign_lock       = 1
+      system_failure     = 2
+      OTHERS             = 3.
+  IF sy-subrc <> 0.
+    PERFORM lock_printlog.
+* Implement suitable error handling here
+  ENDIF.
+
+ENDFORM.                    " LOCK_PRINTLOG
+*&---------------------------------------------------------------------*
+*&      Form  DOCUMENT_TEMPLATE_LOG
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM document_template_log .
+***  DATA lwa_tlog TYPE zpp_bmr_tlog.
+***
+***  CLEAR lwa_tlog.
+***  lwa_tlog-matnr = gs_mdoc-matnr.
+***  lwa_tlog-werks = gs_mdoc-werks.
+***  lwa_tlog-verid = gs_mdoc-verid.
+***  lwa_tlog-created_on = sy-datum.
+***
+******  soc on 31.07.2015
+****  IF g_time IS INITIAL.
+****    g_time = sy-uzeit.
+****  ENDIF.
+***  lwa_tlog-createtime = sy-uzeit.
+****  lwa_tlog-createtime = g_time.
+******  eoc on 31.07.2015
+***
+***  lwa_tlog-createdby = sy-uname.
+***  lwa_tlog-dokar = gs_mdoc-dokar.
+***  lwa_tlog-doknr = gs_mdoc-doknr.
+***  lwa_tlog-doktl = gs_mdoc-doktl.
+***  lwa_tlog-dokvr = gs_mdoc-dokvr.
+***
+***  INSERT zpp_bmr_tlog FROM lwa_tlog.
+ENDFORM.                    " DOCUMENT_TEMPLATE_LOG
+*&---------------------------------------------------------------------*
+*&      Form  MASTER_CREATION_DETAIL
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM master_creation_detail .
+  CLEAR wa_drap.
+
+  SELECT SINGLE *
+    FROM drap CLIENT SPECIFIED
+    INTO wa_drap
+    WHERE mandt = sy-mandt
+      AND dokar = gs_mdoc-dokar
+      AND doknr = gs_mdoc-dms_doc
+      AND dokvr = gs_mdoc-dokvr
+      AND doktl = gs_mdoc-doktl
+      AND dokst = 'DR'.
+
+ENDFORM.                    " MASTER_CREATION_DETAIL
+*&---------------------------------------------------------------------*
+*&      Form  DELETE_LOGO_FROM_DISK
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_G_LOGO_PATH  text
+*----------------------------------------------------------------------*
+FORM delete_logo_from_disk  USING  p_logo_path.
+  DATA: lv_file_name TYPE string, lv_rc TYPE i.
+  lv_file_name = p_logo_path.
+
+  CALL METHOD cl_gui_frontend_services=>file_delete
+    EXPORTING
+      filename           = lv_file_name
+    CHANGING
+      rc                 = lv_rc
+    EXCEPTIONS
+      file_delete_failed = 1
+      cntl_error         = 2
+      error_no_gui       = 3
+      file_not_found     = 4
+      access_denied      = 5
+      unknown_error      = 6
+      OTHERS             = 7.
+
+ENDFORM.                    " DELETE_LOGO_FROM_DISK

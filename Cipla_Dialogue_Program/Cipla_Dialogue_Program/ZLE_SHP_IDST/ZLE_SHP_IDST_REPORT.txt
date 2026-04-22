@@ -1,0 +1,2810 @@
+**&---------------------------------------------------------------------*
+*& Report  ZLE_SHP_IDST_REPORT
+*&
+*&---------------------------------------------------------------------*
+* Program Name     :  ZLE_SHP_IDST_REPORT                               *
+* Created By       :  Fatima Zia        *
+* Create Date      :  24.06.2022
+* Change request   :  8000008137
+* Transport number :  CRDK983765, CRDK984284                                  *
+* Description      :  Shipment transaction report
+*----------------------------------------------------------------------*
+* Modification Information
+* Date            : 14.10.2022
+* Author          : Debasmita Bhatta
+* Change request  : 8000008137
+* Transport number: CRDK984987
+* Description     : Adjusting to display shipment weight and deleting garbage val
+*----------------------------------------------------------------------*
+REPORT zle_shp_idst_report.
+
+*----------------------------------------------------------------------*
+*   Data Definition
+*----------------------------------------------------------------------*
+TYPE-POOLS  : vt04,
+              esp1.
+
+TYPES : BEGIN OF ty_output,
+          tplst      TYPE tplst,
+          tknum      TYPE tknum,
+          shtyp      TYPE shtyp,
+          st_desc    TYPE bezei20,
+          vsart      TYPE vsarttr,
+          add01      TYPE vttk_add01,
+          route      TYPE route,
+          rt_bezei   TYPE routbez,
+          datbg      TYPE datbg,
+          daten      TYPE datend,
+          signi      TYPE signi,
+          tdlnr      TYPE tdlnr,
+          name1      TYPE name1_gp,
+          tdlnr_i    TYPE tdlnr,
+          lrno       TYPE zle_lrno,
+          lrdate     TYPE budat,
+          shp_amount TYPE netwr_all,
+          vkorg      TYPE vkorg,
+          invno      TYPE zle_docno,
+          shipper    TYPE zle_shippers_cnt,
+          inv_weight TYPE zle_net_weight,
+          shp_weight TYPE vttk_text4,
+          zywgt      TYPE zsd_ship_weight-zywgt,
+          zreas      TYPE zsd_ship_weight-zreas,
+          fknum      TYPE fknum,
+        END OF ty_output,
+
+*        BEGIN OF ty_cost,
+*          fknum TYPE fknum,
+*          netwr TYPE p DECIMALS 2,
+*          zmn1  TYPE p DECIMALS 2,
+*          zbok  TYPE p DECIMALS 2,
+*          zftl  TYPE p DECIMALS 2,
+*          zddc  TYPE p DECIMALS 2,
+*          zclc  TYPE p DECIMALS 2,
+*          zwcd  TYPE p DECIMALS 2,
+*          zwch  TYPE p DECIMALS 2,
+*          zwn   TYPE p DECIMALS 2,
+*          zulc  TYPE p DECIMALS 2,
+*          zlc   TYPE p DECIMALS 2,
+*          zoth  TYPE p DECIMALS 2,
+*          ztol  TYPE p DECIMALS 2,
+*          zdly  TYPE p DECIMALS 2,
+*          zded  TYPE p DECIMALS 2,
+*          zscd  TYPE p DECIMALS 2,
+*          zdiv  TYPE p DECIMALS 2,
+*          zfsc  TYPE p DECIMALS 2,
+*          zodc  TYPE p DECIMALS 2,
+*          zgnt  TYPE p DECIMALS 2,
+*          zspt  TYPE p DECIMALS 2,
+*          zdsv  TYPE p DECIMALS 2,
+*          zsrc  TYPE p DECIMALS 2,
+*          zdmv  TYPE p DECIMALS 2,
+*          zotd  TYPE p DECIMALS 2,
+*          zdlr  TYPE p DECIMALS 2,
+*          zidc  TYPE p DECIMALS 2,
+*        END OF ty_cost,
+
+        BEGIN OF ty_vttk,
+          tknum TYPE tknum,
+          shtyp TYPE shtyp,
+          tplst TYPE tplst,
+          vsart TYPE vsarttr,
+          route TYPE routr,
+          signi TYPE signi,
+          datbg TYPE datbg,
+          daten TYPE datend,
+          tdlnr TYPE tdlnr,
+          add01 TYPE vttk_add01,
+          text4 TYPE vttk_text4,
+        END OF ty_vttk,
+
+        BEGIN OF ty_lfa1,
+          lifnr TYPE lifnr,
+          name1 TYPE name1_gp,
+        END OF ty_lfa1,
+
+        BEGIN OF ty_likp,
+          vbeln TYPE vbeln_vl,
+          vstel TYPE vstel,
+          vkorg TYPE vkorg,
+        END OF ty_likp,
+
+        BEGIN OF ty_vtts,
+          tknum   TYPE tknum,
+          tsnum   TYPE tsnum,
+          tstyp   TYPE tstyp,
+          abort01 TYPE abort01,
+        END OF ty_vtts,
+
+        BEGIN OF ty_tvtkt,
+          spras TYPE tvtkt-spras,
+          shtyp TYPE tvtkt-shtyp,
+          bezei TYPE tvtkt-bezei,
+        END OF ty_tvtkt,
+
+        BEGIN OF ty_tvrot,
+          spras TYPE tvrot-spras,
+          route TYPE tvrot-route,
+          bezei TYPE tvrot-bezei,
+        END OF ty_tvrot,
+
+        BEGIN OF ty_zvttp,
+          tknum   TYPE tknum,
+          posnr   TYPE tpnum,
+          tpnum   TYPE tpnum,
+          bukrs   TYPE bukrs,
+          werks   TYPE reswk,
+          invno   TYPE vbeln_vf,
+          vbeln   TYPE vbeln_vl,
+          vchtyp  TYPE zle_vchtyp,
+          mmsinv  TYPE zle_docno,
+          fsample TYPE zle_fsample,
+          bldat   TYPE bldat,
+          kunnr   TYPE kunnr,
+        END OF ty_zvttp,
+
+        BEGIN OF ty_cha_lr,
+          vbeln    TYPE vbeln_vl,
+          bldat    TYPE bldat,
+          lfart    TYPE lfart,
+          lifnr    TYPE lifnr,
+          lrno     TYPE zchar25,
+          lrdate   TYPE budat,
+          shipper  TYPE znum_of_shippers,
+          total_wt TYPE ztotal_weight,
+        END OF ty_cha_lr,
+
+        BEGIN OF ty_cha_lr_add,
+          vbeln  TYPE vbeln_vl,
+          bldat  TYPE bldat,
+          lifnr  TYPE lifnr,
+          lrno   TYPE zchar25,
+          lrdate TYPE budat,
+        END OF ty_cha_lr_add,
+
+        BEGIN OF ty_mms_free,
+          bukrs    TYPE bukrs,
+          werks    TYPE reswk,
+          vchtyp   TYPE zle_vchtyp,
+          docno    TYPE zle_docno,
+          bldat    TYPE bldat,
+          kunnr    TYPE kunnr,
+          blart    TYPE zle_blart,
+          lifnr    TYPE lifnr,
+          lrno     TYPE zle_lrno,
+          lrdate   TYPE budat,
+          total_wt TYPE zle_net_weight,
+          shipper  TYPE zle_shippers_cnt,
+        END OF ty_mms_free,
+
+        BEGIN OF ty_vfkk,
+          fknum TYPE fknum,
+          vbtyp TYPE vbtyp,
+          fkart TYPE fkart_t,
+          sterm TYPE sterm,
+          prsdt TYPE prsdt_k,
+          budat TYPE budat_k,
+          exti1 TYPE exti1_k,
+          exti2 TYPE exti2_k,
+          stber TYPE stber_k,
+          stfre TYPE stfre_k,
+          stabr TYPE stabr_k,
+        END OF ty_vfkk,
+
+*        BEGIN OF ty_recdate,
+*          fknum TYPE fknum,
+*          zfbdt TYPE dzfbdt,
+*        END OF ty_recdate,
+*
+*        BEGIN OF ty_stabr,
+*          value TYPE domvalue_l,
+*          text  TYPE val_text,
+*        END OF ty_stabr,
+
+        BEGIN OF ty_vfkp,
+          fknum TYPE fknum,
+          fkpos TYPE fkpos,
+          rebel TYPE rebel,
+        END OF ty_vfkp.
+
+*        BEGIN OF ty_konv,
+*          knumv TYPE knumv,
+*          kposn TYPE kposn,
+*          stunr TYPE stunr, "LOC BY Kevin on 10.12.2020 for CR# 8000006551
+*          zaehk TYPE dzaehk, "LOC BY Kevin on 10.12.2020 for CR# 8000006551
+*          kschl TYPE kschl,
+*          kbetr TYPE kbetr,
+*          kwert TYPE kwert,
+*        END OF ty_konv.
+
+*        BEGIN OF ty_rbkp,
+*          belnr  TYPE re_belnr,
+*          gjahr  TYPE gjahr,
+*          bldat  TYPE bldat,
+*          xblnr  TYPE xblnr1,
+*          lifnr  TYPE lifre,
+*          rbstat TYPE rbstat,
+*        END OF ty_rbkp,
+
+*        BEGIN OF ty_rbstat,
+*          value TYPE domvalue_l,
+*          text  TYPE val_text,
+*        END OF ty_rbstat.
+
+DATA  : gt_messages   TYPE STANDARD TABLE OF esp1_message_wa_type,
+        gs_messages   TYPE esp1_message_wa_type,
+
+        gt_output     TYPE STANDARD TABLE OF ty_output,
+        gs_output     TYPE ty_output,
+
+*        gt_cost       TYPE STANDARD TABLE OF ty_cost,
+*        gs_cost       TYPE ty_cost,
+
+        gt_vttk       TYPE STANDARD TABLE OF ty_vttk,
+        gs_vttk       TYPE ty_vttk,
+
+        gt_tvtkt      TYPE STANDARD TABLE OF ty_tvtkt,
+        gs_tvtkt      TYPE ty_tvtkt,
+
+        gt_lfa1       TYPE STANDARD TABLE OF ty_lfa1,
+        gs_lfa1       TYPE ty_lfa1,
+
+        gt_tvrot      TYPE STANDARD TABLE OF ty_tvrot,
+        gs_tvrot      TYPE ty_tvrot,
+
+        gt_likp       TYPE STANDARD TABLE OF ty_likp,
+        gs_likp       TYPE ty_likp,
+
+*        gt_vtts       TYPE STANDARD TABLE OF ty_vtts,
+*        gs_vtts       TYPE ty_vtts,
+
+        gt_zvttp      TYPE STANDARD TABLE OF ty_zvttp,
+        gs_zvttp      TYPE ty_zvttp,
+
+        gt_zvttp_i    TYPE STANDARD TABLE OF ty_zvttp,
+        gt_zvttp_it   TYPE STANDARD TABLE OF ty_zvttp,
+        gs_zvttp_i    TYPE ty_zvttp,
+
+        gt_zvttp_m    TYPE STANDARD TABLE OF ty_zvttp,
+        gt_zvttp_mt   TYPE STANDARD TABLE OF ty_zvttp,
+        gs_zvttp_m    TYPE ty_zvttp,
+
+        gt_zvttp_f    TYPE STANDARD TABLE OF ty_zvttp,
+        gt_zvttp_ft   TYPE STANDARD TABLE OF ty_zvttp,
+        gs_zvttp_f    TYPE ty_zvttp,
+
+        gt_cha_lr     TYPE STANDARD TABLE OF ty_cha_lr,
+        gs_cha_lr     TYPE ty_cha_lr,
+
+        gt_cha_lr_add TYPE STANDARD TABLE OF ty_cha_lr_add,
+        gs_cha_lr_add TYPE ty_cha_lr_add,
+
+        gt_mmsinv     TYPE STANDARD TABLE OF ty_mms_free,
+        gs_mmsinv     TYPE ty_mms_free,
+
+        gt_fsample    TYPE STANDARD TABLE OF ty_mms_free,
+        gs_fsample    TYPE ty_mms_free,
+
+*        gt_blart      TYPE STANDARD TABLE OF ty_stabr,
+*        gs_blart      TYPE ty_stabr,
+
+        gt_vfkk       TYPE STANDARD TABLE OF ty_vfkk,
+        gs_vfkk       TYPE ty_vfkk,
+*
+*        gt_recdate    TYPE STANDARD TABLE OF ty_recdate,
+*        gs_recdate    TYPE ty_recdate,
+
+*        gt_stabr      TYPE STANDARD TABLE OF ty_stabr,
+*        gs_stabr      TYPE ty_stabr,
+
+        gt_vfkp       TYPE STANDARD TABLE OF ty_vfkp,
+        gs_vfkp       TYPE ty_vfkp.
+
+*        gt_konv       TYPE STANDARD TABLE OF ty_konv,
+*        gs_konv       TYPE ty_konv,
+
+****************************************SOC BY Kevin on 08.12.2020 for CR# 8000006551 ****************************************************
+*        ta_konv_col   TYPE STANDARD TABLE OF ty_konv,
+*        wa_konv_col   TYPE ty_konv.
+****************************************EOC BY Kevin on 08.12.2020 for CR# 8000006551 ****************************************************
+
+*        gt_rbkp       TYPE STANDARD TABLE OF ty_rbkp,
+*        gs_rbkp       TYPE ty_rbkp,
+*
+*        gt_rbstat     TYPE STANDARD TABLE OF ty_rbstat,
+*        gs_rbstat     TYPE ty_rbstat.
+
+DATA  : gv_message  TYPE sy-msgv1,
+        gv_message1 TYPE sy-msgv1,
+        gv_message2 TYPE sy-msgv2,
+        gv_message3 TYPE sy-msgv3,
+        gv_message4 TYPE sy-msgv4,
+        gv_lineno   TYPE msgzeile,
+        gv_posnr    TYPE tpnum.
+
+DATA  : gr_table      TYPE REF TO cl_salv_table,
+        gr_functions  TYPE REF TO cl_salv_functions_list,
+        gr_events     TYPE REF TO cl_salv_events_table,
+        gr_layout     TYPE REF TO cl_salv_layout,
+        gr_columns    TYPE REF TO cl_salv_columns_table,
+        gr_column     TYPE REF TO cl_salv_column_table,
+        gr_selections TYPE REF TO cl_salv_selections,
+        gr_header     TYPE REF TO cl_salv_form_element,
+        gr_grid       TYPE REF TO cl_salv_form_layout_grid,
+        gr_head       TYPE REF TO cl_salv_form_header_info,
+        gr_label      TYPE REF TO cl_salv_form_label,
+        gr_text       TYPE REF TO cl_salv_form_text,
+        gr_aggregate  TYPE REF TO cl_salv_aggregations,
+        gr_sort       TYPE REF TO cl_salv_sorts.
+
+DATA  : gs_alv_key TYPE salv_s_layout_key,
+        gv_variant TYPE slis_vari,
+        gv_user    TYPE ad_namtext,
+        gv_date    TYPE sy-datum,
+        gv_time    TYPE sy-uzeit.
+
+*----------------------------------------------------------------------*
+*   Selection Screen
+*----------------------------------------------------------------------*
+TYPES : BEGIN OF ty_docno,
+          docno TYPE zle_docno,
+        END OF ty_docno.
+
+DATA  : gt_minv   TYPE STANDARD TABLE OF ty_docno,
+        gt_free   TYPE STANDARD TABLE OF ty_docno,
+        gt_return TYPE STANDARD TABLE OF ddshretval.
+
+DATA  : gv_field  TYPE dynfnam.
+
+DATA  : gv_tknum TYPE tknum,
+        gv_tplst TYPE tplst,
+        gv_tdlnr TYPE tdlnr,
+        gv_datbg TYPE datbg,
+        gv_route TYPE route,
+        gv_vsart TYPE t173t-vsart,
+        gv_shtyp TYPE vttk-shtyp.                      "changed by fatima for 8000008137
+
+DATA  g_variant      LIKE disvariant.
+
+
+SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE text-001 .
+SELECT-OPTIONS  : s_tplst   FOR gv_tplst MATCHCODE OBJECT h_ttds OBLIGATORY,
+                  s_tknum   FOR gv_tknum,
+                  s_datbg   FOR gv_datbg OBLIGATORY,
+                  s_tdlnr   FOR gv_tdlnr,
+                  s_route   FOR gv_route MATCHCODE OBJECT vmtr,
+                  s_vsart   FOR gv_vsart,
+                  s_shtyp   FOR gv_shtyp.
+SELECTION-SCREEN END OF BLOCK b1.
+PARAMETERS p_var LIKE disvariant-variant.
+*----------------------------------------------------------------------*
+*  C-O-N-S-T-A-N-T-S
+*----------------------------------------------------------------------*
+CONSTANTS: co_zywgt(5) TYPE c VALUE 'ZYWGT'.
+CONSTANTS: co_zreas(5) TYPE c VALUE 'ZREAS'.
+CONSTANTS: co_oldw(15) TYPE c VALUE 'Old Weight'.
+CONSTANTS: co_reas(6)  TYPE c VALUE 'Reason'.
+
+CONSTANTS: co_mi(6)          TYPE c VALUE 'MI'.
+CONSTANTS: co_ot(6)          TYPE c VALUE 'OT'.
+CONSTANTS: co_fs(6)          TYPE c VALUE 'FS'.
+CONSTANTS: co_youare(145)    TYPE c VALUE 'You are not authorized for the tr. pl. pt. '' '''.
+CONSTANTS: co_zle_shp_msg(16) TYPE c VALUE 'ZLE_SHP_MSG'.
+
+CONSTANTS: co_e             TYPE c VALUE 'E'.
+CONSTANTS: co_mmsinv(25)    TYPE c VALUE 'MMSINV'.
+CONSTANTS: co_mmsi(25)      TYPE c VALUE 'MMS Invoices'.
+CONSTANTS: co_free(25)      TYPE c VALUE 'FREE'.
+CONSTANTS: co_docno(25)     TYPE c VALUE 'DOCNO'.
+CONSTANTS: co_fso(25)       TYPE c VALUE 'Free Samples/Others'.
+CONSTANTS: co_2(25)         TYPE c VALUE '2'.
+CONSTANTS: co_rbstat(25)    TYPE c VALUE 'RBSTAT'.
+CONSTANTS: co_zle_blart(25) TYPE c VALUE 'ZLE_BLART'.
+CONSTANTS: co_stabr_k(25)   TYPE c VALUE 'STABR_K'.
+
+CONSTANTS: co_zmn1(25) TYPE c VALUE 'ZMN1'.
+CONSTANTS: co_zbok(25) TYPE c VALUE 'ZBOK'.
+CONSTANTS: co_zftl(25) TYPE c VALUE 'ZFTL'.
+CONSTANTS: co_zddc(25) TYPE c VALUE 'ZDDC'.
+CONSTANTS: co_zclc(25) TYPE c VALUE 'ZCLC'.
+CONSTANTS: co_zwcd(25) TYPE c VALUE 'ZWCD'.
+CONSTANTS: co_zwch(25) TYPE c VALUE 'ZWCH'.
+CONSTANTS: co_zwn(25)  TYPE c VALUE 'ZWN'.
+CONSTANTS: co_zulc(25) TYPE c VALUE 'ZULC'.
+CONSTANTS: co_zlc(25)  TYPE c VALUE 'ZLC'.
+CONSTANTS: co_zoth(25) TYPE c VALUE 'ZOTH'.
+CONSTANTS: co_ztol(25) TYPE c VALUE 'ZTOL'.
+CONSTANTS: co_zdly(25) TYPE c VALUE 'ZDLY'.
+CONSTANTS: co_zded(25) TYPE c VALUE 'ZDED'.
+CONSTANTS: co_zscd(25) TYPE c VALUE 'ZSCD'.
+CONSTANTS: co_zdiv(25) TYPE c VALUE 'ZDIV'.
+CONSTANTS: co_zfsc(25) TYPE c VALUE 'ZFSC'.
+CONSTANTS: co_zodc(25) TYPE c VALUE 'ZODC'.
+CONSTANTS: co_zgnt(25) TYPE c VALUE 'ZGNT'.
+CONSTANTS: co_zspt(25) TYPE c VALUE 'ZSPT'.
+CONSTANTS: co_zidc(4)  TYPE c VALUE 'ZIDC'."Added By Nilesh 01.07.2019 8000005580
+*CONSTANTS: co_ZSPT(25) TYPE c VALUE 'ZLE_SHP_MSG'.
+
+*CONSTANTS: co_MMSINV(25) TYPE c VALUE 'MMSINV'.
+*CONSTANTS: co_DOCNO(25)  TYPE c VALUE 'DOCNO'.
+*CONSTANTS: co_mmsi(25)   TYPE c VALUE 'MMS Invoices'.
+
+
+CONSTANTS: co_frees(25) TYPE c VALUE 'Free Samples/Others' .
+CONSTANTS: co_zdsv(25)  TYPE c VALUE 'ZDSV'.
+CONSTANTS: co_zsrc(25)  TYPE c VALUE 'ZSRC'.
+CONSTANTS: co_zdmv(25)  TYPE c VALUE 'ZDMV'.
+CONSTANTS: co_zotd(25)  TYPE c VALUE 'ZOTD'.
+CONSTANTS: co_zdlr(25)  TYPE c VALUE 'ZDLR'.
+CONSTANTS: co_sapi(25)  TYPE c VALUE 'SAP Invoice'.
+CONSTANTS: co_def(25)   TYPE c VALUE 'G_VARIANT' ."'DEFAULT'.
+CONSTANTS: co_shiptr(35) TYPE c VALUE 'Shipment IDST Transaction Report'.    "changed by fatima for 8000008137
+
+CONSTANTS: co_rb(25) TYPE c VALUE 'Reported by  :'.
+CONSTANTS: co_ro(25) TYPE c VALUE 'Reported on  :'.
+CONSTANTS: co_ra(25) TYPE c VALUE 'Reported at  :'.
+
+CONSTANTS: co_shp_amount(25) TYPE c VALUE 'SHP_AMOUNT'.
+CONSTANTS: co_invno(25)      TYPE c VALUE 'INVNO'.
+CONSTANTS: co_inv_weight(25) TYPE c VALUE 'INV_WEIGHT'.
+CONSTANTS: co_tshp_cost(25)  TYPE c VALUE 'TSHP_COST'.
+CONSTANTS: co_ishp_cost(25)  TYPE c VALUE 'ISHP_COST'.
+
+CONSTANTS: co_shp_weight(25) TYPE c VALUE 'SHP_WEIGHT'.
+*CONSTANTS: co_ISHP_COST(25) TYPE c VALUE 'ISHP_COST'.
+CONSTANTS: co_fknum_t(25) TYPE c VALUE 'FKNUM_T'.
+CONSTANTS: co_stabr_t(25) TYPE c VALUE 'STABR_T'.
+CONSTANTS: co_exti1_t(25) TYPE c VALUE 'EXTI1_T'.
+CONSTANTS: co_exti2_t(25) TYPE c VALUE 'EXTI2_T'.
+CONSTANTS: co_extdt(25) TYPE c VALUE 'EXTDT'.
+CONSTANTS: co_c TYPE c VALUE 'C'.
+
+*----------------------------------------------------------------------*
+*   AT Selection Screen Output
+*----------------------------------------------------------------------*
+AT SELECTION-SCREEN OUTPUT.
+  PERFORM fetch_f4help_data.
+
+
+*----------------------------------------------------------------------*
+*   AT Selection Screen On Fields
+*----------------------------------------------------------------------*
+AT SELECTION-SCREEN ON s_tplst.
+  PERFORM validate_tplst.
+
+*----------------------------------------------------------------------*
+*   AT Selection Screen On Value Request
+*----------------------------------------------------------------------*
+*AT SELECTION-SCREEN ON VALUE-REQUEST FOR s_mmsinv-low.
+*  gv_field = 'S_MMSINV-LOW'.
+*  PERFORM display_inputs USING gv_field.
+*
+*AT SELECTION-SCREEN ON VALUE-REQUEST FOR s_mmsinv-high.
+*  gv_field = 'S_MMSINV-HIGH'.
+*  PERFORM display_inputs USING gv_field.
+*
+*AT SELECTION-SCREEN ON VALUE-REQUEST FOR s_free-low.
+*  gv_field = 'S_FREE-LOW'.
+*  PERFORM display_inputs USING gv_field.
+*
+*AT SELECTION-SCREEN ON VALUE-REQUEST FOR s_free-high.
+*  gv_field = 'S_FREE-HIGH'.
+*  PERFORM display_inputs USING gv_field.
+*
+*AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_var.
+*  CALL FUNCTION 'REUSE_ALV_VARIANT_F4'
+*    EXPORTING
+*      is_variant    = g_variant
+*      i_save        = 'A'
+*    IMPORTING
+*      es_variant    = g_variant
+*    EXCEPTIONS
+*      not_found     = 1
+*      program_error = 2
+*      OTHERS        = 3.
+*  IF sy-subrc = 0.
+*    p_var = g_variant-variant.
+*  ELSE.
+*    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+*            WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+*  ENDIF.
+
+*----------------------------------------------------------------------*
+*   AT Selection Screen
+*----------------------------------------------------------------------*
+AT SELECTION-SCREEN.
+
+*----------------------------------------------------------------------*
+*   AT Selection Screen On Exit Command
+*----------------------------------------------------------------------*
+AT SELECTION-SCREEN ON EXIT-COMMAND.
+
+*----------------------------------------------------------------------*
+*   Initialization
+*----------------------------------------------------------------------*
+INITIALIZATION.
+  g_variant-report = sy-repid.
+*----------------------------------------------------------------------*
+*   Start of Selection
+*----------------------------------------------------------------------*
+START-OF-SELECTION.
+
+  PERFORM fetch_data.
+  PERFORM fetch_values_per_shipment.
+  PERFORM populate_data.
+
+  IF gt_output IS INITIAL.
+*    LEAVE TO SCREEN 0.
+    MESSAGE 'No Data Found!' TYPE 'S' DISPLAY LIKE 'E'.  "Changed by fatima for 8000008137
+  ELSE.
+    PERFORM display.
+  ENDIF.
+
+*&---------------------------------------------------------------------*
+*&      Form  FETCH_F4HELP_DATA
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM fetch_f4help_data .
+
+  REFRESH : gt_minv,
+            gt_free.
+
+  SELECT docno INTO TABLE gt_minv
+    FROM zle_mms_free
+   WHERE blart = co_mi."'MI'.
+  IF sy-subrc  = 0.
+    SORT gt_minv BY docno.
+  ENDIF.
+
+
+  SELECT docno INTO TABLE gt_free
+    FROM zle_mms_free
+   WHERE blart IN (co_fs, co_ot)."('FS','OT').
+  IF sy-subrc  = 0.
+    SORT gt_free BY docno.
+  ENDIF.
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form  VALIDATE_TPLST
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM validate_tplst .
+
+  TYPES : BEGIN OF ty_ttds,
+            tplst TYPE tplst,
+          END OF ty_ttds.
+
+  DATA  : lt_ttds TYPE STANDARD TABLE OF ty_ttds,
+          ls_ttds TYPE ty_ttds.
+
+  SELECT tplst INTO TABLE lt_ttds
+    FROM ttds
+   WHERE tplst IN s_tplst.
+  IF sy-subrc = 0.
+    gv_message = co_youare."'You are not authorized for the tr. pl. pt. '' '.
+    LOOP AT lt_ttds INTO ls_ttds.
+
+      AUTHORITY-CHECK OBJECT 'V_VTTK_TDS'
+        ID 'TPLST' FIELD ls_ttds-tplst.
+      IF sy-subrc <> 0.
+        gv_lineno = gv_lineno + 1.
+        CLEAR gs_messages.
+        gs_messages-msgid   = co_zle_shp_msg."'ZLE_SHP_MSG'.
+        gs_messages-msgty   = co_e."'E'.
+        gs_messages-msgno   = 000.
+        gs_messages-msgv1   = gv_message.
+        gs_messages-msgv2   = ls_ttds-tplst.
+        gs_messages-msgv3   = ''''.
+        gs_messages-lineno  = gv_lineno.
+        APPEND gs_messages TO gt_messages.
+      ENDIF.
+    ENDLOOP.
+
+    IF gt_messages IS NOT INITIAL.
+      PERFORM display_messages.
+    ENDIF.
+  ENDIF.
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form  DISPLAY_INPUTS
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_GFIELD  text
+*----------------------------------------------------------------------*
+FORM display_inputs  USING    p_field.
+
+  DATA  : lv_field TYPE fieldname,
+          lv_title TYPE c LENGTH 20.
+
+  FIELD-SYMBOLS : <ft_f4table> TYPE STANDARD TABLE.
+
+  IF p_field CS co_mmsinv."'MMSINV'.
+    lv_field  = co_docno."'DOCNO'.
+    lv_title  = co_mmsi."'MMS Invoices'.
+    ASSIGN gt_minv TO <ft_f4table>.
+  ELSEIF p_field CS co_free."'FREE'.
+    lv_field  = co_docno."'DOCNO'.
+    lv_title  = co_frees."'Free Samples/Others'.
+    ASSIGN gt_free TO <ft_f4table>.
+  ENDIF.
+
+  IF <ft_f4table> IS ASSIGNED.
+
+    REFRESH: gt_return.
+
+    CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+      EXPORTING
+        retfield        = lv_field
+        dynpprog        = sy-cprog
+        dynpnr          = sy-dynnr
+        dynprofield     = p_field
+        window_title    = lv_title
+        value_org       = 'S'
+        display         = 'F'
+      TABLES
+        value_tab       = <ft_f4table>
+        return_tab      = gt_return
+      EXCEPTIONS
+        parameter_error = 1
+        no_values_found = 2
+        OTHERS          = 3.
+    IF sy-subrc <> 0.
+*      Implement suitable error handling here
+    ENDIF.
+
+  ENDIF.
+
+  UNASSIGN : <ft_f4table>.
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form  DISPLAY_MESSAGES
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM display_messages .
+
+  IF gt_messages IS NOT INITIAL.
+    CALL FUNCTION 'C14Z_MESSAGES_SHOW_AS_POPUP'
+      TABLES
+        i_message_tab = gt_messages.
+    STOP.
+  ENDIF.
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form  FETCH_DATA
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM fetch_data .
+
+  REFRESH : gt_vttk,
+            gt_tvtkt,
+*            gt_vtts,
+*            gt_tvrot,
+            gt_lfa1,
+            gt_zvttp,
+            gt_zvttp_i,
+            gt_zvttp_m,
+            gt_zvttp_f,
+            gt_likp,
+            gt_cha_lr,
+            gt_cha_lr_add,
+            gt_mmsinv,
+            gt_fsample.
+*            gt_blart,
+*            gt_vfkk,
+*            gt_recdate,
+*            gt_stabr,
+*            gt_vfkp,
+*            gt_konv,
+*            gt_rbkp,
+*            gt_rbstat.
+
+  SELECT tknum
+         shtyp
+         tplst
+         vsart
+         route
+         signi
+         datbg
+         daten
+         tdlnr
+         add01
+         text4
+          INTO TABLE gt_vttk
+    FROM vttk
+   WHERE tknum IN s_tknum
+     AND tplst IN s_tplst
+     AND tdlnr IN s_tdlnr
+     AND route IN s_route
+     AND vsart IN s_vsart
+     AND datbg IN s_datbg
+     AND shtyp IN s_shtyp.
+
+  IF sy-subrc IS INITIAL.
+
+    DATA(ta_vttk) = gt_vttk.
+
+    SORT ta_vttk BY shtyp.
+    DELETE ADJACENT DUPLICATES FROM ta_vttk COMPARING shtyp.
+
+
+    SELECT spras
+           shtyp
+           bezei
+       INTO TABLE gt_tvtkt
+       FROM tvtkt
+       FOR ALL ENTRIES IN ta_vttk
+       WHERE spras = sy-langu
+         AND shtyp = ta_vttk-shtyp.
+    IF sy-subrc  = 0.
+      SORT gt_tvtkt BY shtyp.
+    ENDIF.
+
+
+    REFRESH ta_vttk.
+    ta_vttk = gt_vttk.
+
+    SORT ta_vttk BY route.
+    DELETE ADJACENT DUPLICATES FROM ta_vttk COMPARING route.
+
+    SELECT spras
+           route
+           bezei
+       INTO TABLE gt_tvrot
+       FROM tvrot
+       FOR ALL ENTRIES IN ta_vttk
+       WHERE spras = sy-langu
+         AND route = ta_vttk-route.
+    IF sy-subrc = 0.
+      SORT gt_tvrot BY route.
+    ENDIF.
+
+
+    REFRESH ta_vttk.
+    ta_vttk = gt_vttk.
+
+    SORT ta_vttk BY tdlnr.
+    DELETE ADJACENT DUPLICATES FROM ta_vttk COMPARING tdlnr.
+
+    SELECT lifnr
+           name1
+      FROM lfa1
+      INTO TABLE gt_lfa1
+      FOR ALL ENTRIES IN ta_vttk
+      WHERE lifnr = ta_vttk-tdlnr.
+    IF sy-subrc  = 0.
+      SORT gt_lfa1 BY lifnr.
+    ENDIF.
+
+*    SELECT tknum
+*           tsnum
+*           tstyp
+*           abort01
+*      FROM vtts
+*      INTO TABLE gt_vtts
+*      FOR ALL ENTRIES IN gt_vttk
+*      WHERE tknum = gt_vttk-tknum
+*        AND tstyp = co_2."'2'.
+*    IF sy-subrc  = 0.
+*      SORT gt_vtts BY tknum.
+*    ENDIF.
+
+    SELECT tknum
+           posnr
+           tpnum
+           bukrs
+           werks
+           invno
+           vbeln
+           vchtyp
+           mmsinv
+           fsample
+           bldat
+           kunnr INTO TABLE gt_zvttp
+      FROM zle_vttp
+      FOR ALL ENTRIES IN gt_vttk
+      WHERE tknum = gt_vttk-tknum
+*        AND kunnr IN s_kunnr
+        AND loekz = ' '.
+    IF sy-subrc = 0.
+
+      LOOP AT gt_zvttp INTO gs_zvttp.
+        IF gs_zvttp-invno IS NOT INITIAL AND gs_zvttp-vbeln IS NOT INITIAL.
+          APPEND gs_zvttp TO gt_zvttp_i.
+        ENDIF.
+
+        IF gs_zvttp-invno IS INITIAL AND gs_zvttp-vbeln IS INITIAL.
+          IF gs_zvttp-mmsinv IS NOT INITIAL.
+            APPEND gs_zvttp TO gt_zvttp_m.
+          ENDIF.
+
+          IF gs_zvttp-fsample IS NOT INITIAL.
+            APPEND gs_zvttp TO gt_zvttp_f.
+          ENDIF.
+        ENDIF.
+
+        CLEAR gs_zvttp.
+      ENDLOOP.
+
+      PERFORM filter_data_by_items.
+
+      REFRESH : gt_zvttp_it,
+                gt_zvttp_mt,
+                gt_zvttp_ft.
+    ENDIF.
+
+    IF gt_zvttp_i IS NOT INITIAL.
+      SELECT vbeln
+             bldat
+             lfart
+             transporter_code
+             lrno
+             lrdate
+             num_of_shippers
+             total_weight
+        FROM zsd_cha_lr
+        INTO TABLE gt_cha_lr
+        FOR ALL ENTRIES IN gt_zvttp_i
+        WHERE vbeln = gt_zvttp_i-invno.
+      IF sy-subrc = 0.
+        SORT gt_cha_lr BY vbeln.
+      ENDIF.
+
+
+
+      SELECT vbeln
+             bldat
+             transporter_code
+             lrno
+             lrdate
+        FROM zsd_cha_lr_add
+        INTO TABLE gt_cha_lr_add
+        FOR ALL ENTRIES IN gt_zvttp_i
+        WHERE vbeln = gt_zvttp_i-invno.
+      IF sy-subrc  = 0.
+        SORT gt_cha_lr_add BY vbeln.
+      ENDIF.
+
+      SELECT vbeln
+             vstel
+             vkorg
+        FROM likp
+        INTO TABLE gt_likp
+        FOR ALL ENTRIES IN gt_zvttp_i
+        WHERE vbeln = gt_zvttp_i-vbeln.
+      IF sy-subrc  = 0.
+        SORT gt_likp BY vbeln.
+      ENDIF.
+
+    ENDIF.
+
+    IF gt_zvttp_m IS NOT INITIAL.
+
+      SELECT bukrs
+             werks
+             vchtyp
+             docno
+             bldat
+             kunnr
+             blart
+             transporter_code
+             lrno
+             lrdate
+             total_weight
+             num_of_shippers
+        FROM zle_mms_free
+        INTO TABLE gt_mmsinv
+        FOR ALL ENTRIES IN gt_zvttp_m
+        WHERE bukrs = gt_zvttp_m-bukrs
+          AND werks = gt_zvttp_m-werks
+          AND vchtyp = gt_zvttp_m-vchtyp
+          AND docno = gt_zvttp_m-mmsinv
+          AND bldat = gt_zvttp_m-bldat
+          AND kunnr = gt_zvttp_m-kunnr
+          AND blart = co_mi."'MI'.
+      IF sy-subrc = 0.
+        SORT gt_mmsinv BY bukrs werks vchtyp docno.
+      ENDIF.
+    ENDIF.
+
+    IF gt_zvttp_f IS NOT INITIAL.
+
+      SELECT bukrs
+             werks
+             vchtyp
+             docno
+             bldat
+             kunnr
+             blart
+             transporter_code
+             lrno
+             lrdate
+             total_weight
+             num_of_shippers INTO TABLE gt_fsample
+        FROM zle_mms_free
+        FOR ALL ENTRIES IN gt_zvttp_f
+        WHERE bukrs = gt_zvttp_f-bukrs
+          AND werks = gt_zvttp_f-werks
+          AND vchtyp = gt_zvttp_f-vchtyp
+          AND docno = gt_zvttp_f-fsample
+          AND bldat = gt_zvttp_f-bldat
+          AND kunnr = gt_zvttp_f-kunnr
+          AND blart IN (co_fs, co_ot)."('FS','OT').
+      IF sy-subrc = 0.
+        SORT gt_fsample BY bukrs werks vchtyp docno.
+      ENDIF.
+
+    ENDIF.
+
+    SELECT fknum
+           fkpos
+           rebel
+          INTO TABLE gt_vfkp
+      FROM vfkp
+      FOR ALL ENTRIES IN gt_vttk
+      WHERE rebel = gt_vttk-tknum.
+
+*    IF sy-subrc = 0.
+*
+*      SELECT fknum
+*             vbtyp
+*             fkart
+*             sterm
+*             prsdt
+*             budat
+*             exti1
+*             exti2
+*             stber
+*             stfre
+*             stabr INTO TABLE gt_vfkk
+*        FROM vfkk
+*        FOR ALL ENTRIES IN gt_vfkp
+*        WHERE fknum = gt_vfkp-fknum
+*          AND exti1 IN s_exti1
+*          AND stabr IN s_stabr
+*          AND stfre IN s_stfre. "Added by Gajanan on 13.01.2021 for CR#8000006850
+*      IF sy-subrc = 0.
+*
+*        SELECT fknum
+*               zfbdt INTO TABLE gt_recdate
+*          FROM zle_invrecdate
+*          FOR ALL ENTRIES IN gt_vfkk
+*          WHERE fknum = gt_vfkk-fknum.
+*        IF sy-subrc = 0.
+*          SORT gt_recdate BY fknum.
+*        ENDIF.
+*
+*        IF s_exti1[] IS NOT INITIAL OR s_stabr[] IS NOT INITIAL.
+*          LOOP AT gt_vfkp INTO gs_vfkp.
+*            READ TABLE gt_vfkk TRANSPORTING NO FIELDS WITH KEY fknum = gs_vfkp-fknum.
+*            IF sy-subrc <> 0.
+*              DELETE gt_vfkp WHERE fknum = gs_vfkp-fknum.
+*              DELETE gt_zvttp WHERE tknum = gs_vfkp-rebel.
+*              DELETE gt_vttk WHERE tknum = gs_vfkp-rebel.
+*            ENDIF.
+*          ENDLOOP.
+*        ENDIF.
+*
+*        SELECT belnr
+*               gjahr
+*               bldat
+*               xblnr
+*               lifnr
+*               rbstat INTO TABLE gt_rbkp
+*          FROM rbkp
+*          CLIENT SPECIFIED
+*          FOR ALL ENTRIES IN gt_vfkk
+*          WHERE mandt = sy-mandt
+*            AND xblnr = gt_vfkk-exti1(16)
+*            %_HINTS MSSQLNT 'INDEX("RBKP" "RBKP-F15")'.
+*
+**            AND rbstat <> 2.
+*        IF sy-subrc = 0.
+*
+*          SORT gt_rbkp BY rbstat.
+*          DELETE gt_rbkp WHERE rbstat NE '2'.
+*
+*
+*          SELECT domvalue_l
+*                 ddtext
+*            FROM dd07t
+*            INTO TABLE gt_rbstat
+*           WHERE domname = co_rbstat"'RBSTAT'
+*             AND ddlanguage = sy-langu.
+*
+*        ENDIF.
+*      ENDIF.
+*
+*      IF gt_vfkp IS NOT INITIAL.
+*        SELECT knumv
+*               kposn
+*               stunr "LOC BY Kevin on 10.12.2020 for CR# 8000006551
+*               zaehk "LOC BY Kevin on 10.12.2020 for CR# 8000006551
+*               kschl
+*               kbetr
+*               kwert
+*          FROM konv
+*          INTO TABLE gt_konv
+*          FOR ALL ENTRIES IN gt_vfkp
+*          WHERE knumv = gt_vfkp-knumv
+*            AND kinak = ' '.
+*        IF sy-subrc = 0.
+*          SORT gt_konv BY knumv ASCENDING
+*                          kposn DESCENDING.
+*        ENDIF.
+*      ENDIF.
+*    ENDIF.
+*
+  ENDIF.
+*
+*  SELECT domvalue_l
+*         ddtext     INTO TABLE gt_blart
+*    FROM dd07t
+*   WHERE domname = co_zle_blart"'ZLE_BLART'
+*     AND ddlanguage = sy-langu.
+*
+*  SELECT domvalue_l
+*         ddtext     INTO TABLE gt_stabr
+*    FROM dd07t
+*   WHERE domname = co_stabr_k"'STABR_K'
+*     AND ddlanguage = sy-langu.
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form  FILTER_DATA_BY_ITEMS
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM filter_data_by_items .
+
+*  IF s_invno[] IS NOT INITIAL AND s_mmsinv[] IS INITIAL AND s_free[] IS INITIAL.
+*    REFRESH : gt_zvttp_it.
+*    gt_zvttp_it[] = gt_zvttp_i[].
+*
+*    DELETE gt_zvttp_it WHERE invno NOT IN s_invno.
+*    SORT gt_zvttp_it BY tknum.
+*    LOOP AT gt_zvttp_i INTO gs_zvttp_i.
+*      READ TABLE gt_zvttp_it TRANSPORTING NO FIELDS WITH KEY tknum = gs_zvttp_i-tknum BINARY SEARCH.
+*      IF sy-subrc <> 0.
+*        DELETE gt_zvttp_i WHERE tknum = gs_zvttp_i-tknum.
+*      ENDIF.
+*    ENDLOOP.
+*    LOOP AT gt_zvttp_m INTO gs_zvttp_m.
+*      READ TABLE gt_zvttp_it TRANSPORTING NO FIELDS WITH KEY tknum = gs_zvttp_m-tknum BINARY SEARCH.
+*      IF sy-subrc <> 0.
+*        DELETE gt_zvttp_m WHERE tknum = gs_zvttp_m-tknum.
+*      ENDIF.
+*    ENDLOOP.
+*    LOOP AT gt_zvttp_f INTO gs_zvttp_f.
+*      READ TABLE gt_zvttp_it TRANSPORTING NO FIELDS WITH KEY tknum = gs_zvttp_f-tknum BINARY SEARCH.
+*      IF sy-subrc <> 0.
+*        DELETE gt_zvttp_f WHERE tknum = gs_zvttp_f-tknum.
+*      ENDIF.
+*    ENDLOOP.
+*
+*  ELSEIF s_invno[] IS INITIAL AND s_mmsinv[] IS NOT INITIAL AND s_free[] IS INITIAL.
+*    REFRESH : gt_zvttp_mt.
+*    gt_zvttp_mt[] = gt_zvttp_m[].
+*    DELETE gt_zvttp_mt WHERE mmsinv NOT IN s_mmsinv.
+*    SORT gt_zvttp_mt BY tknum.
+*    LOOP AT gt_zvttp_i INTO gs_zvttp_i.
+*      READ TABLE gt_zvttp_mt TRANSPORTING NO FIELDS WITH KEY tknum = gs_zvttp_i-tknum BINARY SEARCH.
+*      IF sy-subrc <> 0.
+*        DELETE gt_zvttp_i WHERE tknum = gs_zvttp_i-tknum.
+*      ENDIF.
+*    ENDLOOP.
+*    LOOP AT gt_zvttp_m INTO gs_zvttp_m.
+*      READ TABLE gt_zvttp_mt TRANSPORTING NO FIELDS WITH KEY tknum = gs_zvttp_m-tknum BINARY SEARCH.
+*      IF sy-subrc <> 0.
+*        DELETE gt_zvttp_m WHERE tknum = gs_zvttp_m-tknum.
+*      ENDIF.
+*    ENDLOOP.
+*    LOOP AT gt_zvttp_f INTO gs_zvttp_f.
+*      READ TABLE gt_zvttp_mt TRANSPORTING NO FIELDS WITH KEY tknum = gs_zvttp_f-tknum BINARY SEARCH.
+*      IF sy-subrc <> 0.
+*        DELETE gt_zvttp_f WHERE tknum = gs_zvttp_f-tknum.
+*      ENDIF.
+*    ENDLOOP.
+*
+*  ELSEIF s_invno[] IS INITIAL AND s_mmsinv[] IS INITIAL AND s_free[] IS NOT INITIAL.
+*    REFRESH : gt_zvttp_ft.
+*    gt_zvttp_ft[] = gt_zvttp_f[].
+*    DELETE gt_zvttp_ft WHERE fsample NOT IN s_free.
+*    SORT gt_zvttp_ft BY tknum.
+*    LOOP AT gt_zvttp_i INTO gs_zvttp_i.
+*      READ TABLE gt_zvttp_ft TRANSPORTING NO FIELDS WITH KEY tknum = gs_zvttp_i-tknum BINARY SEARCH.
+*      IF sy-subrc <> 0.
+*        DELETE gt_zvttp_i WHERE tknum = gs_zvttp_i-tknum.
+*      ENDIF.
+*    ENDLOOP.
+*    LOOP AT gt_zvttp_m INTO gs_zvttp_m.
+*      READ TABLE gt_zvttp_ft TRANSPORTING NO FIELDS WITH KEY tknum = gs_zvttp_m-tknum BINARY SEARCH.
+*      IF sy-subrc <> 0.
+*        DELETE gt_zvttp_m WHERE tknum = gs_zvttp_m-tknum.
+*      ENDIF.
+*    ENDLOOP.
+*    LOOP AT gt_zvttp_f INTO gs_zvttp_f.
+*      READ TABLE gt_zvttp_ft TRANSPORTING NO FIELDS WITH KEY tknum = gs_zvttp_f-tknum BINARY SEARCH.
+*      IF sy-subrc <> 0.
+*        DELETE gt_zvttp_f WHERE tknum = gs_zvttp_f-tknum.
+*      ENDIF.
+*    ENDLOOP.
+*
+*  ELSEIF s_invno[] IS NOT INITIAL AND s_mmsinv[] IS NOT INITIAL AND s_free[] IS INITIAL.
+*    REFRESH : gt_zvttp_it,
+*              gt_zvttp_mt.
+*    gt_zvttp_it[] = gt_zvttp_i[].
+*    gt_zvttp_mt[] = gt_zvttp_m[].
+*    DELETE gt_zvttp_it WHERE invno NOT IN s_invno.
+*    DELETE gt_zvttp_mt WHERE mmsinv NOT IN s_mmsinv.
+*    LOOP AT gt_zvttp_i INTO gs_zvttp_i.
+*      READ TABLE gt_zvttp_it TRANSPORTING NO FIELDS WITH KEY tknum = gs_zvttp_i-tknum.
+*      IF sy-subrc <> 0.
+*        READ TABLE gt_zvttp_mt TRANSPORTING NO FIELDS WITH KEY tknum = gs_zvttp_i-tknum.
+*        IF sy-subrc <> 0.
+*          DELETE gt_zvttp_i WHERE tknum = gs_zvttp_i-tknum.
+*        ENDIF.
+*      ENDIF.
+*    ENDLOOP.
+*    LOOP AT gt_zvttp_m INTO gs_zvttp_m.
+*      READ TABLE gt_zvttp_it TRANSPORTING NO FIELDS WITH KEY tknum = gs_zvttp_m-tknum.
+*      IF sy-subrc <> 0.
+*        READ TABLE gt_zvttp_mt TRANSPORTING NO FIELDS WITH KEY tknum = gs_zvttp_m-tknum.
+*        IF sy-subrc <> 0.
+*          DELETE gt_zvttp_m WHERE tknum = gs_zvttp_m-tknum.
+*        ENDIF.
+*      ENDIF.
+*    ENDLOOP.
+*    LOOP AT gt_zvttp_f INTO gs_zvttp_f.
+*      READ TABLE gt_zvttp_it TRANSPORTING NO FIELDS WITH KEY tknum = gs_zvttp_f-tknum.
+*      IF sy-subrc <> 0.
+*        READ TABLE gt_zvttp_mt TRANSPORTING NO FIELDS WITH KEY tknum = gs_zvttp_f-tknum.
+*        IF sy-subrc <> 0.
+*          DELETE gt_zvttp_f WHERE tknum = gs_zvttp_f-tknum.
+*        ENDIF.
+*      ENDIF.
+*    ENDLOOP.
+*
+*  ELSEIF s_invno[] IS NOT INITIAL AND s_mmsinv[] IS INITIAL AND s_free[] IS NOT INITIAL.
+*    REFRESH : gt_zvttp_it,
+*              gt_zvttp_ft.
+*    gt_zvttp_it[] = gt_zvttp_i[].
+*    gt_zvttp_ft[] = gt_zvttp_f[].
+*    DELETE gt_zvttp_it WHERE invno NOT IN s_invno.
+*    DELETE gt_zvttp_ft WHERE fsample NOT IN s_free.
+*    LOOP AT gt_zvttp_i INTO gs_zvttp_i.
+*      READ TABLE gt_zvttp_it TRANSPORTING NO FIELDS WITH KEY tknum = gs_zvttp_i-tknum.
+*      IF sy-subrc <> 0.
+*        READ TABLE gt_zvttp_ft TRANSPORTING NO FIELDS WITH KEY tknum = gs_zvttp_i-tknum.
+*        IF sy-subrc <> 0.
+*          DELETE gt_zvttp_i WHERE tknum = gs_zvttp_i-tknum.
+*        ENDIF.
+*      ENDIF.
+*    ENDLOOP.
+*    LOOP AT gt_zvttp_m INTO gs_zvttp_m.
+*      READ TABLE gt_zvttp_it TRANSPORTING NO FIELDS WITH KEY tknum = gs_zvttp_m-tknum.
+*      IF sy-subrc <> 0.
+*        READ TABLE gt_zvttp_ft TRANSPORTING NO FIELDS WITH KEY tknum = gs_zvttp_m-tknum.
+*        IF sy-subrc <> 0.
+*          DELETE gt_zvttp_m WHERE tknum = gs_zvttp_m-tknum.
+*        ENDIF.
+*      ENDIF.
+*    ENDLOOP.
+*    LOOP AT gt_zvttp_f INTO gs_zvttp_f.
+*      READ TABLE gt_zvttp_it TRANSPORTING NO FIELDS WITH KEY tknum = gs_zvttp_f-tknum.
+*      IF sy-subrc <> 0.
+*        READ TABLE gt_zvttp_ft TRANSPORTING NO FIELDS WITH KEY tknum = gs_zvttp_f-tknum.
+*        IF sy-subrc <> 0.
+*          DELETE gt_zvttp_f WHERE tknum = gs_zvttp_f-tknum.
+*        ENDIF.
+*      ENDIF.
+*    ENDLOOP.
+*
+*  ELSEIF s_invno[] IS INITIAL AND s_mmsinv[] IS NOT INITIAL AND s_free[] IS NOT INITIAL.
+*    REFRESH : gt_zvttp_mt,
+*              gt_zvttp_ft.
+*    gt_zvttp_mt[] = gt_zvttp_m[].
+*    gt_zvttp_ft[] = gt_zvttp_f[].
+*    DELETE gt_zvttp_mt WHERE mmsinv NOT IN s_mmsinv.
+*    DELETE gt_zvttp_ft WHERE fsample NOT IN s_free.
+*    LOOP AT gt_zvttp_i INTO gs_zvttp_i.
+*      READ TABLE gt_zvttp_mt TRANSPORTING NO FIELDS WITH KEY tknum = gs_zvttp_i-tknum.
+*      IF sy-subrc <> 0.
+*        READ TABLE gt_zvttp_ft TRANSPORTING NO FIELDS WITH KEY tknum = gs_zvttp_i-tknum.
+*        IF sy-subrc <> 0.
+*          DELETE gt_zvttp_i WHERE tknum = gs_zvttp_i-tknum.
+*        ENDIF.
+*      ENDIF.
+*    ENDLOOP.
+*    LOOP AT gt_zvttp_m INTO gs_zvttp_m.
+*      READ TABLE gt_zvttp_mt TRANSPORTING NO FIELDS WITH KEY tknum = gs_zvttp_m-tknum.
+*      IF sy-subrc <> 0.
+*        READ TABLE gt_zvttp_ft TRANSPORTING NO FIELDS WITH KEY tknum = gs_zvttp_m-tknum.
+*        IF sy-subrc <> 0.
+*          DELETE gt_zvttp_m WHERE tknum = gs_zvttp_m-tknum.
+*        ENDIF.
+*      ENDIF.
+*    ENDLOOP.
+*    LOOP AT gt_zvttp_f INTO gs_zvttp_f.
+*      READ TABLE gt_zvttp_mt TRANSPORTING NO FIELDS WITH KEY tknum = gs_zvttp_f-tknum.
+*      IF sy-subrc <> 0.
+*        READ TABLE gt_zvttp_ft TRANSPORTING NO FIELDS WITH KEY tknum = gs_zvttp_f-tknum.
+*        IF sy-subrc <> 0.
+*          DELETE gt_zvttp_f WHERE tknum = gs_zvttp_f-tknum.
+*        ENDIF.
+*      ENDIF.
+*    ENDLOOP.
+*
+*  ELSEIF s_invno[] IS NOT INITIAL AND s_mmsinv[] IS NOT INITIAL AND s_free[] IS NOT INITIAL.
+*    REFRESH : gt_zvttp_it,
+*              gt_zvttp_mt,
+*              gt_zvttp_ft.
+*    gt_zvttp_it[] = gt_zvttp_i[].
+*    gt_zvttp_mt[] = gt_zvttp_m[].
+*    gt_zvttp_ft[] = gt_zvttp_f[].
+*    DELETE gt_zvttp_it WHERE invno NOT IN s_invno.
+*    DELETE gt_zvttp_mt WHERE mmsinv NOT IN s_mmsinv.
+*    DELETE gt_zvttp_ft WHERE fsample NOT IN s_free.
+*    LOOP AT gt_zvttp_i INTO gs_zvttp_i.
+*      READ TABLE gt_zvttp_it TRANSPORTING NO FIELDS WITH KEY tknum = gs_zvttp_i-tknum.
+*      IF sy-subrc <> 0.
+*        READ TABLE gt_zvttp_mt TRANSPORTING NO FIELDS WITH KEY tknum = gs_zvttp_i-tknum.
+*        IF sy-subrc <> 0.
+*          READ TABLE gt_zvttp_ft TRANSPORTING NO FIELDS WITH KEY tknum = gs_zvttp_i-tknum.
+*          IF sy-subrc <> 0.
+*            DELETE gt_zvttp_i WHERE tknum = gs_zvttp_i-tknum.
+*          ENDIF.
+*        ENDIF.
+*      ENDIF.
+*    ENDLOOP.
+*    LOOP AT gt_zvttp_m INTO gs_zvttp_m.
+*      READ TABLE gt_zvttp_it TRANSPORTING NO FIELDS WITH KEY tknum = gs_zvttp_m-tknum.
+*      IF sy-subrc <> 0.
+*        READ TABLE gt_zvttp_mt TRANSPORTING NO FIELDS WITH KEY tknum = gs_zvttp_m-tknum.
+*        IF sy-subrc <> 0.
+*          READ TABLE gt_zvttp_ft TRANSPORTING NO FIELDS WITH KEY tknum = gs_zvttp_m-tknum.
+*          IF sy-subrc <> 0.
+*            DELETE gt_zvttp_m WHERE tknum = gs_zvttp_m-tknum.
+*          ENDIF.
+*        ENDIF.
+*      ENDIF.
+*    ENDLOOP.
+*    LOOP AT gt_zvttp_f INTO gs_zvttp_f.
+*      READ TABLE gt_zvttp_it TRANSPORTING NO FIELDS WITH KEY tknum = gs_zvttp_f-tknum.
+*      IF sy-subrc <> 0.
+*        READ TABLE gt_zvttp_mt TRANSPORTING NO FIELDS WITH KEY tknum = gs_zvttp_f-tknum.
+*        IF sy-subrc <> 0.
+*          READ TABLE gt_zvttp_ft TRANSPORTING NO FIELDS WITH KEY tknum = gs_zvttp_f-tknum.
+*          IF sy-subrc <> 0.
+*            DELETE gt_zvttp_f WHERE tknum = gs_zvttp_f-tknum.
+*          ENDIF.
+*        ENDIF.
+*      ENDIF.
+*    ENDLOOP.
+*
+*  ENDIF.
+*
+  LOOP AT gt_zvttp INTO gs_zvttp.
+    READ TABLE gt_zvttp_i TRANSPORTING NO FIELDS WITH KEY tknum = gs_zvttp-tknum.
+    IF sy-subrc <> 0.
+      READ TABLE gt_zvttp_m TRANSPORTING NO FIELDS WITH KEY tknum = gs_zvttp-tknum.
+      IF sy-subrc <> 0.
+        READ TABLE gt_zvttp_f TRANSPORTING NO FIELDS WITH KEY tknum = gs_zvttp-tknum.
+        IF sy-subrc <> 0.
+          DELETE gt_zvttp WHERE tknum = gs_zvttp-tknum.
+          DELETE gt_vttk WHERE tknum = gs_zvttp-tknum.
+        ENDIF.
+      ENDIF.
+    ENDIF.
+  ENDLOOP.
+
+  LOOP AT gt_vttk INTO gs_vttk.
+    READ TABLE gt_zvttp TRANSPORTING NO FIELDS WITH KEY tknum = gs_vttk-tknum.
+    IF sy-subrc <> 0.
+      DELETE gt_vttk WHERE tknum = gs_vttk-tknum.
+    ENDIF.
+  ENDLOOP.
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form  FETCH_VALUES_PER_SHIPMENT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM fetch_values_per_shipment .
+
+*  SORT  : gt_vfkk     BY fknum,
+*          gt_vfkp     BY fknum fkpos,
+*          gt_konv BY knumv kschl.
+*
+*  REFRESH : gt_cost.
+*****************************************SOC BY Kevin on 08.12.2020 for CR# 8000006551 ****************************************************
+*  LOOP AT gt_konv INTO DATA(wa_konv_n).
+*    IF wa_konv_n-kposn IS NOT INITIAL .
+*      wa_konv_col-knumv = wa_konv_n-knumv.
+*      wa_konv_col-kposn = wa_konv_n-kposn.
+*      wa_konv_col-kschl = wa_konv_n-kschl.
+*      wa_konv_col-kbetr = wa_konv_n-kbetr.
+*      wa_konv_col-kwert = wa_konv_n-kwert.
+*      COLLECT wa_konv_col INTO ta_konv_col.
+*    ENDIF.
+*  ENDLOOP.
+*  SORT ta_konv_col BY knumv kposn kschl.
+*****************************************EOC BY Kevin on 08.12.2020 for CR# 8000006551 ****************************************************
+*  LOOP AT gt_vfkp INTO gs_vfkp.
+*    gs_cost-netwr = gs_cost-netwr + gs_vfkp-netwr.
+*
+*    CLEAR gs_konv.
+*    READ TABLE gt_konv INTO gs_konv WITH KEY knumv = gs_vfkp-knumv
+*                                             kschl = co_zmn1 BINARY SEARCH."'ZMN1'.
+*    IF sy-subrc = 0.
+*      gs_cost-zmn1 = gs_cost-zmn1 + gs_konv-kwert.
+*    ENDIF.
+*
+*
+*    CLEAR gs_konv.
+*    READ TABLE gt_konv INTO gs_konv WITH KEY knumv = gs_vfkp-knumv
+*                                             kschl = co_zbok BINARY SEARCH."'ZBOK'.
+*    IF sy-subrc = 0.
+*      gs_cost-zbok = gs_cost-zbok + gs_konv-kwert.
+*    ENDIF.
+*
+*    CLEAR gs_konv.
+*    READ TABLE gt_konv INTO gs_konv WITH KEY knumv = gs_vfkp-knumv
+*                                             kschl = co_zftl  BINARY SEARCH."'ZFTL'.
+*    IF sy-subrc = 0.
+*      gs_cost-zftl = gs_cost-zftl + gs_konv-kwert.
+*    ENDIF.
+*
+*    CLEAR gs_konv.
+*    READ TABLE gt_konv INTO gs_konv WITH KEY knumv = gs_vfkp-knumv
+*                                             kschl = co_zddc BINARY SEARCH."'ZDDC'.
+*    IF sy-subrc = 0.
+*      gs_cost-zddc = gs_cost-zddc + gs_konv-kwert.
+*    ENDIF.
+*
+*    CLEAR gs_konv.
+*    READ TABLE gt_konv INTO gs_konv WITH KEY knumv = gs_vfkp-knumv
+*                                             kschl = co_zclc BINARY SEARCH."'ZCLC'.
+*    IF sy-subrc = 0.
+*      gs_cost-zclc = gs_cost-zclc + gs_konv-kwert.
+*    ENDIF.
+*
+*    CLEAR gs_konv.
+*    READ TABLE gt_konv INTO gs_konv WITH KEY knumv = gs_vfkp-knumv
+*                                             kschl = co_zwcd BINARY SEARCH."'ZWCD'.
+*    IF sy-subrc = 0.
+*      gs_cost-zwcd = gs_cost-zwcd + gs_konv-kwert.
+*    ENDIF.
+*
+*    CLEAR gs_konv.
+*    READ TABLE gt_konv INTO gs_konv WITH KEY knumv = gs_vfkp-knumv
+*                                             kschl = co_zwch BINARY SEARCH."'ZWCH'.
+*    IF sy-subrc = 0.
+*      gs_cost-zwch = gs_cost-zwch + gs_konv-kwert.
+*    ENDIF.
+************************************************SOC Commented by kevin on 08.12.2020 for CR 8000006551***************************************
+**    CLEAR gs_konv.
+**    READ TABLE gt_konv INTO gs_konv WITH KEY knumv = gs_vfkp-knumv
+**                                             kschl = co_zwn  BINARY SEARCH."'ZWN'.
+**    IF sy-subrc = 0.
+**      gs_cost-zwn = gs_cost-zwn + gs_konv-kwert.
+**    ENDIF.
+************************************************EOC Commented by kevin on 08.12.2020 for CR 8000006551*********************
+************************************************SOC by kevin on 08.12.2020 for CR 8000006551***************************************
+*    CLEAR wa_konv_col.
+*    READ TABLE ta_konv_col INTO wa_konv_col WITH KEY knumv = gs_vfkp-knumv
+*                                                     kposn = gs_vfkp-fkpos
+*                                                     kschl = co_zwn  BINARY SEARCH."'ZWN'.
+*    IF sy-subrc = 0.
+*      gs_cost-zwn = gs_cost-zwn + wa_konv_col-kwert.
+*    ENDIF.
+************************************************EOC by kevin on 08.12.2020 for CR 8000006551***************************************
+************************************************SOC Commented by kevin on 08.12.2020 for CR 8000006551*********************
+**    CLEAR gs_konv.
+**    READ TABLE gt_konv INTO gs_konv WITH KEY knumv = gs_vfkp-knumv
+**                                             kschl = co_zulc  BINARY SEARCH."'ZULC'.
+**    IF sy-subrc = 0.
+**      gs_cost-zulc = gs_cost-zulc + gs_konv-kwert.
+**    ENDIF.
+************************************************EOC Commented by kevin on 08.12.2020 for CR 8000006551*********************
+************************************************SOC by kevin on 08.12.2020 for CR 8000006551***************************************
+*    CLEAR wa_konv_col.
+*    READ TABLE ta_konv_col INTO wa_konv_col WITH KEY knumv = gs_vfkp-knumv
+*                                                     kposn = gs_vfkp-fkpos
+*                                                     kschl = co_zulc  BINARY SEARCH."'ZULC'.
+*    IF sy-subrc = 0.
+*      gs_cost-zulc = gs_cost-zulc + wa_konv_col-kwert.
+*    ENDIF.
+************************************************EOC by kevin on 08.12.2020 for CR 8000006551***************************************
+*
+************************************************SOC Commented by kevin on 08.12.2020 for CR 8000006551*********************
+**    CLEAR gs_konv.
+**    READ TABLE gt_konv INTO gs_konv WITH KEY knumv = gs_vfkp-knumv
+**                                             kschl = co_zlc  BINARY SEARCH."'ZLC'.
+**    IF sy-subrc = 0.
+**      gs_cost-zlc = gs_cost-zlc + gs_konv-kwert.
+**    ENDIF.
+************************************************EOC Commented by kevin on 08.12.2020 for CR 8000006551*********************
+************************************************SOC by kevin on 08.12.2020 for CR 8000006551***************************************
+*    CLEAR wa_konv_col.
+*    READ TABLE ta_konv_col INTO wa_konv_col WITH KEY knumv = gs_vfkp-knumv
+*                                                     kposn = gs_vfkp-fkpos
+*                                                     kschl = co_zlc  BINARY SEARCH."'ZLC'.
+*    IF sy-subrc = 0.
+*      gs_cost-zlc = gs_cost-zlc + wa_konv_col-kwert.
+*    ENDIF.
+************************************************EOC by kevin on 08.12.2020 for CR 8000006551***************************************
+************************************************SOC Commented by kevin on 08.12.2020 for CR 8000006551*********************
+**    CLEAR gs_konv.
+**    READ TABLE gt_konv INTO gs_konv WITH KEY knumv = gs_vfkp-knumv
+**                                             kschl = co_zoth  BINARY SEARCH."'ZOTH'.
+**    IF sy-subrc = 0.
+**      gs_cost-zoth = gs_cost-zoth + gs_konv-kwert.
+**    ENDIF.
+************************************************EOC Commented by kevin on 08.12.2020 for CR 8000006551*********************
+************************************************SOC by kevin on 08.12.2020 for CR 8000006551***************************************
+*    CLEAR wa_konv_col.
+*    READ TABLE ta_konv_col INTO wa_konv_col WITH KEY knumv = gs_vfkp-knumv
+*                                                     kposn = gs_vfkp-fkpos
+*                                                     kschl = co_zoth  BINARY SEARCH."'ZOTH'.
+*    IF sy-subrc = 0.
+*      gs_cost-zoth = gs_cost-zoth + wa_konv_col-kwert.
+*    ENDIF.
+************************************************EOC by kevin on 08.12.2020 for CR 8000006551***************************************
+************************************************SOC Commented by kevin on 08.12.2020 for CR 8000006551*********************
+**    CLEAR gs_konv.
+**    READ TABLE gt_konv INTO gs_konv WITH KEY knumv = gs_vfkp-knumv
+**                                             kschl = co_ztol  BINARY SEARCH."'ZTOL'.
+**    IF sy-subrc = 0.
+**      gs_cost-ztol = gs_cost-ztol + gs_konv-kwert.
+**    ENDIF.
+************************************************EOC Commented by kevin on 08.12.2020 for CR 8000006551*********************
+************************************************SOC by kevin on 08.12.2020 for CR 8000006551***************************************
+*    CLEAR wa_konv_col.
+*    READ TABLE ta_konv_col INTO wa_konv_col WITH KEY knumv = gs_vfkp-knumv
+*                                                     kposn = gs_vfkp-fkpos
+*                                                     kschl = co_ztol  BINARY SEARCH."'ZTOL'.
+*    IF sy-subrc = 0.
+*      gs_cost-ztol = gs_cost-ztol + wa_konv_col-kwert.
+*    ENDIF.
+************************************************EOC by kevin on 08.12.2020 for CR 8000006551***************************************
+*
+*
+*    CLEAR gs_konv.
+*    READ TABLE gt_konv INTO gs_konv WITH KEY knumv = gs_vfkp-knumv
+*                                             kschl = co_zdly BINARY SEARCH."'ZDLY'.
+*    IF sy-subrc = 0.
+*      gs_cost-zdly = gs_cost-zdly + gs_konv-kwert.
+*    ENDIF.
+************************************************SOC Commented by kevin on 08.12.2020 for CR 8000006551*********************
+**    CLEAR gs_konv.
+**    READ TABLE gt_konv INTO gs_konv WITH KEY knumv = gs_vfkp-knumv
+**                                             kschl = co_zded BINARY SEARCH."'ZDED'.
+**    IF sy-subrc = 0.
+**      gs_cost-zded = gs_cost-zded + gs_konv-kwert.
+**    ENDIF.
+************************************************EOC Commented by kevin on 08.12.2020 for CR 8000006551*********************
+************************************************SOC by kevin on 08.12.2020 for CR 8000006551***************************************
+*    CLEAR wa_konv_col.
+*    READ TABLE ta_konv_col INTO wa_konv_col WITH KEY knumv = gs_vfkp-knumv
+*                                                     kposn = gs_vfkp-fkpos
+*                                                     kschl = co_zded BINARY SEARCH."'ZDED'.
+*    IF sy-subrc = 0.
+*      gs_cost-zded = gs_cost-zded + wa_konv_col-kwert.
+*    ENDIF.
+************************************************EOC by kevin on 08.12.2020 for CR 8000006551***************************************
+************************************************SOC Commented by kevin on 08.12.2020 for CR 8000006551*********************
+**    CLEAR gs_konv.
+**    READ TABLE gt_konv INTO gs_konv WITH KEY knumv = gs_vfkp-knumv
+**                                             kschl = co_zscd BINARY SEARCH."'ZSCD'.
+**    IF sy-subrc = 0.
+**      gs_cost-zscd = gs_cost-zscd + gs_konv-kwert.
+**    ENDIF.
+************************************************EOC Commented by kevin on 08.12.2020 for CR 8000006551*********************
+************************************************SOC by kevin on 08.12.2020 for CR 8000006551***************************************
+*    CLEAR wa_konv_col.
+*    READ TABLE ta_konv_col INTO wa_konv_col WITH KEY knumv = gs_vfkp-knumv
+*                                                     kposn = gs_vfkp-fkpos
+*                                                     kschl = co_zscd BINARY SEARCH."'ZSCD'.
+*    IF sy-subrc = 0.
+*      gs_cost-zscd = gs_cost-zscd + wa_konv_col-kwert.
+*    ENDIF.
+************************************************EOC by kevin on 08.12.2020 for CR 8000006551***************************************
+*
+*    CLEAR gs_konv.
+*    READ TABLE gt_konv INTO gs_konv WITH KEY knumv = gs_vfkp-knumv
+*                                             kschl = co_zdiv BINARY SEARCH."'ZDIV'.
+*    IF sy-subrc = 0.
+*      gs_cost-zdiv = gs_cost-zdiv + gs_konv-kwert.
+*    ENDIF.
+*
+*    CLEAR gs_konv.
+*    READ TABLE gt_konv INTO gs_konv WITH KEY knumv = gs_vfkp-knumv
+*                                             kschl = co_zfsc BINARY SEARCH."'ZFSC'.
+*    IF sy-subrc = 0.
+*      gs_cost-zfsc = gs_cost-zfsc + gs_konv-kwert.
+*    ENDIF.
+************************************************SOC Commented by kevin on 08.12.2020 for CR 8000006551*********************
+**    CLEAR gs_konv.
+**    READ TABLE gt_konv INTO gs_konv WITH KEY knumv = gs_vfkp-knumv
+**                                             kschl = co_zodc BINARY SEARCH."'ZODC'.
+**    IF sy-subrc = 0.
+**      gs_cost-zodc = gs_cost-zodc + gs_konv-kwert.
+**    ENDIF.
+************************************************EOC Commented by kevin on 08.12.2020 for CR 8000006551*********************
+************************************************SOC by kevin on 08.12.2020 for CR 8000006551***************************************
+*    CLEAR wa_konv_col.
+*    READ TABLE ta_konv_col INTO wa_konv_col WITH KEY knumv = gs_vfkp-knumv
+*                                                     kposn = gs_vfkp-fkpos
+*                                                     kschl = co_zodc BINARY SEARCH."'ZODC'.
+*    IF sy-subrc = 0.
+*      gs_cost-zodc = gs_cost-zodc + wa_konv_col-kwert.
+*    ENDIF.
+************************************************EOC by kevin on 08.12.2020 for CR 8000006551***************************************
+*
+*
+*    CLEAR gs_konv.
+*    READ TABLE gt_konv INTO gs_konv WITH KEY knumv = gs_vfkp-knumv
+*                                             kschl = co_zgnt BINARY SEARCH."'ZGNT'.
+*    IF sy-subrc = 0.
+*      gs_cost-zgnt = gs_cost-zgnt + gs_konv-kwert.
+*    ENDIF.
+************************************************SOC Commented by kevin on 08.12.2020 for CR 8000006551*********************
+**    CLEAR gs_konv.
+**    READ TABLE gt_konv INTO gs_konv WITH KEY knumv = gs_vfkp-knumv
+**                                             kschl = co_zspt BINARY SEARCH."'ZSPT'.
+**    IF sy-subrc = 0.
+**      gs_cost-zspt = gs_cost-zspt + gs_konv-kwert.
+**    ENDIF.
+************************************************EOC Commented by kevin on 08.12.2020 for CR 8000006551*********************
+************************************************SOC by kevin on 08.12.2020 for CR 8000006551***************************************
+*    CLEAR wa_konv_col.
+*    READ TABLE ta_konv_col INTO wa_konv_col WITH KEY knumv = gs_vfkp-knumv
+*                                                     kposn = gs_vfkp-fkpos
+*                                                     kschl = co_zspt BINARY SEARCH."'ZSPT'.
+*    IF sy-subrc = 0.
+*      gs_cost-zspt = gs_cost-zspt + wa_konv_col-kwert.
+*    ENDIF.
+************************************************EOC by kevin on 08.12.2020 for CR 8000006551***************************************
+************************************************SOC Commented by kevin on 08.12.2020 for CR 8000006551*********************
+**    CLEAR gs_konv.
+**    READ TABLE gt_konv INTO gs_konv WITH KEY knumv = gs_vfkp-knumv
+**                                             kschl = co_zdsv BINARY SEARCH."'ZDSV'.
+**    IF sy-subrc = 0.
+**      gs_cost-zdsv = gs_cost-zdsv + gs_konv-kwert.
+**    ENDIF.
+************************************************EOC Commented by kevin on 08.12.2020 for CR 8000006551*********************
+************************************************SOC by kevin on 08.12.2020 for CR 8000006551***************************************
+*    CLEAR wa_konv_col.
+*    READ TABLE ta_konv_col INTO wa_konv_col WITH KEY knumv = gs_vfkp-knumv
+*                                                     kposn = gs_vfkp-fkpos
+*                                                     kschl = co_zdsv BINARY SEARCH."'ZDSV'.
+*    IF sy-subrc = 0.
+*      gs_cost-zdsv = gs_cost-zdsv + wa_konv_col-kwert.
+*    ENDIF.
+************************************************EOC by kevin on 08.12.2020 for CR 8000006551***************************************
+*
+************************************************SOC Commented by kevin on 08.12.2020 for CR 8000006551*********************
+**    CLEAR gs_konv.
+**    READ TABLE gt_konv INTO gs_konv WITH KEY knumv = gs_vfkp-knumv
+**                                             kschl = co_zsrc BINARY SEARCH."'ZSRC'.
+**    IF sy-subrc = 0.
+**      gs_cost-zsrc = gs_cost-zsrc + gs_konv-kwert.
+**    ENDIF.
+************************************************EOC Commented by kevin on 08.12.2020 for CR 8000006551*********************
+************************************************SOC by kevin on 08.12.2020 for CR 8000006551***************************************
+*    CLEAR wa_konv_col.
+*    READ TABLE ta_konv_col INTO wa_konv_col WITH KEY knumv = gs_vfkp-knumv
+*                                                     kposn = gs_vfkp-fkpos
+*                                                     kschl = co_zsrc BINARY SEARCH."'ZSRC'.
+*    IF sy-subrc = 0.
+*      gs_cost-zsrc = gs_cost-zsrc + wa_konv_col-kwert.
+*    ENDIF.
+************************************************EOC by kevin on 08.12.2020 for CR 8000006551***************************************
+************************************************SOC Commented by kevin on 08.12.2020 for CR 8000006551*********************
+**    CLEAR gs_konv.
+**    READ TABLE gt_konv INTO gs_konv WITH KEY knumv = gs_vfkp-knumv
+**                                             kschl = co_zdmv BINARY SEARCH."'ZDMV'.
+**    IF sy-subrc = 0.
+**      gs_cost-zdmv = gs_cost-zdmv + gs_konv-kwert.
+**    ENDIF.
+************************************************EOC Commented by kevin on 08.12.2020 for CR 8000006551*********************
+************************************************SOC by kevin on 08.12.2020 for CR 8000006551***************************************
+*    CLEAR wa_konv_col.
+*    READ TABLE ta_konv_col INTO wa_konv_col WITH KEY knumv = gs_vfkp-knumv
+*                                                     kposn = gs_vfkp-fkpos
+*                                                     kschl = co_zdmv BINARY SEARCH."'ZDMV'.
+*    IF sy-subrc = 0.
+*      gs_cost-zdmv = gs_cost-zdmv + wa_konv_col-kwert.
+*    ENDIF.
+************************************************EOC by kevin on 08.12.2020 for CR 8000006551***************************************
+************************************************SOC Commented by kevin on 08.12.2020 for CR 8000006551*********************
+**    CLEAR gs_konv.
+**    READ TABLE gt_konv INTO gs_konv WITH KEY knumv = gs_vfkp-knumv
+**                                             kschl = co_zotd BINARY SEARCH."'ZOTD'.
+**    IF sy-subrc = 0.
+**      gs_cost-zotd = gs_cost-zotd + gs_konv-kwert.
+**    ENDIF.
+************************************************EOC Commented by kevin on 08.12.2020 for CR 8000006551*********************
+************************************************SOC by kevin on 08.12.2020 for CR 8000006551***************************************
+*    CLEAR wa_konv_col.
+*    READ TABLE ta_konv_col INTO wa_konv_col WITH KEY knumv = gs_vfkp-knumv
+*                                                     kposn = gs_vfkp-fkpos
+*                                                     kschl = co_zotd BINARY SEARCH."'ZOTD'.
+*    IF sy-subrc = 0.
+*      gs_cost-zotd = gs_cost-zotd + wa_konv_col-kwert.
+*    ENDIF.
+************************************************EOC by kevin on 08.12.2020 for CR 8000006551***************************************
+*
+************************************************SOC Commented by kevin on 08.12.2020 for CR 8000006551*********************
+**    CLEAR gs_konv.
+**    READ TABLE gt_konv INTO gs_konv WITH KEY knumv = gs_vfkp-knumv
+**                                             kschl = co_zdlr BINARY SEARCH."'ZDLR'.
+**    IF sy-subrc = 0.
+**      gs_cost-zdlr = gs_cost-zdlr + gs_konv-kwert.
+**    ENDIF.
+************************************************EOC Commented by kevin on 08.12.2020 for CR 8000006551*********************
+************************************************SOC by kevin on 08.12.2020 for CR 8000006551***************************************
+*    CLEAR wa_konv_col.
+*    READ TABLE ta_konv_col INTO wa_konv_col WITH KEY knumv = gs_vfkp-knumv
+*                                                     kposn = gs_vfkp-fkpos
+*                                                     kschl = co_zdlr BINARY SEARCH."'ZDLR'.
+*    IF sy-subrc = 0.
+*      gs_cost-zdlr = gs_cost-zdlr + wa_konv_col-kwert.
+*    ENDIF.
+************************************************EOC by kevin on 08.12.2020 for CR 8000006551***************************************
+**SOC by Nilesh 8000005580 01.07.2019
+*    CLEAR gs_konv.
+*    READ TABLE gt_konv INTO gs_konv WITH KEY knumv = gs_vfkp-knumv
+*                                             kschl = co_zidc BINARY SEARCH."'.
+*    IF sy-subrc = 0.
+*      gs_cost-zidc = gs_cost-zidc + gs_konv-kwert.
+*    ENDIF.
+*
+**EOC by Nilesh 8000005580 01.07.2019
+*
+*    AT END OF fknum.
+*      gs_cost-fknum = gs_vfkp-fknum.
+*      APPEND gs_cost TO gt_cost.
+*      CLEAR gs_cost.
+*    ENDAT.
+*  ENDLOOP.
+*
+*  SORT gt_cost BY fknum.
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form  POPULATE_DATA
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM populate_data .
+
+  SORT  : gt_zvttp    BY tknum posnr.
+*          gt_zvttp_i  BY tknum posnr,
+*          gt_zvttp_m  BY tknum posnr,
+*          gt_zvttp_f  BY tknum posnr,
+*          gt_cost     BY fknum.
+
+*  REFRESH : gt_output.
+*--Added by SamdaniShareef ##8000005314 ##09/04/2019 SOC
+  IF gt_zvttp IS NOT INITIAL.
+    SELECT tknum,zywgt,zreas FROM zsd_ship_weight
+                             INTO TABLE @DATA(ta_zsd_ship_weight)
+                             FOR ALL ENTRIES IN @gt_zvttp
+                             WHERE  tknum = @gt_zvttp-tknum.
+  ENDIF.
+
+***Soc added on 03.01.2022 by Gowtham valmiki #8000007871
+  CONSTANTS:lc_spl TYPE char8 VALUE 'SPL_CHAR'.
+  DATA:lv_spl_01 TYPE fist-searchw.
+
+  SELECT SINGLE * FROM zparam_table INTO @DATA(lwa_param_01) WHERE id_name EQ @lc_spl.
+***Eoc added on 03.01.2022 by Gowtham valmiki #8000007871
+*--Added by SamdaniShareef ##8000005314 ##09/04/2019 EOC
+
+  SORT ta_zsd_ship_weight BY tknum.
+  SORT gt_vttk BY tknum.
+
+  LOOP AT gt_zvttp INTO gs_zvttp.
+
+    CLEAR gs_output.
+    gs_output-tknum = gs_zvttp-tknum.
+*--Added by SamdaniShareef ##8000005314 ##09/04/2019 SOC
+    IF gs_zvttp-tknum IS NOT INITIAL.
+      READ TABLE ta_zsd_ship_weight INTO DATA(wa_weight) WITH KEY tknum = gs_zvttp-tknum BINARY SEARCH.
+      IF sy-subrc = 0.
+        gs_output-zywgt = wa_weight-zywgt.
+        gs_output-zreas = wa_weight-zreas.
+      ENDIF.
+    ENDIF.
+*Start of comment by Debasmita - CR#8000008137 - 12.10.2022
+*--Added by SamdaniShareef ##8000005314 ##09/04/2019 EOC
+*    CLEAR : gs_vttk.
+*    READ TABLE gt_vttk INTO gs_vttk WITH KEY tknum = gs_zvttp-tknum BINARY SEARCH.
+*    IF sy-subrc = 0.
+*      gs_output-shp_weight  = gs_vttk-text4.
+*    ENDIF.
+* End of comment by Debasmita - CR#8000008137 - 12.10.2022
+
+    AT NEW tknum.
+      CLEAR : gs_vttk,
+              gv_posnr.
+
+      READ TABLE gt_vttk INTO gs_vttk WITH KEY tknum = gs_zvttp-tknum BINARY SEARCH.
+      IF sy-subrc = 0.
+        gs_output-tplst   = gs_vttk-tplst.
+        gs_output-shtyp   = gs_vttk-shtyp.
+        gs_output-shp_weight  = gs_vttk-text4. "Added By Debasmita - CR#8000008137 - 12.10.2022
+
+        CLEAR gs_tvtkt.
+        READ TABLE gt_tvtkt INTO gs_tvtkt WITH KEY shtyp = gs_vttk-shtyp.
+        IF sy-subrc = 0.
+          gs_output-st_desc = gs_tvtkt-bezei.
+        ENDIF.
+
+        gs_output-vsart   = gs_vttk-vsart.
+        gs_output-datbg   = gs_vttk-datbg.
+        gs_output-daten   = gs_vttk-daten.
+        gs_output-signi   = gs_vttk-signi.
+        gs_output-route   = gs_vttk-route.
+        gs_output-tdlnr   = gs_vttk-tdlnr.
+        gs_output-add01   = gs_vttk-add01.
+
+        CLEAR : gs_tvrot.
+        READ TABLE gt_tvrot INTO gs_tvrot WITH KEY route = gs_vttk-route.
+        IF sy-subrc = 0.
+          gs_output-rt_bezei = gs_tvrot-bezei.
+        ENDIF.
+
+        CLEAR : gs_lfa1.
+        READ TABLE gt_lfa1 INTO gs_lfa1 WITH KEY lifnr = gs_vttk-tdlnr.
+        IF sy-subrc = 0.
+          gs_output-name1 = gs_lfa1-name1.
+        ENDIF.
+
+        PERFORM fetch_cost_from_simulation USING gs_vttk-tknum CHANGING gs_output-shp_amount.
+      ENDIF.
+
+      CLEAR gs_vfkk.
+      READ TABLE gt_vfkk INTO gs_vfkk WITH KEY fknum = gs_vfkp-fknum.
+      IF sy-subrc = 0.
+        gs_output-fknum = gs_vfkk-fknum.
+      ENDIF.
+
+    ENDAT.
+
+    CLEAR : gs_vfkp.
+    READ TABLE gt_vfkp INTO gs_vfkp WITH KEY rebel = gs_zvttp-tknum.
+    IF sy-subrc = 0.
+      gs_output-fknum   = gs_vfkp-fknum.
+**--Added by SamdaniShareef ##8000005314 ##14.05.2019 SOC
+*      IF gs_vfkp-stabr = co_c.
+*        gs_output-trandat = gs_vfkp-budat.
+*      ENDIF.
+**--Added by SamdaniShareef ##8000005314 ##14.05.2019 SOC
+*      CLEAR gs_vfkk.
+*      READ TABLE gt_vfkk INTO gs_vfkk WITH KEY fknum = gs_vfkp-fknum.
+*      IF sy-subrc = 0.
+*        gs_output-fknum   = gs_vfkk-fknum.
+*        gs_output-fknum_t = gs_vfkk-fknum.
+*        gs_output-exti1_t = gs_vfkk-exti1.
+*        gs_output-exti2_t = gs_vfkk-exti2.
+*        gs_output-stabr_t = gs_vfkk-stabr.
+    ENDIF.
+
+*    ENDIF.
+
+    READ TABLE gt_zvttp_i TRANSPORTING NO FIELDS WITH KEY tknum = gs_zvttp-tknum
+                                                            posnr = gs_zvttp-posnr
+                                                            bukrs = gs_zvttp-bukrs
+                                                            werks = gs_zvttp-werks
+                                                            invno = gs_zvttp-invno
+                                                            vbeln = gs_zvttp-vbeln
+                                                            bldat = gs_zvttp-bldat
+                                                            kunnr = gs_zvttp-kunnr.
+    IF sy-subrc = 0.
+      CLEAR gs_cha_lr.
+      READ TABLE gt_cha_lr INTO gs_cha_lr WITH KEY vbeln = gs_zvttp-invno.
+      IF sy-subrc = 0.
+*        gv_posnr = gv_posnr + 1.
+*        gs_output-posnr = gv_posnr.
+*        gs_output-blart = co_sapi."'SAP Invoice'.
+        gs_output-invno = gs_zvttp-invno.
+*        gs_output-vbeln = gs_zvttp-vbeln.
+*        gs_output-werks = gs_zvttp-werks.
+*        gs_output-bldat = gs_zvttp-bldat.
+*        gs_output-kunnr = gs_zvttp-kunnr.
+
+        gs_output-tdlnr_i   = gs_cha_lr-lifnr.
+        gs_output-lrno      = gs_cha_lr-lrno.
+        gs_output-lrdate    = gs_cha_lr-lrdate.
+
+*        CLEAR gs_vttk.
+*        READ TABLE gt_vttk INTO gs_vttk WITH KEY tknum = gs_zvttp-tknum.
+*        IF sy-subrc = 0 AND gs_vttk-tdlnr = gs_cha_lr-lifnr.
+*          gs_output-lrno    = gs_cha_lr-lrno.
+*          gs_output-lrdate  = gs_cha_lr-lrdate.
+*        ELSE.
+*          CLEAR gs_cha_lr_add.
+*          READ TABLE gt_cha_lr_add INTO gs_cha_lr_add
+*            WITH KEY vbeln = gs_zvttp-invno
+*                     bldat = gs_zvttp-bldat
+*                     lifnr = gs_vttk-tdlnr.
+*          IF sy-subrc = 0.
+*            gs_output-lrno    = gs_cha_lr_add-lrno.
+*            gs_output-lrdate  = gs_cha_lr_add-lrdate.
+*          ENDIF.
+*        ENDIF.
+
+        CLEAR : gs_likp.
+        READ TABLE gt_likp INTO gs_likp WITH KEY vbeln = gs_zvttp-vbeln.
+        IF sy-subrc = 0.
+*          gs_output-vstel = gs_likp-vstel.
+          gs_output-vkorg = gs_likp-vkorg.
+        ENDIF.
+
+        AT NEW invno.
+*          gs_output-fkart       = gs_cha_lr-lfart.
+          gs_output-inv_weight  = gs_cha_lr-total_wt.
+          gs_output-shipper     = gs_cha_lr-shipper.
+        ENDAT.
+*--Added by SamdaniShareef ##8000005314 ##26.04.2019 SOC
+        CLEAR : gs_vfkp.
+        READ TABLE gt_vfkp INTO gs_vfkp WITH KEY rebel = gs_zvttp-tknum.
+        IF sy-subrc = 0.
+          gs_output-fknum   = gs_vfkp-fknum.
+*          IF gs_vfkp-stabr = co_c.
+*            gs_output-trandat = gs_vfkp-budat.
+*          ENDIF.
+*          CLEAR gs_vfkk.
+*          READ TABLE gt_vfkk INTO gs_vfkk WITH KEY fknum = gs_vfkp-fknum.
+*          IF sy-subrc = 0.
+*            gs_output-fknum   = gs_vfkk-fknum.
+*            gs_output-fknum_t = gs_vfkk-fknum.
+*            gs_output-exti1_t = gs_vfkk-exti1.
+*            gs_output-exti2_t = gs_vfkk-exti2.
+*            gs_output-stabr_t = gs_vfkk-stabr.
+*            gs_output-exti1 = gs_vfkk-exti1.
+*            gs_output-exti2   = gs_vfkk-exti2.
+*          ENDIF.
+        ENDIF.
+        CLEAR gs_vttk.
+        READ TABLE gt_vttk INTO gs_vttk WITH KEY tknum = gs_zvttp-tknum.
+        IF sy-subrc = 0.
+          gs_output-tplst   = gs_vttk-tplst.
+          gs_output-shtyp   = gs_vttk-shtyp.
+          gs_output-tdlnr   = gs_vttk-tdlnr.
+        ENDIF.
+        CLEAR : gs_lfa1.
+        READ TABLE gt_lfa1 INTO gs_lfa1 WITH KEY lifnr = gs_vttk-tdlnr.
+        IF sy-subrc = 0.
+          gs_output-name1 = gs_lfa1-name1.
+        ENDIF.
+*--Added by SamdaniShareef ##8000005314 ##26.04.2019 EOC
+        APPEND gs_output TO gt_output.
+        CLEAR gs_output.
+      ENDIF.
+    ENDIF.
+
+    READ TABLE gt_zvttp_m TRANSPORTING NO FIELDS WITH KEY tknum   = gs_zvttp-tknum
+                                                          posnr   = gs_zvttp-posnr
+                                                          bukrs   = gs_zvttp-bukrs
+                                                          werks   = gs_zvttp-werks
+                                                          vchtyp  = gs_zvttp-vchtyp
+                                                          mmsinv  = gs_zvttp-mmsinv
+                                                          bldat   = gs_zvttp-bldat
+                                                          kunnr   = gs_zvttp-kunnr.
+    IF sy-subrc = 0.
+      gs_output-invno   = gs_zvttp-mmsinv.
+*      gs_output-werks   = gs_zvttp-werks.
+*      gs_output-vchtyp  = gs_zvttp-vchtyp.
+*      gs_output-bldat   = gs_zvttp-bldat.
+*      gs_output-kunnr   = gs_zvttp-kunnr.
+
+      CLEAR gs_mmsinv.
+      READ TABLE gt_mmsinv INTO gs_mmsinv WITH KEY bukrs  = gs_zvttp-bukrs
+                                                   werks  = gs_zvttp-werks
+                                                   vchtyp = gs_zvttp-vchtyp
+                                                   docno  = gs_zvttp-mmsinv
+                                                   bldat  = gs_zvttp-bldat
+                                                   kunnr  = gs_zvttp-kunnr.
+      IF sy-subrc = 0.
+*        gv_posnr = gv_posnr + 1.
+*        gs_output-posnr       = gv_posnr.
+
+*        CLEAR gs_blart.
+*        READ TABLE gt_blart INTO gs_blart WITH KEY value = gs_mmsinv-blart.
+*        IF sy-subrc = 0.
+*          gs_output-blart = gs_blart-text.
+*        ENDIF.
+
+        gs_output-inv_weight  = gs_mmsinv-total_wt.
+        gs_output-shipper     = gs_mmsinv-shipper.
+        gs_output-lrno        = gs_mmsinv-lrno.
+        gs_output-lrdate      = gs_mmsinv-lrdate.
+        gs_output-tdlnr_i     = gs_mmsinv-lifnr.
+*--Added by SamdaniShareef ##8000005314 ##26.04.2019 SOC
+        CLEAR : gs_vfkp.
+        READ TABLE gt_vfkp INTO gs_vfkp WITH KEY rebel = gs_zvttp-tknum.
+        IF sy-subrc = 0.
+          gs_output-fknum   = gs_vfkp-fknum.
+*          IF gs_vfkp-stabr = co_c.
+*            gs_output-trandat = gs_vfkp-budat.
+*          ENDIF.
+*          CLEAR gs_vfkk.
+*          READ TABLE gt_vfkk INTO gs_vfkk WITH KEY fknum = gs_vfkp-fknum.
+*          IF sy-subrc = 0.
+*            gs_output-fknum   = gs_vfkk-fknum.
+*            gs_output-fknum_t = gs_vfkk-fknum.
+*            gs_output-exti1_t = gs_vfkk-exti1.
+*            gs_output-exti2_t = gs_vfkk-exti2.
+*            gs_output-stabr_t = gs_vfkk-stabr.
+*            gs_output-exti1 = gs_vfkk-exti1.
+*            gs_output-exti2   = gs_vfkk-exti2.
+*          ENDIF.
+        ENDIF.
+        CLEAR gs_vttk.
+        READ TABLE gt_vttk INTO gs_vttk WITH KEY tknum = gs_zvttp-tknum.
+        IF sy-subrc = 0.
+          gs_output-tplst   = gs_vttk-tplst.
+          gs_output-shtyp   = gs_vttk-shtyp.
+          gs_output-tdlnr   = gs_vttk-tdlnr.
+        ENDIF.
+        CLEAR : gs_lfa1.
+        READ TABLE gt_lfa1 INTO gs_lfa1 WITH KEY lifnr = gs_vttk-tdlnr.
+        IF sy-subrc = 0.
+          gs_output-name1 = gs_lfa1-name1.
+        ENDIF.
+****Soc added on 03.01.2022 by Gowtham valmiki #8000007871
+*  CLEAR lv_spl_01.
+*  IF gs_output-name1 CA lwa_param_01-param_name.
+*    lv_spl_01 = gs_output-name1.
+*    CALL FUNCTION 'SF_SPECIALCHAR_DELETE'
+*      EXPORTING
+*        with_specialchar    = lv_spl_01
+*      IMPORTING
+*        without_specialchar = lv_spl_01
+*      EXCEPTIONS
+*        result_word_empty   = 1
+*        OTHERS              = 2.
+*    IF sy-subrc EQ 0.
+*      gs_output-name1 = lv_spl_01.
+*    ENDIF.
+*  ENDIF.
+****Eoc added on 03.01.2022 by Gowtham valmiki #8000007871
+*--Added by SamdaniShareef ##8000005314 ##26.04.2019 EOC
+        APPEND gs_output TO gt_output.
+        CLEAR gs_output.
+      ENDIF.
+    ENDIF.
+
+    READ TABLE gt_zvttp_f TRANSPORTING NO FIELDS WITH KEY tknum   = gs_zvttp-tknum
+                                                          posnr   = gs_zvttp-posnr
+                                                          bukrs   = gs_zvttp-bukrs
+                                                          werks   = gs_zvttp-werks
+                                                          vchtyp  = gs_zvttp-vchtyp
+                                                          fsample = gs_zvttp-fsample
+                                                          bldat   = gs_zvttp-bldat
+                                                          kunnr   = gs_zvttp-kunnr.
+    IF sy-subrc = 0.
+      gs_output-invno   = gs_zvttp-fsample.
+*      gs_output-werks   = gs_zvttp-werks.
+*      gs_output-vchtyp  = gs_zvttp-vchtyp.
+*      gs_output-bldat   = gs_zvttp-bldat.
+*      gs_output-kunnr   = gs_zvttp-kunnr.
+
+      CLEAR gs_fsample.
+      READ TABLE gt_fsample INTO gs_fsample WITH KEY bukrs  = gs_zvttp-bukrs
+                                                     werks  = gs_zvttp-werks
+                                                     vchtyp = gs_zvttp-vchtyp
+                                                     docno  = gs_zvttp-fsample
+                                                     bldat  = gs_zvttp-bldat
+                                                     kunnr  = gs_zvttp-kunnr.
+      IF sy-subrc = 0.
+*        gv_posnr = gv_posnr + 1.
+*        gs_output-posnr       = gv_posnr.
+
+*        CLEAR gs_blart.
+*        READ TABLE gt_blart INTO gs_blart WITH KEY value = gs_fsample-blart.
+*        IF sy-subrc = 0.
+*          gs_output-blart = gs_blart-text.
+*        ENDIF.
+
+        gs_output-inv_weight  = gs_fsample-total_wt.
+        gs_output-shipper     = gs_fsample-shipper.
+        gs_output-lrno        = gs_fsample-lrno.
+        gs_output-lrdate      = gs_fsample-lrdate.
+        gs_output-tdlnr_i     = gs_fsample-lifnr.
+
+*--Added by SamdaniShareef ##8000005314 ##26.04.2019 SOC
+        CLEAR : gs_vfkp.
+        READ TABLE gt_vfkp INTO gs_vfkp WITH KEY rebel = gs_zvttp-tknum.
+        IF sy-subrc = 0.
+          gs_output-fknum   = gs_vfkp-fknum.
+*          IF gs_vfkp-stabr = co_c.
+*            gs_output-trandat = gs_vfkp-budat.
+*          ENDIF.
+*          CLEAR gs_vfkk.
+*          READ TABLE gt_vfkk INTO gs_vfkk WITH KEY fknum = gs_vfkp-fknum.
+*          IF sy-subrc = 0.
+*            gs_output-fknum   = gs_vfkk-fknum.
+*            gs_output-fknum_t = gs_vfkk-fknum.
+*            gs_output-exti1_t = gs_vfkk-exti1.
+*            gs_output-exti2_t = gs_vfkk-exti2.
+*            gs_output-stabr_t = gs_vfkk-stabr.
+*            gs_output-exti1   = gs_vfkk-exti1.
+*            gs_output-exti2   = gs_vfkk-exti2.
+*
+*          ENDIF.
+        ENDIF.
+        CLEAR gs_vttk.
+        READ TABLE gt_vttk INTO gs_vttk WITH KEY tknum = gs_zvttp-tknum.
+        IF sy-subrc = 0.
+          gs_output-tplst   = gs_vttk-tplst.
+          gs_output-shtyp   = gs_vttk-shtyp.
+          gs_output-tdlnr   = gs_vttk-tdlnr.
+        ENDIF.
+        CLEAR : gs_lfa1.
+        READ TABLE gt_lfa1 INTO gs_lfa1 WITH KEY lifnr = gs_vttk-tdlnr.
+        IF sy-subrc = 0.
+          gs_output-name1 = gs_lfa1-name1.
+        ENDIF.
+*--Added by SamdaniShareef ##8000005314 ##26.04.2019 EOC
+****Soc added on 03.01.2022 by Gowtham valmiki #8000007871
+*  CLEAR lv_spl_01.
+*  IF gs_output-name1 CA lwa_param_01-param_name.
+*    lv_spl_01 = gs_output-name1.
+*    CALL FUNCTION 'SF_SPECIALCHAR_DELETE'
+*      EXPORTING
+*        with_specialchar    = lv_spl_01
+*      IMPORTING
+*        without_specialchar = lv_spl_01
+*      EXCEPTIONS
+*        result_word_empty   = 1
+*        OTHERS              = 2.
+*    IF sy-subrc EQ 0.
+*      gs_output-name1 = lv_spl_01.
+*    ENDIF.
+*  ENDIF.
+****Eoc added on 03.01.2022 by Gowtham valmiki #8000007871
+        APPEND gs_output TO gt_output.
+        CLEAR gs_output.
+      ENDIF.
+    ENDIF.
+
+    CLEAR gs_zvttp.
+  ENDLOOP.
+
+*  IF s_tdlnr1[] IS NOT INITIAL.
+*    DELETE gt_output WHERE tdlnr_i NOT IN s_tdlnr1.
+*  ENDIF.
+*
+*  IF s_lrno[] IS NOT INITIAL.
+*    DELETE gt_output WHERE lrno NOT IN s_lrno.
+*  ENDIF.
+*
+*  IF s_lrdate[] IS NOT INITIAL.
+*    DELETE gt_output WHERE lrdate NOT IN s_lrdate.
+*  ENDIF.
+*
+*  IF s_exti1[] IS NOT INITIAL.
+*    DELETE gt_output WHERE exti1_t NOT IN s_exti1.
+*  ENDIF.
+*
+*  IF s_stabr[] IS NOT INITIAL.
+*    DELETE gt_output WHERE stabr_t NOT IN s_stabr.
+*  ENDIF.
+*
+**SOC By Nilesh 08.07.2019 8000005580
+*  IF s_budat[] IS NOT INITIAL.
+*    DELETE gt_output WHERE trandat NOT IN s_budat.
+*  ENDIF.
+
+  IF s_vsart[] IS NOT INITIAL.
+*    DELETE gt_output WHERE vsart NOT IN s_vsart."Commented by Nilesh 25.07.2019
+
+*SOC By Nilesh 8000005580 25.07.2019
+    SELECT tknum,
+           vsart
+      FROM vttk
+      INTO TABLE @DATA(ta_vttk)
+      FOR ALL ENTRIES IN @gt_output
+      WHERE tknum = @gt_output-tknum
+       AND  vsart IN @s_vsart.
+    IF sy-subrc = 0.
+      LOOP AT gt_output ASSIGNING FIELD-SYMBOL(<wa_gt_output>).
+        READ TABLE ta_vttk INTO DATA(wa_vttk) WITH KEY tknum = <wa_gt_output>-tknum.
+        IF sy-subrc  NE 0.
+          DELETE gt_output WHERE tknum = <wa_gt_output>-tknum.
+        ENDIF.
+      ENDLOOP.
+    ENDIF.
+*EOC By Nilesh 8000005580 25.07.2019
+  ENDIF.
+*EOC By Nilesh 08.07.2019 8000005580
+
+***SOA by Gajanan on 14.01.2021 for CR#8000006580***
+*  IF NOT gt_output IS INITIAL.
+*
+*    DATA(ta_vfkk) = gt_vfkk.
+*    SORT ta_vfkk BY fknum.
+*
+*    LOOP AT gt_output INTO gs_output.
+*      READ TABLE ta_vfkk INTO DATA(wa_vfkk) WITH KEY fknum = gs_output-fknum
+*                                                     BINARY SEARCH.
+*      IF sy-subrc = 0.
+*        gs_output-stfre = wa_vfkk-stfre.
+*        MODIFY gt_output FROM gs_output TRANSPORTING stfre.
+*      ENDIF.
+*      CLEAR: gs_output,wa_vfkk.
+*    ENDLOOP.
+*
+*    IF NOT s_stfre IS INITIAL.
+*      DELETE gt_output WHERE stfre NOT IN s_stfre.
+*    ENDIF.
+*
+*  ENDIF.
+***EOA by Gajanan on 14.01.2021 for CR#8000006580***
+
+
+  EXPORT gt_output TO MEMORY ID 'ZLE_SHP_LOAD'.  "SOC added by Sumeet on 10.05.2021 against 8000007035
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form  FETCH_COST_FROM_SIMULATION
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_TKNUM  text
+*      <--P_NETWR  text
+*----------------------------------------------------------------------*
+FORM fetch_cost_from_simulation  USING    p_tknum
+                                 CHANGING p_netwr.
+
+  DATA : lt_vttp     TYPE STANDARD TABLE OF vttpvb,
+         lt_vtrlk    TYPE STANDARD TABLE OF vtrlk,
+         lt_vtrlp    TYPE STANDARD TABLE OF vtrlp,
+         lt_vtts     TYPE STANDARD TABLE OF vttsvb,
+         lt_vtsp     TYPE STANDARD TABLE OF vtspvb,
+         lt_vbpa     TYPE STANDARD TABLE OF vbpavb,
+         lt_vbadr    TYPE STANDARD TABLE OF sadrvb,
+         lt_vtfa     TYPE STANDARD TABLE OF vtfavb,
+         lt_log_file TYPE STANDARD TABLE OF sprot_u,
+
+         ls_vttk     TYPE vttkvb,
+         ls_tvtk     TYPE tvtk,
+         ls_ttds     TYPE ttds,
+         ls_shp_data TYPE vt04_shipment,
+
+         lv_netwr    TYPE netwr_all,
+         lv_waers    TYPE waers_all,
+         lv_error    TYPE c.
+
+  IF p_tknum IS NOT INITIAL.
+
+    CALL FUNCTION 'RV_SHIPMENT_VIEW'
+      EXPORTING
+        shipment_number   = p_tknum
+        option_tvtk       = abap_true
+        option_ttds       = abap_true
+        language          = sy-langu
+        option_items      = abap_true
+        option_stawn_read = abap_true
+        option_segments   = abap_true
+        option_partners   = abap_true
+        option_messages   = abap_true
+        option_flow       = abap_true
+      IMPORTING
+        f_vttkvb          = ls_vttk
+        f_tvtk            = ls_tvtk
+        f_ttds            = ls_ttds
+      TABLES
+        f_vttp            = lt_vttp
+        f_trlk            = lt_vtrlk
+        f_trlp            = lt_vtrlp
+        f_vtts            = lt_vtts
+        f_vtsp            = lt_vtsp
+        f_vbpa            = lt_vbpa
+        f_vbadr           = lt_vbadr
+        f_vtfa            = lt_vtfa
+      EXCEPTIONS
+        not_found         = 1
+        no_authority      = 2
+        delivery_missing  = 3
+        delivery_lock     = 4
+        OTHERS            = 5.
+    IF sy-subrc = 0.
+
+      CLEAR ls_shp_data.
+
+      ls_shp_data-tvtk_wa = ls_tvtk.
+      ls_shp_data-ttds_wa = ls_ttds.
+
+      APPEND ls_vttk TO ls_shp_data-xvttk.
+      ls_shp_data-xvttp[] = lt_vttp[].
+      ls_shp_data-xvtts[] = lt_vtts[].
+      ls_shp_data-xvtsp[] = lt_vtsp[].
+      ls_shp_data-xvbpa[] = lt_vbpa[].
+      ls_shp_data-xvtfa[] = lt_vtfa[].
+      ls_shp_data-xsadr[] = lt_vbadr[].
+      ls_shp_data-xtrlk[] = lt_vtrlk[].
+      ls_shp_data-xtrlp[] = lt_vtrlp[].
+
+      IF ls_shp_data IS NOT INITIAL.
+        CALL FUNCTION 'SD_SCD_COST_INFO_SHIPMENT'
+          EXPORTING
+            i_shipment_data  = ls_shp_data
+            i_opt_batch_mode = abap_true
+            i_opt_sim        = 4
+          IMPORTING
+            e_result         = lv_netwr
+            e_result_waers   = lv_waers
+            e_errors_occured = lv_error
+          TABLES
+            c_log_file       = lt_log_file.
+        IF lv_netwr IS NOT INITIAL.
+          p_netwr = lv_netwr.
+        ENDIF.
+      ENDIF.
+
+    ENDIF.
+
+  ENDIF.
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*& Form DISPLAY
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM display .
+***Soc added on 03.01.2022 by Gowtham valmiki #8000007871
+  CONSTANTS:lc_spl      TYPE char8 VALUE 'SPL_CHAR',
+            "SOA by Debasmita - CR#8000008137 - 12.10.2022
+            lc_new_line TYPE c VALUE cl_abap_char_utilities=>newline,
+            lc_cr_lf    TYPE c VALUE cl_abap_char_utilities=>cr_lf,
+            lc_hor_tab  TYPE c VALUE cl_abap_char_utilities=>horizontal_tab.
+  "EOA By Debasmita - CR#8000008137 - 12.10.2022
+
+  DATA:lv_spl_01  TYPE fist-searchw,
+       lv_gesztda TYPE string,
+       lv_warztda TYPE string.
+
+  SELECT SINGLE * FROM zparam_table INTO @DATA(lwa_param_01) WHERE id_name EQ @lc_spl.
+  DATA(lt_output_01) = gt_output.
+  REFRESH gt_output.
+  LOOP AT lt_output_01 INTO DATA(lwa_output_01).
+    CLEAR lv_spl_01.
+    IF lwa_output_01-zreas CA lwa_param_01-param_name.
+      lv_spl_01 = lwa_output_01-zreas.
+      CALL FUNCTION 'SF_SPECIALCHAR_DELETE'
+        EXPORTING
+          with_specialchar    = lv_spl_01
+        IMPORTING
+          without_specialchar = lv_spl_01
+        EXCEPTIONS
+          result_word_empty   = 1
+          OTHERS              = 2.
+      IF sy-subrc EQ 0.
+        lwa_output_01-zreas = lv_spl_01.
+      ENDIF.
+    ENDIF.
+    "SOA By Debasmita - CR#8000008137 - 12.10.2022
+    REPLACE ALL OCCURRENCES OF lc_new_line IN lwa_output_01-zreas WITH space.
+    REPLACE ALL OCCURRENCES OF lc_cr_lf IN lwa_output_01-zreas WITH space.
+    REPLACE ALL OCCURRENCES OF lc_hor_tab IN lwa_output_01-zreas WITH space.
+    CONDENSE lwa_output_01-zreas.
+    "EOA By Debasmita - CR#8000008137 - 12.10.2022
+    CLEAR lv_spl_01.
+    IF lwa_output_01-rt_bezei CA lwa_param_01-param_name.
+      lv_spl_01 = lwa_output_01-rt_bezei.
+      CALL FUNCTION 'SF_SPECIALCHAR_DELETE'
+        EXPORTING
+          with_specialchar    = lv_spl_01
+        IMPORTING
+          without_specialchar = lv_spl_01
+        EXCEPTIONS
+          result_word_empty   = 1
+          OTHERS              = 2.
+      IF sy-subrc EQ 0.
+        lwa_output_01-rt_bezei = lv_spl_01.
+      ENDIF.
+    ENDIF.
+    "SOA By Debasmita - CR#8000008137 - 12.10.2022
+    REPLACE ALL OCCURRENCES OF lc_new_line IN  lwa_output_01-rt_bezei WITH space.
+    REPLACE ALL OCCURRENCES OF lc_cr_lf IN lwa_output_01-rt_bezei WITH space.
+    REPLACE ALL OCCURRENCES OF lc_hor_tab IN lwa_output_01-rt_bezei WITH space.
+    CONDENSE lwa_output_01-rt_bezei.
+    "EOA By Debasmita - CR#8000008137 - 12.10.2022
+    CLEAR lv_spl_01.
+    IF lwa_output_01-name1 CA lwa_param_01-param_name.
+      lv_spl_01 = lwa_output_01-name1.
+      CALL FUNCTION 'SF_SPECIALCHAR_DELETE'
+        EXPORTING
+          with_specialchar    = lv_spl_01
+        IMPORTING
+          without_specialchar = lv_spl_01
+        EXCEPTIONS
+          result_word_empty   = 1
+          OTHERS              = 2.
+      IF sy-subrc EQ 0.
+        lwa_output_01-name1 = lv_spl_01.
+      ENDIF.
+    ENDIF.
+    "SOA By Debasmita - CR#8000008137 - 12.10.2022
+    REPLACE ALL OCCURRENCES OF lc_new_line IN  lwa_output_01-name1 WITH space.
+    REPLACE ALL OCCURRENCES OF lc_cr_lf IN lwa_output_01-name1 WITH space.
+    REPLACE ALL OCCURRENCES OF lc_hor_tab IN lwa_output_01-name1 WITH space.
+    CONDENSE lwa_output_01-name1.
+    "EOA By Debasmita - CR#8000008137 - 12.10.2022
+*    CLEAR lv_spl_01.
+*    IF lwa_output_01-text3 CA lwa_param_01-param_name.
+*      lv_spl_01 = lwa_output_01-text3.
+*      CALL FUNCTION 'SF_SPECIALCHAR_DELETE'
+*        EXPORTING
+*          with_specialchar    = lv_spl_01
+*        IMPORTING
+*          without_specialchar = lv_spl_01
+*        EXCEPTIONS
+*          result_word_empty   = 1
+*          OTHERS              = 2.
+*      IF sy-subrc EQ 0.
+*        lwa_output_01-text3 = lv_spl_01.
+*      ENDIF.
+*    ENDIF.
+*    CLEAR: lv_spl_01,lv_gesztda,lv_warztda.
+*    lv_gesztda = lwa_output_01-gesztda.
+*    IF lv_gesztda CA lwa_param_01-param_name.
+*      lv_spl_01 = lwa_output_01-gesztda.
+*      CALL FUNCTION 'SF_SPECIALCHAR_DELETE'
+*        EXPORTING
+*          with_specialchar    = lv_spl_01
+*        IMPORTING
+*          without_specialchar = lv_spl_01
+*        EXCEPTIONS
+*          result_word_empty   = 1
+*          OTHERS              = 2.
+*      IF sy-subrc EQ 0.
+*        lwa_output_01-gesztda = lv_spl_01.
+*      ENDIF.
+*    ENDIF.
+*    CLEAR lv_spl_01.
+*    lv_warztda = lwa_output_01-warztda.
+*    IF lv_warztda CA lwa_param_01-param_name.
+*      lv_spl_01 = lwa_output_01-warztda.
+*      CALL FUNCTION 'SF_SPECIALCHAR_DELETE'
+*        EXPORTING
+*          with_specialchar    = lv_spl_01
+*        IMPORTING
+*          without_specialchar = lv_spl_01
+*        EXCEPTIONS
+*          result_word_empty   = 1
+*          OTHERS              = 2.
+*      IF sy-subrc EQ 0.
+*        lwa_output_01-warztda = lv_spl_01.
+*      ENDIF.
+*    ENDIF.
+*    CLEAR lv_spl_01.
+*    IF lwa_output_01-text1 CA lwa_param_01-param_name.
+*      lv_spl_01 = lwa_output_01-text1.
+*      CALL FUNCTION 'SF_SPECIALCHAR_DELETE'
+*        EXPORTING
+*          with_specialchar    = lv_spl_01
+*        IMPORTING
+*          without_specialchar = lv_spl_01
+*        EXCEPTIONS
+*          result_word_empty   = 1
+*          OTHERS              = 2.
+*      IF sy-subrc EQ 0.
+*        lwa_output_01-text1 = lv_spl_01.
+*      ENDIF.
+*    ENDIF.
+*    CLEAR lv_spl_01.
+*    IF lwa_output_01-text2 CA lwa_param_01-param_name.
+*      lv_spl_01 = lwa_output_01-text2.
+*      CALL FUNCTION 'SF_SPECIALCHAR_DELETE'
+*        EXPORTING
+*          with_specialchar    = lv_spl_01
+*        IMPORTING
+*          without_specialchar = lv_spl_01
+*        EXCEPTIONS
+*          result_word_empty   = 1
+*          OTHERS              = 2.
+*      IF sy-subrc EQ 0.
+*        lwa_output_01-text2 = lv_spl_01.
+*      ENDIF.
+*    ENDIF.
+*    CLEAR lv_spl_01.
+*    IF lwa_output_01-diversion1 CA lwa_param_01-param_name.
+*      lv_spl_01 = lwa_output_01-diversion1.
+*      CALL FUNCTION 'SF_SPECIALCHAR_DELETE'
+*        EXPORTING
+*          with_specialchar    = lv_spl_01
+*        IMPORTING
+*          without_specialchar = lv_spl_01
+*        EXCEPTIONS
+*          result_word_empty   = 1
+*          OTHERS              = 2.
+*      IF sy-subrc EQ 0.
+*        lwa_output_01-diversion1 = lv_spl_01.
+*      ENDIF.
+*    ENDIF.
+*    CLEAR lv_spl_01.
+*    IF lwa_output_01-diversion2 CA lwa_param_01-param_name.
+*      lv_spl_01 = lwa_output_01-diversion2.
+*      CALL FUNCTION 'SF_SPECIALCHAR_DELETE'
+*        EXPORTING
+*          with_specialchar    = lv_spl_01
+*        IMPORTING
+*          without_specialchar = lv_spl_01
+*        EXCEPTIONS
+*          result_word_empty   = 1
+*          OTHERS              = 2.
+*      IF sy-subrc EQ 0.
+*        lwa_output_01-diversion2 = lv_spl_01.
+*      ENDIF.
+*    ENDIF.
+*    CLEAR lv_spl_01.
+*    IF lwa_output_01-diversion3 CA lwa_param_01-param_name.
+*      lv_spl_01 = lwa_output_01-diversion3.
+*      CALL FUNCTION 'SF_SPECIALCHAR_DELETE'
+*        EXPORTING
+*          with_specialchar    = lv_spl_01
+*        IMPORTING
+*          without_specialchar = lv_spl_01
+*        EXCEPTIONS
+*          result_word_empty   = 1
+*          OTHERS              = 2.
+*      IF sy-subrc EQ 0.
+*        lwa_output_01-diversion3 = lv_spl_01.
+*      ENDIF.
+*    ENDIF.
+*    CLEAR lv_spl_01.
+*    IF lwa_output_01-exti1 CA lwa_param_01-param_name.
+*      lv_spl_01 = lwa_output_01-exti1.
+*      CALL FUNCTION 'SF_SPECIALCHAR_DELETE'
+*        EXPORTING
+*          with_specialchar    = lv_spl_01
+*        IMPORTING
+*          without_specialchar = lv_spl_01
+*        EXCEPTIONS
+*          result_word_empty   = 1
+*          OTHERS              = 2.
+*      IF sy-subrc EQ 0.
+*        lwa_output_01-exti1 = lv_spl_01.
+*      ENDIF.
+*    ENDIF.
+    CLEAR lv_spl_01.
+    IF lwa_output_01-signi CA lwa_param_01-param_name.
+      lv_spl_01 = lwa_output_01-signi.
+      CALL FUNCTION 'SF_SPECIALCHAR_DELETE'
+        EXPORTING
+          with_specialchar    = lv_spl_01
+        IMPORTING
+          without_specialchar = lv_spl_01
+        EXCEPTIONS
+          result_word_empty   = 1
+          OTHERS              = 2.
+      IF sy-subrc EQ 0.
+        lwa_output_01-signi = lv_spl_01.
+      ENDIF.
+    ENDIF.
+    "SOA By Debasmita - CR#8000008137 - 12.10.2022
+    REPLACE ALL OCCURRENCES OF lc_new_line IN  lwa_output_01-signi WITH space.
+    REPLACE ALL OCCURRENCES OF lc_cr_lf IN lwa_output_01-signi WITH space.
+    REPLACE ALL OCCURRENCES OF lc_hor_tab IN lwa_output_01-signi WITH space.
+    CONDENSE lwa_output_01-signi.
+    "EOA By Debasmita - CR#8000008137 - 12.10.2022
+    CLEAR lv_spl_01.
+    IF lwa_output_01-lrno CA lwa_param_01-param_name.
+      lv_spl_01 = lwa_output_01-lrno.
+      CALL FUNCTION 'SF_SPECIALCHAR_DELETE'
+        EXPORTING
+          with_specialchar    = lv_spl_01
+        IMPORTING
+          without_specialchar = lv_spl_01
+        EXCEPTIONS
+          result_word_empty   = 1
+          OTHERS              = 2.
+      IF sy-subrc EQ 0.
+        lwa_output_01-lrno = lv_spl_01.
+      ENDIF.
+    ENDIF.
+    "SOA By Debasmita - CR#8000008137 - 12.10.2022
+    REPLACE ALL OCCURRENCES OF lc_new_line IN  lwa_output_01-lrno WITH space.
+    REPLACE ALL OCCURRENCES OF lc_cr_lf IN lwa_output_01-lrno WITH space.
+    REPLACE ALL OCCURRENCES OF lc_hor_tab IN lwa_output_01-lrno WITH space.
+    CONDENSE lwa_output_01-lrno.
+    "EOA By Debasmita - CR#8000008137 - 12.10.2022
+    CLEAR lv_spl_01.
+    IF lwa_output_01-st_desc CA lwa_param_01-param_name.
+      lv_spl_01 = lwa_output_01-st_desc.
+      CALL FUNCTION 'SF_SPECIALCHAR_DELETE'
+        EXPORTING
+          with_specialchar    = lv_spl_01
+        IMPORTING
+          without_specialchar = lv_spl_01
+        EXCEPTIONS
+          result_word_empty   = 1
+          OTHERS              = 2.
+      IF sy-subrc EQ 0.
+        lwa_output_01-st_desc = lv_spl_01.
+      ENDIF.
+    ENDIF.
+    "SOA By Debasmita - CR#8000008137 - 12.10.2022
+    REPLACE ALL OCCURRENCES OF lc_new_line IN  lwa_output_01-st_desc WITH space.
+    REPLACE ALL OCCURRENCES OF lc_cr_lf IN lwa_output_01-st_desc WITH space.
+    REPLACE ALL OCCURRENCES OF lc_hor_tab IN lwa_output_01-st_desc WITH space.
+    CONDENSE lwa_output_01-st_desc.
+    "EOA By Debasmita - CR#8000008137 - 12.10.2022
+    APPEND lwa_output_01 TO gt_output.
+    CLEAR:lwa_output_01.
+  ENDLOOP.
+***Eoc added on 03.01.2022 by Gowtham valmiki #8000007871
+  TRY.
+      CALL METHOD cl_salv_table=>factory
+        EXPORTING
+          list_display = if_salv_c_bool_sap=>false
+*         r_container  =
+*         container_name =
+        IMPORTING
+          r_salv_table = gr_table
+        CHANGING
+          t_table      = gt_output.
+    CATCH cx_salv_msg .
+
+  ENDTRY.
+
+  gr_functions = gr_table->get_functions( ).
+  gr_functions->set_all( abap_true ).
+  gr_functions->set_view_excel( abap_false ).
+
+  gr_layout = gr_table->get_layout( ).
+
+  CLEAR gs_alv_key.
+  gs_alv_key-report = sy-repid.
+
+  CLEAR gv_variant.
+  gv_variant = co_def."'DEFAULT'.
+
+  gr_layout->set_key( gs_alv_key ).
+  gr_layout->set_save_restriction( if_salv_c_layout=>restrict_none ).
+  gv_variant =  p_var.
+  gr_layout->set_initial_layout( gv_variant ).
+
+  CREATE OBJECT gr_grid.
+
+  CLEAR : gv_user,
+          gv_date,
+          gv_time.
+
+  SELECT SINGLE name_textc FROM user_addr
+        INTO gv_user WHERE bname = sy-uname.
+
+  gv_date = sy-datum.
+  gv_time = sy-uzeit.
+
+  gr_head = gr_grid->create_header_information( row     = 1
+                                                column  = 150
+                                                text    = co_shiptr ) ."'Shipment Transaction Report' ).
+
+  gr_label = gr_grid->create_label( row     = 2
+                                    column  = 1
+                                    text    = co_rb )."'Reported by  :' ).
+
+  gr_text = gr_grid->create_text( row     = 2
+                                  column  = 2
+                                  text    = gv_user ).
+
+  gr_label = gr_grid->create_label( row     = 3
+                                    column  = 1
+                                    text    = co_ro )."'Reported on  :' ).
+
+  gr_text = gr_grid->create_text( row     = 3
+                                  column  = 2
+                                  text    = gv_date ).
+
+  gr_label = gr_grid->create_label( row     = 4
+                                    column  = 1
+                                    text    = co_ra )."'Reported at  :' ).
+
+  gr_text = gr_grid->create_text( row     = 4
+                                  column  = 2
+                                  text    = gv_time ).
+
+  gr_text = gr_grid->create_text( row     = 5
+                                  column  = 1
+                                  text    = ' ' ).
+
+  gr_table->set_top_of_list( gr_grid ).
+
+  gr_selections = gr_table->get_selections( ).
+  gr_selections->set_selection_mode( if_salv_c_selection_mode=>row_column ).
+
+  gr_columns = gr_table->get_columns( ).
+  gr_columns->set_optimize( abap_true ).
+*  gr_columns->set_exception_column( value = 'STATUS' ).
+
+  "Start of change by Charitha as per CR# 8000005992 on 22.05.2020
+  PERFORM set_fieldcatalog USING 'TPLST'      'TPP' 'TPP' 'TPP' .
+  PERFORM set_fieldcatalog USING 'TKNUM'      'SHP Number' 'SHP Number' 'SHP Number'.
+  PERFORM set_fieldcatalog USING 'SHTYP'      'SHP Type' 'SHP Type' 'SHP Type' .
+  PERFORM set_fieldcatalog USING 'ST_DESC'    'SHP Type Description' 'Shp_typdes' 'SHP Type Description'.
+  PERFORM set_fieldcatalog USING 'VSART'      'Shipping Type' 'Ship Type' 'Shipping Type' .
+  PERFORM set_fieldcatalog USING 'ADD01'      'Load Type' 'Load Type' 'Load Type'.
+  PERFORM set_fieldcatalog USING 'ROUTE'      'Route Code' 'Route Code' 'Route Code'.
+  PERFORM set_fieldcatalog USING 'RT_BEZEI'   'Route Description' 'Route Dec' 'Route Description'.
+  PERFORM set_fieldcatalog USING 'DATBG'      'Shipment Start Date' 'Ship_strdt' 'Shipment Start Date'.
+  PERFORM set_fieldcatalog USING 'DATEN'      'Shipment End Date' 'Ship_Enddt' 'Shipment End Date'.
+  PERFORM set_fieldcatalog USING 'SIGNI'      'Vehicle Number'  'Vehicle No' 'Vehicle Number'.
+  PERFORM set_fieldcatalog USING 'TDLNR'      'SHP Transporter' 'SHP Vendor' 'SHP Transporter'.
+  PERFORM set_fieldcatalog USING 'NAME1'      'SHP Transporter Name' 'SHP Trans' 'SHP Transporter Name'.
+  PERFORM set_fieldcatalog USING 'TDLNR_I'    'LR Transporter' 'LR Vendor' 'LR Transporter' .
+*  PERFORM set_fieldcatalog USING 'DELAY_DAYS' 'No. of Delay Days' 'No.Dly Day' 'No of Delay Days'.
+*  PERFORM set_fieldcatalog USING 'ADD03'      'Delay' 'Delay' 'Delay'.
+*  PERFORM set_fieldcatalog USING 'TEXT3'      'Delay Remark' 'Delay Rem' 'Delay Remark'.
+*  PERFORM set_fieldcatalog USING 'GESZTDA'    'Waiting Days' 'Wait_Days' 'Waiting Days'.
+*  PERFORM set_fieldcatalog USING 'WARZTDA'    'Waitng Hours' 'Wait_Hrs' 'Waitng Hours'.
+*  PERFORM set_fieldcatalog USING 'TEXT1'      'Insurance Claim No.' 'Insu_Claim' 'Insurance Claim No'.
+*  PERFORM set_fieldcatalog USING 'TEXT2'      'Insurance Claim Amt' 'Ins_Clmamt' 'Insurance Claim Amt'.
+*  PERFORM set_fieldcatalog USING 'DIVERSION1' 'Diversion 1'  'Diversion1' 'Diversion 1'.
+*  PERFORM set_fieldcatalog USING 'DIVERSION2' 'Diversion 2' 'Diversion2' 'Diversion 2'.
+*  PERFORM set_fieldcatalog USING 'DIVERSION3' 'Diversion 3' 'Diversion3' 'Diversion 3'.
+  PERFORM set_fieldcatalog USING 'SHP_AMOUNT' 'Provision Amt' 'Provision' 'Provision Amt'.
+*  PERFORM set_fieldcatalog USING 'POSNR'      'Item Number' 'Item No' 'Item Number'.
+*  PERFORM set_fieldcatalog USING 'BLART'      'Item Type' 'Item Type' 'Item Type' .
+*  PERFORM set_fieldcatalog USING 'FKDAT'      'Billing Date' 'Bill_Date' 'Billing Date'.
+  PERFORM set_fieldcatalog USING 'VKORG'      'Sales org.' 'Sales org.' 'Sales org.'.
+*  PERFORM set_fieldcatalog USING 'WERKS'      'Supplying Plant' 'Suply_Plnt' 'Supplying Plant'.
+*  PERFORM set_fieldcatalog USING 'KUNNR'      'Customer Code' 'Cust_Code' 'Customer Code'.
+  PERFORM set_fieldcatalog USING 'INVNO'      'Invoice No.' 'Invoice No' 'Invoice No.'.
+*  PERFORM set_fieldcatalog USING 'FKART'      'Invoice Type' 'Inv Type' 'Invoice Type'.
+*  PERFORM set_fieldcatalog USING 'VCHTYP'     'Voucher Type' 'Vouch_Type' 'Voucher Type'.
+  PERFORM set_fieldcatalog USING 'LRNO'       'Inv LR No.' 'Inv LR No' 'Inv LR No.'.
+  PERFORM set_fieldcatalog USING 'LRDATE'     'LR Date' 'LR Date' 'LR Date'.
+*  PERFORM set_fieldcatalog USING 'VBELN'      'Delivery No.' 'Delv_No.' 'Delivery No.' .
+*  PERFORM set_fieldcatalog USING 'VSTEL'      'Shipping Point' 'Ship_Point' 'Shipping Point' .
+  PERFORM set_fieldcatalog USING 'SHIPPER'    'No. of Shipper' 'No_Shipper' 'No. of Shipper'.
+  PERFORM set_fieldcatalog USING 'INV_WEIGHT' 'SAP/MMS Inv. Weight' 'Inv_weight' 'SAP/MMS Inv Weight'.
+  PERFORM set_fieldcatalog USING 'SHP_WEIGHT' 'SHP Weight' 'SHP Weight' 'SHP Weight'.
+*  PERFORM set_fieldcatalog USING 'STABR'      'Transfer Status' 'Trans_Stat' 'Transfer Status'.
+*  PERFORM set_fieldcatalog USING 'STABR_TXT'  'Transfer Status Desc.' 'Trans_desc' 'Transfer Status Desc'.
+*  PERFORM set_fieldcatalog USING 'STABR_T'    ' ' ' ' ' ' .
+  PERFORM set_fieldcatalog USING 'FKNUM'       'Cost Doc Number' 'Cst_D_No' 'Cost Doc No'.
+*  PERFORM set_fieldcatalog USING 'FKNUM_T'    ' ' ' '  ' ' .
+*  PERFORM set_fieldcatalog USING 'TSHP_COST'  'Total SHP C Amount' 'Tot_shpamt' 'Total SHP C Amount'.
+*  PERFORM set_fieldcatalog USING 'ISHP_COST'  'Itemwise SHP C Amount' 'Itm_shpamt' 'Itemwis SHP C Amount'.
+*  PERFORM set_fieldcatalog USING 'EXTI1'      'Vendor Invoice' 'Vend_Inv' 'Vendor Invoice'.
+*  PERFORM set_fieldcatalog USING 'EXTI1_T'    ' ' ' ' ' '.
+*  PERFORM set_fieldcatalog USING 'EXTI2'      'Vendor Inv. Date' 'Vend InvDt' 'Vendor Inv Date'.
+*  PERFORM set_fieldcatalog USING 'EXTI2_T'    ' ' ' ' ' '.
+*  PERFORM set_fieldcatalog USING 'EXTDT'      ' ' ' ' ' '.
+*  PERFORM set_fieldcatalog USING 'ZFBDT'      'Bill Rec. Date' 'Bill_RecDt' 'Bill Rec Date'.
+*  PERFORM set_fieldcatalog USING 'BELNR'      'MIR7 Document ' 'MIR7' 'MIR7 Document'.
+*  PERFORM set_fieldcatalog USING 'GJAHR'      'Fiscal Year' 'FiscalYear' 'Fiscal Year'.
+*  PERFORM set_fieldcatalog USING 'RBSTAT'     'Inv. Status' 'Inv Status' 'Inv. Status'.
+*  PERFORM set_fieldcatalog USING 'RBSTAT_T'   'Inv. Status Desc.' 'Inv_Desc' 'Inv. Status Desc'.
+*  PERFORM set_fieldcatalog USING 'ZMN1'       'Minimum Charge' 'Min_Chrg' 'Minimum Charge'.
+*  PERFORM set_fieldcatalog USING 'ZBOK'       'Booking' 'Booking' 'Booking'.
+*  PERFORM set_fieldcatalog USING 'ZFTL'       'FTL' 'FTL' 'FTL'.
+*  PERFORM set_fieldcatalog USING 'ZDDC'       'Door Delivery' 'Door Delv' 'Door Delivery'.
+*  PERFORM set_fieldcatalog USING 'ZCLC'       'Colection Charge' 'Col_Charg' 'Colection Charge'.
+*  PERFORM set_fieldcatalog USING 'ZWCD'       'Waiting Day Amt' 'WaitDayAmt' 'Waiting Day Amt'.
+*  PERFORM set_fieldcatalog USING 'ZWCH'       'Waiting Hour Amt' 'WaitHrAmt' 'Waiting Hour Amt'.
+*  PERFORM set_fieldcatalog USING 'ZWN'        'Waiting Night Amt' 'WaitNgtAmt' 'Waiting Night Amt'.
+*  PERFORM set_fieldcatalog USING 'ZULC'       'Unloading Charge' 'Unload_Amt' 'Unloading Charge'.
+*  PERFORM set_fieldcatalog USING 'ZLC'        'Loading Charge' 'Load_Amt' 'Loading Charge'.
+*  PERFORM set_fieldcatalog USING 'ZOTH'       'Other Charges' 'Other_Chrg' 'Other Charges'.
+*  PERFORM set_fieldcatalog USING 'ZTOL'       'Toll Charges' 'Toll_Chrg' 'Toll Charges'.
+*  PERFORM set_fieldcatalog USING 'ZDLY'       'Delay Charges' 'Delay_Chrg' 'Delay Charges'.
+*  PERFORM set_fieldcatalog USING 'ZDED'       'Damage Deduction' 'Damage_Ded' 'Damage Deduction'.
+*  PERFORM set_fieldcatalog USING 'ZSCD'       'Shortage Deduction' 'Short_Ded' 'Shortage Deduction'.
+*  PERFORM set_fieldcatalog USING 'ZDIV'       'Diversion' 'Diversion' 'Diversion'.
+*  PERFORM set_fieldcatalog USING 'ZFSC'       'Fuel Surcharge' 'Fuel_Srchg' 'Fuel Surcharge'.
+*  PERFORM set_fieldcatalog USING 'ZODC'       'Outside Delivery Charges' 'OutDlvChrg' 'Outside DeliveryChrg'.
+*  PERFORM set_fieldcatalog USING 'ZGNT'       'Green Tax' 'Green Tax' 'Green Tax'.
+*  PERFORM set_fieldcatalog USING 'ZSPT'       'Spot Approval' 'Spot_Aprvl' 'Spot Approval' .
+*  PERFORM set_fieldcatalog USING 'ZDSV'       'Discount Value' 'Disct_Val' 'Discount Value'.
+*  PERFORM set_fieldcatalog USING 'ZSRC'       'Shortage Value' 'Short_Val' 'Shortage Value'.
+*  PERFORM set_fieldcatalog USING 'ZDMV'       'Damage Value' 'Damage_Val' 'Damage Value'.
+*  PERFORM set_fieldcatalog USING 'ZOTD'       'Other Deduction' 'Other_Ded' 'Other Deduction'.
+*  PERFORM set_fieldcatalog USING 'ZDLR'       'Delay Charge Reduction' 'Dly_crgred' 'Delay Chrg Reduction'.
+  PERFORM set_fieldcatalog USING 'ZYWGT'      'Old Weight' 'Old Weight' 'Old Weight'."co_ZYWGT       CO_OLDW.
+  PERFORM set_fieldcatalog USING 'ZREAS'      'Reason' 'Reason' 'Reason'."co_ZREAS       CO_REAS.
+*  PERFORM set_fieldcatalog USING 'TRANDAT'    'Transfer Date' 'Transfr_Dt' 'Transfer Date'."co_ZREAS       CO_REAS.
+*  PERFORM set_fieldcatalog USING 'ZIDC'       'IDC Charges' 'IDC Chrg' 'IDC Charges'.
+*  PERFORM set_fieldcatalog USING 'STFRE'       'Status' 'Status ' 'Status'.
+  gr_table->display( ).
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form  SET_FIELDCATALOG
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_VALUE1   text
+*      -->P_VALUE2   text
+*----------------------------------------------------------------------*
+FORM set_fieldcatalog  USING    VALUE(p_value1)
+                                VALUE(p_value2)
+                                VALUE(p_value3)
+                                VALUE(p_value4).
+
+  TRY.
+      gr_column ?= gr_columns->get_column( p_value1 ).
+*      gr_column->set_short_text( ' ' ).
+*      gr_column->set_medium_text( ' ' ).
+      gr_column->set_short_text( p_value3 ).
+      gr_column->set_medium_text( p_value4 ).
+      gr_column->set_long_text( p_value2 ).
+
+      IF p_value1 = co_shp_amount  OR p_value1 = co_invno     OR
+         p_value1 = co_inv_weight  OR p_value1 = co_tshp_cost OR
+         p_value1 = co_ishp_cost   OR p_value1 = co_zmn1      OR
+         p_value1 = co_zbok        OR p_value1 = co_zftl      OR  p_value1 = co_zddc OR
+         p_value1 = co_zclc        OR p_value1 = co_zwcd      OR  p_value1 = co_zwch OR
+         p_value1 = co_zwn         OR p_value1 = co_zulc      OR  p_value1 = co_zlc  OR
+         p_value1 = co_zoth        OR p_value1 = co_ztol      OR  p_value1 = co_zdly OR
+         p_value1 = co_zded        OR p_value1 = co_zdiv      OR  p_value1 = co_zfsc OR
+         p_value1 = co_zodc        OR p_value1 = co_zgnt      OR  p_value1 = co_zspt OR
+         p_value1 = co_zdsv        OR p_value1 = co_zsrc      OR  p_value1 = co_zdmv OR
+         p_value1 = co_zscd        OR p_value1 = co_zotd      OR  p_value1 = co_zdlr OR
+         p_value1 = co_zidc ."added by Nilesh 8000005580 02.07.2019
+
+        gr_column->set_zero( abap_false ).
+      ENDIF.
+
+*      IF p_value1 = co_shp_weight OR p_value1 = co_ishp_cost OR
+      IF p_value1 = co_ishp_cost OR
+               p_value1 = co_fknum_t    OR p_value1 = co_stabr_t   OR
+               p_value1 = co_exti1_t    OR p_value1 = co_exti2_t   OR
+               p_value1 = co_extdt.
+        gr_column->set_visible( abap_false ).
+      ENDIF.
+    CATCH cx_salv_not_found .
+    CATCH cx_salv_existing .
+    CATCH cx_salv_data_error .
+  ENDTRY.
+
+ENDFORM.

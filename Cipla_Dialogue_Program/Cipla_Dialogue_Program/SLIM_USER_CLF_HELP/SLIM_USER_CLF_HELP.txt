@@ -1,0 +1,14 @@
+*&---------------------------------------------------------------------*
+*& Report SLIM_USER_CLF_HELP
+*&---------------------------------------------------------------------*
+*& User Authorization Review
+*&---------------------------------------------------------------------*
+REPORT slim_user_clf_help.
+
+INCLUDE slim_user_clf_help_t01.
+INCLUDE slim_user_clf_help_s01.
+INCLUDE slim_user_clf_help_e01.
+INCLUDE slim_user_clf_help_c01.
+INCLUDE slim_user_clf_help_f01.
+INCLUDE slim_user_clf_help_o01.
+INCLUDE slim_user_clf_help_i01.

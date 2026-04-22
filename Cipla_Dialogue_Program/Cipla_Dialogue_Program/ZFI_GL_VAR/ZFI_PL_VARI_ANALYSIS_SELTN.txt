@@ -1,0 +1,56 @@
+*&---------------------------------------------------------------------*
+*&  Include           ZFI_PL_VARI_ANALYSIS_SELTN
+*&---------------------------------------------------------------------*
+*----------------------------------------------------------------------*
+* Program           : ZFI_PL_VARI_ANALYSIS_REPORT
+* Author            : Charitha
+* Program Type      : Executable
+* Creation Date     : 17.04.2020
+* Transaction       : ZFI_GL_VAR
+* Functional design : FS_FI_316_V1.0
+* Technical design  : TS_FI_316_V1.0
+* Change request    : 8000006230
+* Transport number  : CRDK969319
+* Description       : P&L/BS Variance Analysis- Dashboard
+*-----------------------------------------------------------------------*
+TABLES: ska1, csks.
+
+DATA:v_saknr TYPE saknr,
+     v_bukrs TYPE bukrs,
+     v_budat TYPE budat,
+     v_prctr TYPE prctr,
+     v_gjahr TYPE gjahr,
+     v_monat TYPE monat.
+
+*************************************************************************
+*                      Selection Screen Variables
+*************************************************************************
+
+SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE text-t01.
+
+SELECT-OPTIONS: so_saknr FOR v_saknr,
+                so_bukrs FOR v_bukrs OBLIGATORY.
+
+SELECTION-SCREEN END OF BLOCK b1.
+
+SELECTION-SCREEN BEGIN OF BLOCK b2 WITH FRAME TITLE text-t02.
+
+SELECT-OPTIONS so_budat FOR v_budat.
+
+SELECTION-SCREEN END OF BLOCK b2.
+
+SELECTION-SCREEN BEGIN OF BLOCK b3 WITH FRAME TITLE text-t03.
+
+SELECT-OPTIONS: so_glgrp FOR ska1-ktoks NO INTERVALS,
+                so_kostl FOR csks-kostl,
+                so_prctr FOR v_prctr,
+                so_monat FOR v_monat,
+                so_gjahr FOR v_gjahr.
+
+SELECTION-SCREEN END OF BLOCK b3.
+
+SELECTION-SCREEN BEGIN OF BLOCK b4 WITH FRAME TITLE text-t04.
+
+PARAMETERS: p_var TYPE disvariant-variant.
+
+SELECTION-SCREEN END OF BLOCK b4.
